@@ -6,6 +6,6 @@ The orchestrator AI that controls AIs.
 
 It is also should be possible to connect this AI to collective human intelligence. 
 
-Meaning this system may communicate with humans.
+Meaning this system may communicate with humans for expertice, feedback.
 
 The HIVE MIND.
