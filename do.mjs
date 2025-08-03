@@ -1,14 +1,8 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun";
-
-// Load use-m and yargs dynamically
-const { use } = eval(
-  await fetch('https://unpkg.com/use-m/use.js').then(u => u.text())
-);
-
-const yargsModule = await use('yargs@latest');
-const yargs = yargsModule.default || yargsModule;
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const yargs = (await use('yargs@latest')).default;
 
 // Configure command line arguments - prompt as positional argument
 const argv = yargs(process.argv.slice(2))
