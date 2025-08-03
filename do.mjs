@@ -17,16 +17,17 @@ const argv = yargs(process.argv.slice(2))
     type: 'string',
     description: 'The prompt to send to Claude'
   })
-  .demandCommand(1, 'You must provide a prompt')
+  .demandCommand(1, 'The prompt is required')
   .help('h')
   .alias('h', 'help')
   .argv;
 
 const prompt = argv._[0];
 
-// Execute the claude command with fixed options for Docker environment
+const claudePath = '/Users/konard/.claude/local/claude';
+
 try {
-  const result = await $`/Users/konard/.claude/local/claude -p '${prompt}' --output-format 'stream-json' --verbose --dangerously-skip-permissions | jq`;
+  const result = await $`${claudePath} -p '${prompt}' --output-format 'stream-json' --verbose --dangerously-skip-permissions --append-system-prompt 'All code changes must be tested before finishing the work.' --model sonnet | jq`;
   console.log(result.text());
 } catch (error) {
   console.error('Error executing command:', error.message);
