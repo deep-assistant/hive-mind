@@ -19,6 +19,7 @@ const yargs = (await use('yargs@latest')).default;
 const os = (await import('os')).default;
 const path = (await import('path')).default;
 const fs = (await import('fs')).promises;
+const crypto = (await import('crypto')).default;
 
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
@@ -61,7 +62,24 @@ try {
   
   console.log(`Repository cloned successfully to ${tempDir}`);
   
+  // Create a branch for the issue
+  const randomHex = crypto.randomBytes(4).toString('hex');
+  const branchName = `issue-${issueNumber}-${randomHex}`;
+  console.log(`Creating branch: ${branchName}`);
+  await $`cd ${tempDir} && git checkout -b ${branchName}`;
+  console.log(`Switched to branch: ${branchName}`);
+  
   const prompt = `GitHub Issue Solver Task:
+
+You are currently in a git repository with a new branch already created: ${branchName}
+You do NOT need to create a new branch - you're already on the correct branch for this issue.
+
+CRITICAL GIT RULES:
+- NEVER use git rebase, git reset --hard, or any command that rewrites git history
+- NEVER force push (git push -f or git push --force)
+- NEVER attempt to push to the main/master branch - it is protected
+- Only use forward-moving git operations (commit, merge, regular push or revert if needed)
+- Always push your issue branch (${branchName}) and create a pull request from it
 
 1. INITIAL RESEARCH PHASE:
    a) Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
@@ -120,8 +138,18 @@ IMPORTANT:
   
   const { spawn } = (await import('child_process')).default;
   
+  // Create a buffer to capture output while also streaming it
+  let capturedOutput = '';
+  
   const claudeProcess = spawn('sh', ['-c', `cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`], {
-    stdio: 'inherit'
+    stdio: ['inherit', 'pipe', 'inherit']
+  });
+  
+  // Stream stdout to console while capturing it
+  claudeProcess.stdout.on('data', (data) => {
+    const chunk = data.toString();
+    process.stdout.write(chunk);
+    capturedOutput += chunk;
   });
   
   const exitCode = await new Promise((resolve) => {
@@ -133,13 +161,10 @@ IMPORTANT:
     process.exit(1);
   }
   
-  // Since we're using inherit stdio, we can't capture the output for URL extraction
-  // We'll rely on the user to see the output and determine success
   console.log('Claude command completed successfully');
-  process.exit(0);
   
-  // Extract all GitHub URLs from the output
-  const githubUrls = output.match(/https:\/\/github\.com\/[^\s\)]+/g) || [];
+  // Extract all GitHub URLs from the captured output
+  const githubUrls = capturedOutput.match(/https:\/\/github\.com\/[^\s\)"]+/g) || [];
   
   // Get the last GitHub URL (most likely the result)
   const lastUrl = githubUrls[githubUrls.length - 1];
@@ -151,16 +176,16 @@ IMPORTANT:
     const commentPattern = new RegExp(`^https://github\\.com/${owner}/${repo}/issues/${issueNumber}#issuecomment-\\d+`);
     
     if (prPattern.test(lastUrl)) {
-      console.log(`SUCCESS: Pull Request created at ${lastUrl}`);
+      console.log(`\nSUCCESS: Pull Request created at ${lastUrl}`);
       process.exit(0);
     } else if (commentPattern.test(lastUrl)) {
-      console.log(`SUCCESS: Comment posted at ${lastUrl}`);
+      console.log(`\nSUCCESS: Comment posted at ${lastUrl}`);
       process.exit(0);
     }
   }
   
   // If no valid link found, return error
-  console.error('FAILURE: No valid Pull Request or Comment link found in output');
+  console.error('\nFAILURE: No valid Pull Request or Comment link found in output');
   process.exit(1);
   
 } catch (error) {
