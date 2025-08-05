@@ -63,29 +63,55 @@ try {
   
   const prompt = `GitHub Issue Solver Task:
 
-1. Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
-   - Get issue title, description, labels, comments, and any other relevant details
-   - Understand the problem completely before proceeding
+1. INITIAL RESEARCH PHASE:
+   a) Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
+      - Get issue title, description, labels, comments, and any other relevant details
+      - Understand the problem completely before proceeding
+   
+   b) Explore the organization's codebase for context:
+      - Use gh tool to search for related code across the entire ${owner} organization
+      - Look for similar implementations, patterns, or related functionality
+      - Use: gh search code --owner ${owner} [relevant keywords from issue]
+   
+   c) Review previous pull requests:
+      - Search for closed/merged PRs related to this issue or similar features
+      - Use: gh pr list --repo ${owner}/${repo} --state all --search "[keywords]"
+      - Study merged PRs to understand the repository's code style and conventions
+      - Look for any previous attempts to solve this issue
 
-2. Analyze if this issue is solvable via Pull Request:
-   - If YES: Create a solution by implementing the necessary code changes and submit a pull request
-   - If NO: Comment on the issue asking for clarification or explaining what information is needed
+2. COMPREHENSIVE TESTING APPROACH:
+   - DO NOT HESITATE to write and run tests to understand how the codebase works
+   - Test individual functions to understand their behavior and API
+   - Write unit tests with mocks for your solution
+   - Include integration/e2e tests where appropriate
+   - Use the existing test framework in the repository
+   - Run: npm test, pytest, go test, or whatever testing command the repo uses
+   - Your PR MUST include automated tests that verify the solution works correctly
 
-3. Guidelines:
+3. SOLUTION IMPLEMENTATION:
+   - Analyze if this issue is solvable via Pull Request:
+     * If YES: Create a solution with comprehensive tests and submit a pull request
+     * If NO: Comment on the issue asking for clarification or explaining what information is needed
+   
+4. Guidelines:
    - Read all issue details and comments thoroughly
-   - Follow the repository's contributing guidelines and code style
-   - Test any code changes before submitting
+   - Study the codebase style from merged PRs before writing code
+   - Follow the repository's contributing guidelines and code style exactly
+   - Test any code changes thoroughly before submitting
    - Write clear commit messages and PR descriptions
+   - Include automated tests in your PR to test key features of your solution
    - If the issue requires clarification, ask specific questions in a comment
 
 Repository: ${owner}/${repo}
 Issue Number: ${issueNumber}
 
-IMPORTANT: Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
+IMPORTANT: 
+- Your Pull Request SHOULD contain automated tests (unit, integration, or e2e as appropriate)
+- Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
 
   // Execute claude command from the cloned repository directory
   console.log(`Executing claude command from repository directory...`);
-  const result = await $`cd ${tempDir} && ${claudePath} -p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "You are solving a GitHub issue. Use the gh tool to read issue details first, then either create a PR solution or comment with questions. Always test code changes and follow repository conventions. Make sure to mention the resulting link in your response." --model sonnet | jq`;
+  const result = await $`cd ${tempDir} && ${claudePath} -p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "You are an expert GitHub issue solver. CRITICAL REQUIREMENTS: 1) First use gh tool to thoroughly research: explore the entire organization's codebase for context, review merged PRs for code style, search for related implementations. 2) TESTING IS MANDATORY: Write and run tests to understand the codebase, test individual functions to learn their APIs, include comprehensive automated tests (unit/integration/e2e) in your PR. 3) Your PR must contain automated tests that verify your solution. 4) Study the repository's testing framework and use it properly. 5) Always mention the resulting PR or comment link in your response." --model sonnet | jq`;
   
   const output = result.text();
   console.log(output);
