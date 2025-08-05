@@ -1,0 +1,31 @@
+FROM node:20
+
+# Install jq and sudo for JSON processing and user permissions
+RUN apt-get update && apt-get install -y jq sudo && rm -rf /var/lib/apt/lists/*
+
+# Create claude user with sudo privileges and npm permissions
+RUN useradd -m -s /bin/bash claude && \
+    echo "claude ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    chown -R claude:claude /usr/local/lib/node_modules && \
+    chown -R claude:claude /usr/local/bin && \
+    chmod -R 755 /usr/local/lib/node_modules
+
+# Create the same directory structure as host to maintain path consistency
+RUN mkdir -p /Users/konard
+
+USER claude
+WORKDIR /home/claude
+
+# Copy the wrapper script
+COPY --chown=claude:claude do.mjs /home/claude/do.mjs
+RUN chmod +x /home/claude/do.mjs
+
+# Set environment variable to use mounted claude installation
+ENV CLAUDE_PATH=/Users/konard/.claude/local/claude
+
+# Set the entrypoint to our wrapper script
+# Note: Mount the .claude directory to the same path as host:
+# -v ~/.claude:/Users/konard/.claude
+# AND mount config to home:
+# -v ~/.claude:/home/claude/.claude
+ENTRYPOINT ["/home/claude/do.mjs"]
