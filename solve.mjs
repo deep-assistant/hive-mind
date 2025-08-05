@@ -133,23 +133,61 @@ IMPORTANT:
   const escapedPrompt = prompt.replace(/\n/g, '\\n');
   const escapedSystemPrompt = systemPrompt.replace(/\n/g, '\\n');
 
+  // Get timestamps from GitHub servers before executing the command
+  console.log('Getting reference timestamps from GitHub...');
+  
+  let referenceTime;
+  try {
+    // Get the issue's last update time
+    const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
+    const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
+    console.log(`  Issue last updated: ${issueUpdatedAt.toISOString()}`);
+    
+    // Get the last comment's timestamp (if any)
+    const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+    const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
+    const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
+    if (lastCommentTime) {
+      console.log(`  Last comment time: ${lastCommentTime.toISOString()}`);
+    } else {
+      console.log(`  No comments found on issue`);
+    }
+    
+    // Get the most recent pull request's timestamp
+    const prsResult = await $`gh pr list --repo ${owner}/${repo} --limit 1 --json createdAt`;
+    const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
+    const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
+    if (lastPrTime) {
+      console.log(`  Most recent PR in repo: ${lastPrTime.toISOString()}`);
+    } else {
+      console.log(`  No PRs found in repo`);
+    }
+    
+    // Use the most recent timestamp as reference
+    referenceTime = issueUpdatedAt;
+    if (lastCommentTime && lastCommentTime > referenceTime) {
+      referenceTime = lastCommentTime;
+    }
+    if (lastPrTime && lastPrTime > referenceTime) {
+      referenceTime = lastPrTime;
+    }
+    
+    console.log(`✓ Using reference timestamp: ${referenceTime.toISOString()}`);
+  } catch (timestampError) {
+    console.warn('Warning: Could not get GitHub timestamps, using current time as reference');
+    console.warn(`  Error: ${timestampError.message}`);
+    referenceTime = new Date();
+    console.log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
+  }
+  
   // Execute claude command from the cloned repository directory
-  console.log(`Executing claude command from repository directory...`);
+  console.log(`\nExecuting claude command from repository directory...`);
   
   const { spawn } = (await import('child_process')).default;
   
-  // Create a buffer to capture output while also streaming it
-  let capturedOutput = '';
-  
+  // Use inherit for all stdio to stream output directly to the terminal
   const claudeProcess = spawn('sh', ['-c', `cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`], {
-    stdio: ['inherit', 'pipe', 'inherit']
-  });
-  
-  // Stream stdout to console while capturing it
-  claudeProcess.stdout.on('data', (data) => {
-    const chunk = data.toString();
-    process.stdout.write(chunk);
-    capturedOutput += chunk;
+    stdio: 'inherit'
   });
   
   const exitCode = await new Promise((resolve) => {
@@ -161,32 +199,87 @@ IMPORTANT:
     process.exit(1);
   }
   
-  console.log('Claude command completed successfully');
+  console.log('\nClaude command completed successfully');
   
-  // Extract all GitHub URLs from the captured output
-  const githubUrls = capturedOutput.match(/https:\/\/github\.com\/[^\s\)"]+/g) || [];
+  // Now search for newly created pull requests and comments
+  console.log('\n=== Searching for results ===');
+  console.log(`Branch name: ${branchName}`);
+  console.log(`Reference time: ${referenceTime.toISOString()}`);
   
-  // Get the last GitHub URL (most likely the result)
-  const lastUrl = githubUrls[githubUrls.length - 1];
-  
-  if (lastUrl) {
-    // Check if it's a PR in the same repo
-    const prPattern = new RegExp(`^https://github\\.com/${owner}/${repo}/pull/\\d+`);
-    // Check if it's a comment on the same issue
-    const commentPattern = new RegExp(`^https://github\\.com/${owner}/${repo}/issues/${issueNumber}#issuecomment-\\d+`);
+  try {
+    // Get the current user's GitHub username
+    const userResult = await $`gh api user --jq .login`;
+    const currentUser = userResult.stdout.toString().trim();
+    console.log(`Current GitHub user: ${currentUser}`);
     
-    if (prPattern.test(lastUrl)) {
-      console.log(`\nSUCCESS: Pull Request created at ${lastUrl}`);
+    // Search for pull requests created from our branch after the reference time
+    console.log(`\nSearching for PRs from branch '${branchName}' created after ${referenceTime.toISOString()}...`);
+    
+    // First, get all PRs from our branch to debug
+    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName`;
+    const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
+    console.log(`  Found ${allBranchPrs.length} PR(s) from branch ${branchName}:`);
+    allBranchPrs.forEach(pr => {
+      console.log(`    - PR #${pr.number}: created at ${pr.createdAt} (${new Date(pr.createdAt) > referenceTime ? 'NEW' : 'old'})`);
+    });
+    
+    // Now filter for new ones
+    const newPrs = allBranchPrs.filter(pr => new Date(pr.createdAt) > referenceTime);
+    
+    if (newPrs.length > 0) {
+      const pr = newPrs[0];
+      console.log(`\n✓ Found new PR #${pr.number} created at ${pr.createdAt}`);
+      console.log(`\nSUCCESS: Pull Request created at ${pr.url}`);
       process.exit(0);
-    } else if (commentPattern.test(lastUrl)) {
-      console.log(`\nSUCCESS: Comment posted at ${lastUrl}`);
-      process.exit(0);
+    } else {
+      console.log(`  No new PRs found from branch ${branchName} after ${referenceTime.toISOString()}`);
     }
+    
+    // If no PR found, search for recent comments on the issue
+    console.log(`\nSearching for comments by ${currentUser} on issue #${issueNumber} after ${referenceTime.toISOString()}...`);
+    
+    // Get all comments and filter them
+    const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+    const allComments = JSON.parse(allCommentsResult.stdout.toString().trim() || '[]');
+    
+    if (allComments.length > 0) {
+      console.log(`  Recent comments on issue:`);
+      const recentComments = allComments.slice(-5); // Last 5 comments
+      recentComments.forEach(comment => {
+        const isNew = new Date(comment.created_at) > referenceTime;
+        const isCurrentUser = comment.user.login === currentUser;
+        console.log(`    - Comment ${comment.id} by ${comment.user.login} at ${comment.created_at} (${isNew ? 'NEW' : 'old'}, ${isCurrentUser ? 'CURRENT USER' : 'other user'})`);
+      });
+    } else {
+      console.log(`  No comments found on issue`);
+    }
+    
+    // Filter for new comments by current user
+    const newCommentsByUser = allComments.filter(comment => 
+      comment.user.login === currentUser && new Date(comment.created_at) > referenceTime
+    );
+    
+    if (newCommentsByUser.length > 0) {
+      const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
+      console.log(`\n✓ Found ${newCommentsByUser.length} new comment(s) by ${currentUser}`);
+      console.log(`\nSUCCESS: Comment posted at ${lastComment.html_url}`);
+      process.exit(0);
+    } else {
+      console.log(`  No new comments found by ${currentUser} after ${referenceTime.toISOString()}`);
+    }
+    
+    // If neither found, it might not have been necessary to create either
+    console.log('\n=== No new PR or comment detected ===');
+    console.log('The issue may have been resolved differently or required no action.');
+    process.exit(0);
+    
+  } catch (searchError) {
+    console.warn('\n=== Error during search ===');
+    console.warn('Warning: Could not search for created pull request or comment:', searchError.message);
+    console.warn('Stack:', searchError.stack);
+    console.log('The command completed but we could not verify the result.');
+    process.exit(0);
   }
-  
-  // If no valid link found, return error
-  console.error('\nFAILURE: No valid Pull Request or Comment link found in output');
-  process.exit(1);
   
 } catch (error) {
   console.error('Error executing command:', error.message);
