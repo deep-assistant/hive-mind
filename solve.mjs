@@ -16,6 +16,9 @@ if (typeof Bun !== 'undefined') {
 }
 
 const yargs = (await use('yargs@latest')).default;
+const os = await use('os');
+const path = await use('path');
+const fs = (await use('fs')).promises;
 
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
@@ -45,7 +48,20 @@ const owner = urlParts[3];
 const repo = urlParts[4];
 const issueNumber = urlParts[6];
 
-const prompt = `GitHub Issue Solver Task:
+// Create temporary directory for cloning the repository
+const tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
+await fs.mkdir(tempDir, { recursive: true });
+
+console.log(`Creating temporary directory: ${tempDir}`);
+
+try {
+  // Clone the repository using gh tool with authentication
+  console.log(`Cloning repository ${owner}/${repo} using gh tool...`);
+  await $`gh repo clone ${owner}/${repo} ${tempDir} -- --depth 1`;
+  
+  console.log(`Repository cloned successfully to ${tempDir}`);
+  
+  const prompt = `GitHub Issue Solver Task:
 
 1. Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
    - Get issue title, description, labels, comments, and any other relevant details
@@ -67,8 +83,9 @@ Issue Number: ${issueNumber}
 
 IMPORTANT: Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
 
-try {
-  const result = await $`${claudePath} -p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "You are solving a GitHub issue. Use the gh tool to read issue details first, then either create a PR solution or comment with questions. Always test code changes and follow repository conventions. Make sure to mention the resulting link in your response." --model sonnet | jq`;
+  // Execute claude command from the cloned repository directory
+  console.log(`Executing claude command from repository directory...`);
+  const result = await $`cd ${tempDir} && ${claudePath} -p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "You are solving a GitHub issue. Use the gh tool to read issue details first, then either create a PR solution or comment with questions. Always test code changes and follow repository conventions. Make sure to mention the resulting link in your response." --model sonnet | jq`;
   
   const output = result.text();
   console.log(output);
@@ -101,4 +118,13 @@ try {
 } catch (error) {
   console.error('Error executing command:', error.message);
   process.exit(1);
+} finally {
+  // Clean up temporary directory
+  try {
+    console.log(`Cleaning up temporary directory: ${tempDir}`);
+    await fs.rm(tempDir, { recursive: true, force: true });
+    console.log('Temporary directory cleaned up successfully');
+  } catch (cleanupError) {
+    console.warn(`Warning: Failed to clean up temporary directory: ${cleanupError.message}`);
+  }
 }
