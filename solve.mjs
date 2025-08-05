@@ -118,18 +118,25 @@ IMPORTANT:
   // Execute claude command from the cloned repository directory
   console.log(`Executing claude command from repository directory...`);
   
-  let output;
-  if (typeof Bun !== 'undefined') {
-    // Bun environment
-    const result = await $`cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
-    output = result.text();
-  } else {
-    // Node.js environment
-    const result = await $`cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
-    output = result.stdout;
+  const { spawn } = (await import('child_process')).default;
+  
+  const claudeProcess = spawn('sh', ['-c', `cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`], {
+    stdio: 'inherit'
+  });
+  
+  const exitCode = await new Promise((resolve) => {
+    claudeProcess.on('close', resolve);
+  });
+  
+  if (exitCode !== 0) {
+    console.error(`Claude command failed with exit code ${exitCode}`);
+    process.exit(1);
   }
   
-  console.log(output);
+  // Since we're using inherit stdio, we can't capture the output for URL extraction
+  // We'll rely on the user to see the output and determine success
+  console.log('Claude command completed successfully');
+  process.exit(0);
   
   // Extract all GitHub URLs from the output
   const githubUrls = output.match(/https:\/\/github\.com\/[^\s\)]+/g) || [];
