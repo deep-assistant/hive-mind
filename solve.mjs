@@ -16,9 +16,9 @@ if (typeof Bun !== 'undefined') {
 }
 
 const yargs = (await use('yargs@latest')).default;
-const os = await use('os');
-const path = await use('path');
-const fs = (await use('fs')).promises;
+const os = (await import('os')).default;
+const path = (await import('path')).default;
+const fs = (await import('fs')).promises;
 
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
@@ -109,11 +109,26 @@ IMPORTANT:
 - Your Pull Request SHOULD contain automated tests (unit, integration, or e2e as appropriate)
 - Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
 
+  const systemPrompt = `You are an expert GitHub issue solver. CRITICAL REQUIREMENTS: 1) First use gh tool to thoroughly research: explore the entire organization's codebase for context, review merged PRs for code style, search for related implementations. 2) TESTING IS MANDATORY: Write and run tests to understand the codebase, test individual functions to learn their APIs, include comprehensive automated tests (unit/integration/e2e) in your PR. 3) Your PR must contain automated tests that verify your solution. 4) Study the repository's testing framework and use it properly. 5) Always mention the resulting PR or comment link in your response.`;
+
+  // Escape newlines for command line usage
+  const escapedPrompt = prompt.replace(/\n/g, '\\n');
+  const escapedSystemPrompt = systemPrompt.replace(/\n/g, '\\n');
+
   // Execute claude command from the cloned repository directory
   console.log(`Executing claude command from repository directory...`);
-  const result = await $`cd ${tempDir} && ${claudePath} -p "${prompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "You are an expert GitHub issue solver. CRITICAL REQUIREMENTS: 1) First use gh tool to thoroughly research: explore the entire organization's codebase for context, review merged PRs for code style, search for related implementations. 2) TESTING IS MANDATORY: Write and run tests to understand the codebase, test individual functions to learn their APIs, include comprehensive automated tests (unit/integration/e2e) in your PR. 3) Your PR must contain automated tests that verify your solution. 4) Study the repository's testing framework and use it properly. 5) Always mention the resulting PR or comment link in your response." --model sonnet | jq`;
   
-  const output = result.text();
+  let output;
+  if (typeof Bun !== 'undefined') {
+    // Bun environment
+    const result = await $`cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
+    output = result.text();
+  } else {
+    // Node.js environment
+    const result = await $`cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
+    output = result.stdout;
+  }
+  
   console.log(output);
   
   // Extract all GitHub URLs from the output
