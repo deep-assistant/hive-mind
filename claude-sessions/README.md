@@ -118,6 +118,7 @@ All scripts confirm the same behavior across runtimes.
 - Once a session ID is used, it becomes locked and cannot be reused
 - Session data IS stored in JSONL files but not accessible non-interactively
 - The `-c` flag may hang in non-interactive mode
+- **`--session-id` cannot be combined with `--resume` or `--continue`** (mutually exclusive)
 
 ## Recommendations
 
@@ -153,4 +154,8 @@ test ! -f ~/.claude/projects/[project-path]/[session-id].jsonl && echo "Availabl
 
 # Continue most recent (interactive use only)
 claude -c -p "continue message"
+
+# These combinations will fail with error:
+# claude --session-id <uuid> --resume    # Error: cannot be used together
+# claude --session-id <uuid> --continue  # Error: cannot be used together
 ```
