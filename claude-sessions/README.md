@@ -20,6 +20,14 @@ This document contains findings from testing Claude Code's session management ca
   - Does not maintain conversation context from the original session
   - Effectively behaves like starting a fresh session
 
+### Session Locking Mechanism 🔒
+
+- **Session locking is purely file existence-based**
+  - Claude checks if `~/.claude/projects/[project-path]/[session-id].jsonl` exists
+  - If the file exists (regardless of content), the session is "locked"
+  - Empty files, minimal content, or corrupted files still trigger "already in use"
+  - Only complete file deletion unlocks the session ID
+
 ### Session Continuation Options
 
 #### For Interactive Users
@@ -86,6 +94,8 @@ All scripts confirm the same behavior across runtimes.
 2. **True session restoration is not available** in non-interactive mode
 3. Each automated call will be a standalone interaction
 4. Context must be provided in the prompt itself rather than relying on session history
+5. **Session IDs can be recycled** by deleting their JSONL files (loses all context)
+6. **File-based locking** enables simple session management scripts
 
 ### For Interactive Use
 
@@ -117,6 +127,12 @@ For automation tasks that need context:
 3. Don't rely on session restoration for maintaining state
 4. Consider using interactive mode with expect/pty for complex workflows requiring true session continuity
 
+For session ID management:
+1. Delete JSONL files to recycle session IDs when needed
+2. Use file existence checks to verify session availability
+3. Implement cleanup scripts to manage old sessions
+4. Be aware that deleting session files loses all conversation history
+
 ## Testing Commands
 
 ```bash
@@ -129,8 +145,11 @@ claude --resume <session-id> -p "test" --output-format stream-json --verbose --m
 # Create session with custom ID (works once per ID)
 claude --session-id 12345678-1234-1234-1234-123456789012 -p "test" --output-format stream-json --verbose --model sonnet
 
-# Unlock a session ID by deleting its file
+# Unlock a session ID by deleting its file (loses all context)
 rm ~/.claude/projects/[project-path]/[session-id].jsonl
+
+# Check if a session ID is available (file doesn't exist)
+test ! -f ~/.claude/projects/[project-path]/[session-id].jsonl && echo "Available" || echo "Locked"
 
 # Continue most recent (interactive use only)
 claude -c -p "continue message"
