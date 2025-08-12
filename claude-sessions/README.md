@@ -38,7 +38,8 @@ This document contains findings from testing Claude Code's session management ca
 - **`--session-id <uuid>` flag**: Creates a new session with the specified ID
   - Works for creating sessions with custom IDs
   - Once a session ID is used, it becomes locked ("already in use" error)
-  - Cannot restore previous session context - only sets the ID for a new session
+  - Session data is stored in `~/.claude/projects/[project-path]/[session-id].jsonl`
+  - Context IS stored but cannot be accessed in non-interactive mode
 
 ## Command Line Options (from --help)
 
@@ -102,8 +103,9 @@ All scripts confirm the same behavior across runtimes.
 
 - No true session restoration in non-interactive/automated mode
 - The `--resume` flag with session ID creates new sessions
-- The `--session-id` flag creates new sessions (doesn't restore context)
+- The `--session-id` flag creates new sessions (doesn't restore context) 
 - Once a session ID is used, it becomes locked and cannot be reused
+- Session data IS stored in JSONL files but not accessible non-interactively
 - The `-c` flag may hang in non-interactive mode
 
 ## Recommendations
