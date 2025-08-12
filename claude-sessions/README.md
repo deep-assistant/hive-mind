@@ -45,11 +45,11 @@ This document contains findings from testing Claude Code's session management ca
 #### For Automation
 
 - **`--session-id <uuid>` flag**: Creates a new session with the specified ID
-  - Works for creating sessions with custom IDs
+  - Works for creating sessions with custom IDs for predictable automation
   - Once a session ID is used, it becomes locked ("already in use" error)
   - Session data is stored in `~/.claude/projects/[project-path]/[session-id].jsonl`
   - **Session IDs can be "unlocked" by deleting their JSONL file**
-  - Context IS stored but cannot be accessed in non-interactive mode
+  - Context IS stored and CAN be accessed via `--resume` in non-interactive mode
 
 ## Command Line Options (from --help)
 
@@ -70,7 +70,11 @@ We created three test scripts to verify session behavior:
 2. **test-session-bun.mjs** - Bun-specific implementation
 3. **test-session-node.mjs** - Node.js-specific implementation
 
-All scripts confirm the same behavior across runtimes.
+All scripts confirm the same behavior across runtimes and demonstrate:
+- Session ID extraction from JSON output
+- Custom session ID creation with `--session-id`
+- Context restoration using `--resume`
+- File-based session locking mechanism
 
 ## Example JSON Output Structure
 
@@ -91,12 +95,12 @@ All scripts confirm the same behavior across runtimes.
 
 ### For Automation Scripts
 
-1. **Session IDs can be extracted** for logging/tracking purposes
-2. **True session restoration is not available** in non-interactive mode
-3. Each automated call will be a standalone interaction
-4. Context must be provided in the prompt itself rather than relying on session history
-5. **Session IDs can be recycled** by deleting their JSONL files (loses all context)
-6. **File-based locking** enables simple session management scripts
+1. **Session IDs can be extracted** for logging/tracking purposes from JSON output
+2. **Session restoration IS available** in non-interactive mode using `--resume <session-id>`
+3. **Context is maintained** across resumed sessions (but with new session IDs)
+4. **Session IDs can be recycled** by deleting their JSONL files (loses all context)
+5. **File-based locking** enables simple session management scripts
+6. **Custom session IDs** can be created for predictable automation workflows
 
 ### For Interactive Use
 
@@ -120,20 +124,24 @@ All scripts confirm the same behavior across runtimes.
 - The `-c` flag may hang in non-interactive mode
 - **`--session-id` cannot be combined with `--resume` or `--continue`** (mutually exclusive)
 - **`--resume` requires a session ID when used with `-p` flag**
+- **Context restoration success can vary** - sometimes works perfectly, sometimes fails
 
 ## Recommendations
 
 For automation tasks that need context:
 1. **Use `--resume <session-id>` to restore conversation context** (this actually works!)
-2. Extract session IDs from previous runs for continuation
+2. Extract session IDs from previous runs using JSON output parsing
 3. Be aware that resumed sessions get new IDs but maintain conversation history
-4. Fall back to including context in prompts if you don't have a session to resume
+4. Test context restoration in your workflow as success can vary
+5. Fall back to including context in prompts if session restoration fails
 
 For session ID management:
 1. Delete JSONL files to recycle session IDs when needed
 2. Use file existence checks to verify session availability
 3. Implement cleanup scripts to manage old sessions
 4. Be aware that deleting session files loses all conversation history
+5. Use custom session IDs for predictable automation workflows
+6. Always extract session IDs from JSON output for proper tracking
 
 ## Testing Commands
 
