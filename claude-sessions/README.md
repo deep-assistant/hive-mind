@@ -39,6 +39,7 @@ This document contains findings from testing Claude Code's session management ca
   - Works for creating sessions with custom IDs
   - Once a session ID is used, it becomes locked ("already in use" error)
   - Session data is stored in `~/.claude/projects/[project-path]/[session-id].jsonl`
+  - **Session IDs can be "unlocked" by deleting their JSONL file**
   - Context IS stored but cannot be accessed in non-interactive mode
 
 ## Command Line Options (from --help)
@@ -127,6 +128,9 @@ claude --resume <session-id> -p "test" --output-format stream-json --verbose --m
 
 # Create session with custom ID (works once per ID)
 claude --session-id 12345678-1234-1234-1234-123456789012 -p "test" --output-format stream-json --verbose --model sonnet
+
+# Unlock a session ID by deleting its file
+rm ~/.claude/projects/[project-path]/[session-id].jsonl
 
 # Continue most recent (interactive use only)
 claude -c -p "continue message"
