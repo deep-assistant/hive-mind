@@ -35,9 +35,10 @@ This document contains findings from testing Claude Code's session management ca
 
 #### For Automation
 
-- **`--session-id <uuid>` flag**: Attempts to use a specific session ID
-  - Currently fails with exit code 1
-  - Not functional for restoring sessions
+- **`--session-id <uuid>` flag**: Creates a new session with the specified ID
+  - Works for creating sessions with custom IDs
+  - Once a session ID is used, it becomes locked ("already in use" error)
+  - Cannot restore previous session context - only sets the ID for a new session
 
 ## Command Line Options (from --help)
 
@@ -101,7 +102,8 @@ All scripts confirm the same behavior across runtimes.
 
 - No true session restoration in non-interactive/automated mode
 - The `--resume` flag with session ID creates new sessions
-- The `--session-id` flag is non-functional
+- The `--session-id` flag creates new sessions (doesn't restore context)
+- Once a session ID is used, it becomes locked and cannot be reused
 - The `-c` flag may hang in non-interactive mode
 
 ## Recommendations
@@ -120,6 +122,9 @@ claude -p "hi" --output-format stream-json --verbose --model sonnet
 
 # Attempt to resume (creates new session)
 claude --resume <session-id> -p "test" --output-format stream-json --verbose --model sonnet
+
+# Create session with custom ID (works once per ID)
+claude --session-id 12345678-1234-1234-1234-123456789012 -p "test" --output-format stream-json --verbose --model sonnet
 
 # Continue most recent (interactive use only)
 claude -c -p "continue message"
