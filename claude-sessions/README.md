@@ -13,12 +13,13 @@ This document contains findings from testing Claude Code's session management ca
 - Example: `{"type":"system","subtype":"init","session_id":"uuid-here",...}`
 - Each non-interactive call generates a unique session ID
 
-### Session Restoration ⚠️
+### Session Restoration ❌
 
-- **`--resume <session-id>` does NOT restore the exact session**
-  - Creates a NEW session with a different ID
-  - Does not maintain conversation context from the original session
-  - Effectively behaves like starting a fresh session
+- **`--resume <session-id>` does NOT restore conversation context in non-interactive mode**
+  - Creates a NEW session with a different ID 
+  - Does NOT maintain conversation context from the original session
+  - The `num_turns` field is misleading - it's a cumulative counter, not context indicator
+  - **Session restoration in automation is NOT possible**
 
 ### Session Locking Mechanism 🔒
 
@@ -112,21 +113,21 @@ All scripts confirm the same behavior across runtimes.
 
 ## Limitations
 
-- No true session restoration in non-interactive/automated mode
-- The `--resume` flag with session ID creates new sessions
+- The `--resume` flag creates new session IDs (but DOES restore context)
 - The `--session-id` flag creates new sessions (doesn't restore context) 
 - Once a session ID is used, it becomes locked and cannot be reused
-- Session data IS stored in JSONL files but not accessible non-interactively
+- Session data IS stored in JSONL files and IS accessible via `--resume`
 - The `-c` flag may hang in non-interactive mode
 - **`--session-id` cannot be combined with `--resume` or `--continue`** (mutually exclusive)
+- **`--resume` requires a session ID when used with `-p` flag**
 
 ## Recommendations
 
 For automation tasks that need context:
-1. Include all necessary context in each prompt
-2. Use session IDs only for tracking/logging
-3. Don't rely on session restoration for maintaining state
-4. Consider using interactive mode with expect/pty for complex workflows requiring true session continuity
+1. Include all necessary context in each prompt (session restoration doesn't work)
+2. Use session IDs only for tracking/logging purposes
+3. Don't rely on `--resume` for maintaining conversation state
+4. Consider using interactive mode with expect/pty for true session continuity
 
 For session ID management:
 1. Delete JSONL files to recycle session IDs when needed
@@ -140,7 +141,7 @@ For session ID management:
 # Get session ID from non-interactive mode
 claude -p "hi" --output-format stream-json --verbose --model sonnet
 
-# Attempt to resume (creates new session)
+# Resume session with context restoration (creates new session ID but keeps history!)
 claude --resume <session-id> -p "test" --output-format stream-json --verbose --model sonnet
 
 # Create session with custom ID (works once per ID)
