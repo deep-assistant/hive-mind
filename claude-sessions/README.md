@@ -13,13 +13,13 @@ This document contains findings from testing Claude Code's session management ca
 - Example: `{"type":"system","subtype":"init","session_id":"uuid-here",...}`
 - Each non-interactive call generates a unique session ID
 
-### Session Restoration ❌
+### Session Restoration ✅
 
-- **`--resume <session-id>` does NOT restore conversation context in non-interactive mode**
-  - Creates a NEW session with a different ID 
-  - Does NOT maintain conversation context from the original session
-  - The `num_turns` field is misleading - it's a cumulative counter, not context indicator
-  - **Session restoration in automation is NOT possible**
+- **`--resume <session-id>` DOES restore conversation context in non-interactive mode**
+  - Creates a NEW session with a different ID but maintains conversation history
+  - DOES maintain conversation context from the original session
+  - Claude can reference and continue from previous messages in the resumed session
+  - **Session restoration in automation IS possible with `--resume`**
 
 ### Session Locking Mechanism 🔒
 
@@ -124,10 +124,10 @@ All scripts confirm the same behavior across runtimes.
 ## Recommendations
 
 For automation tasks that need context:
-1. Include all necessary context in each prompt (session restoration doesn't work)
-2. Use session IDs only for tracking/logging purposes
-3. Don't rely on `--resume` for maintaining conversation state
-4. Consider using interactive mode with expect/pty for true session continuity
+1. **Use `--resume <session-id>` to restore conversation context** (this actually works!)
+2. Extract session IDs from previous runs for continuation
+3. Be aware that resumed sessions get new IDs but maintain conversation history
+4. Fall back to including context in prompts if you don't have a session to resume
 
 For session ID management:
 1. Delete JSONL files to recycle session IDs when needed
@@ -138,14 +138,14 @@ For session ID management:
 ## Testing Commands
 
 ```bash
-# Get session ID from non-interactive mode
-claude -p "hi" --output-format stream-json --verbose --model sonnet
+# Get session ID from non-interactive mode (pipe to jq for readable output)
+claude -p "hi" --output-format stream-json --verbose --model sonnet | jq
 
 # Resume session with context restoration (creates new session ID but keeps history!)
-claude --resume <session-id> -p "test" --output-format stream-json --verbose --model sonnet
+claude --resume <session-id> -p "test" --output-format stream-json --verbose --model sonnet | jq
 
 # Create session with custom ID (works once per ID)
-claude --session-id 12345678-1234-1234-1234-123456789012 -p "test" --output-format stream-json --verbose --model sonnet
+claude --session-id 12345678-1234-1234-1234-123456789012 -p "test" --output-format stream-json --verbose --model sonnet | jq
 
 # Unlock a session ID by deleting its file (loses all context)
 rm ~/.claude/projects/[project-path]/[session-id].jsonl
