@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 ':' //# ; exec "$(command -v node || command -v bun)" "$0" "$@"
 
-import $, { sh, exec, run, spawnStream, quote, raw } from './$.mjs';
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const { $, sh, exec, run, quote, raw } = await use('command-stream');
 
 const failures = [];
 function assert(cond, msg) {

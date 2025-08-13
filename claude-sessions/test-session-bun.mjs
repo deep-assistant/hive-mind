@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-const $ = (await import("bun")).$;
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const { $ } = await use('command-stream');
 
 const claude = process.env.CLAUDE_PATH || '/Users/konard/.claude/local/claude';
 
@@ -9,23 +10,23 @@ console.log('=== Claude Session Management Test ===\n');
 try {
   // Test 1: Extract session ID from JSON output
   console.log('1. Creating initial session and extracting ID...');
-  const result1 = await $`${claude} -p "Hello, remember this: my favorite color is blue" --output-format stream-json --verbose --model sonnet`.text();
-  const sessionId = JSON.parse(result1.split('\n')[0]).session_id;
+  const result1 = await $`${claude} -p "Hello, remember this: my favorite color is blue" --output-format stream-json --verbose --model sonnet`;
+  const sessionId = JSON.parse(result1.stdout.split('\n')[0]).session_id;
   console.log(`   ✅ Session ID extracted: ${sessionId}\n`);
 
   // Test 2: Create custom session ID
   console.log('2. Creating session with custom ID...');
   const customId = '11111111-1111-1111-1111-111111111111';
-  const result2 = await $`${claude} --session-id ${customId} -p "My favorite number is 42" --output-format stream-json --verbose --model sonnet`.text();
-  const customSessionId = JSON.parse(result2.split('\n')[0]).session_id;
+  const result2 = await $`${claude} --session-id ${customId} -p "My favorite number is 42" --output-format stream-json --verbose --model sonnet`;
+  const customSessionId = JSON.parse(result2.stdout.split('\n')[0]).session_id;
   console.log(`   ✅ Custom session created: ${customSessionId}`);
   console.log(`   ✅ ID matches expected: ${customId === customSessionId ? 'YES' : 'NO'}\n`);
 
   // Test 3: Resume session (context restoration)
   console.log('3. Testing session restoration with --resume...');
-  const result3 = await $`${claude} --resume ${sessionId} -p "What is my favorite color?" --output-format stream-json --verbose --model sonnet`.text();
-  const resumedSessionId = JSON.parse(result3.split('\n')[0]).session_id;
-  const response = JSON.parse(result3.split('\n').find(line => {
+  const result3 = await $`${claude} --resume ${sessionId} -p "What is my favorite color?" --output-format stream-json --verbose --model sonnet`;
+  const resumedSessionId = JSON.parse(result3.stdout.split('\n')[0]).session_id;
+  const response = JSON.parse(result3.stdout.split('\n').find(line => {
     try { return JSON.parse(line).type === 'result'; } catch { return false; }
   })).result;
   

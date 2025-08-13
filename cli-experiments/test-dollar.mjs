@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 ':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
 
-import $, { sh, exec, run } from './$.mjs';
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const { $, sh, exec, run } = await use('command-stream');
 
 console.log('1) Tagged template with mirror+capture');
 const r1 = await $`echo hello && echo err 1>&2`;

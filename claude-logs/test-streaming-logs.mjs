@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { sh } from '../cli-experiments/$.mjs';
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const { $ } = await use('command-stream');
 import { appendFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -65,10 +66,7 @@ async function streamClaudeWithRealTimeLogging(command) {
   };
   
   try {
-    const result = await sh(command, { 
-      mirror: true,  // Stream to console in real-time
-      capture: true  // Also capture for return value
-    });
+    const result = await $`${command}`;
     
     return result;
   } finally {
@@ -102,7 +100,7 @@ try {
   if (currentLogFile) {
     console.log('\n📄 Log file contents (first 5 lines):');
     console.log('---');
-    const logContents = await sh(`head -n 5 ${currentLogFile}`, { mirror: false, capture: true });
+    const logContents = await $`head -n 5 ${currentLogFile}`;
     console.log(logContents.stdout);
     console.log('---');
   }

@@ -4,16 +4,8 @@
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
 
-let $;
-if (typeof Bun !== 'undefined') {
-  // Bun has built-in $ support
-  const bunModule = await import("bun");
-  $ = bunModule.$;
-} else {
-  // Node.js: use execa for $ template literals
-  const { $: $$ } = await use('execa');
-  $ = $$({ verbose: 'full' });
-}
+// Use command-stream for consistent $ behavior across runtimes
+const { $ } = await use('command-stream');
 
 const yargs = (await use('yargs@latest')).default;
 const os = (await import('os')).default;

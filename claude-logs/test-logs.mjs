@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { $ } from '../cli-experiments/$.mjs';
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const { $ } = await use('command-stream');
 import { writeFileSync, appendFileSync } from 'fs';
 import { join } from 'path';
 
