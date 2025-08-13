@@ -2,7 +2,7 @@
 
 // Use use-m for dynamic imports
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-const { $ } = await use('execa');
+const { $ } = await use('command-stream');
 
 const claude = process.env.CLAUDE_PATH || '/Users/konard/.claude/local/claude';
 
