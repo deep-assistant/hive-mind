@@ -175,23 +175,124 @@ IMPORTANT:
   // Execute claude command from the cloned repository directory
   console.log(`\nExecuting claude command from repository directory...`);
   
-  const { spawn } = (await import('child_process')).default;
+  // Use command-stream's async iteration for real-time streaming with file logging
+  let commandFailed = false;
+  let sessionId = null;
+  let currentLogFile = null;
+  let pendingData = '';
+  let hasOutput = false;
   
-  // Use inherit for all stdio to stream output directly to the terminal
-  const claudeProcess = spawn('sh', ['-c', `cd ${tempDir} && ${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`], {
-    stdio: 'inherit'
-  });
+  // Change to the temporary directory
+  process.chdir(tempDir);
   
-  const exitCode = await new Promise((resolve) => {
-    claudeProcess.on('close', resolve);
-  });
+  for await (const chunk of $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq .`.stream()) {
+    if (chunk.type === 'stdout') {
+      const data = chunk.data.toString();
+      hasOutput = true;
+      process.stdout.write(data);
+      
+      // Also save to log file
+      pendingData += data;
+      
+      // Look for complete JSON lines
+      const lines = pendingData.split('\n');
+      pendingData = lines.pop() || ''; // Keep incomplete line for next chunk
+      
+      for (const line of lines) {
+        if (line.trim()) {
+          // Write to log file immediately as we get each line
+          if (currentLogFile) {
+            await fs.appendFile(currentLogFile, line + '\n');
+          }
+          
+          // Try to extract session ID if not found yet
+          if (!sessionId && line.includes('session_id')) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.session_id) {
+                sessionId = parsed.session_id;
+                currentLogFile = path.join(tempDir, `${sessionId}.log`);
+                
+                console.log(`\n   ✅ Session ID extracted: ${sessionId}`);
+                console.log(`   📁 Log file: ${currentLogFile}\n`);
+                
+                // Write the current line to start the new log file
+                await fs.writeFile(currentLogFile, line + '\n');
+              }
+            } catch (e) {
+              // Ignore JSON parse errors
+            }
+          }
+        }
+      }
+    } else if (chunk.type === 'stderr') {
+      const data = chunk.data.toString();
+      process.stderr.write(data);
+    } else if (chunk.type === 'exit') {
+      if (chunk.code !== 0) {
+        commandFailed = true;
+        console.error(`\nClaude command failed with exit code ${chunk.code}`);
+      }
+    }
+  }
   
-  if (exitCode !== 0) {
-    console.error(`Claude command failed with exit code ${exitCode}`);
+  // Process any remaining data
+  if (pendingData.trim() && currentLogFile) {
+    await fs.appendFile(currentLogFile, pendingData);
+  }
+  
+  if (commandFailed) {
     process.exit(1);
   }
   
   console.log('\nClaude command completed successfully');
+  
+  // Show summary of session and log file
+  console.log('\n=== Session Summary ===');
+  let permanentLogFile = null;
+  
+  if (sessionId && currentLogFile) {
+    console.log(`✅ Session ID: ${sessionId}`);
+    
+    // Copy log file to permanent location next to solve.mjs
+    const scriptDir = path.dirname(process.argv[1]);
+    permanentLogFile = path.join(scriptDir, `${sessionId}.log`);
+    
+    try {
+      await fs.copyFile(currentLogFile, permanentLogFile);
+      console.log(`✅ Log file saved: ${permanentLogFile}`);
+    } catch (e) {
+      console.log(`❌ Failed to save log file: ${e.message}`);
+      console.log(`   Temporary log file: ${currentLogFile}`);
+    }
+    
+    // Show log file contents preview
+    try {
+      const logContents = await $`head -n 5 ${permanentLogFile || currentLogFile}`;
+      console.log('\n📄 Log file contents (first 5 lines):');
+      console.log('---');
+      console.log(logContents.stdout);
+      console.log('---');
+    } catch (e) {
+      console.log('Could not preview log file contents');
+    }
+  } else {
+    console.log(`❌ No session ID extracted or log file created`);
+    
+    // Create fallback log file with any output we captured
+    if (hasOutput && pendingData.trim()) {
+      const scriptDir = path.dirname(process.argv[1]);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      permanentLogFile = path.join(scriptDir, `claude-output-${timestamp}.log`);
+      
+      try {
+        await fs.writeFile(permanentLogFile, pendingData);
+        console.log(`   📁 Fallback log file created: ${permanentLogFile}`);
+      } catch (e) {
+        console.log(`   Failed to create fallback log file: ${e.message}`);
+      }
+    }
+  }
   
   // Now search for newly created pull requests and comments
   console.log('\n=== Searching for results ===');
