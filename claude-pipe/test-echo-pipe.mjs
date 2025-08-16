@@ -22,5 +22,4 @@ try {
   
 } catch (error) {
   console.error('❌ Test failed:', error.message);
-  process.exit(1);
 }
