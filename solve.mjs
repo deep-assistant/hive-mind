@@ -179,8 +179,17 @@ IMPORTANT:
   let commandFailed = false;
   let sessionId = null;
   let currentLogFile = null;
+  let permanentLogFile = null;
   let pendingData = '';
   let hasOutput = false;
+  
+  // Create permanent log file immediately with timestamp
+  const scriptDir = path.dirname(process.argv[1]);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  permanentLogFile = path.join(scriptDir, `solve-${timestamp}.log`);
+  
+  console.log(`📁 Streaming to log file: ${permanentLogFile}`);
+  console.log(`   (You can open this file in VS Code to watch real-time progress)\n`);
   
   // Change to the temporary directory
   process.chdir(tempDir);
@@ -200,7 +209,10 @@ IMPORTANT:
       
       for (const line of lines) {
         if (line.trim()) {
-          // Write to log file immediately as we get each line
+          // Write to permanent log file immediately as we get each line
+          await fs.appendFile(permanentLogFile, line + '\n');
+          
+          // Also write to temp log file if we have one
           if (currentLogFile) {
             await fs.appendFile(currentLogFile, line + '\n');
           }
@@ -211,12 +223,17 @@ IMPORTANT:
               const parsed = JSON.parse(line);
               if (parsed.session_id) {
                 sessionId = parsed.session_id;
-                currentLogFile = path.join(tempDir, `${sessionId}.log`);
+                
+                // Rename permanent log file to use session ID
+                const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
+                await fs.rename(permanentLogFile, sessionLogFile);
+                permanentLogFile = sessionLogFile;
                 
                 console.log(`\n   ✅ Session ID extracted: ${sessionId}`);
-                console.log(`   📁 Log file: ${currentLogFile}\n`);
+                console.log(`   📁 Log file renamed to: ${permanentLogFile}\n`);
                 
-                // Write the current line to start the new log file
+                // Also create temp log file for compatibility
+                currentLogFile = path.join(tempDir, `${sessionId}.log`);
                 await fs.writeFile(currentLogFile, line + '\n');
               }
             } catch (e) {
@@ -237,8 +254,11 @@ IMPORTANT:
   }
   
   // Process any remaining data
-  if (pendingData.trim() && currentLogFile) {
-    await fs.appendFile(currentLogFile, pendingData);
+  if (pendingData.trim()) {
+    await fs.appendFile(permanentLogFile, pendingData);
+    if (currentLogFile) {
+      await fs.appendFile(currentLogFile, pendingData);
+    }
   }
   
   if (commandFailed) {
@@ -249,26 +269,22 @@ IMPORTANT:
   
   // Show summary of session and log file
   console.log('\n=== Session Summary ===');
-  let permanentLogFile = null;
   
-  if (sessionId && currentLogFile) {
+  if (sessionId) {
     console.log(`✅ Session ID: ${sessionId}`);
+    console.log(`✅ Complete log file: ${permanentLogFile}`);
     
-    // Copy log file to permanent location next to solve.mjs
-    const scriptDir = path.dirname(process.argv[1]);
-    permanentLogFile = path.join(scriptDir, `${sessionId}.log`);
-    
-    try {
-      await fs.copyFile(currentLogFile, permanentLogFile);
-      console.log(`✅ Log file saved: ${permanentLogFile}`);
-    } catch (e) {
-      console.log(`❌ Failed to save log file: ${e.message}`);
-      console.log(`   Temporary log file: ${currentLogFile}`);
-    }
+    // Show command to resume session in interactive mode
+    console.log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
+    console.log(`cd ${tempDir}`);
+    console.log(`claude --resume ${sessionId}`);
+    console.log(`\n   or from any directory:\n`);
+    console.log(`claude --resume ${sessionId} --working-directory ${tempDir}`);
+    console.log(``);
     
     // Show log file contents preview
     try {
-      const logContents = await $`head -n 5 ${permanentLogFile || currentLogFile}`;
+      const logContents = await $`head -n 5 ${permanentLogFile}`;
       console.log('\n📄 Log file contents (first 5 lines):');
       console.log('---');
       console.log(logContents.stdout);
@@ -277,21 +293,8 @@ IMPORTANT:
       console.log('Could not preview log file contents');
     }
   } else {
-    console.log(`❌ No session ID extracted or log file created`);
-    
-    // Create fallback log file with any output we captured
-    if (hasOutput && pendingData.trim()) {
-      const scriptDir = path.dirname(process.argv[1]);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      permanentLogFile = path.join(scriptDir, `claude-output-${timestamp}.log`);
-      
-      try {
-        await fs.writeFile(permanentLogFile, pendingData);
-        console.log(`   📁 Fallback log file created: ${permanentLogFile}`);
-      } catch (e) {
-        console.log(`   Failed to create fallback log file: ${e.message}`);
-      }
-    }
+    console.log(`❌ No session ID extracted`);
+    console.log(`📁 Log file available: ${permanentLogFile}`);
   }
   
   // Now search for newly created pull requests and comments
