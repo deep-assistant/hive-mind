@@ -121,9 +121,9 @@ IMPORTANT:
 
   const systemPrompt = `You are an expert GitHub issue solver. CRITICAL REQUIREMENTS: 1) First use gh tool to thoroughly research: explore the entire organization's codebase for context, review merged PRs for code style, search for related implementations. 2) TESTING IS MANDATORY: Write and run tests to understand the codebase, test individual functions to learn their APIs, include comprehensive automated tests (unit/integration/e2e) in your PR. 3) Your PR must contain automated tests that verify your solution. 4) Study the repository's testing framework and use it properly. 5) Always mention the resulting PR or comment link in your response.`;
 
-  // Escape newlines for command line usage
-  const escapedPrompt = prompt.replace(/\n/g, '\\n');
-  const escapedSystemPrompt = systemPrompt.replace(/\n/g, '\\n');
+  // Properly escape prompts for shell usage - escape quotes and preserve newlines
+  const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+  const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
 
   // Get timestamps from GitHub servers before executing the command
   console.log('Getting reference timestamps from GitHub...');
@@ -191,10 +191,17 @@ IMPORTANT:
   console.log(`📁 Streaming to log file: ${permanentLogFile}`);
   console.log(`   (You can open this file in VS Code to watch real-time progress)\n`);
   
-  // Change to the temporary directory
+  // Print the command being executed (with cd for reproducibility)
+  const claudeArgs = `-p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet`;
+  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
+  console.log(`📋 Executing command:`);
+  console.log(`   ${fullCommand}`);
+  console.log('');
+  
+  // Change to the temporary directory and execute
   process.chdir(tempDir);
   
-  for await (const chunk of $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq .`.stream()) {
+  for await (const chunk of $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq -c .`.stream()) {
     if (chunk.type === 'stdout') {
       const data = chunk.data.toString();
       hasOutput = true;
