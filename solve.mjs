@@ -15,10 +15,15 @@ const crypto = (await import('crypto')).default;
 
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
-  .usage('Usage: $0 <issue-url>')
+  .usage('Usage: $0 <issue-url> [options]')
   .positional('issue-url', {
     type: 'string',
     description: 'The GitHub issue URL to solve'
+  })
+  .option('resume', {
+    type: 'string',
+    description: 'Resume from a previous session ID (when limit was reached)',
+    alias: 'r'
   })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
@@ -41,11 +46,35 @@ const owner = urlParts[3];
 const repo = urlParts[4];
 const issueNumber = urlParts[6];
 
-// Create temporary directory for cloning the repository
-const tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
-await fs.mkdir(tempDir, { recursive: true });
+// Create or find temporary directory for cloning the repository
+let tempDir;
+let isResuming = argv.resume;
 
-console.log(`Creating temporary directory: ${tempDir}`);
+if (isResuming) {
+  // When resuming, try to find existing directory or create a new one
+  const scriptDir = path.dirname(process.argv[1]);
+  const sessionLogPattern = path.join(scriptDir, `${argv.resume}.log`);
+  
+  try {
+    // Check if session log exists to verify session is valid
+    await fs.access(sessionLogPattern);
+    console.log(`🔄 Resuming session ${argv.resume} (session log found)`);
+    
+    // For resumed sessions, create new temp directory since old one may be cleaned up
+    tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
+    await fs.mkdir(tempDir, { recursive: true });
+    console.log(`Creating new temporary directory for resumed session: ${tempDir}`);
+  } catch (err) {
+    console.warn(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
+    tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
+    await fs.mkdir(tempDir, { recursive: true });
+    console.log(`Creating temporary directory for resumed session: ${tempDir}`);
+  }
+} else {
+  tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
+  await fs.mkdir(tempDir, { recursive: true });
+  console.log(`Creating temporary directory: ${tempDir}`);
+}
 
 try {
   // Clone the repository using gh tool with authentication
@@ -182,6 +211,7 @@ IMPORTANT:
   let permanentLogFile = null;
   let pendingData = '';
   let hasOutput = false;
+  let limitReached = false;
   
   // Create permanent log file immediately with timestamp
   const scriptDir = path.dirname(process.argv[1]);
@@ -191,8 +221,17 @@ IMPORTANT:
   console.log(`📁 Streaming to log file: ${permanentLogFile}`);
   console.log(`   (You can open this file in VS Code to watch real-time progress)\n`);
   
+  // Build claude command with optional resume flag
+  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model sonnet`;
+  
+  if (argv.resume) {
+    console.log(`🔄 Resuming from session: ${argv.resume}`);
+    claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
+  }
+  
+  claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
+  
   // Print the command being executed (with cd for reproducibility)
-  const claudeArgs = `-p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet`;
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
   console.log(`📋 Executing command:`);
   console.log(`   ${fullCommand}`);
@@ -201,7 +240,15 @@ IMPORTANT:
   // Change to the temporary directory and execute
   process.chdir(tempDir);
   
-  for await (const chunk of $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq -c .`.stream()) {
+  // Build the actual command for execution
+  let execCommand;
+  if (argv.resume) {
+    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model sonnet -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq -c .`;
+  } else {
+    execCommand = $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq -c .`;
+  }
+  
+  for await (const chunk of execCommand.stream()) {
     if (chunk.type === 'stdout') {
       const data = chunk.data.toString();
       hasOutput = true;
@@ -247,6 +294,23 @@ IMPORTANT:
               // Ignore JSON parse errors
             }
           }
+          
+          // Check for limit reached message
+          if (line.includes('hour limit reached') || line.includes('resets')) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.message && parsed.message.content) {
+                const content = Array.isArray(parsed.message.content) 
+                  ? parsed.message.content.find(c => c.type === 'text')?.text 
+                  : parsed.message.content;
+                if (content && content.includes('limit reached')) {
+                  limitReached = true;
+                }
+              }
+            } catch (e) {
+              // Ignore JSON parse errors
+            }
+          }
         }
       }
     } else if (chunk.type === 'stderr') {
@@ -281,13 +345,20 @@ IMPORTANT:
     console.log(`✅ Session ID: ${sessionId}`);
     console.log(`✅ Complete log file: ${permanentLogFile}`);
     
-    // Show command to resume session in interactive mode
-    console.log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
-    console.log(`cd ${tempDir}`);
-    console.log(`claude --resume ${sessionId}`);
-    console.log(`\n   or from any directory:\n`);
-    console.log(`claude --resume ${sessionId} --working-directory ${tempDir}`);
-    console.log(``);
+    if (limitReached) {
+      console.log(`\n⏰ LIMIT REACHED DETECTED!`);
+      console.log(`\n🔄 To resume when limit resets, use:\n`);
+      console.log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+      console.log(`\n   This will continue from where it left off with full context.\n`);
+    } else {
+      // Show command to resume session in interactive mode
+      console.log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
+      console.log(`cd ${tempDir}`);
+      console.log(`claude --resume ${sessionId}`);
+      console.log(`\n   or from any directory:\n`);
+      console.log(`claude --resume ${sessionId} --working-directory ${tempDir}`);
+      console.log(``);
+    }
     
     // Show log file contents preview
     try {
@@ -388,12 +459,18 @@ IMPORTANT:
   console.error('Error executing command:', error.message);
   process.exit(1);
 } finally {
-  // Clean up temporary directory
-  try {
-    console.log(`Cleaning up temporary directory: ${tempDir}`);
-    await fs.rm(tempDir, { recursive: true, force: true });
-    console.log('Temporary directory cleaned up successfully');
-  } catch (cleanupError) {
-    console.warn(`Warning: Failed to clean up temporary directory: ${cleanupError.message}`);
+  // Clean up temporary directory (but not when resuming or when limit reached)
+  if (!argv.resume && !limitReached) {
+    try {
+      console.log(`Cleaning up temporary directory: ${tempDir}`);
+      await fs.rm(tempDir, { recursive: true, force: true });
+      console.log('Temporary directory cleaned up successfully');
+    } catch (cleanupError) {
+      console.warn(`Warning: Failed to clean up temporary directory: ${cleanupError.message}`);
+    }
+  } else if (argv.resume) {
+    console.log(`Keeping temporary directory for resumed session: ${tempDir}`);
+  } else if (limitReached) {
+    console.log(`Keeping temporary directory for future resume: ${tempDir}`);
   }
 }
