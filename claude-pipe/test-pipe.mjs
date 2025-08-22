@@ -12,7 +12,7 @@ console.log('=== Claude Pipe to jq Test ===\n');
 
 try {
   // Simple test: pipe claude output to jq
-  const result = await $`${claude} -p "hi" --output-format json --model sonnet | jq .`;
+  const result = await $`${claude} -p "hi" --output-format stream-json --model sonnet | jq .`;
   console.log('Result:');
   console.log(result.stdout);
   
