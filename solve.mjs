@@ -90,42 +90,43 @@ try {
   await $`cd ${tempDir} && git checkout -b ${branchName}`;
   console.log(`Switched to branch: ${branchName}`);
   
-  const prompt = `GitHub Issue Solver Task:
-
-You are currently in a git repository with a new branch already created: ${branchName}
-You do NOT need to create a new branch - you're already on the correct branch for this issue.
+  const prompt = `Your cwd is ${tempDir}.
+You are currently in a GitHub repository (${owner}/${repo}) with a new branch already created: ${branchName}. This branch is already checked out.
+Your task is: https://github.com/${owner}/${repo}/issues/${issueNumber}
 
 CRITICAL GIT RULES:
-- NEVER use git rebase, git reset --hard, or any command that rewrites git history
-- NEVER force push (git push -f or git push --force)
-- NEVER attempt to push to the main/master branch - it is protected
+- Please NEVER use git rebase, git reset --hard, or any command that rewrites git history
+- Please NEVER force push (git push -f or git push --force)
+- Please NEVER attempt to push to the main/master branch - it is protected
 - Only use forward-moving git operations (commit, merge, regular push or revert if needed)
 - Always push your issue branch (${branchName}) and create a pull request from it
 
 1. INITIAL RESEARCH PHASE:
    a) Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
       - Get issue title, description, labels, comments, and any other relevant details
-      - Understand the problem completely before proceeding
+      - Check if any questions should be asked before drafting the pull request, if the
+        issue is not defined enough ask questions to clarify/specify detailed requirements
+        using gh tool by making a comment to the issue.
    
    b) Explore the organization's codebase for context:
       - Use gh tool to search for related code across the entire ${owner} organization
       - Look for similar implementations, patterns, or related functionality
       - Use: gh search code --owner ${owner} [relevant keywords from issue]
-   
+      - And finally read all relevant files in the codebase you have at ${tempDir}
+
    c) Review previous pull requests:
-      - Search for closed/merged PRs related to this issue or similar features
+      - Search for merged PRs for style and implementation details related to this issue or similar features
       - Use: gh pr list --repo ${owner}/${repo} --state all --search "[keywords]"
       - Study merged PRs to understand the repository's code style and conventions
       - Look for any previous attempts to solve this issue
 
 2. COMPREHENSIVE TESTING APPROACH:
-   - DO NOT HESITATE to write and run tests to understand how the codebase works
+   - DO NOT HESITATE to write and run tests for each small function/class to understand how the codebase works
    - Test individual functions to understand their behavior and API
    - Write unit tests with mocks for your solution
    - Include integration/e2e tests where appropriate
    - Use the existing test framework in the repository
-   - Run: npm test, pytest, go test, or whatever testing command the repo uses
-   - Your PR MUST include automated tests that verify the solution works correctly
+   - Your PR MUST include automated tests that verify the solution works correctly and answers requirements specified in the issue and comments to it
 
 3. SOLUTION IMPLEMENTATION:
    - Analyze if this issue is solvable via Pull Request:
@@ -148,7 +149,7 @@ IMPORTANT:
 - Your Pull Request SHOULD contain automated tests (unit, integration, or e2e as appropriate)
 - Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
 
-  const systemPrompt = `You are an expert GitHub issue solver. CRITICAL REQUIREMENTS: 1) First use gh tool to thoroughly research: explore the entire organization's codebase for context, review merged PRs for code style, search for related implementations. 2) TESTING IS MANDATORY: Write and run tests to understand the codebase, test individual functions to learn their APIs, include comprehensive automated tests (unit/integration/e2e) in your PR. 3) Your PR must contain automated tests that verify your solution. 4) Study the repository's testing framework and use it properly. 5) Always mention the resulting PR or comment link in your response.`;
+  const systemPrompt = `You are an expert GitHub issue solver AI.`;
 
   // Properly escape prompts for shell usage - escape quotes and preserve newlines
   const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
@@ -243,9 +244,9 @@ IMPORTANT:
   // Build the actual command for execution
   let execCommand;
   if (argv.resume) {
-    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model sonnet -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq -c .`;
+    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model sonnet -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq`;
   } else {
-    execCommand = $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq -c .`;
+    execCommand = $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
   }
   
   for await (const chunk of execCommand.stream()) {
