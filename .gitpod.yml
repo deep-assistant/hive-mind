@@ -1,2 +1,5 @@
 image:
   file: .gitpod.Dockerfile
+
+tasks:
+    - command: ./gitpod-restore-auth.sh
