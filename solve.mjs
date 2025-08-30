@@ -147,7 +147,8 @@ Issue Number: ${issueNumber}
 
 IMPORTANT: 
 - Your Pull Request SHOULD contain automated tests (unit, integration, or e2e as appropriate)
-- Please mention the resulting link (Pull Request URL or Comment URL) in your final response.`;
+- Please mention the resulting link (Pull Request URL or Comment URL) in your final response.
+- Your Pull Request will be reviewed by human, so do not merge it yourself, only do commits and PR description.`;
 
   const systemPrompt = `You are an expert GitHub issue solver AI.`;
 
