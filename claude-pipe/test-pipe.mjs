@@ -6,16 +6,45 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
 
+// import { $ } from "bun";
+
 const claude = process.env.CLAUDE_PATH || '/Users/konard/.claude/local/claude';
 
 console.log('=== Claude Pipe to jq Test ===\n');
 
 try {
   // Simple test: pipe claude output to jq
-  const result = await $`${claude} -p "hi" --output-format stream-json --model sonnet | jq .`;
-  console.log('Result:');
-  console.log(result.stdout);
-  
+  // await $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet | jq`;
+  // await $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`;
+
+  // $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`.sync();
+
+  // $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet | jq`.sync();
+
+  // await $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`.async();
+
+  // await $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`.async();
+
+  // $`claude -p "hi" --output-format stream-json --verbose --model sonnet`.sync();
+
+  // $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`.sync();
+
+  // const command = $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`;
+  // command.on('data', (data) => {
+  //   console.log('🟢 Claude output:', data);
+  // });
+  // command.on('error', (error) => {
+  //   console.error('🔴 Claude error:', error);
+  // });
+  // command.on('end', () => {
+  //   console.log('🔵 Claude stream ended');
+  // });
+  // await command.start();
+
+  // await $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`;
+
+  await $`ping 8.8.8.8`;
+
 } catch (error) {
   console.error('❌ Test failed:', error.message);
   process.exit(1);
