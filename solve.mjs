@@ -25,6 +25,11 @@ const argv = yargs(process.argv.slice(2))
     description: 'Resume from a previous session ID (when limit was reached)',
     alias: 'r'
   })
+  .option('only-prepare-command', {
+    type: 'boolean',
+    description: 'Only prepare and print the claude command without executing it',
+    alias: 'p'
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -260,9 +265,19 @@ IMPORTANT:
   
   // Print the command being executed (with cd for reproducibility)
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  console.log(`📋 Executing command:`);
+  console.log(`📋 Command prepared:`);
   console.log(`   ${fullCommand}`);
   console.log('');
+  
+  // If only preparing command, exit here
+  if (argv.onlyPrepareCommand) {
+    console.log(`✓ Command preparation complete. Repository cloned to: ${tempDir}`);
+    console.log(`✓ Branch created: ${branchName}`);
+    console.log(`\nTo execute manually:`);
+    console.log(`cd "${tempDir}"`);
+    console.log(`${claudePath} ${claudeArgs}`);
+    process.exit(0);
+  }
   
   // Change to the temporary directory and execute
   process.chdir(tempDir);
