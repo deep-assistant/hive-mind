@@ -77,29 +77,54 @@ if (isResuming) {
 }
 
 try {
-  // Clone the repository using gh tool with authentication
+  // Clone the repository using gh tool with authentication (full clone for proper git history)
   console.log(`Cloning repository ${owner}/${repo} using gh tool...`);
-  await $`gh repo clone ${owner}/${repo} ${tempDir} -- --depth 1`;
+  await $`gh repo clone ${owner}/${repo} ${tempDir}`;
   
   console.log(`Repository cloned successfully to ${tempDir}`);
+  
+  // Verify we're on the default branch and get its name
+  const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  const defaultBranch = defaultBranchResult.stdout.toString().trim();
+  console.log(`Default branch detected: ${defaultBranch}`);
+  
+  // Ensure we're on a clean default branch
+  const statusResult = await $`cd ${tempDir} && git status --porcelain`;
+  if (statusResult.stdout.toString().trim()) {
+    console.error(`Error: Repository has uncommitted changes after clone`);
+    process.exit(1);
+  }
   
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  console.log(`Creating branch: ${branchName}`);
+  console.log(`Creating branch: ${branchName} from ${defaultBranch}`);
   await $`cd ${tempDir} && git checkout -b ${branchName}`;
-  console.log(`Switched to branch: ${branchName}`);
+  
+  // Verify we're on the correct branch
+  const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  const currentBranch = currentBranchResult.stdout.toString().trim();
+  if (currentBranch !== branchName) {
+    console.error(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}`);
+    process.exit(1);
+  }
+  console.log(`✓ Successfully switched to branch: ${branchName}`);
   
   const prompt = `Your cwd is ${tempDir}.
 You are currently in a GitHub repository (${owner}/${repo}) with a new branch already created: ${branchName}. This branch is already checked out.
 Your task is: https://github.com/${owner}/${repo}/issues/${issueNumber}
 
 CRITICAL GIT RULES:
-- Please NEVER use git rebase, git reset --hard, or any command that rewrites git history
+- Please NEVER use git rebase, git reset --hard, git reset --mixed, or any command that rewrites git history
 - Please NEVER force push (git push -f or git push --force)
 - Please NEVER attempt to push to the main/master branch - it is protected
-- Only use forward-moving git operations (commit, merge, regular push or revert if needed)
+- Please NEVER merge into main/master branch directly - always use pull requests
+- Please NEVER checkout main/master branch after creating the issue branch
+- ALWAYS stay on the issue branch: ${branchName}
+- ALWAYS verify you are on the correct branch (${branchName}) before making any commits using 'git branch --show-current'
+- Only use forward-moving git operations (commit, regular push, or revert if needed)
 - Always push your issue branch (${branchName}) and create a pull request from it
+- If you encounter git conflicts or issues, ask for help instead of using reset/rebase
 
 1. INITIAL RESEARCH PHASE:
    a) Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
