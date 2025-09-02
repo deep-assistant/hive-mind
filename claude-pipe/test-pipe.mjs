@@ -23,13 +23,15 @@ try {
 
   // await $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`.async();
 
-  // await $`claude -p "hi" --output-format stream-json --verbose --model sonnet | jq`.async();
+  // await $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet | jq`.async();
 
   // $`claude -p "hi" --output-format stream-json --verbose --model sonnet`.sync();
 
   // $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`.sync();
 
   // const command = $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`;
+  // const command = $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet | jq`;
+  // const command = $`ping 8.8.8.8`;
   // command.on('data', (data) => {
   //   console.log('🟢 Claude output:', data);
   // });
@@ -42,8 +44,6 @@ try {
   // await command.start();
 
   // await $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`;
-
-  await $`ping 8.8.8.8`;
 
 } catch (error) {
   console.error('❌ Test failed:', error.message);
