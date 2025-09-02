@@ -45,6 +45,18 @@ try {
 
   // await $`${claude} -p "hi" --output-format stream-json --verbose --model sonnet`;
 
+
+  const command = $({ stdin: 'hi\n', mirror: false })`${claude} --output-format stream-json --verbose --model sonnet`;
+
+  command.on('data', (chunk) => {
+    const chunkString = chunk.data.toString();
+    const chunkJson = JSON.parse(chunkString.trim());
+    const formattedChunkJson = JSON.stringify(chunkJson, null, 2);
+    console.log('🟢 Claude output:', formattedChunkJson);
+  });
+
+  await command;
+
 } catch (error) {
   console.error('❌ Test failed:', error.message);
   process.exit(1);
