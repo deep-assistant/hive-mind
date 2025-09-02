@@ -59,12 +59,12 @@ if (isResuming) {
   // When resuming, try to find existing directory or create a new one
   const scriptDir = path.dirname(process.argv[1]);
   const sessionLogPattern = path.join(scriptDir, `${argv.resume}.log`);
-  
+
   try {
     // Check if session log exists to verify session is valid
     await fs.access(sessionLogPattern);
     console.log(`🔄 Resuming session ${argv.resume} (session log found)`);
-    
+
     // For resumed sessions, create new temp directory since old one may be cleaned up
     tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
@@ -78,43 +78,64 @@ if (isResuming) {
 } else {
   tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
   await fs.mkdir(tempDir, { recursive: true });
-  console.log(`Creating temporary directory: ${tempDir}`);
+  console.log(`Creating temporary directory: ${tempDir}\n`);
 }
 
 try {
   // Clone the repository using gh tool with authentication (full clone for proper git history)
-  console.log(`Cloning repository ${owner}/${repo} using gh tool...`);
+  console.log(`Cloning repository ${owner}/${repo} using gh tool...\n`);
   await $`gh repo clone ${owner}/${repo} ${tempDir}`;
-  
-  console.log(`Repository cloned successfully to ${tempDir}`);
-  
+
+  console.log(`Repository cloned successfully to ${tempDir}\n`);
+
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+
+  console.log(`\n`);
+
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
-  console.log(`Default branch detected: ${defaultBranch}`);
-  
+  console.log(`Default branch detected: ${defaultBranch}\n`);
+
   // Ensure we're on a clean default branch
   const statusResult = await $`cd ${tempDir} && git status --porcelain`;
-  if (statusResult.stdout.toString().trim()) {
+
+  console.log(`\n`);
+
+  if (statusResult.exitCode !== 0) {
+    console.error(`Error: Failed to check git status`);
+    console.error(statusResult.stderr.toString().trim());
+    process.exit(1);
+  } else if (!statusResult.stdout.toString().trim()) {
     console.error(`Error: Repository has uncommitted changes after clone`);
     process.exit(1);
   }
-  
+
+  console.log('\n');
+
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  console.log(`Creating branch: ${branchName} from ${defaultBranch}`);
-  await $`cd ${tempDir} && git checkout -b ${branchName}`;
-  
+  console.log(`Creating branch: ${branchName} from ${defaultBranch}\n`);
+  const checkoutResult = await $`git --git-dir ${tempDir} checkout -b ${branchName}`;
+
+  if (checkoutResult.exitCode !== 0) {
+    console.error(`Error: Failed to create branch ${branchName}:`);
+    console.error(checkoutResult.stderr.toString().trim());
+    process.exit(1);
+  } else {
+    console.log(`✓ Successfully created branch: ${branchName}`);
+  }
+
   // Verify we're on the correct branch
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   const currentBranch = currentBranchResult.stdout.toString().trim();
   if (currentBranch !== branchName) {
-    console.error(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}`);
+    console.log('\n');
+    console.error(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}\n`);
     process.exit(1);
   }
   console.log(`✓ Successfully switched to branch: ${branchName}`);
-  
+
   const prompt = `Your cwd is ${tempDir}.
 You are currently in a GitHub repository (${owner}/${repo}) with a new branch already created: ${branchName}. This branch is already checked out.
 Your task is: https://github.com/${owner}/${repo}/issues/${issueNumber}
@@ -188,14 +209,14 @@ IMPORTANT:
 
   // Get timestamps from GitHub servers before executing the command
   console.log('Getting reference timestamps from GitHub...');
-  
+
   let referenceTime;
   try {
     // Get the issue's last update time
     const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
     console.log(`  Issue last updated: ${issueUpdatedAt.toISOString()}`);
-    
+
     // Get the last comment's timestamp (if any)
     const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
@@ -205,7 +226,7 @@ IMPORTANT:
     } else {
       console.log(`  No comments found on issue`);
     }
-    
+
     // Get the most recent pull request's timestamp
     const prsResult = await $`gh pr list --repo ${owner}/${repo} --limit 1 --json createdAt`;
     const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
@@ -215,7 +236,7 @@ IMPORTANT:
     } else {
       console.log(`  No PRs found in repo`);
     }
-    
+
     // Use the most recent timestamp as reference
     referenceTime = issueUpdatedAt;
     if (lastCommentTime && lastCommentTime > referenceTime) {
@@ -224,7 +245,7 @@ IMPORTANT:
     if (lastPrTime && lastPrTime > referenceTime) {
       referenceTime = lastPrTime;
     }
-    
+
     console.log(`✓ Using reference timestamp: ${referenceTime.toISOString()}`);
   } catch (timestampError) {
     console.warn('Warning: Could not get GitHub timestamps, using current time as reference');
@@ -232,43 +253,42 @@ IMPORTANT:
     referenceTime = new Date();
     console.log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
   }
-  
+
   // Execute claude command from the cloned repository directory
   console.log(`\nExecuting claude command from repository directory...`);
-  
+
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
   let sessionId = null;
   let currentLogFile = null;
   let permanentLogFile = null;
-  let pendingData = '';
   let hasOutput = false;
   let limitReached = false;
-  
+
   // Create permanent log file immediately with timestamp
   const scriptDir = path.dirname(process.argv[1]);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   permanentLogFile = path.join(scriptDir, `solve-${timestamp}.log`);
-  
+
   console.log(`📁 Streaming to log file: ${permanentLogFile}`);
   console.log(`   (You can open this file in VS Code to watch real-time progress)\n`);
-  
+
   // Build claude command with optional resume flag
   let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model sonnet`;
-  
+
   if (argv.resume) {
     console.log(`🔄 Resuming from session: ${argv.resume}`);
     claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
   }
-  
+
   claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-  
+
   // Print the command being executed (with cd for reproducibility)
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
   console.log(`📋 Command prepared:`);
   console.log(`   ${fullCommand}`);
   console.log('');
-  
+
   // If only preparing command, exit here
   if (argv.onlyPrepareCommand) {
     console.log(`✓ Command preparation complete. Repository cloned to: ${tempDir}`);
@@ -278,86 +298,77 @@ IMPORTANT:
     console.log(`${claudePath} ${claudeArgs}`);
     process.exit(0);
   }
-  
+
   // Change to the temporary directory and execute
   process.chdir(tempDir);
-  
+
   // Build the actual command for execution
   let execCommand;
   if (argv.resume) {
     execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model sonnet -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq`;
   } else {
-    execCommand = $`${claudePath} -p "${escapedPrompt}" --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet | jq`;
+    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet`;
   }
-  
+
   for await (const chunk of execCommand.stream()) {
     if (chunk.type === 'stdout') {
       const data = chunk.data.toString();
+
+      let json;
+      let jsonString;
+
+      try {
+        json = JSON.parse(data);
+        jsonString = JSON.stringify(json, null, 2);
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+      }
+
       hasOutput = true;
-      process.stdout.write(data);
-      
-      // Also save to log file
-      pendingData += data;
-      
-      // Look for complete JSON lines
-      const lines = pendingData.split('\n');
-      pendingData = lines.pop() || ''; // Keep incomplete line for next chunk
-      
-      for (const line of lines) {
-        if (line.trim()) {
-          // Write to permanent log file immediately as we get each line
-          await fs.appendFile(permanentLogFile, line + '\n');
-          
-          // Also write to temp log file if we have one
-          if (currentLogFile) {
-            await fs.appendFile(currentLogFile, line + '\n');
-          }
-          
-          // Try to extract session ID if not found yet
-          if (!sessionId && line.includes('session_id')) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.session_id) {
-                sessionId = parsed.session_id;
-                
-                // Rename permanent log file to use session ID
-                const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-                await fs.rename(permanentLogFile, sessionLogFile);
-                permanentLogFile = sessionLogFile;
-                
-                console.log(`\n   ✅ Session ID extracted: ${sessionId}`);
-                console.log(`   📁 Log file renamed to: ${permanentLogFile}\n`);
-                
-                // Also create temp log file for compatibility
-                currentLogFile = path.join(tempDir, `${sessionId}.log`);
-                await fs.writeFile(currentLogFile, line + '\n');
-              }
-            } catch (e) {
-              // Ignore JSON parse errors
-            }
-          }
-          
-          // Check for limit reached message
-          if (line.includes('hour limit reached') || line.includes('resets')) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.message && parsed.message.content) {
-                const content = Array.isArray(parsed.message.content) 
-                  ? parsed.message.content.find(c => c.type === 'text')?.text 
-                  : parsed.message.content;
-                if (content && content.includes('limit reached')) {
-                  limitReached = true;
-                }
-              }
-            } catch (e) {
-              // Ignore JSON parse errors
+      process.stdout.write(jsonString);
+
+      // Try to extract session ID if not found yet
+      if (!sessionId) {
+        if (json.session_id) {
+          sessionId = json.session_id;
+
+          // Rename permanent log file to use session ID
+          const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
+          await fs.rename(permanentLogFile, sessionLogFile);
+          permanentLogFile = sessionLogFile;
+
+          console.log(`\n   ✅ Session ID extracted: ${sessionId}`);
+          console.log(`   📁 Log file renamed to: ${permanentLogFile}\n`);
+
+          // Also create temp log file for compatibility
+          currentLogFile = path.join(tempDir, `${sessionId}.log`);
+          await fs.writeFile(currentLogFile, line + '\n');
+        }
+      }
+
+      // Check for limit reached message
+      if (json.message && json.message.content && json.message.content.length > 0) {
+        for (const item of json.message.content) {
+          if (item.type === 'text') {
+            if (item.text && item.text.includes('limit reached')) {
+              limitReached = true;
             }
           }
         }
       }
+
+      await fs.appendFile(permanentLogFile, jsonString + '\n');
+      if (currentLogFile) {
+        await fs.appendFile(currentLogFile, jsonString + '\n');
+      }
+
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
       process.stderr.write(data);
+      await fs.appendFile(permanentLogFile, data + '\n');
+      if (currentLogFile) {
+        await fs.appendFile(currentLogFile, data + '\n');
+      }
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
@@ -365,28 +376,20 @@ IMPORTANT:
       }
     }
   }
-  
-  // Process any remaining data
-  if (pendingData.trim()) {
-    await fs.appendFile(permanentLogFile, pendingData);
-    if (currentLogFile) {
-      await fs.appendFile(currentLogFile, pendingData);
-    }
-  }
-  
+
   if (commandFailed) {
     process.exit(1);
   }
-  
+
   console.log('\nClaude command completed successfully');
-  
+
   // Show summary of session and log file
   console.log('\n=== Session Summary ===');
-  
+
   if (sessionId) {
     console.log(`✅ Session ID: ${sessionId}`);
     console.log(`✅ Complete log file: ${permanentLogFile}`);
-    
+
     if (limitReached) {
       console.log(`\n⏰ LIMIT REACHED DETECTED!`);
       console.log(`\n🔄 To resume when limit resets, use:\n`);
@@ -401,7 +404,7 @@ IMPORTANT:
       console.log(`claude --resume ${sessionId} --working-directory ${tempDir}`);
       console.log(``);
     }
-    
+
     // Show log file contents preview
     try {
       const logContents = await $`head -n 5 ${permanentLogFile}`;
@@ -416,21 +419,21 @@ IMPORTANT:
     console.log(`❌ No session ID extracted`);
     console.log(`📁 Log file available: ${permanentLogFile}`);
   }
-  
+
   // Now search for newly created pull requests and comments
   console.log('\n=== Searching for results ===');
   console.log(`Branch name: ${branchName}`);
   console.log(`Reference time: ${referenceTime.toISOString()}`);
-  
+
   try {
     // Get the current user's GitHub username
     const userResult = await $`gh api user --jq .login`;
     const currentUser = userResult.stdout.toString().trim();
     console.log(`Current GitHub user: ${currentUser}`);
-    
+
     // Search for pull requests created from our branch after the reference time
     console.log(`\nSearching for PRs from branch '${branchName}' created after ${referenceTime.toISOString()}...`);
-    
+
     // First, get all PRs from our branch to debug
     const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName`;
     const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
@@ -438,10 +441,10 @@ IMPORTANT:
     allBranchPrs.forEach(pr => {
       console.log(`    - PR #${pr.number}: created at ${pr.createdAt} (${new Date(pr.createdAt) > referenceTime ? 'NEW' : 'old'})`);
     });
-    
+
     // Now filter for new ones
     const newPrs = allBranchPrs.filter(pr => new Date(pr.createdAt) > referenceTime);
-    
+
     if (newPrs.length > 0) {
       const pr = newPrs[0];
       console.log(`\n✓ Found new PR #${pr.number} created at ${pr.createdAt}`);
@@ -450,14 +453,14 @@ IMPORTANT:
     } else {
       console.log(`  No new PRs found from branch ${branchName} after ${referenceTime.toISOString()}`);
     }
-    
+
     // If no PR found, search for recent comments on the issue
     console.log(`\nSearching for comments by ${currentUser} on issue #${issueNumber} after ${referenceTime.toISOString()}...`);
-    
+
     // Get all comments and filter them
     const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     const allComments = JSON.parse(allCommentsResult.stdout.toString().trim() || '[]');
-    
+
     if (allComments.length > 0) {
       console.log(`  Recent comments on issue:`);
       const recentComments = allComments.slice(-5); // Last 5 comments
@@ -469,12 +472,12 @@ IMPORTANT:
     } else {
       console.log(`  No comments found on issue`);
     }
-    
+
     // Filter for new comments by current user
-    const newCommentsByUser = allComments.filter(comment => 
+    const newCommentsByUser = allComments.filter(comment =>
       comment.user.login === currentUser && new Date(comment.created_at) > referenceTime
     );
-    
+
     if (newCommentsByUser.length > 0) {
       const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
       console.log(`\n✓ Found ${newCommentsByUser.length} new comment(s) by ${currentUser}`);
@@ -483,12 +486,12 @@ IMPORTANT:
     } else {
       console.log(`  No new comments found by ${currentUser} after ${referenceTime.toISOString()}`);
     }
-    
+
     // If neither found, it might not have been necessary to create either
     console.log('\n=== No new PR or comment detected ===');
     console.log('The issue may have been resolved differently or required no action.');
     process.exit(0);
-    
+
   } catch (searchError) {
     console.warn('\n=== Error during search ===');
     console.warn('Warning: Could not search for created pull request or comment:', searchError.message);
@@ -496,7 +499,7 @@ IMPORTANT:
     console.log('The command completed but we could not verify the result.');
     process.exit(0);
   }
-  
+
 } catch (error) {
   console.error('Error executing command:', error.message);
   process.exit(1);
