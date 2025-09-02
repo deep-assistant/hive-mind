@@ -48,12 +48,23 @@ try {
 
   const command = $({ stdin: 'hi\n', mirror: false })`${claude} --output-format stream-json --verbose --model sonnet`;
 
-  command.on('data', (chunk) => {
-    const chunkString = chunk.data.toString();
-    const chunkJson = JSON.parse(chunkString.trim());
-    const formattedChunkJson = JSON.stringify(chunkJson, null, 2);
-    console.log('🟢 Claude output:', formattedChunkJson);
-  });
+  // Working example 1
+  // command.on('data', (chunk) => {
+  //   const chunkString = chunk.data.toString();
+  //   const chunkJson = JSON.parse(chunkString.trim());
+  //   const formattedChunkJson = JSON.stringify(chunkJson, null, 2);
+  //   console.log('🟢 Claude output:', formattedChunkJson);
+  // });
+
+  // Working example 2
+  for await (const chunk of command.stream()) {
+    if (chunk.type === 'stdout') {
+      const chunkString = chunk.data.toString();
+      const chunkJson = JSON.parse(chunkString.trim());
+      const formattedChunkJson = JSON.stringify(chunkJson, null, 2);
+      console.log('🟢 Claude output:', formattedChunkJson);
+    }
+  }
 
   await command;
 
