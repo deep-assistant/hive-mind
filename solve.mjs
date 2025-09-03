@@ -201,7 +201,15 @@ IMPORTANT:
 - Please mention the resulting link (Pull Request URL or Comment URL) in your final response.
 - Your Pull Request will be reviewed by human, so do not merge it yourself, only do commits and PR description.`;
 
-  const systemPrompt = `You are an expert GitHub issue solver AI.`;
+  const systemPrompt = `You are AI issue solver.
+When you execute commands, always save their logs to files for easy reading if the output gets large.
+When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
+When CI is failing, make sure you download the logs locally and carefully investigate them.
+When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
+When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
+When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
+When testing your assumptions, use the example scripts.
+When you face something extremely hard, use divide and conquer — it always helps.`;
 
   // Properly escape prompts for shell usage - escape quotes and preserve newlines
   const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
