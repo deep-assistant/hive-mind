@@ -136,70 +136,44 @@ try {
   }
   console.log(`✓ Successfully switched to branch: ${branchName}`);
 
-  const prompt = `Your cwd is ${tempDir}.
-You are currently in a GitHub repository (${owner}/${repo}) with a new branch already created: ${branchName}. This branch is already checked out.
-Your task is: https://github.com/${owner}/${repo}/issues/${issueNumber}
+  const prompt = `1. Initial research.  
+   - When you read issue, read all details and comments thoroughly.  
+   - When you need issue details, use gh issue view ${issueUrl}.  
+   - When you need related code, use gh search code --owner ${owner} [keywords].  
+   - When you need repo context, read files in ${tempDir}.  
+   - When you study related work, study related previous latest pull requests.  
+   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
+   - When issue is not defined enough, write a comment to ask clarifying questions.  
 
-CRITICAL GIT RULES:
-- Please NEVER use git rebase, git reset --hard, git reset --mixed, or any command that rewrites git history
-- Please NEVER force push (git push -f or git push --force)
-- Please NEVER attempt to push to the main/master branch - it is protected
-- Please NEVER merge into main/master branch directly - always use pull requests
-- Please NEVER checkout main/master branch after creating the issue branch
-- ALWAYS stay on the issue branch: ${branchName}
-- ALWAYS verify you are on the correct branch (${branchName}) before making any commits using 'git branch --show-current'
-- Only use forward-moving git operations (commit, regular push, or revert if needed)
-- Always push your issue branch (${branchName}) and create a pull request from it
-- If you encounter git conflicts or issues, ask for help instead of using reset/rebase
+2. Solution development and testing.  
+   - When issue is solvable, implement code with tests.  
+   - When you test, start from small functions.  
+   - When you test, write unit tests with mocks.  
+   - When you test integrations, use existing framework.  
+   - When you test solution, include automated checks in pr.  
+   - When issue is unclear, write comment on issue asking questions.  
 
-1. INITIAL RESEARCH PHASE:
-   a) Use the gh tool to fetch detailed information about this GitHub issue: ${issueUrl}
-      - Get issue title, description, labels, comments, and any other relevant details
-      - Check if any questions should be asked before drafting the pull request, if the
-        issue is not defined enough ask questions to clarify/specify detailed requirements
-        using gh tool by making a comment to the issue.
-   
-   b) Explore the organization's codebase for context:
-      - Use gh tool to search for related code across the entire ${owner} organization
-      - Look for similar implementations, patterns, or related functionality
-      - Use: gh search code --owner ${owner} [relevant keywords from issue]
-      - And finally read all relevant files in the codebase you have at ${tempDir}
+3. Preparing pull request.  
+   - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
+   - When you code, follow contributing guidelines.  
+   - When you commit, write clear message.  
+   - When you open pr, describe solution and include tests.  
 
-   c) Review previous pull requests:
-      - Search for merged PRs for style and implementation details related to this issue or similar features
-      - Use: gh pr list --repo ${owner}/${repo} --state all --search "[keywords]"
-      - Study merged PRs to understand the repository's code style and conventions
-      - Look for any previous attempts to solve this issue
+4. Workflow and collaboration.  
+   - When you check branch, verify with git branch --show-current.  
+   - When you push, push only to branch ${branchName}.  
+   - When you finish, create a pull request from branch ${branchName}.  
+   - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
+   - When you manage commits, preserve commit history for later analysis.  
+   - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
+   - When you face conflict, ask for help.  
+   - When you collaborate, respect branch protections by working only on ${branchName}.  
+   - When you mention result, include pull request url or comment url.  
 
-2. COMPREHENSIVE TESTING APPROACH:
-   - DO NOT HESITATE to write and run tests for each small function/class to understand how the codebase works
-   - Test individual functions to understand their behavior and API
-   - Write unit tests with mocks for your solution
-   - Include integration/e2e tests where appropriate
-   - Use the existing test framework in the repository
-   - Your PR MUST include automated tests that verify the solution works correctly and answers requirements specified in the issue and comments to it
-
-3. SOLUTION IMPLEMENTATION:
-   - Analyze if this issue is solvable via Pull Request:
-     * If YES: Create a solution with comprehensive tests and submit a pull request
-     * If NO: Comment on the issue asking for clarification or explaining what information is needed
-   
-4. Guidelines:
-   - Read all issue details and comments thoroughly
-   - Study the codebase style from merged PRs before writing code
-   - Follow the repository's contributing guidelines and code style exactly
-   - Test any code changes thoroughly before submitting
-   - Write clear commit messages and PR descriptions
-   - Include automated tests in your PR to test key features of your solution
-   - If the issue requires clarification, ask specific questions in a comment
-
-Repository: ${owner}/${repo}
-Issue Number: ${issueNumber}
-
-IMPORTANT: 
-- Your Pull Request SHOULD contain automated tests (unit, integration, or e2e as appropriate)
-- Please mention the resulting link (Pull Request URL or Comment URL) in your final response.
-- Your Pull Request will be reviewed by human, so do not merge it yourself, only do commits and PR description.`;
+5. Self review.  
+   - When you check your solution, run all tests locally.  
+   - When you compare with repo style, use gh pr diff [number].  
+   - When you finalize, confirm code, tests, and description are consistent.  `;
 
   const systemPrompt = `You are AI issue solver.
 When you execute commands, always save their logs to files for easy reading if the output gets large.
