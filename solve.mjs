@@ -376,23 +376,20 @@ When you face something extremely hard, use divide and conquer — it always hel
   // Build the actual command for execution
   let execCommand;
   if (argv.resume) {
-    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq -c`;
+    execCommand = $({ mirror: false })`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
   } else {
-    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model} | jq -c`;
+    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model}`;
   }
 
   for await (const chunk of execCommand.stream()) {
     if (chunk.type === 'stdout') {
       const data = chunk.data.toString();
-      
-      // Log every chunk
-      await log(data);
-
       let json;
       try {
         json = JSON.parse(data);
+        await log(JSON.stringify(json, null, 2));
       } catch (error) {
-        // Not JSON, continue
+        await log(data);
         continue;
       }
 
