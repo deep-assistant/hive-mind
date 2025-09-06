@@ -360,6 +360,53 @@ ${prBody}`, { verbose: true });
                 prNumber = prMatch[1];
                 await log(`✅ Draft pull request created: #${prNumber}`);
                 await log(`📍 URL: ${prUrl}`);
+                
+                // Link the issue to the PR in GitHub's Development section using GraphQL API
+                await log(`🔗 Linking issue #${issueNumber} to PR #${prNumber} in Development section...`);
+                try {
+                  // First, get the node IDs for both the issue and the PR
+                  const issueNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { issue(number: ${issueNumber}) { id } } }' --jq .data.repository.issue.id`;
+                  
+                  if (issueNodeResult.code !== 0) {
+                    throw new Error(`Failed to get issue node ID: ${issueNodeResult.stderr}`);
+                  }
+                  
+                  const issueNodeId = issueNodeResult.stdout.toString().trim();
+                  
+                  const prNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { id } } }' --jq .data.repository.pullRequest.id`;
+                  
+                  if (prNodeResult.code !== 0) {
+                    throw new Error(`Failed to get PR node ID: ${prNodeResult.stderr}`);
+                  }
+                  
+                  const prNodeId = prNodeResult.stdout.toString().trim();
+                  
+                  // Now link them using the GraphQL mutation
+                  // GitHub automatically creates the link when we use "Fixes #" but we can ensure it's properly linked
+                  // by updating the PR body with the closing keyword if not already present
+                  
+                  // The Development section link is actually created automatically by GitHub when:
+                  // 1. The PR body contains "Fixes #N", "Closes #N", or "Resolves #N"
+                  // 2. The PR is in the same repository as the issue
+                  // Since we already have "Fixes #${issueNumber}" in the body, it should auto-link
+                  
+                  // Let's verify the link was created
+                  const linkCheckResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { closingIssuesReferences(first: 10) { nodes { number } } } } }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number'`;
+                  
+                  if (linkCheckResult.code === 0) {
+                    const linkedIssues = linkCheckResult.stdout.toString().trim().split('\n').filter(n => n);
+                    if (linkedIssues.includes(issueNumber)) {
+                      await log(`✅ Issue #${issueNumber} successfully linked to PR #${prNumber} in Development section`);
+                    } else {
+                      await log(`⚠️ Issue not found in closing references, GitHub should auto-link via "Fixes #${issueNumber}" in body`, { level: 'warning' });
+                    }
+                  } else {
+                    await log(`⚠️ Could not verify issue link, but GitHub should auto-link via "Fixes #${issueNumber}" in body`, { level: 'warning' });
+                  }
+                } catch (linkError) {
+                  await log(`⚠️ Could not verify issue linking: ${linkError.message}`, { level: 'warning' });
+                  await log(`   GitHub should auto-link via "Fixes #${issueNumber}" in the PR body`, { level: 'warning' });
+                }
               } else {
                 await log(`✅ Draft pull request created`);
                 await log(`📍 URL: ${prUrl}`);
