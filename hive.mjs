@@ -65,6 +65,12 @@ const argv = yargs(process.argv.slice(2))
     default: false,
     alias: 'a'
   })
+  .option('skip-issues-with-prs', {
+    type: 'boolean',
+    description: 'Skip issues that already have open pull requests',
+    default: false,
+    alias: 's'
+  })
   .option('concurrency', {
     type: 'number',
     description: 'Number of concurrent solve.mjs instances',
@@ -168,6 +174,9 @@ if (argv.allIssues) {
   await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
 } else {
   await log(`   🏷️  Tag: "${argv.monitorTag}"`);
+}
+if (argv.skipIssuesWithPrs) {
+  await log(`   🚫 Skipping: Issues with open PRs`);
 }
 await log(`   🔄 Concurrency: ${argv.concurrency} parallel workers`);
 await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
@@ -325,6 +334,36 @@ async function worker(workerId) {
   await log(`🔧 Worker ${workerId} stopped`, { verbose: true });
 }
 
+// Function to check if an issue has open pull requests
+async function hasOpenPullRequests(issueUrl) {
+  try {
+    const { execSync } = await import('child_process');
+    
+    // Extract owner, repo, and issue number from URL
+    const urlMatch = issueUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+    if (!urlMatch) return false;
+    
+    const [, issueOwner, issueRepo, issueNumber] = urlMatch;
+    
+    // Check for linked PRs using GitHub API
+    const cmd = `gh api repos/${issueOwner}/${issueRepo}/issues/${issueNumber}/timeline --jq '[.[] | select(.event == "cross-referenced" and .source.issue.pull_request != null and .source.issue.state == "open")] | length'`;
+    
+    const output = execSync(cmd, { encoding: 'utf8' }).trim();
+    const openPrCount = parseInt(output) || 0;
+    
+    if (openPrCount > 0) {
+      await log(`      ↳ Skipping (has ${openPrCount} open PR${openPrCount > 1 ? 's' : ''})`, { verbose: true });
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    // If we can't check, assume no PRs
+    await log(`      ↳ Could not check for PRs: ${error.message.split('\n')[0]}`, { verbose: true });
+    return false;
+  }
+}
+
 // Function to fetch issues from GitHub
 async function fetchIssues() {
   if (argv.allIssues) {
@@ -425,6 +464,27 @@ async function fetchIssues() {
     if (argv.maxIssues > 0 && issues.length > argv.maxIssues) {
       issuesToProcess = issues.slice(0, argv.maxIssues);
       await log(`   🔢 Limiting to first ${argv.maxIssues} issues`);
+    }
+    
+    // Filter out issues with open PRs if option is enabled
+    if (argv.skipIssuesWithPrs) {
+      await log(`   🔍 Checking for existing pull requests...`);
+      const filteredIssues = [];
+      
+      for (const issue of issuesToProcess) {
+        const hasPr = await hasOpenPullRequests(issue.url);
+        if (hasPr) {
+          await log(`      ⏭️  Skipping (has PR): ${issue.title || 'Untitled'} (${issue.url})`, { verbose: true });
+        } else {
+          filteredIssues.push(issue);
+        }
+      }
+      
+      const skippedCount = issuesToProcess.length - filteredIssues.length;
+      if (skippedCount > 0) {
+        await log(`   ⏭️  Skipped ${skippedCount} issue(s) with existing pull requests`);
+      }
+      issuesToProcess = filteredIssues;
     }
     
     // In dry-run mode, show the issues that would be processed
