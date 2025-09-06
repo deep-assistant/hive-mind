@@ -32,17 +32,19 @@ if (dryRun) {
 }
 
 try {
+  // Import child_process once
+  const { execSync } = await import('child_process');
+  
   // Get current GitHub user
-  const userResult = await $`gh api user --jq .login 2>/dev/null`;
-  const githubUser = userResult.stdout.toString().trim();
+  const githubUser = execSync('gh api user --jq .login', { encoding: 'utf8' }).trim();
   console.log(`👤 User: ${githubUser}`);
 
   // List all repositories for the user
   process.stdout.write('🔍 Searching for test repositories... ');
   
-  // Get all repos (up to 100, adjust if needed)
-  const reposResult = await $`gh repo list ${githubUser} --limit 100 --json name,url,createdAt,isPrivate > /tmp/repos.json 2>/dev/null && cat /tmp/repos.json`;
-  const repos = JSON.parse(reposResult.stdout.toString());
+  // Get all repos (up to 100, adjust if needed) - suppress output
+  const reposJson = execSync(`gh repo list ${githubUser} --limit 100 --json name,url,createdAt,isPrivate`, { encoding: 'utf8' });
+  const repos = JSON.parse(reposJson);
   
   // Filter for test repositories matching the pattern
   const testRepos = repos.filter(repo => 
@@ -88,23 +90,24 @@ try {
     console.log(`⚠️  This will permanently delete ${testRepos.length} repositories!`);
     console.log('');
     console.log('Type "yes" to confirm, or Ctrl+C to cancel:');
+    process.stdout.write('> ');
     
-    // Read user input
-    const readline = (await import('readline')).default;
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-    
-    const answer = await new Promise(resolve => {
-      rl.question('> ', answer => {
-        rl.close();
-        resolve(answer);
-      });
-    });
-    
-    if (answer.toLowerCase() !== 'yes') {
-      console.log('\n❌ Cancelled');
+    // Use execSync to read input, which handles Ctrl+C properly
+    try {
+      // Read from stdin using shell command
+      const answer = execSync('read answer && echo $answer', { 
+        encoding: 'utf8',
+        stdio: ['inherit', 'pipe', 'pipe'],
+        shell: '/bin/bash'
+      }).trim();
+      
+      if (answer.toLowerCase() !== 'yes') {
+        console.log('\n❌ Cancelled');
+        process.exit(0);
+      }
+    } catch (e) {
+      // Ctrl+C was pressed (execSync throws on SIGINT)
+      console.log('\n\n❌ Cancelled');
       process.exit(0);
     }
   }
