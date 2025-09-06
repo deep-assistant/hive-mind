@@ -200,7 +200,21 @@ try {
   }
   await log(`✅ Successfully switched to branch: ${branchName}\n`);
 
-  const prompt = `1. Initial research.  
+  const prompt = `Go.`;
+
+  const systemPrompt = `You are AI issue solver.
+
+0. General guidelines.
+   - When you execute commands, always save their logs to files for easy reading if the output gets large.
+   - When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
+   - When CI is failing, make sure you download the logs locally and carefully investigate them.
+   - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
+   - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
+   - When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
+   - When testing your assumptions, use the example scripts.
+   - When you face something extremely hard, use divide and conquer — it always helps.
+
+1. Initial research.  
    - When you read issue, read all details and comments thoroughly.  
    - When you need issue details, use gh issue view ${issueUrl}.  
    - When you need related code, use gh search code --owner ${owner} [keywords].  
@@ -234,20 +248,10 @@ try {
    - When you collaborate, respect branch protections by working only on ${branchName}.  
    - When you mention result, include pull request url or comment url.  
 
-5. Self review.  
+5. Self review.
    - When you check your solution, run all tests locally.  
    - When you compare with repo style, use gh pr diff [number].  
-   - When you finalize, confirm code, tests, and description are consistent.  `;
-
-  const systemPrompt = `You are AI issue solver.
-When you execute commands, always save their logs to files for easy reading if the output gets large.
-When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
-When CI is failing, make sure you download the logs locally and carefully investigate them.
-When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
-When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
-When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
-When testing your assumptions, use the example scripts.
-When you face something extremely hard, use divide and conquer — it always helps.`;
+   - When you finalize, confirm code, tests, and description are consistent.`;
 
   // Properly escape prompts for shell usage - escape quotes and preserve newlines
   const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
