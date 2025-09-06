@@ -17,12 +17,11 @@ let permanentLogFile = null;
 
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
-  const { level = 'info', raw = false, consoleOnly = false } = options;
+  const { level = 'info' } = options;
   
-  // Write to file if not console-only
-  if (!consoleOnly && permanentLogFile) {
-    const levelPrefix = raw ? '' : `[${new Date().toISOString()}] [${level.toUpperCase()}] `;
-    const logMessage = raw ? message : `${levelPrefix}${message}`;
+  // Write to file if log file is set
+  if (permanentLogFile) {
+    const logMessage = `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
     await fs.appendFile(permanentLogFile, logMessage + '\n').catch(() => {});
   }
   
@@ -386,18 +385,17 @@ When you face something extremely hard, use divide and conquer — it always hel
   for await (const chunk of execCommand.stream()) {
     if (chunk.type === 'stdout') {
       const data = chunk.data.toString();
+      
+      // Log every chunk
+      await log(data);
 
       let json;
       try {
         json = JSON.parse(data);
       } catch (error) {
-        // Not JSON, just append to log
-        await log(data, { raw: true });
+        // Not JSON, continue
         continue;
       }
-
-      // Save full JSON to log file
-      await log(JSON.stringify(json), { raw: true });
 
       // Extract session ID on first message
       if (!sessionId && json.session_id) {
@@ -438,8 +436,8 @@ When you face something extremely hard, use divide and conquer — it always hel
       } else if (json.type === 'tool_use') {
         toolUseCount++;
         const toolName = json.tool_use?.name || 'unknown';
-        // Log tool use to file only
-        await log(`[TOOL USE] ${toolName}`, { raw: true });
+        // Log tool use
+        await log(`[TOOL USE] ${toolName}`);
         // Show progress in console (without logging)
         process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
       } else if (json.type === 'system' && json.subtype === 'init') {
@@ -454,7 +452,8 @@ When you face something extremely hard, use divide and conquer — it always hel
       if (data.includes('Error') || data.includes('error')) {
         await log(`\n⚠️  ${data}`, { level: 'error' });
       }
-      await log(`STDERR: ${data}`, { raw: true });
+      // Log stderr
+      await log(`STDERR: ${data}`);
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
