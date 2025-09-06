@@ -15,12 +15,18 @@ This directory contains reproducible test cases for issues encountered with the 
 9. **issue-09-auto-quoting.mjs** - String interpolation with quotes can add extra quotes to output
 10. **issue-10-git-push-silent-failure.mjs** - Git push silently fails with empty output despite returning success code
 11. **issue-11-gh-pr-create-output.mjs** - gh pr create output not captured, returns empty string despite successful PR creation
+12. **issue-12-github-search-escaping.mjs** - GitHub search queries with labels containing spaces get multiply escaped
+13. **issue-13-complex-shell-escaping.mjs** - Complex shell commands with nested quotes and variables fail unpredictably
 
 ## Critical Issues
 
 ⚠️ **Issue #10 - Git Push Silent Failure**: Git push commands appear to succeed (exit code 0) but don't actually push any data to the remote repository. This causes silent failures in CI/CD pipelines and repository creation scripts. Always use `execSync` for git push operations.
 
 ⚠️ **Issue #11 - GitHub PR Create Output Lost**: The `gh pr create` command successfully creates pull requests but command-stream fails to capture the output (PR URL). The stdout is empty even though the command succeeds. This breaks workflows that need to capture and process the created PR URL. Always use `execSync` for gh pr create operations.
+
+⚠️ **Issue #12 - GitHub Search Query Escaping**: GitHub search queries with labels containing spaces fail due to multiple layers of escaping. The query `label:"help wanted"` becomes `label:\\\"help wanted\\\"` causing API errors. Use `execSync` or carefully construct array arguments.
+
+⚠️ **Issue #13 - Complex Shell Command Escaping**: Commands with multi-line strings, nested quotes, or special characters fail unpredictably. This affects git commits with detailed messages, GitHub PR descriptions, and any complex shell operations. Use temp files or `execSync` for complex content.
 
 ## Running the Tests
 
