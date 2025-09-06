@@ -43,7 +43,7 @@ if (!issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/)) {
   process.exit(1);
 }
 
-const claudePath = process.env.CLAUDE_PATH || '/Users/konard/.claude/local/claude';
+const claudePath = process.env.CLAUDE_PATH || 'claude';
 
 // Extract repository and issue number from URL
 const urlParts = issueUrl.split('/');
@@ -84,16 +84,33 @@ if (isResuming) {
 try {
   // Clone the repository using gh tool with authentication (full clone for proper git history)
   console.log(`Cloning repository ${owner}/${repo} using gh tool...\n`);
-  await $`gh repo clone ${owner}/${repo} ${tempDir}`;
+  const cloneResult = await $`gh repo clone ${owner}/${repo} ${tempDir}`;
+  
+  // Verify clone was successful
+  if (cloneResult.code !== 0) {
+    console.error(`Error: Failed to clone repository`);
+    console.error(cloneResult.stderr ? cloneResult.stderr.toString() : 'Unknown error');
+    process.exit(1);
+  }
 
   console.log(`Repository cloned successfully to ${tempDir}\n`);
 
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  
+  if (defaultBranchResult.code !== 0) {
+    console.error(`Error: Failed to get current branch`);
+    console.error(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
+    process.exit(1);
+  }
 
   console.log(`\n`);
 
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
+  if (!defaultBranch) {
+    console.error(`Error: Unable to detect default branch`);
+    process.exit(1);
+  }
   console.log(`Default branch detected: ${defaultBranch}\n`);
 
   // Ensure we're on a clean default branch
@@ -101,12 +118,17 @@ try {
 
   console.log(`\n`);
 
-  if (statusResult.exitCode !== 0) {
+  if (statusResult.code !== 0) {
     console.error(`Error: Failed to check git status`);
-    console.error(statusResult.stderr.toString().trim());
+    console.error(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
     process.exit(1);
-  } else if (!statusResult.stdout.toString().trim()) {
+  }
+  
+  // Note: Empty output means clean working directory
+  const statusOutput = statusResult.stdout.toString().trim();
+  if (statusOutput) {
     console.error(`Error: Repository has uncommitted changes after clone`);
+    console.error(`Status output: ${statusOutput}`);
     process.exit(1);
   }
 
@@ -116,18 +138,25 @@ try {
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
   console.log(`Creating branch: ${branchName} from ${defaultBranch}\n`);
-  const checkoutResult = await $`git --git-dir ${tempDir} checkout -b ${branchName}`;
+  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
 
-  if (checkoutResult.exitCode !== 0) {
+  if (checkoutResult.code !== 0) {
     console.error(`Error: Failed to create branch ${branchName}:`);
-    console.error(checkoutResult.stderr.toString().trim());
+    console.error(checkoutResult.stderr ? checkoutResult.stderr.toString() : 'Unknown error');
     process.exit(1);
-  } else {
-    console.log(`✓ Successfully created branch: ${branchName}`);
   }
+  
+  console.log(`✓ Successfully created branch: ${branchName}`);
 
   // Verify we're on the correct branch
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  
+  if (currentBranchResult.code !== 0) {
+    console.error(`Error: Failed to verify current branch`);
+    console.error(currentBranchResult.stderr ? currentBranchResult.stderr.toString() : 'Unknown error');
+    process.exit(1);
+  }
+  
   const currentBranch = currentBranchResult.stdout.toString().trim();
   if (currentBranch !== branchName) {
     console.log('\n');
@@ -196,11 +225,22 @@ When you face something extremely hard, use divide and conquer — it always hel
   try {
     // Get the issue's last update time
     const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
+    
+    if (issueResult.code !== 0) {
+      throw new Error(`Failed to get issue details: ${issueResult.stderr ? issueResult.stderr.toString() : 'Unknown error'}`);
+    }
+    
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
     console.log(`  Issue last updated: ${issueUpdatedAt.toISOString()}`);
 
     // Get the last comment's timestamp (if any)
     const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+    
+    if (commentsResult.code !== 0) {
+      console.warn(`Warning: Failed to get comments: ${commentsResult.stderr ? commentsResult.stderr.toString() : 'Unknown error'}`);
+      // Continue anyway, comments are optional
+    }
+    
     const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
     const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
     if (lastCommentTime) {
@@ -211,6 +251,12 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     // Get the most recent pull request's timestamp
     const prsResult = await $`gh pr list --repo ${owner}/${repo} --limit 1 --json createdAt`;
+    
+    if (prsResult.code !== 0) {
+      console.warn(`Warning: Failed to get PRs: ${prsResult.stderr ? prsResult.stderr.toString() : 'Unknown error'}`);
+      // Continue anyway, PRs are optional for timestamp calculation
+    }
+    
     const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
     const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
     if (lastPrTime) {
@@ -390,10 +436,15 @@ When you face something extremely hard, use divide and conquer — it always hel
     // Show log file contents preview
     try {
       const logContents = await $`head -n 5 ${permanentLogFile}`;
-      console.log('\n📄 Log file contents (first 5 lines):');
-      console.log('---');
-      console.log(logContents.stdout);
-      console.log('---');
+      
+      if (logContents.code === 0) {
+        console.log('\n📄 Log file contents (first 5 lines):');
+        console.log('---');
+        console.log(logContents.stdout);
+        console.log('---');
+      } else {
+        console.log('Could not preview log file contents');
+      }
     } catch (e) {
       console.log('Could not preview log file contents');
     }
@@ -410,7 +461,15 @@ When you face something extremely hard, use divide and conquer — it always hel
   try {
     // Get the current user's GitHub username
     const userResult = await $`gh api user --jq .login`;
+    
+    if (userResult.code !== 0) {
+      throw new Error(`Failed to get current user: ${userResult.stderr ? userResult.stderr.toString() : 'Unknown error'}`);
+    }
+    
     const currentUser = userResult.stdout.toString().trim();
+    if (!currentUser) {
+      throw new Error('Unable to determine current GitHub user');
+    }
     console.log(`Current GitHub user: ${currentUser}`);
 
     // Search for pull requests created from our branch after the reference time
@@ -418,6 +477,12 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     // First, get all PRs from our branch to debug
     const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName`;
+    
+    if (allBranchPrsResult.code !== 0) {
+      console.warn(`Warning: Failed to list PRs: ${allBranchPrsResult.stderr ? allBranchPrsResult.stderr.toString() : 'Unknown error'}`);
+      // Continue with empty list
+    }
+    
     const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
     console.log(`  Found ${allBranchPrs.length} PR(s) from branch ${branchName}:`);
     allBranchPrs.forEach(pr => {
@@ -441,6 +506,12 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     // Get all comments and filter them
     const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+    
+    if (allCommentsResult.code !== 0) {
+      console.warn(`Warning: Failed to get comments: ${allCommentsResult.stderr ? allCommentsResult.stderr.toString() : 'Unknown error'}`);
+      // Continue with empty list
+    }
+    
     const allComments = JSON.parse(allCommentsResult.stdout.toString().trim() || '[]');
 
     if (allComments.length > 0) {
