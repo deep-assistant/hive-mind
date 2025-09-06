@@ -86,7 +86,7 @@ try {
 
   console.log(`\n`)
 
-  const defaultBranch = defaultBranchResult.stdout.toString().trim()
+  let defaultBranch = defaultBranchResult.stdout.toString().trim()
   
   // Fallback if branch detection fails
   if (!defaultBranch) {
@@ -238,26 +238,24 @@ When you face something extremely hard, use divide and conquer — it always hel
   console.log(`📁 Log file: ${logFile}`)
   console.log(`   (You can tail -f this file to watch progress)`)
 
-  // Build the OpenCode command
-  // NOTE: This is a draft - the actual OpenCode CLI syntax will need to be determined
-  // Assuming OpenCode has similar flags to Claude:
-  // --output-format: for structured output
-  // --verbose: for detailed logging
-  // --model: to specify which model to use
-  // -p or --prompt: for the main prompt
-  // --system-prompt or similar: for system instructions
+  // Build the OpenCode command using the 'run' subcommand for non-interactive mode
+  // OpenCode run accepts a message/prompt and executes it without launching the TUI
+  // We combine the system prompt and main prompt into a single comprehensive message
   
-  const opencodeCommand = `opencode \\
-    --output-format json \\
-    --verbose \\
-    --model default \\
-    --prompt "${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" \\
-    --system "${systemPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}" \\
-    --working-directory "${tempDir}" \\
-    2>&1 | tee "${logFile}"`
+  const fullPrompt = `${systemPrompt}\n\nCurrent working directory: ${tempDir}\nBranch: ${branchName}\n\n${prompt}`
+  
+  // Escape the prompt for shell execution
+  const escapedPrompt = fullPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\$/g, '\\$')
+  
+  // Use opencode run for non-interactive execution with Grok Code Fast 1 (free model)
+  // Note: OpenCode may need the GitHub agent installed: opencode github install
+  const opencodeCommand = `cd "${tempDir}" && opencode run --model opencode/grok-code "${escapedPrompt}" 2>&1 | tee "${logFile}"`
 
   console.log('\n📋 Command prepared:')
-  console.log(`   (cd "${tempDir}" && ${opencodeCommand.split('\n').join(' ')})`)
+  console.log(`   Working directory: ${tempDir}`)
+  console.log(`   Branch: ${branchName}`)
+  console.log(`   Model: opencode/grok-code (Grok Code Fast 1 - Free)`)
+  console.log(`   Using opencode run for non-interactive execution`)
 
   // Execute OpenCode command
   // Using execSync to avoid command-stream issues with complex commands
@@ -287,7 +285,7 @@ When you face something extremely hard, use divide and conquer — it always hel
     }
     
     console.log('\n🚀 OpenCode session started')
-    console.log('📊 Model: default')
+    console.log('📊 Model: Grok Code Fast 1 (Free)')
     
     // Parse output to check for success (adjust based on OpenCode's actual output)
     if (output.includes('error') || output.includes('failed')) {
