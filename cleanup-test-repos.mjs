@@ -42,6 +42,48 @@ try {
   // Import child_process once
   const { execSync } = await import('child_process');
   
+  // Check GitHub authentication and permissions
+  console.log('🔐 Checking GitHub permissions...');
+  try {
+    const authStatus = execSync('gh auth status', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    
+    // Check if we have delete_repo scope
+    if (!authStatus.includes('delete_repo')) {
+      console.log('⚠️  Warning: Missing "delete_repo" permission');
+      console.log('');
+      console.log('To delete repositories, you need to grant the delete_repo scope:');
+      console.log('  gh auth refresh -h github.com -s delete_repo');
+      console.log('');
+      if (!forceMode && !dryRun) {
+        console.log('Continue anyway? Type "yes" to continue, or Ctrl+C to cancel:');
+        process.stdout.write('> ');
+        
+        try {
+          const answer = execSync('read answer && echo $answer', { 
+            encoding: 'utf8',
+            stdio: ['inherit', 'pipe', 'pipe'],
+            shell: '/bin/bash'
+          }).trim();
+          
+          if (answer.toLowerCase() !== 'yes') {
+            console.log('\n❌ Cancelled');
+            process.exit(0);
+          }
+        } catch (e) {
+          console.log('\n\n❌ Cancelled');
+          process.exit(0);
+        }
+      }
+    }
+  } catch (authError) {
+    // gh auth status returns non-zero if not authenticated
+    console.log('❌ Not authenticated with GitHub');
+    console.log('');
+    console.log('Please authenticate first:');
+    console.log('  gh auth login');
+    process.exit(1);
+  }
+  
   // Get current GitHub user
   const githubUser = execSync('gh api user --jq .login', { encoding: 'utf8' }).trim();
   console.log(`👤 User: ${githubUser}`);
@@ -145,6 +187,7 @@ try {
   
   let deletedCount = 0;
   let failedCount = 0;
+  let permissionError = false;
   
   for (const repo of testRepos) {
     process.stdout.write(`  Deleting ${repo.name}... `);
@@ -152,30 +195,58 @@ try {
     try {
       // Use gh repo delete with --yes flag to skip confirmation
       // Don't suppress stderr - we need to see errors
-      const result = await $`gh repo delete ${githubUser}/${repo.name} --yes`;
+      await $`gh repo delete ${githubUser}/${repo.name} --yes`;
       console.log('✅');
       deletedCount++;
     } catch (error) {
       console.log('❌');
-      // Show the actual error from gh command
-      if (error.stderr) {
-        const errorMsg = error.stderr.toString().trim();
-        console.log(`    Error: ${errorMsg}`);
-      } else if (error.message) {
-        console.log(`    Error: ${error.message}`);
-      } else {
-        console.log(`    Error: Unknown error occurred`);
-      }
       failedCount++;
+      
+      // Show the actual error from gh command
+      let errorMsg = '';
+      if (error.stderr) {
+        errorMsg = error.stderr.toString().trim();
+      } else if (error.stdout) {
+        errorMsg = error.stdout.toString().trim();
+      } else if (error.message) {
+        errorMsg = error.message;
+      } else {
+        errorMsg = 'Unknown error occurred';
+      }
+      
+      // Check if it's a permission error
+      if (errorMsg.includes('delete_repo') || errorMsg.includes('403')) {
+        permissionError = true;
+        console.log(`    Error: Missing delete_repo permission`);
+        console.log('');
+        console.log('❌ Cannot delete repositories without proper permissions.');
+        console.log('');
+        console.log('To fix this, run:');
+        console.log('  gh auth refresh -h github.com -s delete_repo');
+        console.log('');
+        console.log('Then run this script again.');
+        break; // Stop trying to delete more repos
+      } else {
+        console.log(`    Error: ${errorMsg}`);
+      }
     }
   }
   
-  console.log('');
-  console.log('✨ Cleanup complete!');
-  console.log('');
-  console.log(`Deleted: ${deletedCount} repositories`);
-  if (failedCount > 0) {
-    console.log(`Failed: ${failedCount} repositories`);
+  // Only show success message if we actually deleted something
+  if (!permissionError) {
+    console.log('');
+    if (deletedCount > 0 || failedCount === 0) {
+      console.log('✨ Cleanup complete!');
+    } else {
+      console.log('❌ Cleanup failed!');
+    }
+    console.log('');
+    if (deletedCount > 0) {
+      console.log(`✅ Deleted: ${deletedCount} repositories`);
+    }
+    if (failedCount > 0) {
+      console.log(`❌ Failed: ${failedCount} repositories`);
+    }
   }
   
 } catch (error) {
