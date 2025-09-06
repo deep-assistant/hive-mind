@@ -56,48 +56,50 @@ try {
   const githubUser = userResult.stdout.toString().trim();
   console.log(`👤 User: ${githubUser}`);
 
-  // Create the repository
-  process.stdout.write('📝 Creating repository... ');
-  
-  let createRepoResult;
-  try {
-    createRepoResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false > /dev/null 2>&1`;
-  } catch (error) {
-    console.log('❌ Failed!');
-    console.error('Error:', error.message);
-    
-    // Check if repo already exists
-    try {
-      const checkResult = await $`gh repo view ${githubUser}/${repoName} --json name`;
-      console.log('Repository already exists, continuing...');
-      const repoUrl = `https://github.com/${githubUser}/${repoName}`;
-      createRepoResult = { code: 0, stdout: Buffer.from(repoUrl) };
-    } catch (checkError) {
-      process.exit(1);
-    }
-  }
-  
-  if (createRepoResult && createRepoResult.code !== 0) {
-    console.log('❌ Failed!');
-    process.exit(1);
-  }
-
+  // Define repoUrl at the beginning
   const repoUrl = `https://github.com/${githubUser}/${repoName}`;
-  console.log('✅');
-
-  // Initialize repository with a README
-  process.stdout.write('📄 Initializing repository... ');
   
-  // Create a temporary directory for initial commit
+  // Create the repository with initial README to avoid empty repo
+  process.stdout.write('📝 Creating repository with initial README... ');
+  
+  // Create a temporary directory for initial setup
   const tempDir = `/tmp/${repoName}-init`;
+  const fs = (await import('fs')).promises;
   
   try {
-    await $`mkdir -p ${tempDir}`;
+    // Create the repository (will fail if it already exists, that's OK)
+    const createResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false 2>&1`;
+    if (createResult.code === 0) {
+      console.log('created new repository... ');
+    } else if (createResult.stderr && createResult.stderr.toString().includes('already exists')) {
+      console.log('repository already exists... ');
+    } else {
+      throw new Error('Failed to create repository: ' + createResult.stderr);
+    }
     
-    // Clone the empty repository (suppress warning about empty repo)
-    await $`git clone ${repoUrl} ${tempDir} > /dev/null 2>&1`;
+    // Create temp directory and clone
+    const mkdirResult = await $`mkdir -p ${tempDir}`;
+    if (mkdirResult.code !== 0) {
+      throw new Error('Failed to create temp directory');
+    }
     
-    // Create README
+    // Try to clone, if it fails (empty repo), initialize git
+    const cloneResult = await $`git clone ${repoUrl} ${tempDir} 2>&1`;
+    if (cloneResult.code !== 0) {
+      // Clone failed (probably empty repo), initialize git locally
+      const initResult = await $`cd ${tempDir} && git init`;
+      if (initResult.code !== 0) {
+        throw new Error('Failed to initialize git repository');
+      }
+      
+      // Add remote
+      const remoteResult = await $`cd ${tempDir} && git remote add origin ${repoUrl}`;
+      if (remoteResult.code !== 0) {
+        throw new Error('Failed to add git remote');
+      }
+    }
+    
+    // Always create README to ensure non-empty repo
     const readmeContent = `# ${repoName}
 
 This is a test repository for automated issue solving.
@@ -107,37 +109,186 @@ This repository is used to test the \`solve.mjs\` script that automatically solv
 
 ## Test Issue
 An issue will be created asking to implement a "Hello World" program in ${randomLanguage}.
+
+## Repository Status
+- **Created**: ${new Date().toISOString()}
+- **Language**: ${randomLanguage}
+- **Type**: Test repository
 `;
 
     const readmePath = `${tempDir}/README.md`;
-    
-    // Use fs to write the file instead of echo to avoid shell escaping issues
-    const fs = (await import('fs')).promises;
     await fs.writeFile(readmePath, readmeContent);
     
-    // Commit and push README
-    await $`cd ${tempDir} && git add README.md`;
-    await $`cd ${tempDir} && git commit -m "Initial commit with README" > /dev/null 2>&1`;
-    
-    // Try to push to main first, then master if that fails
+    // Verify README was created
     try {
-      await $`cd ${tempDir} && git push origin main > /dev/null 2>&1`;
-    } catch (pushError) {
-      // If main fails, try master
-      try {
-        await $`cd ${tempDir} && git push origin master > /dev/null 2>&1`;
-      } catch (masterError) {
-        throw masterError;
-      }
+      await fs.access(readmePath);
+    } catch (e) {
+      throw new Error('Failed to create README file');
     }
     
+    // Set up git authentication using gh
+    process.stdout.write('Setting up git authentication... ');
+    const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
+    if (authSetupResult.code !== 0) {
+      console.log('⚠️  gh auth setup-git had issues');
+      console.log('Output:', authSetupResult.stdout.toString());
+    } else {
+      console.log('✅');
+    }
+    
+    // Check if we need to create initial branch
+    process.stdout.write('Checking branch status... ');
+    const branchCheck = await $`cd ${tempDir} && git branch --show-current 2>/dev/null || echo ""`;
+    const currentBranch = branchCheck.stdout.toString().trim();
+    
+    if (!currentBranch) {
+      // No branch exists, create main branch
+      const createBranchResult = await $`cd ${tempDir} && git checkout -b main`;
+      if (createBranchResult.code !== 0) {
+        throw new Error('Failed to create main branch');
+      }
+      console.log('created main branch ✅');
+    } else {
+      console.log(`on branch ${currentBranch} ✅`);
+    }
+    
+    // Verify we're on a branch
+    const verifyBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+    if (verifyBranchResult.code !== 0 || !verifyBranchResult.stdout.toString().trim()) {
+      throw new Error('Failed to verify git branch');
+    }
+    
+    // Add README
+    process.stdout.write('Adding README to git... ');
+    const addResult = await $`cd ${tempDir} && git add README.md`;
+    if (addResult.code !== 0) {
+      throw new Error('Failed to add README to git');
+    }
     console.log('✅');
+    
+    // Commit README
+    process.stdout.write('Committing README... ');
+    const commitResult = await $`cd ${tempDir} && git commit -m "Initial commit with README"`;
+    if (commitResult.code !== 0) {
+      // Check if already committed
+      const statusResult = await $`cd ${tempDir} && git status --porcelain`;
+      if (statusResult.stdout.toString().trim()) {
+        throw new Error('Failed to commit README');
+      }
+      console.log('already committed ✅');
+    } else {
+      console.log('✅');
+    }
+    
+    // Push to remote
+    process.stdout.write('Pushing to remote... ');
+    
+    // First, ensure we have the latest remote URL
+    const remoteCheckResult = await $`cd ${tempDir} && git remote -v`;
+    if (remoteCheckResult.code !== 0 || !remoteCheckResult.stdout.toString().includes('origin')) {
+      // Re-add the remote if missing
+      await $`cd ${tempDir} && git remote remove origin 2>/dev/null || true`;
+      await $`cd ${tempDir} && git remote add origin https://github.com/${githubUser}/${repoName}.git`;
+    }
+    
+    // Use execSync to avoid command-stream issues with git push
+    // command-stream seems to interfere with git push authentication
+    const { execSync } = await import('child_process');
+    try {
+      const pushCommand = `cd ${tempDir} && git push -u origin main 2>&1`;
+      const pushOutput = execSync(pushCommand, { encoding: 'utf8' });
+      console.log('Push output:', pushOutput);
+      
+      // Check if push actually did anything
+      if (!pushOutput.includes('[new branch]') && !pushOutput.includes('->')) {
+        console.log('⚠️  Push may not have succeeded - no branch update detected');
+      } else {
+        console.log('✅');
+      }
+    } catch (pushError) {
+      console.log('❌ Push failed');
+      console.log('Error:', pushError.message);
+      throw new Error('Failed to push to remote: ' + pushError.message);
+    }
+    
+    // Wait a moment for GitHub to process the push
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Verify the push succeeded by checking if repo is non-empty
+    process.stdout.write('Verifying repository is non-empty... ');
+    let verifyResult = await $`gh repo view ${githubUser}/${repoName} --json isEmpty --jq .isEmpty`;
+    let isEmpty = verifyResult.stdout.toString().trim();
+    
+    // Retry once if still showing as empty (GitHub might need a moment)
+    if (isEmpty === 'true') {
+      console.log('waiting for GitHub to update...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      verifyResult = await $`gh repo view ${githubUser}/${repoName} --json isEmpty --jq .isEmpty`;
+      isEmpty = verifyResult.stdout.toString().trim();
+    }
+    
+    if (isEmpty === 'true') {
+      console.log('❌ Still empty!');
+      // Try to get more debug info
+      const branchesResult = await $`cd ${tempDir} && git branch -r`;
+      console.log('Remote branches:', branchesResult.stdout.toString());
+      const logResult = await $`cd ${tempDir} && git log --oneline -n 5`;
+      console.log('Local commits:', logResult.stdout.toString());
+      throw new Error('Repository is still empty after push');
+    }
+    console.log('✅');
+    
+    console.log('All repository setup complete! ✅');
 
     // Clean up temp directory
     await $`rm -rf ${tempDir}`;
-  } catch (initError) {
-    console.log('⚠️  (skipped)');
-    // Don't exit, continue to create the issue
+    
+    // Now set up branch protection
+    process.stdout.write('🔒 Setting up branch protection... ');
+    
+    try {
+      // Get default branch
+      const defaultBranchResult = await $`gh api repos/${githubUser}/${repoName} --jq .default_branch`;
+      const defaultBranch = defaultBranchResult.stdout.toString().trim() || 'main';
+      
+      // Try to enable branch protection (may fail for free accounts)
+      const protectionRules = {
+        required_status_checks: null,
+        enforce_admins: false,
+        required_pull_request_reviews: {
+          dismiss_stale_reviews: false,
+          require_code_owner_reviews: false,
+          required_approving_review_count: 0
+        },
+        restrictions: null,
+        allow_force_pushes: false,
+        allow_deletions: false
+      };
+      
+      // Write rules to a temp file to avoid shell escaping issues
+      const rulesFile = `/tmp/protection-rules-${Date.now()}.json`;
+      await fs.writeFile(rulesFile, JSON.stringify(protectionRules, null, 2));
+      
+      const protectResult = await $`gh api \
+        --method PUT \
+        repos/${githubUser}/${repoName}/branches/${defaultBranch}/protection \
+        --input ${rulesFile} 2>/dev/null`;
+      
+      await fs.unlink(rulesFile);
+      
+      if (protectResult.code === 0) {
+        console.log('✅');
+      } else {
+        console.log('⚠️  (requires admin rights or paid plan)');
+      }
+    } catch (protectError) {
+      console.log('⚠️  (requires admin rights or paid plan)');
+    }
+    
+  } catch (error) {
+    console.log('❌ Failed!');
+    console.error('Error:', error.message);
+    process.exit(1);
   }
 
   // Create the issue

@@ -95,6 +95,12 @@ try {
 
   console.log(`Repository cloned successfully to ${tempDir}\n`);
 
+  // Set up git authentication using gh
+  const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
+  if (authSetupResult.code !== 0) {
+    console.log('Note: gh auth setup-git had issues, continuing anyway\n');
+  }
+
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   
