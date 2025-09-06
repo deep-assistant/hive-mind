@@ -242,8 +242,28 @@ Example workflow structure:
     const issueBodyFile = `/tmp/issue-body-${Date.now()}.md`;
     await fs.writeFile(issueBodyFile, issueBody);
     
+    // IMPORTANT: Workaround for command-stream quoting issue
+    // Problem: command-stream adds extra single quotes around interpolated strings
+    // When we use: await $`gh issue create --title "${issueTitle}"`
+    // The title becomes: 'Implement Hello World in X' (with single quotes included!)
+    // 
+    // This is a known issue with command-stream library (see command-stream-issues/issue-09-auto-quoting.mjs)
+    // The library appears to "over-escape" by adding its own single quotes around the interpolated value
+    // when it detects double quotes in the template literal.
+    //
+    // WORKAROUND: Use Node.js native child_process.execSync instead of command-stream
+    // This gives us direct control over the command string without unexpected quote additions
+    
     console.log(`Command: gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`);
-    createIssueResult = await $`gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`;
+    
+    // Using execSync to avoid command-stream's automatic quote addition
+    const { execSync } = await import('child_process');
+    const command = `gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`;
+    const output = execSync(command, { encoding: 'utf8', cwd: '/tmp' });
+    createIssueResult = { stdout: Buffer.from(output) };
+    
+    // Note: If GitHub CLI had a --title-file option (like --body-file), we would use that instead
+    // to completely avoid shell escaping issues
     
     // Clean up temp file
     await fs.unlink(issueBodyFile);

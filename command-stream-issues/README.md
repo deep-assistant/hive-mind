@@ -12,6 +12,7 @@ This directory contains reproducible test cases for issues encountered with the 
 6. **issue-06-bun-shell-path.mjs** - Bun runtime has issues with /bin/sh path
 7. **issue-07-stream-output.mjs** - Stream output handling requires careful chunk type management
 8. **issue-08-getcwd-error.mjs** - getcwd() failed error when working in deleted directories
+9. **issue-09-auto-quoting.mjs** - String interpolation with quotes can add extra quotes to output
 
 ## Running the Tests
 
@@ -68,10 +69,11 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
 
 ### Pain Points
 1. **Shell escaping complexity** - Interpolation of complex strings fails silently or unexpectedly
-2. **Inconsistent error API** - Uses `error.code` instead of standard `error.exitCode`
-3. **Bun compatibility issues** - Shell path problems make it unreliable with Bun runtime
-4. **Poor error messages** - Escaping failures often produce cryptic or misleading errors
-5. **Documentation gaps** - Many edge cases and best practices are undocumented
+2. **Automatic quote addition** - `"${variable}"` syntax adds unwanted single quotes to output
+3. **Inconsistent error API** - Uses `error.code` instead of standard `error.exitCode`
+4. **Bun compatibility issues** - Shell path problems make it unreliable with Bun runtime
+5. **Poor error messages** - Escaping failures often produce cryptic or misleading errors
+6. **Documentation gaps** - Many edge cases and best practices are undocumented
 
 ### Developer Experience Issues
 
@@ -80,17 +82,23 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
 - **Reality**: Complex strings with quotes, backticks, or newlines break commands
 - **Impact**: Developers waste time debugging shell escaping issues
 
-#### 2. Error Handling Confusion
+#### 2. Automatic Quote Addition (Critical Issue #9)
+- **Expected**: `"${variable}"` passes the variable value cleanly
+- **Reality**: command-stream adds single quotes, resulting in `'value'` instead of `value`
+- **Impact**: GitHub issues/PRs get titles with quotes, data corruption in production
+- **Workaround**: Must use `child_process.execSync()` instead for precise string handling
+
+#### 3. Error Handling Confusion
 - **Expected**: Standard Node.js error properties (`exitCode`)
 - **Reality**: Custom property names (`code`)
 - **Impact**: Copy-pasted error handling code fails
 
-#### 3. Runtime Inconsistency
+#### 4. Runtime Inconsistency
 - **Expected**: Same behavior across Node.js and Bun
 - **Reality**: Bun fails with ENOENT errors for basic commands
 - **Impact**: Scripts work in development but fail in production
 
-#### 4. Silent Failures
+#### 5. Silent Failures
 - **Expected**: Clear errors when commands fail
 - **Reality**: Some escaping issues cause silent data corruption
 - **Impact**: Bugs reach production undetected
@@ -126,7 +134,19 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
 
 ### For Developers Using command-stream
 
-1. **Defensive coding practices**
+1. **Critical: Avoid quote interpolation bug**
+   ```javascript
+   // DON'T: This adds unwanted single quotes to the output!
+   await $`gh issue create --title "${title}"`;
+   // Results in: issue title becomes 'My Title' instead of: My Title
+   
+   // WORKAROUND: Use child_process for precise string handling
+   const { execSync } = await import('child_process');
+   const command = `gh issue create --title "${title}"`;
+   execSync(command, { encoding: 'utf8' });
+   ```
+
+2. **Defensive coding practices**
    ```javascript
    // DON'T: Direct interpolation of user content
    await $`echo "${userContent}" > file.txt`;
@@ -135,7 +155,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    await fs.writeFile('file.txt', userContent);
    ```
 
-2. **Error handling pattern**
+3. **Error handling pattern**
    ```javascript
    try {
      const result = await $`command`;
@@ -147,7 +167,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    }
    ```
 
-3. **Runtime detection**
+4. **Runtime detection**
    ```javascript
    const runtime = process.versions.bun ? 'bun' : 'node';
    if (runtime === 'bun') {
@@ -155,7 +175,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    }
    ```
 
-4. **Safe patterns for common tasks**
+5. **Safe patterns for common tasks**
    - File operations: Use `fs` module
    - JSON handling: Write to temp file first
    - Complex strings: Use heredocs or base64 encoding
