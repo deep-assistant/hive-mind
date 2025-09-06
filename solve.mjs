@@ -1,5 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
+#!/usr/bin/env node
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
