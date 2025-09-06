@@ -13,6 +13,11 @@ This directory contains reproducible test cases for issues encountered with the 
 7. **issue-07-stream-output.mjs** - Stream output handling requires careful chunk type management
 8. **issue-08-getcwd-error.mjs** - getcwd() failed error when working in deleted directories
 9. **issue-09-auto-quoting.mjs** - String interpolation with quotes can add extra quotes to output
+10. **issue-10-git-push-silent-failure.mjs** - Git push silently fails with empty output despite returning success code
+
+## Critical Issues
+
+⚠️ **Issue #10 - Git Push Silent Failure**: This is the most critical issue discovered. Git push commands appear to succeed (exit code 0) but don't actually push any data to the remote repository. This causes silent failures in CI/CD pipelines and repository creation scripts. Always use `execSync` for git push operations.
 
 ## Running the Tests
 
@@ -180,6 +185,8 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    - JSON handling: Write to temp file first
    - Complex strings: Use heredocs or base64 encoding
    - Path handling: Always quote paths with spaces
+   - **Git push/pull**: Use execSync instead of command-stream (critical issue #10)
+   - Authentication operations: Fall back to child_process when command-stream fails silently
 
 ## Alternative Approaches
 
