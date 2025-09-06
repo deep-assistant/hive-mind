@@ -698,11 +698,11 @@ Proceed.`;
       throw new Error('Unable to determine current GitHub user');
     }
 
-    // Search for pull requests created from our branch after the reference time
+    // Search for pull requests created from our branch
     await log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
 
     // First, get all PRs from our branch
-    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state`;
+    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state,updatedAt`;
     
     if (allBranchPrsResult.code !== 0) {
       await log('  ⚠️  Failed to check pull requests');
@@ -711,18 +711,27 @@ Proceed.`;
     
     const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
 
-    // Now filter for new ones
-    const newPrs = allBranchPrs.filter(pr => new Date(pr.createdAt) > referenceTime);
-
-    if (newPrs.length > 0) {
-      const pr = newPrs[0];
-      await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
-      await log(`\n🎉 SUCCESS: A solution draft has been created as a pull request`);
-      await log(`📍 URL: ${pr.url}`);
-      await log(`\n✨ Please review the pull request for the proposed solution.`);
-      process.exit(0);
-    } else if (allBranchPrs.length > 0) {
-      await log(`  ℹ️  Found existing pull request(s) from before this session`);
+    // Check if we have any PRs from our branch
+    // If auto-PR was created, it should be the one we're working on
+    if (allBranchPrs.length > 0) {
+      const pr = allBranchPrs[0]; // Get the most recent PR from our branch
+      
+      // If we created a PR earlier in this session, it would be prNumber
+      // Or if the PR was updated during the session (updatedAt > referenceTime)
+      const isPrFromSession = (prNumber && pr.number.toString() === prNumber) || 
+                              (prUrl && pr.url === prUrl) ||
+                              new Date(pr.updatedAt) > referenceTime ||
+                              new Date(pr.createdAt) > referenceTime;
+      
+      if (isPrFromSession) {
+        await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
+        await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
+        await log(`📍 URL: ${pr.url}`);
+        await log(`\n✨ Please review the pull request for the proposed solution.`);
+        process.exit(0);
+      } else {
+        await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
+      }
     } else {
       await log(`  ℹ️  No pull requests found from branch ${branchName}`);
     }
