@@ -29,6 +29,13 @@ const argv = yargs(process.argv.slice(2))
     description: 'Only prepare and print the claude command without executing it',
     alias: 'p'
   })
+  .option('model', {
+    type: 'string',
+    description: 'Model to use (opus or sonnet)',
+    alias: 'm',
+    default: 'sonnet',
+    choices: ['opus', 'sonnet']
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -92,7 +99,7 @@ try {
     process.exit(1);
   }
 
-  console.log(`Repository cloned successfully to ${tempDir}\n`);
+  console.log(`✅ Repository cloned successfully to ${tempDir}\n`);
 
   // Set up git authentication using gh
   const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
@@ -109,19 +116,15 @@ try {
     process.exit(1);
   }
 
-  console.log(`\n`);
-
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
   if (!defaultBranch) {
     console.error(`Error: Unable to detect default branch`);
     process.exit(1);
   }
-  console.log(`Default branch detected: ${defaultBranch}\n`);
+  console.log(`📌 Default branch detected: ${defaultBranch}\n`);
 
   // Ensure we're on a clean default branch
   const statusResult = await $`cd ${tempDir} && git status --porcelain`;
-
-  console.log(`\n`);
 
   if (statusResult.code !== 0) {
     console.error(`Error: Failed to check git status`);
@@ -137,12 +140,10 @@ try {
     process.exit(1);
   }
 
-  console.log('\n');
-
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  console.log(`Creating branch: ${branchName} from ${defaultBranch}\n`);
+  console.log(`🌿 Creating branch: ${branchName} from ${defaultBranch}`);
   const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
 
   if (checkoutResult.code !== 0) {
@@ -151,7 +152,7 @@ try {
     process.exit(1);
   }
   
-  console.log(`✓ Successfully created branch: ${branchName}`);
+  console.log(`✅ Successfully created branch: ${branchName}`);
 
   // Verify we're on the correct branch
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
@@ -168,7 +169,7 @@ try {
     console.error(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}\n`);
     process.exit(1);
   }
-  console.log(`✓ Successfully switched to branch: ${branchName}`);
+  console.log(`✅ Successfully switched to branch: ${branchName}\n`);
 
   const prompt = `1. Initial research.  
    - When you read issue, read all details and comments thoroughly.  
@@ -224,7 +225,7 @@ When you face something extremely hard, use divide and conquer — it always hel
   const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
 
   // Get timestamps from GitHub servers before executing the command
-  console.log('Getting reference timestamps from GitHub...');
+  console.log('📅 Getting reference timestamps from GitHub...');
 
   let referenceTime;
   try {
@@ -236,7 +237,7 @@ When you face something extremely hard, use divide and conquer — it always hel
     }
     
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
-    console.log(`  Issue last updated: ${issueUpdatedAt.toISOString()}`);
+    console.log(`  📝 Issue last updated: ${issueUpdatedAt.toISOString()}`);
 
     // Get the last comment's timestamp (if any)
     const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
@@ -249,9 +250,9 @@ When you face something extremely hard, use divide and conquer — it always hel
     const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
     const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
     if (lastCommentTime) {
-      console.log(`  Last comment time: ${lastCommentTime.toISOString()}`);
+      console.log(`  💬 Last comment time: ${lastCommentTime.toISOString()}`);
     } else {
-      console.log(`  No comments found on issue`);
+      console.log(`  💬 No comments found on issue`);
     }
 
     // Get the most recent pull request's timestamp
@@ -265,9 +266,9 @@ When you face something extremely hard, use divide and conquer — it always hel
     const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
     const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
     if (lastPrTime) {
-      console.log(`  Most recent PR in repo: ${lastPrTime.toISOString()}`);
+      console.log(`  🔀 Most recent pull request in repo: ${lastPrTime.toISOString()}`);
     } else {
-      console.log(`  No PRs found in repo`);
+      console.log(`  🔀 No pull requests found in repo`);
     }
 
     // Use the most recent timestamp as reference
@@ -279,7 +280,7 @@ When you face something extremely hard, use divide and conquer — it always hel
       referenceTime = lastPrTime;
     }
 
-    console.log(`✓ Using reference timestamp: ${referenceTime.toISOString()}`);
+    console.log(`✅ Using reference timestamp: ${referenceTime.toISOString()}`);
   } catch (timestampError) {
     console.warn('Warning: Could not get GitHub timestamps, using current time as reference');
     console.warn(`  Error: ${timestampError.message}`);
@@ -288,7 +289,7 @@ When you face something extremely hard, use divide and conquer — it always hel
   }
 
   // Execute claude command from the cloned repository directory
-  console.log(`\nExecuting claude command from repository directory...`);
+  console.log(`\n🤖 Executing Claude (${argv.model.toUpperCase()}) from repository directory...`);
 
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
@@ -308,10 +309,10 @@ When you face something extremely hard, use divide and conquer — it always hel
   await fs.writeFile(permanentLogFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 
   console.log(`📁 Log file: ${permanentLogFile}`);
-  console.log(`   (You can tail -f this file to watch progress)\n`);
+  console.log(`   (You can tail -f this file to watch real-time output)\n`);
 
   // Build claude command with optional resume flag
-  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model sonnet`;
+  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
 
   if (argv.resume) {
     console.log(`🔄 Resuming from session: ${argv.resume}`);
@@ -321,30 +322,34 @@ When you face something extremely hard, use divide and conquer — it always hel
   claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
 
   // Print the command being executed (with cd for reproducibility)
-  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  console.log(`📋 Command prepared:`);
+  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} 2>&1 | tee "${permanentLogFile}")`;
+  console.log(`📋 Command details:`);
+  console.log(`   📂 Working directory: ${tempDir}`);
+  console.log(`   🌿 Branch: ${branchName}`);
+  console.log(`   🤖 Model: Claude ${argv.model.toUpperCase()}`);
+  console.log(`\n📋 Full command:`);
   console.log(`   ${fullCommand}`);
   console.log('');
 
   // If only preparing command, exit here
   if (argv.onlyPrepareCommand) {
-    console.log(`✓ Command preparation complete. Repository cloned to: ${tempDir}`);
-    console.log(`✓ Branch created: ${branchName}`);
-    console.log(`\nTo execute manually:`);
-    console.log(`cd "${tempDir}"`);
-    console.log(`${claudePath} ${claudeArgs}`);
+    console.log(`✅ Command preparation complete`);
+    console.log(`📂 Repository cloned to: ${tempDir}`);
+    console.log(`🌿 Branch created: ${branchName}`);
+    console.log(`\n💡 To execute manually:`);
+    console.log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
     process.exit(0);
   }
 
   // Change to the temporary directory and execute
   process.chdir(tempDir);
 
-  // Build the actual command for execution
+  // Build the actual command for execution using tee for real-time output
   let execCommand;
   if (argv.resume) {
-    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model sonnet -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq`;
+    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" 2>&1 | tee ${permanentLogFile} | jq -c`;
   } else {
-    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model sonnet`;
+    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model} 2>&1 | tee ${permanentLogFile} | jq -c`;
   }
 
   for await (const chunk of execCommand.stream()) {
@@ -360,9 +365,7 @@ When you face something extremely hard, use divide and conquer — it always hel
         continue;
       }
 
-      // Save full JSON to log file
-      const jsonString = JSON.stringify(json, null, 2);
-      await fs.appendFile(permanentLogFile, jsonString + '\n');
+      // Log file is already being written by tee, no need to append here
 
       // Extract session ID on first message
       if (!sessionId && json.session_id) {
@@ -406,8 +409,8 @@ When you face something extremely hard, use divide and conquer — it always hel
         process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
       } else if (json.type === 'system' && json.subtype === 'init') {
         console.log('🚀 Claude session started');
-        console.log(`📊 Model: ${json.model || 'unknown'}`);
-        console.log('');
+        console.log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
+        console.log('\n🔄 Processing... (real-time output in log file)\n');
       }
 
     } else if (chunk.type === 'stderr') {
@@ -416,7 +419,7 @@ When you face something extremely hard, use divide and conquer — it always hel
       if (data.includes('Error') || data.includes('error')) {
         console.error(`\n⚠️  ${data}`);
       }
-      await fs.appendFile(permanentLogFile, `STDERR: ${data}\n`);
+      // stderr is already captured by tee
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
@@ -434,7 +437,7 @@ When you face something extremely hard, use divide and conquer — it always hel
     process.exit(1);
   }
 
-  console.log('\n✅ Claude command completed successfully');
+  console.log('\n\n✅ Claude command completed');
   console.log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
   // Show summary of session and log file
@@ -452,10 +455,7 @@ When you face something extremely hard, use divide and conquer — it always hel
     } else {
       // Show command to resume session in interactive mode
       console.log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
-      console.log(`cd ${tempDir}`);
-      console.log(`claude --resume ${sessionId}`);
-      console.log(`\n   or from any directory:\n`);
-      console.log(`claude --resume ${sessionId} --working-directory ${tempDir}`);
+      console.log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
       console.log(``);
     }
 
@@ -482,13 +482,13 @@ When you face something extremely hard, use divide and conquer — it always hel
     }
 
     // Search for pull requests created from our branch after the reference time
-    process.stdout.write('  Checking for pull requests...');
+    console.log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
 
     // First, get all PRs from our branch
-    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName`;
+    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state`;
     
     if (allBranchPrsResult.code !== 0) {
-      process.stdout.write(' ⚠️  (failed)\n');
+      console.log('  ⚠️  Failed to check pull requests');
       // Continue with empty list
     }
     
@@ -499,23 +499,25 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     if (newPrs.length > 0) {
       const pr = newPrs[0];
-      process.stdout.write(' ✅\n');
-      console.log(`\n🎉 SUCCESS: Pull Request created!`);
+      console.log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
+      console.log(`\n🎉 SUCCESS: A solution draft has been created as a pull request`);
       console.log(`📍 URL: ${pr.url}`);
-      console.log(`\n✨ The issue has been solved and a PR has been created.`);
+      console.log(`\n✨ Please review the pull request for the proposed solution.`);
       process.exit(0);
+    } else if (allBranchPrs.length > 0) {
+      console.log(`  ℹ️  Found existing pull request(s) from before this session`);
     } else {
-      process.stdout.write(' (none found)\n');
+      console.log(`  ℹ️  No pull requests found from branch ${branchName}`);
     }
 
     // If no PR found, search for recent comments on the issue
-    process.stdout.write('  Checking for new comments...');
+    console.log('\n🔍 Checking for new comments on issue #' + issueNumber + '...');
 
     // Get all comments and filter them
     const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     
     if (allCommentsResult.code !== 0) {
-      process.stdout.write(' ⚠️  (failed)\n');
+      console.log('  ⚠️  Failed to check comments');
       // Continue with empty list
     }
     
@@ -528,19 +530,21 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     if (newCommentsByUser.length > 0) {
       const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
-      process.stdout.write(' ✅\n');
-      console.log(`\n💬 SUCCESS: Comment posted on issue!`);
+      console.log(`  ✅ Found new comment by ${currentUser}`);
+      console.log(`\n💬 SUCCESS: Comment posted on issue`);
       console.log(`📍 URL: ${lastComment.html_url}`);
       console.log(`\n✨ A clarifying comment has been added to the issue.`);
       process.exit(0);
+    } else if (allComments.length > 0) {
+      console.log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
     } else {
-      process.stdout.write(' (none found)\n');
+      console.log(`  ℹ️  No comments found on issue`);
     }
 
     // If neither found, it might not have been necessary to create either
     console.log('\n📋 No new pull request or comment was created.');
     console.log('   The issue may have been resolved differently or required no action.');
-    console.log(`\n💡 To review what happened, check the log file:`);
+    console.log(`\n💡 Review the session log for details:`);
     console.log(`   ${permanentLogFile}`);
     process.exit(0);
 
