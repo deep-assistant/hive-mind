@@ -288,18 +288,22 @@ When you face something extremely hard, use divide and conquer — it always hel
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
   let sessionId = null;
-  let currentLogFile = null;
   let permanentLogFile = null;
-  let hasOutput = false;
   let limitReached = false;
+  let messageCount = 0;
+  let toolUseCount = 0;
+  let lastMessage = '';
 
   // Create permanent log file immediately with timestamp
   const scriptDir = path.dirname(process.argv[1]);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   permanentLogFile = path.join(scriptDir, `solve-${timestamp}.log`);
 
-  console.log(`📁 Streaming to log file: ${permanentLogFile}`);
-  console.log(`   (You can open this file in VS Code to watch real-time progress)\n`);
+  // Create the log file immediately
+  await fs.writeFile(permanentLogFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
+
+  console.log(`📁 Log file: ${permanentLogFile}`);
+  console.log(`   (You can tail -f this file to watch progress)\n`);
 
   // Build claude command with optional resume flag
   let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model sonnet`;
@@ -343,73 +347,90 @@ When you face something extremely hard, use divide and conquer — it always hel
       const data = chunk.data.toString();
 
       let json;
-      let jsonString;
-
       try {
         json = JSON.parse(data);
-        jsonString = JSON.stringify(json, null, 2);
       } catch (error) {
-        console.error('Error parsing JSON:', error);
+        // Not JSON, just append to log
+        await fs.appendFile(permanentLogFile, data + '\n');
+        continue;
       }
 
-      hasOutput = true;
-      process.stdout.write(jsonString);
+      // Save full JSON to log file
+      const jsonString = JSON.stringify(json, null, 2);
+      await fs.appendFile(permanentLogFile, jsonString + '\n');
 
-      // Try to extract session ID if not found yet
-      if (!sessionId) {
-        if (json.session_id) {
-          sessionId = json.session_id;
-
-          // Rename permanent log file to use session ID
+      // Extract session ID on first message
+      if (!sessionId && json.session_id) {
+        sessionId = json.session_id;
+        console.log(`🔧 Session ID: ${sessionId}`);
+        
+        // Try to rename log file to include session ID
+        try {
           const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
           await fs.rename(permanentLogFile, sessionLogFile);
           permanentLogFile = sessionLogFile;
-
-          console.log(`\n   ✅ Session ID extracted: ${sessionId}`);
-          console.log(`   📁 Log file renamed to: ${permanentLogFile}\n`);
-
-          // Also create temp log file for compatibility
-          currentLogFile = path.join(tempDir, `${sessionId}.log`);
-          await fs.writeFile(currentLogFile, line + '\n');
+          console.log(`📁 Log renamed to: ${permanentLogFile}`);
+        } catch (renameError) {
+          // If rename fails, keep original filename
+          console.log(`📁 Keeping log file: ${permanentLogFile}`);
         }
+        console.log('');
       }
 
-      // Check for limit reached message
-      if (json.message && json.message.content && json.message.content.length > 0) {
-        for (const item of json.message.content) {
-          if (item.type === 'text') {
-            if (item.text && item.text.includes('limit reached')) {
-              limitReached = true;
+      // Display user-friendly progress
+      if (json.type === 'message' && json.message) {
+        messageCount++;
+        
+        // Extract text content from message
+        if (json.message.content && Array.isArray(json.message.content)) {
+          for (const item of json.message.content) {
+            if (item.type === 'text' && item.text) {
+              lastMessage = item.text.substring(0, 100); // First 100 chars
+              if (item.text.includes('limit reached')) {
+                limitReached = true;
+              }
             }
           }
         }
-      }
-
-      await fs.appendFile(permanentLogFile, jsonString + '\n');
-      if (currentLogFile) {
-        await fs.appendFile(currentLogFile, jsonString + '\n');
+        
+        // Show progress indicator
+        process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
+      } else if (json.type === 'tool_use') {
+        toolUseCount++;
+        const toolName = json.tool_use?.name || 'unknown';
+        process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
+      } else if (json.type === 'system' && json.subtype === 'init') {
+        console.log('🚀 Claude session started');
+        console.log(`📊 Model: ${json.model || 'unknown'}`);
+        console.log('');
       }
 
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
-      process.stderr.write(data);
-      await fs.appendFile(permanentLogFile, data + '\n');
-      if (currentLogFile) {
-        await fs.appendFile(currentLogFile, data + '\n');
+      // Only show actual errors, not verbose output
+      if (data.includes('Error') || data.includes('error')) {
+        console.error(`\n⚠️  ${data}`);
       }
+      await fs.appendFile(permanentLogFile, `STDERR: ${data}\n`);
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
-        console.error(`\nClaude command failed with exit code ${chunk.code}`);
+        console.error(`\n\n❌ Claude command failed with exit code ${chunk.code}`);
       }
     }
   }
 
+  // Clear the progress line
+  process.stdout.write('\r' + ' '.repeat(100) + '\r');
+
   if (commandFailed) {
+    console.log('\n❌ Command execution failed. Check the log file for details.');
+    console.log(`📁 Log file: ${permanentLogFile}`);
     process.exit(1);
   }
 
-  console.log('\nClaude command completed successfully');
+  console.log('\n✅ Claude command completed successfully');
+  console.log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
   // Show summary of session and log file
   console.log('\n=== Session Summary ===');
@@ -433,30 +454,14 @@ When you face something extremely hard, use divide and conquer — it always hel
       console.log(``);
     }
 
-    // Show log file contents preview
-    try {
-      const logContents = await $`head -n 5 ${permanentLogFile}`;
-      
-      if (logContents.code === 0) {
-        console.log('\n📄 Log file contents (first 5 lines):');
-        console.log('---');
-        console.log(logContents.stdout);
-        console.log('---');
-      } else {
-        console.log('Could not preview log file contents');
-      }
-    } catch (e) {
-      console.log('Could not preview log file contents');
-    }
+    // Don't show log preview, it's too technical
   } else {
     console.log(`❌ No session ID extracted`);
     console.log(`📁 Log file available: ${permanentLogFile}`);
   }
 
   // Now search for newly created pull requests and comments
-  console.log('\n=== Searching for results ===');
-  console.log(`Branch name: ${branchName}`);
-  console.log(`Reference time: ${referenceTime.toISOString()}`);
+  console.log('\n🔍 Searching for created pull requests or comments...');
 
   try {
     // Get the current user's GitHub username
@@ -470,61 +475,46 @@ When you face something extremely hard, use divide and conquer — it always hel
     if (!currentUser) {
       throw new Error('Unable to determine current GitHub user');
     }
-    console.log(`Current GitHub user: ${currentUser}`);
 
     // Search for pull requests created from our branch after the reference time
-    console.log(`\nSearching for PRs from branch '${branchName}' created after ${referenceTime.toISOString()}...`);
+    process.stdout.write('  Checking for pull requests...');
 
-    // First, get all PRs from our branch to debug
+    // First, get all PRs from our branch
     const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName`;
     
     if (allBranchPrsResult.code !== 0) {
-      console.warn(`Warning: Failed to list PRs: ${allBranchPrsResult.stderr ? allBranchPrsResult.stderr.toString() : 'Unknown error'}`);
+      process.stdout.write(' ⚠️  (failed)\n');
       // Continue with empty list
     }
     
     const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
-    console.log(`  Found ${allBranchPrs.length} PR(s) from branch ${branchName}:`);
-    allBranchPrs.forEach(pr => {
-      console.log(`    - PR #${pr.number}: created at ${pr.createdAt} (${new Date(pr.createdAt) > referenceTime ? 'NEW' : 'old'})`);
-    });
 
     // Now filter for new ones
     const newPrs = allBranchPrs.filter(pr => new Date(pr.createdAt) > referenceTime);
 
     if (newPrs.length > 0) {
       const pr = newPrs[0];
-      console.log(`\n✓ Found new PR #${pr.number} created at ${pr.createdAt}`);
-      console.log(`\nSUCCESS: Pull Request created at ${pr.url}`);
+      process.stdout.write(' ✅\n');
+      console.log(`\n🎉 SUCCESS: Pull Request created!`);
+      console.log(`📍 URL: ${pr.url}`);
+      console.log(`\n✨ The issue has been solved and a PR has been created.`);
       process.exit(0);
     } else {
-      console.log(`  No new PRs found from branch ${branchName} after ${referenceTime.toISOString()}`);
+      process.stdout.write(' (none found)\n');
     }
 
     // If no PR found, search for recent comments on the issue
-    console.log(`\nSearching for comments by ${currentUser} on issue #${issueNumber} after ${referenceTime.toISOString()}...`);
+    process.stdout.write('  Checking for new comments...');
 
     // Get all comments and filter them
     const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     
     if (allCommentsResult.code !== 0) {
-      console.warn(`Warning: Failed to get comments: ${allCommentsResult.stderr ? allCommentsResult.stderr.toString() : 'Unknown error'}`);
+      process.stdout.write(' ⚠️  (failed)\n');
       // Continue with empty list
     }
     
     const allComments = JSON.parse(allCommentsResult.stdout.toString().trim() || '[]');
-
-    if (allComments.length > 0) {
-      console.log(`  Recent comments on issue:`);
-      const recentComments = allComments.slice(-5); // Last 5 comments
-      recentComments.forEach(comment => {
-        const isNew = new Date(comment.created_at) > referenceTime;
-        const isCurrentUser = comment.user.login === currentUser;
-        console.log(`    - Comment ${comment.id} by ${comment.user.login} at ${comment.created_at} (${isNew ? 'NEW' : 'old'}, ${isCurrentUser ? 'CURRENT USER' : 'other user'})`);
-      });
-    } else {
-      console.log(`  No comments found on issue`);
-    }
 
     // Filter for new comments by current user
     const newCommentsByUser = allComments.filter(comment =>
@@ -533,23 +523,26 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     if (newCommentsByUser.length > 0) {
       const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
-      console.log(`\n✓ Found ${newCommentsByUser.length} new comment(s) by ${currentUser}`);
-      console.log(`\nSUCCESS: Comment posted at ${lastComment.html_url}`);
+      process.stdout.write(' ✅\n');
+      console.log(`\n💬 SUCCESS: Comment posted on issue!`);
+      console.log(`📍 URL: ${lastComment.html_url}`);
+      console.log(`\n✨ A clarifying comment has been added to the issue.`);
       process.exit(0);
     } else {
-      console.log(`  No new comments found by ${currentUser} after ${referenceTime.toISOString()}`);
+      process.stdout.write(' (none found)\n');
     }
 
     // If neither found, it might not have been necessary to create either
-    console.log('\n=== No new PR or comment detected ===');
-    console.log('The issue may have been resolved differently or required no action.');
+    console.log('\n📋 No new pull request or comment was created.');
+    console.log('   The issue may have been resolved differently or required no action.');
+    console.log(`\n💡 To review what happened, check the log file:`);
+    console.log(`   ${permanentLogFile}`);
     process.exit(0);
 
   } catch (searchError) {
-    console.warn('\n=== Error during search ===');
-    console.warn('Warning: Could not search for created pull request or comment:', searchError.message);
-    console.warn('Stack:', searchError.stack);
-    console.log('The command completed but we could not verify the result.');
+    console.warn('\n⚠️  Could not verify results:', searchError.message);
+    console.log(`\n💡 Check the log file for details:`);
+    console.log(`   ${permanentLogFile}`);
     process.exit(0);
   }
 
@@ -560,15 +553,15 @@ When you face something extremely hard, use divide and conquer — it always hel
   // Clean up temporary directory (but not when resuming or when limit reached)
   if (!argv.resume && !limitReached) {
     try {
-      console.log(`Cleaning up temporary directory: ${tempDir}`);
+      process.stdout.write('\n🧹 Cleaning up...');
       await fs.rm(tempDir, { recursive: true, force: true });
-      console.log('Temporary directory cleaned up successfully');
+      console.log(' ✅');
     } catch (cleanupError) {
-      console.warn(`Warning: Failed to clean up temporary directory: ${cleanupError.message}`);
+      console.log(' ⚠️  (failed)');
     }
   } else if (argv.resume) {
-    console.log(`Keeping temporary directory for resumed session: ${tempDir}`);
+    console.log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
   } else if (limitReached) {
-    console.log(`Keeping temporary directory for future resume: ${tempDir}`);
+    console.log(`\n📁 Keeping directory for future resume: ${tempDir}`);
   }
 }
