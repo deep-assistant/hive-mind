@@ -3,7 +3,14 @@
 
 /**
  * Cleanup script for test repositories created by create-test-repo.mjs
- * This script will find and delete all repositories matching the pattern: test-hello-world-*
+ * This script will find and delete all repositories matching the pattern: test-hello-world-{UUIDv7}
+ * 
+ * Only repositories with valid UUIDv7 identifiers are matched to ensure we don't accidentally
+ * delete repositories that happen to have similar names but weren't created by our script.
+ * 
+ * UUIDv7 validation includes:
+ * - Correct version (7) and variant bits
+ * - Valid timestamp range (2020-2030)
  * 
  * Usage:
  *   ./cleanup-test-repos.mjs           # Interactive mode - asks for confirmation
@@ -46,10 +53,31 @@ try {
   const reposJson = execSync(`gh repo list ${githubUser} --limit 100 --json name,url,createdAt,isPrivate`, { encoding: 'utf8' });
   const repos = JSON.parse(reposJson);
   
-  // Filter for test repositories matching the pattern
-  const testRepos = repos.filter(repo => 
-    repo.name.match(/^test-hello-world-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
-  );
+  // Filter for test repositories matching the pattern with valid UUIDv7
+  const testRepos = repos.filter(repo => {
+    // Check basic pattern first
+    const match = repo.name.match(/^test-hello-world-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
+    if (!match) return false;
+    
+    const uuid = match[1];
+    
+    // Validate UUIDv7 format
+    // UUIDv7 has version 7 in the 13th hex position (xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx)
+    // and variant bits (8, 9, a, or b) in the 17th position (xxxxxxxx-xxxx-7xxx-[89ab]xxx-xxxxxxxxxxxx)
+    const uuidv7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    if (!uuidv7Pattern.test(uuid)) return false;
+    
+    // Additional UUIDv7 validation: timestamp should be reasonable
+    // First 48 bits (12 hex chars) represent Unix timestamp in milliseconds
+    const timestampHex = uuid.replace(/-/g, '').substring(0, 12);
+    const timestamp = parseInt(timestampHex, 16);
+    
+    // Check if timestamp is reasonable (between 2020 and 2030)
+    const minTimestamp = new Date('2020-01-01').getTime();
+    const maxTimestamp = new Date('2030-01-01').getTime();
+    
+    return timestamp >= minTimestamp && timestamp <= maxTimestamp;
+  });
   
   if (testRepos.length === 0) {
     console.log('none found ✅');
@@ -70,7 +98,7 @@ try {
                     ageInDays === 1 ? 'yesterday' : 
                     `${ageInDays} days ago`;
     
-    console.log(`  ${(index + 1).toString().padStart(2)}. ${repo.name.substring(17)} (${ageText})`);
+    console.log(`  ${(index + 1).toString().padStart(2)}. ${repo.url} (${ageText})`);
   });
   
   console.log('');
@@ -123,12 +151,21 @@ try {
     
     try {
       // Use gh repo delete with --yes flag to skip confirmation
-      await $`gh repo delete ${githubUser}/${repo.name} --yes > /dev/null 2>&1`;
+      // Don't suppress stderr - we need to see errors
+      const result = await $`gh repo delete ${githubUser}/${repo.name} --yes`;
       console.log('✅');
       deletedCount++;
     } catch (error) {
       console.log('❌');
-      console.log(`    Error: ${error.message}`);
+      // Show the actual error from gh command
+      if (error.stderr) {
+        const errorMsg = error.stderr.toString().trim();
+        console.log(`    Error: ${errorMsg}`);
+      } else if (error.message) {
+        console.log(`    Error: ${error.message}`);
+      } else {
+        console.log(`    Error: Unknown error occurred`);
+      }
       failedCount++;
     }
   }
