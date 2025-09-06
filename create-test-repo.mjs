@@ -46,71 +46,56 @@ const uuid = generateUUIDv7();
 const repoName = `test-hello-world-${uuid}`;
 
 console.log('🚀 Creating test repository for solve.mjs testing');
-console.log(`📦 Repository name: ${repoName}`);
-console.log(`💻 Programming language: ${randomLanguage}`);
+console.log(`📦 Repository: ${repoName}`);
+console.log(`💻 Language: ${randomLanguage}`);
 console.log('');
 
 try {
   // Get current GitHub user
   const userResult = await $`gh api user --jq .login`;
   const githubUser = userResult.stdout.toString().trim();
-  console.log(`👤 GitHub user: ${githubUser}`);
-  console.log('');
+  console.log(`👤 User: ${githubUser}`);
 
   // Create the repository
-  console.log('Creating repository...');
-  console.log(`Command: gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false`);
+  process.stdout.write('📝 Creating repository... ');
   
   let createRepoResult;
   try {
-    createRepoResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false`;
+    createRepoResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false > /dev/null 2>&1`;
   } catch (error) {
-    console.error('Failed to create repository!');
-    console.error('Exit code:', error.code);
-    console.error('Stdout:', error.stdout ? error.stdout.toString() : '(empty)');
-    console.error('Stderr:', error.stderr ? error.stderr.toString() : '(empty)');
-    console.error('Full error:', error);
+    console.log('❌ Failed!');
+    console.error('Error:', error.message);
     
     // Check if repo already exists
-    console.log('\nChecking if repository already exists...');
     try {
       const checkResult = await $`gh repo view ${githubUser}/${repoName} --json name`;
-      console.log('Repository already exists! Continuing with existing repository...');
+      console.log('Repository already exists, continuing...');
       const repoUrl = `https://github.com/${githubUser}/${repoName}`;
-      // Set this so we can continue
       createRepoResult = { code: 0, stdout: Buffer.from(repoUrl) };
     } catch (checkError) {
-      console.error('Repository does not exist. Original error stands.');
       process.exit(1);
     }
   }
   
   if (createRepoResult && createRepoResult.code !== 0) {
-    console.error('Failed to create repository!');
-    console.error('Exit code:', createRepoResult.code);
-    console.error('Stdout:', createRepoResult.stdout ? createRepoResult.stdout.toString() : '(empty)');
-    console.error('Stderr:', createRepoResult.stderr ? createRepoResult.stderr.toString() : '(empty)');
+    console.log('❌ Failed!');
     process.exit(1);
   }
 
   const repoUrl = `https://github.com/${githubUser}/${repoName}`;
-  console.log(`✅ Repository created: ${repoUrl}`);
-  console.log('');
+  console.log('✅');
 
   // Initialize repository with a README
-  console.log('Initializing repository with README...');
+  process.stdout.write('📄 Initializing repository... ');
   
   // Create a temporary directory for initial commit
   const tempDir = `/tmp/${repoName}-init`;
-  console.log(`Using temp directory: ${tempDir}`);
   
   try {
     await $`mkdir -p ${tempDir}`;
     
-    // Clone the empty repository
-    console.log('Cloning repository...');
-    const cloneResult = await $`git clone ${repoUrl} ${tempDir} 2>&1`;
-    console.log('Clone output:', cloneResult.stdout.toString());
+    // Clone the empty repository (suppress warning about empty repo)
+    await $`git clone ${repoUrl} ${tempDir} > /dev/null 2>&1`;
     
     // Create README
     const readmeContent = `# ${repoName}
@@ -125,65 +110,38 @@ An issue will be created asking to implement a "Hello World" program in ${random
 `;
 
     const readmePath = `${tempDir}/README.md`;
-    console.log('Creating README.md...');
     
     // Use fs to write the file instead of echo to avoid shell escaping issues
     const fs = (await import('fs')).promises;
     await fs.writeFile(readmePath, readmeContent);
     
-    // Check if file was created
-    const fileCheck = await $`ls -la ${readmePath}`;
-    console.log('README created:', fileCheck.stdout.toString().trim());
-    
     // Commit and push README
-    console.log('Adding README to git...');
     await $`cd ${tempDir} && git add README.md`;
+    await $`cd ${tempDir} && git commit -m "Initial commit with README" > /dev/null 2>&1`;
     
-    console.log('Committing...');
-    await $`cd ${tempDir} && git commit -m "Initial commit with README"`;
-    
-    console.log('Pushing to origin...');
-    // First try main, if that fails try master (but properly handle the error)
+    // Try to push to main first, then master if that fails
     try {
-      const pushResult = await $`cd ${tempDir} && git push origin main`;
-      console.log('Push result:', pushResult.stdout.toString());
+      await $`cd ${tempDir} && git push origin main > /dev/null 2>&1`;
     } catch (pushError) {
-      // If main fails, it's likely because the default branch is master
-      console.log('Push to main failed, trying master...');
+      // If main fails, try master
       try {
-        const pushResult = await $`cd ${tempDir} && git push origin master`;
-        console.log('Push result:', pushResult.stdout.toString());
+        await $`cd ${tempDir} && git push origin master > /dev/null 2>&1`;
       } catch (masterError) {
-        console.log('Push to master also failed');
         throw masterError;
       }
     }
     
-    console.log('✅ Repository initialized with README');
-    console.log('');
+    console.log('✅');
 
     // Clean up temp directory
     await $`rm -rf ${tempDir}`;
   } catch (initError) {
-    console.error('Failed to initialize repository!');
-    console.error('Error:', initError.message);
-    if (initError.stdout) console.error('Stdout:', initError.stdout.toString());
-    if (initError.stderr) console.error('Stderr:', initError.stderr.toString());
-    
-    // Try to clean up
-    try {
-      await $`rm -rf ${tempDir}`;
-    } catch (cleanupError) {
-      console.warn('Could not clean up temp directory:', cleanupError.message);
-    }
-    
-    console.log('\n⚠️  Repository created but not initialized with README.');
-    console.log('Continuing to create issue anyway...\n');
+    console.log('⚠️  (skipped)');
     // Don't exit, continue to create the issue
   }
 
   // Create the issue
-  console.log('Creating issue...');
+  process.stdout.write('🎯 Creating issue... ');
   
   const issueTitle = `Implement Hello World in ${randomLanguage}`;
   const issueBody = `## Task
@@ -254,8 +212,6 @@ Example workflow structure:
     // WORKAROUND: Use Node.js native child_process.execSync instead of command-stream
     // This gives us direct control over the command string without unexpected quote additions
     
-    console.log(`Command: gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`);
-    
     // Using execSync to avoid command-stream's automatic quote addition
     const { execSync } = await import('child_process');
     const command = `gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`;
@@ -273,61 +229,33 @@ Example workflow structure:
     issueUrl = issueOutput.split('\n').pop(); // Last line contains the URL
     
   } catch (issueError) {
-    console.error('Failed to create issue!');
-    console.error('Exit code:', issueError.code);
-    console.error('Stdout:', issueError.stdout ? issueError.stdout.toString() : '(empty)');
-    console.error('Stderr:', issueError.stderr ? issueError.stderr.toString() : '(empty)');
-    console.error('Full error:', issueError);
+    console.log('❌ Failed!');
+    console.error('Error:', issueError.message);
     process.exit(1);
   }
   
   if (!issueUrl || !issueUrl.includes('github.com')) {
-    console.error('Failed to extract issue URL from output');
-    console.error('Output was:', createIssueResult.stdout.toString());
+    console.log('❌ Failed to extract issue URL');
     process.exit(1);
   }
   
-  console.log(`✅ Issue created: ${issueUrl}`);
+  console.log('✅');
   console.log('');
   
   // Output summary
-  console.log('═══════════════════════════════════════════════════════════════');
   console.log('✨ Test environment created successfully!');
-  console.log('═══════════════════════════════════════════════════════════════');
   console.log('');
-  console.log('📦 Repository URL:');
+  console.log('📦 Repository:');
   console.log(`   ${repoUrl}`);
   console.log('');
-  console.log('🎯 Issue URL:');
+  console.log('🎯 Issue:');
   console.log(`   ${issueUrl}`);
   console.log('');
-  console.log(`💻 Language: ${randomLanguage}`);
-  console.log('');
-  console.log('🔧 To test solve.mjs with this issue, run:');
+  console.log('🚀 Test with:');
   console.log(`   ./solve.mjs "${issueUrl}"`);
-  console.log('');
-  console.log('📝 To view the issue in browser:');
-  console.log(`   gh issue view ${issueUrl} --web`);
-  console.log('');
-
-  // Return results as JSON for potential programmatic use
-  const results = {
-    repository: repoUrl,
-    issue: issueUrl,
-    language: randomLanguage,
-    repoName: repoName,
-    uuid: uuid
-  };
-  
-  // Write results to a file for easy access
-  const resultsFile = `test-repo-${uuid}.json`;
-  await $`echo '${JSON.stringify(results, null, 2)}' > ${resultsFile}`;
-  console.log(`💾 Results saved to: ${resultsFile}`);
 
 } catch (error) {
+  console.log('');
   console.error('❌ Error:', error.message);
-  if (error.stderr) {
-    console.error('Stderr:', error.stderr.toString());
-  }
   process.exit(1);
 }
