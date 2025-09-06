@@ -7,17 +7,22 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 const { $ } = await use('command-stream');
 
 const yargs = (await use('yargs@latest')).default;
-const os = (await import('os')).default;
-const path = (await import('path')).default;
-const fs = (await import('fs')).promises;
-const crypto = (await import('crypto')).default;
+const os = (await use('os')).default;
+const path = (await use('path')).default;
+const fs = (await use('fs')).promises;
+const crypto = (await use('crypto')).default;
 
 // Global log file reference
 let logFile = null;
 
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
-  const { level = 'info' } = options;
+  const { level = 'info', verbose = false } = options;
+  
+  // Skip verbose logs unless --verbose is enabled
+  if (verbose && !global.verboseMode) {
+    return;
+  }
   
   // Write to file if log file is set
   if (logFile) {
@@ -69,12 +74,21 @@ const argv = yargs(process.argv.slice(2))
     description: 'Automatically create a draft pull request before running Claude',
     default: true
   })
+  .option('verbose', {
+    type: 'boolean',
+    description: 'Enable verbose logging for debugging',
+    alias: 'v',
+    default: false
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
   .argv;
 
 const issueUrl = argv._[0];
+
+// Set global verbose mode for log function
+global.verboseMode = argv.verbose;
 
 // Create permanent log file immediately with timestamp
 const scriptDir = path.dirname(process.argv[1]);
@@ -225,53 +239,123 @@ try {
     try {
       // Create an initial empty commit
       await log(`📝 Creating initial commit...`);
+      
+      if (argv.verbose) {
+        await log(`   Command: git commit --allow-empty -m "Initial commit for issue #${issueNumber}..."`, { verbose: true });
+      }
+      
       const commitResult = await $`cd ${tempDir} && git commit --allow-empty -m "Initial commit for issue #${issueNumber}
 
 Preparing to work on: ${issueUrl}"`;
       
       if (commitResult.code !== 0) {
-        await log(`Warning: Failed to create initial commit: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
-        await log(`   Continuing without auto PR creation...`);
+        await log(`❌ Failed to create initial commit`, { level: 'error' });
+        await log(`   Error: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+        await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
+        process.exit(1);
       } else {
         await log(`✅ Initial commit created`);
+        if (argv.verbose) {
+          await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
+        }
         
         // Push the branch
         await log(`📤 Pushing branch to remote...`);
+        
+        if (argv.verbose) {
+          await log(`   Command: git push -u origin ${branchName}`, { verbose: true });
+        }
+        
         const pushResult = await $`cd ${tempDir} && git push -u origin ${branchName}`;
         
         if (pushResult.code !== 0) {
-          await log(`Warning: Failed to push branch: ${pushResult.stderr ? pushResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
-          await log(`   Continuing without auto PR creation...`);
+          await log(`❌ Failed to push branch`, { level: 'error' });
+          await log(`   Error: ${pushResult.stderr ? pushResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+          await log(`   stdout: ${pushResult.stdout ? pushResult.stdout.toString() : 'none'}`, { verbose: true });
+          process.exit(1);
         } else {
           await log(`✅ Branch pushed to remote`);
+          if (argv.verbose) {
+            await log(`   Push output: ${pushResult.stdout.toString().trim()}`, { verbose: true });
+          }
           
           // Get issue title for PR title
+          await log(`📋 Getting issue title...`, { verbose: true });
           const issueTitleResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title`;
           let issueTitle = `Fix issue #${issueNumber}`;
           if (issueTitleResult.code === 0) {
             issueTitle = issueTitleResult.stdout.toString().trim();
+            await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+          } else {
+            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
           }
           
           // Create draft pull request
           await log(`🔀 Creating draft pull request...`);
-          const prCreateResult = await $`cd ${tempDir} && gh pr create --draft --title "[WIP] ${issueTitle}" --body "## 🤖 AI-Powered Solution\n\nThis pull request is being automatically generated to solve issue #${issueNumber}.\n\n### 📋 Issue Reference\nFixes #${issueNumber}\n\n### 🚧 Status\n**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.\n\n### 📝 Implementation Details\n_Details will be added as the solution is developed..._\n\n---\n*This PR was created automatically by the AI issue solver*" --base ${defaultBranch} --head ${branchName}`;
+          
+          const prBody = `## 🤖 AI-Powered Solution
+
+This pull request is being automatically generated to solve issue #${issueNumber}.
+
+### 📋 Issue Reference
+Fixes #${issueNumber}
+
+### 🚧 Status
+**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+
+### 📝 Implementation Details
+_Details will be added as the solution is developed..._
+
+---
+*This PR was created automatically by the AI issue solver*`;
+          
+          if (argv.verbose) {
+            await log(`   PR Title: [WIP] ${issueTitle}`, { verbose: true });
+            await log(`   Base branch: ${defaultBranch}`, { verbose: true });
+            await log(`   Head branch: ${branchName}`, { verbose: true });
+            await log(`   PR Body:
+${prBody}`, { verbose: true });
+          }
+          
+          const prCreateResult = await $`cd ${tempDir} && gh pr create --draft --title "[WIP] ${issueTitle}" --body "${prBody}" --base ${defaultBranch} --head ${branchName}`;
           
           if (prCreateResult.code !== 0) {
-            await log(`Warning: Failed to create pull request: ${prCreateResult.stderr ? prCreateResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
-            await log(`   Continuing without PR...`);
+            await log(`❌ Failed to create pull request`, { level: 'error' });
+            await log(`   Error: ${prCreateResult.stderr ? prCreateResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+            await log(`   stdout: ${prCreateResult.stdout ? prCreateResult.stdout.toString() : 'none'}`, { level: 'error' });
+            await log(`   Working directory: ${tempDir}`, { verbose: true });
+            await log(`   Current branch: ${branchName}`, { verbose: true });
+            process.exit(1);
           } else {
             // Extract PR URL from output
             prUrl = prCreateResult.stdout.toString().trim();
             
+            if (!prUrl) {
+              await log(`⚠️ Warning: PR created but no URL returned`, { level: 'warning' });
+              await log(`   Output: ${prCreateResult.stdout.toString()}`, { verbose: true });
+              
+              // Try to get the PR URL using gh pr list
+              await log(`   Attempting to find PR using gh pr list...`, { verbose: true });
+              const prListResult = await $`cd ${tempDir} && gh pr list --head ${branchName} --json url --jq '.[0].url'`;
+              if (prListResult.code === 0 && prListResult.stdout.toString().trim()) {
+                prUrl = prListResult.stdout.toString().trim();
+                await log(`   Found PR URL: ${prUrl}`, { verbose: true });
+              }
+            }
+            
             // Extract PR number from URL
-            const prMatch = prUrl.match(/\/pull\/(\d+)/);
-            if (prMatch) {
-              prNumber = prMatch[1];
-              await log(`✅ Draft pull request created: #${prNumber}`);
-              await log(`📍 URL: ${prUrl}`);
+            if (prUrl) {
+              const prMatch = prUrl.match(/\/pull\/(\d+)/);
+              if (prMatch) {
+                prNumber = prMatch[1];
+                await log(`✅ Draft pull request created: #${prNumber}`);
+                await log(`📍 URL: ${prUrl}`);
+              } else {
+                await log(`✅ Draft pull request created`);
+                await log(`📍 URL: ${prUrl}`);
+              }
             } else {
-              await log(`✅ Draft pull request created`);
-              await log(`📍 URL: ${prUrl}`);
+              await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
           }
         }
