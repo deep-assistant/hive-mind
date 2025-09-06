@@ -12,6 +12,36 @@ const path = (await import('path')).default;
 const fs = (await import('fs')).promises;
 const crypto = (await import('crypto')).default;
 
+// Global log file reference
+let permanentLogFile = null;
+
+// Helper function to log to both console and file
+const log = async (message, options = {}) => {
+  const { level = 'info', raw = false, consoleOnly = false } = options;
+  
+  // Write to file if not console-only
+  if (!consoleOnly && permanentLogFile) {
+    const levelPrefix = raw ? '' : `[${new Date().toISOString()}] [${level.toUpperCase()}] `;
+    const logMessage = raw ? message : `${levelPrefix}${message}`;
+    await fs.appendFile(permanentLogFile, logMessage + '\n').catch(() => {});
+  }
+  
+  // Write to console based on level
+  switch (level) {
+    case 'error':
+      console.error(message);
+      break;
+    case 'warning':
+    case 'warn':
+      console.warn(message);
+      break;
+    case 'info':
+    default:
+      console.log(message);
+      break;
+  }
+};
+
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <issue-url> [options]')
@@ -45,7 +75,7 @@ const issueUrl = argv._[0];
 
 // Validate GitHub issue URL format
 if (!issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/)) {
-  console.error('Error: Please provide a valid GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)');
+  await log('Error: Please provide a valid GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)', { level: 'error' });
   process.exit(1);
 }
 
@@ -69,107 +99,107 @@ if (isResuming) {
   try {
     // Check if session log exists to verify session is valid
     await fs.access(sessionLogPattern);
-    console.log(`🔄 Resuming session ${argv.resume} (session log found)`);
+    await log(`🔄 Resuming session ${argv.resume} (session log found)`);
 
     // For resumed sessions, create new temp directory since old one may be cleaned up
     tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
-    console.log(`Creating new temporary directory for resumed session: ${tempDir}`);
+    await log(`Creating new temporary directory for resumed session: ${tempDir}`);
   } catch (err) {
-    console.warn(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
+    await log(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
     tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
-    console.log(`Creating temporary directory for resumed session: ${tempDir}`);
+    await log(`Creating temporary directory for resumed session: ${tempDir}`);
   }
 } else {
   tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
   await fs.mkdir(tempDir, { recursive: true });
-  console.log(`Creating temporary directory: ${tempDir}\n`);
+  await log(`Creating temporary directory: ${tempDir}\n`);
 }
 
 try {
   // Clone the repository using gh tool with authentication (full clone for proper git history)
-  console.log(`Cloning repository ${owner}/${repo} using gh tool...\n`);
+  await log(`Cloning repository ${owner}/${repo} using gh tool...\n`);
   const cloneResult = await $`gh repo clone ${owner}/${repo} ${tempDir}`;
   
   // Verify clone was successful
   if (cloneResult.code !== 0) {
-    console.error(`Error: Failed to clone repository`);
-    console.error(cloneResult.stderr ? cloneResult.stderr.toString() : 'Unknown error');
+    await log(`Error: Failed to clone repository`);
+    await log(cloneResult.stderr ? cloneResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
 
-  console.log(`✅ Repository cloned successfully to ${tempDir}\n`);
+  await log(`✅ Repository cloned successfully to ${tempDir}\n`);
 
   // Set up git authentication using gh
   const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
   if (authSetupResult.code !== 0) {
-    console.log('Note: gh auth setup-git had issues, continuing anyway\n');
+    await log('Note: gh auth setup-git had issues, continuing anyway\n');
   }
 
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   
   if (defaultBranchResult.code !== 0) {
-    console.error(`Error: Failed to get current branch`);
-    console.error(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
+    await log(`Error: Failed to get current branch`);
+    await log(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
 
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
   if (!defaultBranch) {
-    console.error(`Error: Unable to detect default branch`);
+    await log(`Error: Unable to detect default branch`);
     process.exit(1);
   }
-  console.log(`📌 Default branch detected: ${defaultBranch}\n`);
+  await log(`📌 Default branch detected: ${defaultBranch}\n`);
 
   // Ensure we're on a clean default branch
   const statusResult = await $`cd ${tempDir} && git status --porcelain`;
 
   if (statusResult.code !== 0) {
-    console.error(`Error: Failed to check git status`);
-    console.error(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
+    await log(`Error: Failed to check git status`);
+    await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
   
   // Note: Empty output means clean working directory
   const statusOutput = statusResult.stdout.toString().trim();
   if (statusOutput) {
-    console.error(`Error: Repository has uncommitted changes after clone`);
-    console.error(`Status output: ${statusOutput}`);
+    await log(`Error: Repository has uncommitted changes after clone`);
+    await log(`Status output: ${statusOutput}`);
     process.exit(1);
   }
 
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  console.log(`🌿 Creating branch: ${branchName} from ${defaultBranch}`);
+  await log(`🌿 Creating branch: ${branchName} from ${defaultBranch}`);
   const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
 
   if (checkoutResult.code !== 0) {
-    console.error(`Error: Failed to create branch ${branchName}:`);
-    console.error(checkoutResult.stderr ? checkoutResult.stderr.toString() : 'Unknown error');
+    await log(`Error: Failed to create branch ${branchName}:`);
+    await log(checkoutResult.stderr ? checkoutResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
   
-  console.log(`✅ Successfully created branch: ${branchName}`);
+  await log(`✅ Successfully created branch: ${branchName}`);
 
   // Verify we're on the correct branch
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   
   if (currentBranchResult.code !== 0) {
-    console.error(`Error: Failed to verify current branch`);
-    console.error(currentBranchResult.stderr ? currentBranchResult.stderr.toString() : 'Unknown error');
+    await log(`Error: Failed to verify current branch`);
+    await log(currentBranchResult.stderr ? currentBranchResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
   
   const currentBranch = currentBranchResult.stdout.toString().trim();
   if (currentBranch !== branchName) {
-    console.log('\n');
-    console.error(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}\n`);
+    await log('\n');
+    await log(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}\n`);
     process.exit(1);
   }
-  console.log(`✅ Successfully switched to branch: ${branchName}\n`);
+  await log(`✅ Successfully switched to branch: ${branchName}\n`);
 
   const prompt = `1. Initial research.  
    - When you read issue, read all details and comments thoroughly.  
@@ -225,7 +255,7 @@ When you face something extremely hard, use divide and conquer — it always hel
   const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
 
   // Get timestamps from GitHub servers before executing the command
-  console.log('📅 Getting reference timestamps from GitHub...');
+  await log('📅 Getting reference timestamps from GitHub...');
 
   let referenceTime;
   try {
@@ -237,38 +267,38 @@ When you face something extremely hard, use divide and conquer — it always hel
     }
     
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
-    console.log(`  📝 Issue last updated: ${issueUpdatedAt.toISOString()}`);
+    await log(`  📝 Issue last updated: ${issueUpdatedAt.toISOString()}`);
 
     // Get the last comment's timestamp (if any)
     const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     
     if (commentsResult.code !== 0) {
-      console.warn(`Warning: Failed to get comments: ${commentsResult.stderr ? commentsResult.stderr.toString() : 'Unknown error'}`);
+      await log(`Warning: Failed to get comments: ${commentsResult.stderr ? commentsResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
       // Continue anyway, comments are optional
     }
     
     const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
     const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
     if (lastCommentTime) {
-      console.log(`  💬 Last comment time: ${lastCommentTime.toISOString()}`);
+      await log(`  💬 Last comment time: ${lastCommentTime.toISOString()}`);
     } else {
-      console.log(`  💬 No comments found on issue`);
+      await log(`  💬 No comments found on issue`);
     }
 
     // Get the most recent pull request's timestamp
     const prsResult = await $`gh pr list --repo ${owner}/${repo} --limit 1 --json createdAt`;
     
     if (prsResult.code !== 0) {
-      console.warn(`Warning: Failed to get PRs: ${prsResult.stderr ? prsResult.stderr.toString() : 'Unknown error'}`);
+      await log(`Warning: Failed to get PRs: ${prsResult.stderr ? prsResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
       // Continue anyway, PRs are optional for timestamp calculation
     }
     
     const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
     const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
     if (lastPrTime) {
-      console.log(`  🔀 Most recent pull request in repo: ${lastPrTime.toISOString()}`);
+      await log(`  🔀 Most recent pull request in repo: ${lastPrTime.toISOString()}`);
     } else {
-      console.log(`  🔀 No pull requests found in repo`);
+      await log(`  🔀 No pull requests found in repo`);
     }
 
     // Use the most recent timestamp as reference
@@ -280,16 +310,16 @@ When you face something extremely hard, use divide and conquer — it always hel
       referenceTime = lastPrTime;
     }
 
-    console.log(`✅ Using reference timestamp: ${referenceTime.toISOString()}`);
+    await log(`✅ Using reference timestamp: ${referenceTime.toISOString()}`);
   } catch (timestampError) {
-    console.warn('Warning: Could not get GitHub timestamps, using current time as reference');
-    console.warn(`  Error: ${timestampError.message}`);
+    await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
+    await log(`  Error: ${timestampError.message}`);
     referenceTime = new Date();
-    console.log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
+    await log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
   }
 
   // Execute claude command from the cloned repository directory
-  console.log(`\n🤖 Executing Claude (${argv.model.toUpperCase()}) from repository directory...`);
+  await log(`\n🤖 Executing Claude (${argv.model.toUpperCase()}) from repository directory...`);
 
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
@@ -308,48 +338,49 @@ When you face something extremely hard, use divide and conquer — it always hel
   // Create the log file immediately
   await fs.writeFile(permanentLogFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 
-  console.log(`📁 Log file: ${permanentLogFile}`);
-  console.log(`   (You can tail -f this file to watch real-time output)\n`);
+
+  await log(`📁 Log file: ${permanentLogFile}`);
+  await log(`   (Real-time output will be logged here)\n`);
 
   // Build claude command with optional resume flag
   let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
 
   if (argv.resume) {
-    console.log(`🔄 Resuming from session: ${argv.resume}`);
+    await log(`🔄 Resuming from session: ${argv.resume}`);
     claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
   }
 
   claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
 
   // Print the command being executed (with cd for reproducibility)
-  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} 2>&1 | tee "${permanentLogFile}")`;
-  console.log(`📋 Command details:`);
-  console.log(`   📂 Working directory: ${tempDir}`);
-  console.log(`   🌿 Branch: ${branchName}`);
-  console.log(`   🤖 Model: Claude ${argv.model.toUpperCase()}`);
-  console.log(`\n📋 Full command:`);
-  console.log(`   ${fullCommand}`);
-  console.log('');
+  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
+  await log(`📋 Command details:`);
+  await log(`   📂 Working directory: ${tempDir}`);
+  await log(`   🌿 Branch: ${branchName}`);
+  await log(`   🤖 Model: Claude ${argv.model.toUpperCase()}`);
+  await log(`\n📋 Full command:`);
+  await log(`   ${fullCommand}`);
+  await log('');
 
   // If only preparing command, exit here
   if (argv.onlyPrepareCommand) {
-    console.log(`✅ Command preparation complete`);
-    console.log(`📂 Repository cloned to: ${tempDir}`);
-    console.log(`🌿 Branch created: ${branchName}`);
-    console.log(`\n💡 To execute manually:`);
-    console.log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
+    await log(`✅ Command preparation complete`);
+    await log(`📂 Repository cloned to: ${tempDir}`);
+    await log(`🌿 Branch created: ${branchName}`);
+    await log(`\n💡 To execute manually:`);
+    await log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
     process.exit(0);
   }
 
   // Change to the temporary directory and execute
   process.chdir(tempDir);
 
-  // Build the actual command for execution using tee for real-time output
+  // Build the actual command for execution
   let execCommand;
   if (argv.resume) {
-    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" 2>&1 | tee ${permanentLogFile} | jq -c`;
+    execCommand = $`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}" | jq -c`;
   } else {
-    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model} 2>&1 | tee ${permanentLogFile} | jq -c`;
+    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model} | jq -c`;
   }
 
   for await (const chunk of execCommand.stream()) {
@@ -361,28 +392,29 @@ When you face something extremely hard, use divide and conquer — it always hel
         json = JSON.parse(data);
       } catch (error) {
         // Not JSON, just append to log
-        await fs.appendFile(permanentLogFile, data + '\n');
+        await log(data, { raw: true });
         continue;
       }
 
-      // Log file is already being written by tee, no need to append here
+      // Save full JSON to log file
+      await log(JSON.stringify(json), { raw: true });
 
       // Extract session ID on first message
       if (!sessionId && json.session_id) {
         sessionId = json.session_id;
-        console.log(`🔧 Session ID: ${sessionId}`);
+        await log(`🔧 Session ID: ${sessionId}`);
         
         // Try to rename log file to include session ID
         try {
           const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
           await fs.rename(permanentLogFile, sessionLogFile);
           permanentLogFile = sessionLogFile;
-          console.log(`📁 Log renamed to: ${permanentLogFile}`);
+          await log(`📁 Log renamed to: ${permanentLogFile}`);
         } catch (renameError) {
           // If rename fails, keep original filename
-          console.log(`📁 Keeping log file: ${permanentLogFile}`);
+          await log(`📁 Keeping log file: ${permanentLogFile}`);
         }
-        console.log('');
+        await log('');
       }
 
       // Display user-friendly progress
@@ -401,29 +433,32 @@ When you face something extremely hard, use divide and conquer — it always hel
           }
         }
         
-        // Show progress indicator
+        // Show progress indicator (console only, not logged)
         process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
       } else if (json.type === 'tool_use') {
         toolUseCount++;
         const toolName = json.tool_use?.name || 'unknown';
+        // Log tool use to file only
+        await log(`[TOOL USE] ${toolName}`, { raw: true });
+        // Show progress in console (without logging)
         process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
       } else if (json.type === 'system' && json.subtype === 'init') {
-        console.log('🚀 Claude session started');
-        console.log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
-        console.log('\n🔄 Processing... (real-time output in log file)\n');
+        await log('🚀 Claude session started');
+        await log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
+        await log('\n🔄 Processing...\n');
       }
 
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
       // Only show actual errors, not verbose output
       if (data.includes('Error') || data.includes('error')) {
-        console.error(`\n⚠️  ${data}`);
+        await log(`\n⚠️  ${data}`, { level: 'error' });
       }
-      // stderr is already captured by tee
+      await log(`STDERR: ${data}`, { raw: true });
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
-        console.error(`\n\n❌ Claude command failed with exit code ${chunk.code}`);
+        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}`, { level: 'error' });
       }
     }
   }
@@ -432,41 +467,41 @@ When you face something extremely hard, use divide and conquer — it always hel
   process.stdout.write('\r' + ' '.repeat(100) + '\r');
 
   if (commandFailed) {
-    console.log('\n❌ Command execution failed. Check the log file for details.');
-    console.log(`📁 Log file: ${permanentLogFile}`);
+    await log('\n❌ Command execution failed. Check the log file for details.');
+    await log(`📁 Log file: ${permanentLogFile}`);
     process.exit(1);
   }
 
-  console.log('\n\n✅ Claude command completed');
-  console.log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
+  await log('\n\n✅ Claude command completed');
+  await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
   // Show summary of session and log file
-  console.log('\n=== Session Summary ===');
+  await log('\n=== Session Summary ===');
 
   if (sessionId) {
-    console.log(`✅ Session ID: ${sessionId}`);
-    console.log(`✅ Complete log file: ${permanentLogFile}`);
+    await log(`✅ Session ID: ${sessionId}`);
+    await log(`✅ Complete log file: ${permanentLogFile}`);
 
     if (limitReached) {
-      console.log(`\n⏰ LIMIT REACHED DETECTED!`);
-      console.log(`\n🔄 To resume when limit resets, use:\n`);
-      console.log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-      console.log(`\n   This will continue from where it left off with full context.\n`);
+      await log(`\n⏰ LIMIT REACHED DETECTED!`);
+      await log(`\n🔄 To resume when limit resets, use:\n`);
+      await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+      await log(`\n   This will continue from where it left off with full context.\n`);
     } else {
       // Show command to resume session in interactive mode
-      console.log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
-      console.log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
-      console.log(``);
+      await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
+      await log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
+      await log(``);
     }
 
     // Don't show log preview, it's too technical
   } else {
-    console.log(`❌ No session ID extracted`);
-    console.log(`📁 Log file available: ${permanentLogFile}`);
+    await log(`❌ No session ID extracted`);
+    await log(`📁 Log file available: ${permanentLogFile}`);
   }
 
   // Now search for newly created pull requests and comments
-  console.log('\n🔍 Searching for created pull requests or comments...');
+  await log('\n🔍 Searching for created pull requests or comments...');
 
   try {
     // Get the current user's GitHub username
@@ -482,13 +517,13 @@ When you face something extremely hard, use divide and conquer — it always hel
     }
 
     // Search for pull requests created from our branch after the reference time
-    console.log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
+    await log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
 
     // First, get all PRs from our branch
     const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state`;
     
     if (allBranchPrsResult.code !== 0) {
-      console.log('  ⚠️  Failed to check pull requests');
+      await log('  ⚠️  Failed to check pull requests');
       // Continue with empty list
     }
     
@@ -499,25 +534,25 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     if (newPrs.length > 0) {
       const pr = newPrs[0];
-      console.log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
-      console.log(`\n🎉 SUCCESS: A solution draft has been created as a pull request`);
-      console.log(`📍 URL: ${pr.url}`);
-      console.log(`\n✨ Please review the pull request for the proposed solution.`);
+      await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
+      await log(`\n🎉 SUCCESS: A solution draft has been created as a pull request`);
+      await log(`📍 URL: ${pr.url}`);
+      await log(`\n✨ Please review the pull request for the proposed solution.`);
       process.exit(0);
     } else if (allBranchPrs.length > 0) {
-      console.log(`  ℹ️  Found existing pull request(s) from before this session`);
+      await log(`  ℹ️  Found existing pull request(s) from before this session`);
     } else {
-      console.log(`  ℹ️  No pull requests found from branch ${branchName}`);
+      await log(`  ℹ️  No pull requests found from branch ${branchName}`);
     }
 
     // If no PR found, search for recent comments on the issue
-    console.log('\n🔍 Checking for new comments on issue #' + issueNumber + '...');
+    await log('\n🔍 Checking for new comments on issue #' + issueNumber + '...');
 
     // Get all comments and filter them
     const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
     
     if (allCommentsResult.code !== 0) {
-      console.log('  ⚠️  Failed to check comments');
+      await log('  ⚠️  Failed to check comments');
       // Continue with empty list
     }
     
@@ -530,33 +565,33 @@ When you face something extremely hard, use divide and conquer — it always hel
 
     if (newCommentsByUser.length > 0) {
       const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
-      console.log(`  ✅ Found new comment by ${currentUser}`);
-      console.log(`\n💬 SUCCESS: Comment posted on issue`);
-      console.log(`📍 URL: ${lastComment.html_url}`);
-      console.log(`\n✨ A clarifying comment has been added to the issue.`);
+      await log(`  ✅ Found new comment by ${currentUser}`);
+      await log(`\n💬 SUCCESS: Comment posted on issue`);
+      await log(`📍 URL: ${lastComment.html_url}`);
+      await log(`\n✨ A clarifying comment has been added to the issue.`);
       process.exit(0);
     } else if (allComments.length > 0) {
-      console.log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
+      await log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
     } else {
-      console.log(`  ℹ️  No comments found on issue`);
+      await log(`  ℹ️  No comments found on issue`);
     }
 
     // If neither found, it might not have been necessary to create either
-    console.log('\n📋 No new pull request or comment was created.');
-    console.log('   The issue may have been resolved differently or required no action.');
-    console.log(`\n💡 Review the session log for details:`);
-    console.log(`   ${permanentLogFile}`);
+    await log('\n📋 No new pull request or comment was created.');
+    await log('   The issue may have been resolved differently or required no action.');
+    await log(`\n💡 Review the session log for details:`);
+    await log(`   ${permanentLogFile}`);
     process.exit(0);
 
   } catch (searchError) {
-    console.warn('\n⚠️  Could not verify results:', searchError.message);
-    console.log(`\n💡 Check the log file for details:`);
-    console.log(`   ${permanentLogFile}`);
+    await log('\n⚠️  Could not verify results:', searchError.message);
+    await log(`\n💡 Check the log file for details:`);
+    await log(`   ${permanentLogFile}`);
     process.exit(0);
   }
 
 } catch (error) {
-  console.error('Error executing command:', error.message);
+  await log('Error executing command:', error.message);
   process.exit(1);
 } finally {
   // Clean up temporary directory (but not when resuming or when limit reached)
@@ -564,13 +599,13 @@ When you face something extremely hard, use divide and conquer — it always hel
     try {
       process.stdout.write('\n🧹 Cleaning up...');
       await fs.rm(tempDir, { recursive: true, force: true });
-      console.log(' ✅');
+      await log(' ✅');
     } catch (cleanupError) {
-      console.log(' ⚠️  (failed)');
+      await log(' ⚠️  (failed)');
     }
   } else if (argv.resume) {
-    console.log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
+    await log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
   } else if (limitReached) {
-    console.log(`\n📁 Keeping directory for future resume: ${tempDir}`);
+    await log(`\n📁 Keeping directory for future resume: ${tempDir}`);
   }
 }
