@@ -59,10 +59,37 @@ try {
 
   // Create the repository
   console.log('Creating repository...');
-  const createRepoResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false`;
+  console.log(`Command: gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false`);
   
-  if (createRepoResult.exitCode !== 0) {
-    console.error('Failed to create repository:', createRepoResult.stderr.toString());
+  let createRepoResult;
+  try {
+    createRepoResult = await $`gh repo create ${repoName} --public --description "Test repository for automated issue solving" --clone=false`;
+  } catch (error) {
+    console.error('Failed to create repository!');
+    console.error('Exit code:', error.code);
+    console.error('Stdout:', error.stdout ? error.stdout.toString() : '(empty)');
+    console.error('Stderr:', error.stderr ? error.stderr.toString() : '(empty)');
+    console.error('Full error:', error);
+    
+    // Check if repo already exists
+    console.log('\nChecking if repository already exists...');
+    try {
+      const checkResult = await $`gh repo view ${githubUser}/${repoName} --json name`;
+      console.log('Repository already exists! Continuing with existing repository...');
+      const repoUrl = `https://github.com/${githubUser}/${repoName}`;
+      // Set this so we can continue
+      createRepoResult = { code: 0, stdout: Buffer.from(repoUrl) };
+    } catch (checkError) {
+      console.error('Repository does not exist. Original error stands.');
+      process.exit(1);
+    }
+  }
+  
+  if (createRepoResult && createRepoResult.code !== 0) {
+    console.error('Failed to create repository!');
+    console.error('Exit code:', createRepoResult.code);
+    console.error('Stdout:', createRepoResult.stdout ? createRepoResult.stdout.toString() : '(empty)');
+    console.error('Stderr:', createRepoResult.stderr ? createRepoResult.stderr.toString() : '(empty)');
     process.exit(1);
   }
 
@@ -75,13 +102,18 @@ try {
   
   // Create a temporary directory for initial commit
   const tempDir = `/tmp/${repoName}-init`;
-  await $`mkdir -p ${tempDir}`;
+  console.log(`Using temp directory: ${tempDir}`);
   
-  // Clone the empty repository
-  await $`git clone ${repoUrl} ${tempDir}`;
-  
-  // Create README
-  const readmeContent = `# ${repoName}
+  try {
+    await $`mkdir -p ${tempDir}`;
+    
+    // Clone the empty repository
+    console.log('Cloning repository...');
+    const cloneResult = await $`git clone ${repoUrl} ${tempDir} 2>&1`;
+    console.log('Clone output:', cloneResult.stdout.toString());
+    
+    // Create README
+    const readmeContent = `# ${repoName}
 
 This is a test repository for automated issue solving.
 
@@ -92,18 +124,63 @@ This repository is used to test the \`solve.mjs\` script that automatically solv
 An issue will be created asking to implement a "Hello World" program in ${randomLanguage}.
 `;
 
-  await $`echo "${readmeContent}" > ${tempDir}/README.md`;
-  
-  // Commit and push README
-  await $`cd ${tempDir} && git add README.md`;
-  await $`cd ${tempDir} && git commit -m "Initial commit with README"`;
-  await $`cd ${tempDir} && git push origin main`;
-  
-  console.log('✅ Repository initialized with README');
-  console.log('');
+    const readmePath = `${tempDir}/README.md`;
+    console.log('Creating README.md...');
+    
+    // Use fs to write the file instead of echo to avoid shell escaping issues
+    const fs = (await import('fs')).promises;
+    await fs.writeFile(readmePath, readmeContent);
+    
+    // Check if file was created
+    const fileCheck = await $`ls -la ${readmePath}`;
+    console.log('README created:', fileCheck.stdout.toString().trim());
+    
+    // Commit and push README
+    console.log('Adding README to git...');
+    await $`cd ${tempDir} && git add README.md`;
+    
+    console.log('Committing...');
+    await $`cd ${tempDir} && git commit -m "Initial commit with README"`;
+    
+    console.log('Pushing to origin...');
+    // First try main, if that fails try master (but properly handle the error)
+    try {
+      const pushResult = await $`cd ${tempDir} && git push origin main`;
+      console.log('Push result:', pushResult.stdout.toString());
+    } catch (pushError) {
+      // If main fails, it's likely because the default branch is master
+      console.log('Push to main failed, trying master...');
+      try {
+        const pushResult = await $`cd ${tempDir} && git push origin master`;
+        console.log('Push result:', pushResult.stdout.toString());
+      } catch (masterError) {
+        console.log('Push to master also failed');
+        throw masterError;
+      }
+    }
+    
+    console.log('✅ Repository initialized with README');
+    console.log('');
 
-  // Clean up temp directory
-  await $`rm -rf ${tempDir}`;
+    // Clean up temp directory
+    await $`rm -rf ${tempDir}`;
+  } catch (initError) {
+    console.error('Failed to initialize repository!');
+    console.error('Error:', initError.message);
+    if (initError.stdout) console.error('Stdout:', initError.stdout.toString());
+    if (initError.stderr) console.error('Stderr:', initError.stderr.toString());
+    
+    // Try to clean up
+    try {
+      await $`rm -rf ${tempDir}`;
+    } catch (cleanupError) {
+      console.warn('Could not clean up temp directory:', cleanupError.message);
+    }
+    
+    console.log('\n⚠️  Repository created but not initialized with README.');
+    console.log('Continuing to create issue anyway...\n');
+    // Don't exit, continue to create the issue
+  }
 
   // Create the issue
   console.log('Creating issue...');
@@ -156,16 +233,39 @@ Example workflow structure:
 - [ ] GitHub Actions workflow created and passing
 - [ ] CI badge showing build status (optional but recommended)`;
 
-  const createIssueResult = await $`gh issue create --repo ${repoUrl} --title "${issueTitle}" --body "${issueBody}"`;
+  let createIssueResult;
+  let issueUrl;
   
-  if (createIssueResult.exitCode !== 0) {
-    console.error('Failed to create issue:', createIssueResult.stderr.toString());
+  try {
+    // Write issue body to a temp file to avoid shell escaping issues
+    const fs = (await import('fs')).promises;
+    const issueBodyFile = `/tmp/issue-body-${Date.now()}.md`;
+    await fs.writeFile(issueBodyFile, issueBody);
+    
+    console.log(`Command: gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`);
+    createIssueResult = await $`gh issue create --repo ${repoUrl} --title "${issueTitle}" --body-file ${issueBodyFile}`;
+    
+    // Clean up temp file
+    await fs.unlink(issueBodyFile);
+    
+    // Extract issue URL from the output
+    const issueOutput = createIssueResult.stdout.toString().trim();
+    issueUrl = issueOutput.split('\n').pop(); // Last line contains the URL
+    
+  } catch (issueError) {
+    console.error('Failed to create issue!');
+    console.error('Exit code:', issueError.code);
+    console.error('Stdout:', issueError.stdout ? issueError.stdout.toString() : '(empty)');
+    console.error('Stderr:', issueError.stderr ? issueError.stderr.toString() : '(empty)');
+    console.error('Full error:', issueError);
     process.exit(1);
   }
-
-  // Extract issue URL from the output
-  const issueOutput = createIssueResult.stdout.toString().trim();
-  const issueUrl = issueOutput.split('\n').pop(); // Last line contains the URL
+  
+  if (!issueUrl || !issueUrl.includes('github.com')) {
+    console.error('Failed to extract issue URL from output');
+    console.error('Output was:', createIssueResult.stdout.toString());
+    process.exit(1);
+  }
   
   console.log(`✅ Issue created: ${issueUrl}`);
   console.log('');
