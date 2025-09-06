@@ -290,6 +290,17 @@ Preparing to work on: ${issueUrl}"`;
             await log(`   Warning: Could not get issue title, using default`, { verbose: true });
           }
           
+          // Get current GitHub user to set as assignee
+          await log(`👤 Getting current GitHub user...`, { verbose: true });
+          const currentUserResult = await $`gh api user --jq .login`;
+          let currentUser = null;
+          if (currentUserResult.code === 0) {
+            currentUser = currentUserResult.stdout.toString().trim();
+            await log(`   Current user: ${currentUser}`, { verbose: true });
+          } else {
+            await log(`   Warning: Could not get current user for assignee`, { verbose: true });
+          }
+          
           // Create draft pull request
           await log(`🔀 Creating draft pull request...`);
           
@@ -313,6 +324,9 @@ _Details will be added as the solution is developed..._
             await log(`   PR Title: [WIP] ${issueTitle}`, { verbose: true });
             await log(`   Base branch: ${defaultBranch}`, { verbose: true });
             await log(`   Head branch: ${branchName}`, { verbose: true });
+            if (currentUser) {
+              await log(`   Assignee: ${currentUser}`, { verbose: true });
+            }
             await log(`   PR Body:
 ${prBody}`, { verbose: true });
           }
@@ -326,7 +340,11 @@ ${prBody}`, { verbose: true });
             const prBodyFile = `/tmp/pr-body-${Date.now()}.md`;
             await fs.writeFile(prBodyFile, prBody);
             
-            const command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+            // Build command with optional assignee
+            let command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+            if (currentUser) {
+              command += ` --assignee ${currentUser}`;
+            }
             
             if (argv.verbose) {
               await log(`   Command: ${command}`, { verbose: true });
@@ -360,6 +378,9 @@ ${prBody}`, { verbose: true });
                 prNumber = prMatch[1];
                 await log(`✅ Draft pull request created: #${prNumber}`);
                 await log(`📍 URL: ${prUrl}`);
+                if (currentUser) {
+                  await log(`👤 Assigned to: ${currentUser}`);
+                }
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
                 await log(`🔗 Linking issue #${issueNumber} to PR #${prNumber} in Development section...`);
