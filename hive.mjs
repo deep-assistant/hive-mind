@@ -51,13 +51,19 @@ const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <github-url> [options]')
   .positional('github-url', {
     type: 'string',
-    description: 'GitHub organization or repository URL to monitor'
+    description: 'GitHub organization, repository, or user URL to monitor'
   })
   .option('monitor-tag', {
     type: 'string',
     description: 'GitHub label to monitor for issues',
     default: 'help wanted',
     alias: 't'
+  })
+  .option('all-issues', {
+    type: 'boolean',
+    description: 'Process all open issues regardless of labels',
+    default: false,
+    alias: 'a'
   })
   .option('concurrency', {
     type: 'number',
@@ -125,8 +131,8 @@ await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)\n`);
 
-// Parse GitHub URL to determine organization or repository
-let isOrg = false;
+// Parse GitHub URL to determine organization, repository, or user
+let scope = 'repository';
 let owner = null;
 let repo = null;
 
@@ -140,11 +146,29 @@ if (!urlMatch) {
 
 owner = urlMatch[1];
 repo = urlMatch[3] || null;
-isOrg = !repo;
+
+// Determine scope
+if (!repo) {
+  // Check if it's an organization or user
+  try {
+    const typeResult = await $`gh api users/${owner} --jq .type`;
+    const accountType = typeResult.stdout.toString().trim();
+    scope = accountType === 'Organization' ? 'organization' : 'user';
+  } catch (e) {
+    // Default to user if API call fails
+    scope = 'user';
+  }
+} else {
+  scope = 'repository';
+}
 
 await log(`🎯 Monitoring Configuration:`);
-await log(`   📍 Target: ${isOrg ? 'Organization' : 'Repository'} - ${owner}${repo ? `/${repo}` : ''}`);
-await log(`   🏷️  Tag: "${argv.monitorTag}"`);
+await log(`   📍 Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
+if (argv.allIssues) {
+  await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
+} else {
+  await log(`   🏷️  Tag: "${argv.monitorTag}"`);
+}
 await log(`   🔄 Concurrency: ${argv.concurrency} parallel workers`);
 await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
 await log(`   🤖 Model: ${argv.model}`);
@@ -303,44 +327,112 @@ async function worker(workerId) {
 
 // Function to fetch issues from GitHub
 async function fetchIssues() {
-  await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
+  if (argv.allIssues) {
+    await log(`\n🔍 Fetching ALL open issues...`);
+  } else {
+    await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
+  }
   
   try {
-    // Build search query components
-    let searchArgs = [];
-    if (isOrg) {
-      searchArgs.push(`org:${owner}`);
+    let issues = [];
+    
+    if (argv.allIssues) {
+      // Fetch all open issues without label filter
+      let searchCmd;
+      if (scope === 'repository') {
+        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --limit 100 --json url,title,number`;
+      } else if (scope === 'organization') {
+        searchCmd = `gh search issues org:${owner} is:open --limit 100 --json url,title,number,repository`;
+      } else {
+        // User scope
+        searchCmd = `gh search issues user:${owner} is:open --limit 100 --json url,title,number,repository`;
+      }
+      
+      await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
+      
+      // Use execSync to avoid escaping issues
+      const { execSync } = await import('child_process');
+      const output = execSync(searchCmd, { encoding: 'utf8' });
+      issues = JSON.parse(output || '[]');
+      
     } else {
-      searchArgs.push(`repo:${owner}/${repo}`);
+      // Use label filter
+      const { execSync } = await import('child_process');
+      
+      // For repositories, use gh issue list which works better with new repos
+      if (scope === 'repository') {
+        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --limit 100 --json url,title,number`;
+        await log(`   🔎 Command: ${listCmd}`, { verbose: true });
+        
+        try {
+          const output = execSync(listCmd, { encoding: 'utf8' });
+          issues = JSON.parse(output || '[]');
+        } catch (listError) {
+          await log(`   ⚠️  List failed: ${listError.message.split('\n')[0]}`, { verbose: true });
+          issues = [];
+        }
+      } else {
+        // For organizations and users, use search (may not work with new repos)
+        let baseQuery;
+        if (scope === 'organization') {
+          baseQuery = `org:${owner} is:issue is:open`;
+        } else {
+          baseQuery = `user:${owner} is:issue is:open`;
+        }
+        
+        // Handle label with potential spaces
+        let searchQuery;
+        let searchCmd;
+        
+        if (argv.monitorTag.includes(' ')) {
+          searchQuery = `${baseQuery} label:"${argv.monitorTag}"`;
+          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+        } else {
+          searchQuery = `${baseQuery} label:${argv.monitorTag}`;
+          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+        }
+        
+        await log(`   🔎 Search query: ${searchQuery}`, { verbose: true });
+        await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
+        
+        try {
+          const output = execSync(searchCmd, { encoding: 'utf8' });
+          issues = JSON.parse(output || '[]');
+        } catch (searchError) {
+          await log(`   ⚠️  Search failed: ${searchError.message.split('\n')[0]}`, { verbose: true });
+          issues = [];
+        }
+      }
     }
-    searchArgs.push('is:issue', 'is:open', `label:"${argv.monitorTag}"`);
-    
-    const searchQuery = searchArgs.join(' ');
-    await log(`   🔎 Search query: ${searchQuery}`, { verbose: true });
-    
-    // Use command-stream with array arguments to avoid shell escaping issues
-    const searchResult = await $`gh search issues ${searchArgs} --limit 100 --json url,title,number,repository`;
-    
-    if (searchResult.code !== 0) {
-      throw new Error(`Failed to search issues: ${searchResult.stderr}`);
-    }
-    
-    const searchOutput = searchResult.stdout.toString();
-    
-    const issues = JSON.parse(searchOutput || '[]');
     
     if (issues.length === 0) {
-      await log(`   ℹ️  No issues found with label "${argv.monitorTag}"`);
+      if (argv.allIssues) {
+        await log(`   ℹ️  No open issues found`);
+      } else {
+        await log(`   ℹ️  No issues found with label "${argv.monitorTag}"`);
+      }
       return [];
     }
     
-    await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
+    if (argv.allIssues) {
+      await log(`   📋 Found ${issues.length} open issue(s)`);
+    } else {
+      await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
+    }
     
     // Apply max issues limit if set
     let issuesToProcess = issues;
     if (argv.maxIssues > 0 && issues.length > argv.maxIssues) {
       issuesToProcess = issues.slice(0, argv.maxIssues);
       await log(`   🔢 Limiting to first ${argv.maxIssues} issues`);
+    }
+    
+    // In dry-run mode, show the issues that would be processed
+    if (argv.dryRun && issuesToProcess.length > 0) {
+      await log(`\n   📝 Issues that would be processed:`);
+      for (const issue of issuesToProcess) {
+        await log(`      - ${issue.title || 'Untitled'} (${issue.url})`);
+      }
     }
     
     return issuesToProcess.map(issue => issue.url);
