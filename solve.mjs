@@ -62,6 +62,11 @@ const argv = yargs(process.argv.slice(2))
     type: 'boolean',
     description: 'Only prepare and print the claude command without executing it',
   })
+  .option('dry-run', {
+    type: 'boolean',
+    description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
+    alias: 'n'
+  })
   .option('model', {
     type: 'string',
     description: 'Model to use (opus or sonnet)',
@@ -615,8 +620,8 @@ Proceed.`;
   await log(`   ${fullCommand}`);
   await log('');
 
-  // If only preparing command, exit here
-  if (argv.onlyPrepareCommand) {
+  // If only preparing command or dry-run, exit here
+  if (argv.onlyPrepareCommand || argv.dryRun) {
     await log(`✅ Command preparation complete`);
     await log(`📂 Repository cloned to: ${tempDir}`);
     await log(`🌿 Branch created: ${branchName}`);
