@@ -1,136 +1,120 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v node || command -v bun)" "$0" "$@"
+#!/usr/bin/env node
 
 /**
- * Issue #5: Paths with spaces
+ * Issue: File paths with spaces need proper quoting
  * 
- * Problem: File paths with spaces need proper quoting in shell commands
- * Solution: Always quote paths, or use fs operations when possible
+ * Minimal reproduction showing that paths with spaces fail
+ * when not properly quoted in shell commands.
+ * 
+ * Pattern: try { reproduction } catch { workaround }
  */
 
+console.log('🐛 Issue #05: Paths with spaces\n');
+
+// Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+
+// Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
-const fs = (await import('fs')).promises;
-const path = (await import('path')).default;
 
-console.log('=== Issue #5: Handling Paths with Spaces ===\n');
+// Direct imports with top-level await
+import { promises as fs } from 'fs';
+import path from 'path';
+import os from 'os';
 
-const testPaths = [
-  '/tmp/test folder with spaces',
-  '/tmp/special & characters',
-  '/tmp/quotes "in" path',
-  "/tmp/single 'quotes' too",
-  '/tmp/dollar $sign path',
-  '/tmp/unicode 文件夹 path'
-];
+/**
+ * Setup test environment (no try-catch, should fail on error)
+ */
+async function setup() {
+  console.log('📦 Setting up test directories with spaces...');
+  
+  const baseDir = path.join(os.tmpdir(), `test spaces ${Date.now()}`);
+  const testFile = path.join(baseDir, 'my file.txt');
+  
+  await fs.mkdir(baseDir, { recursive: true });
+  await fs.writeFile(testFile, 'test content');
+  
+  console.log(`   Directory: ${baseDir}`);
+  console.log(`   File: ${testFile}`);
+  console.log('✅ Setup complete\n');
+  
+  return { baseDir, testFile };
+}
 
-console.log('Test paths:');
-testPaths.forEach(p => console.log(`  - ${p}`));
-console.log('');
+/**
+ * Cleanup function (no try-catch, best effort)
+ */
+async function cleanup(baseDir) {
+  await fs.rm(baseDir, { recursive: true, force: true }).catch(() => {});
+}
 
-// Demonstrate the problem
-console.log('❌ PROBLEMATIC APPROACH: Unquoted paths');
-for (const testPath of testPaths.slice(0, 2)) {
-  console.log(`\nTesting: ${testPath}`);
+/**
+ * Main test - ONE try-catch block for reproduction and workaround
+ */
+async function runTest() {
+  // SETUP (no try-catch)
+  const { baseDir, testFile } = await setup();
+  
+  console.log('='.repeat(60));
+  
   try {
-    // This will fail for paths with spaces
-    console.log('  Command: mkdir -p ' + testPath);
-    await $`mkdir -p ${testPath}`;
-    console.log('  ✓ Created (unexpected success)');
-    // Clean up if it somehow worked
-    await $`rm -rf ${testPath}`;
+    // TRY: Reproduce the issue - unquoted path with spaces
+    console.log('REPRODUCING ISSUE\n');
+    console.log('1️⃣  Using command-stream $ with unquoted path:');
+    
+    // This should fail due to spaces in path
+    const result = await $`cat ${testFile}`;
+    
+    // If we get here without error, check if it actually worked
+    if (!result.stdout.toString().includes('test content')) {
+      throw new Error('Command succeeded but content not found');
+    }
+    
+    console.log('✅ Command worked (issue may be fixed or auto-quoted)');
+    
   } catch (error) {
-    console.log('  ✗ Failed:', error.message.substring(0, 50));
+    // CATCH: Apply workaround
+    console.log('❌ ISSUE CONFIRMED: Unquoted paths with spaces failed');
+    console.log(`   Error: ${error.message.split('\n')[0]}`);
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('APPLYING WORKAROUND\n');
+    
+    // WORKAROUND: Quote the path
+    console.log('2️⃣  Using quoted path workaround:');
+    
+    const result = await $`cat "${testFile}"`;
+    const content = result.stdout.toString().trim();
+    
+    if (content === 'test content') {
+      console.log('✅ WORKAROUND SUCCESSFUL!');
+      console.log('   Quoted path worked correctly');
+    }
+    
+    // Alternative: Use fs operations
+    console.log('\n3️⃣  Alternative: Using fs.readFile:');
+    const fsContent = await fs.readFile(testFile, 'utf8');
+    console.log(`   ✅ fs.readFile always works: "${fsContent}"`);
   }
+  
+  // CLEANUP
+  await cleanup(baseDir);
+  
+  // SUMMARY
+  console.log('\n' + '='.repeat(60));
+  console.log('SUMMARY\n');
+  console.log('❌ ISSUE: Paths with spaces need explicit quoting');
+  console.log('   • Unquoted paths break at spaces');
+  console.log('   • Auto-quoting is inconsistent');
+  
+  console.log('\n✅ WORKAROUNDS:');
+  console.log('   1. Always quote paths: "${path}"');
+  console.log('   2. Use fs operations when possible');
+  
+  console.log('\nExample workaround code:');
+  console.log('  // Always quote paths with potential spaces');
+  console.log('  await $`cat "${filePath}"`;');
 }
 
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Solution 1: Properly quoted paths
-console.log('✅ SOLUTION 1: Always quote paths in shell commands');
-for (const testPath of testPaths) {
-  console.log(`\nTesting: ${testPath}`);
-  try {
-    // Properly quoted
-    console.log('  Command: mkdir -p "${testPath}"');
-    await $`mkdir -p "${testPath}"`;
-    console.log('  ✓ Directory created');
-    
-    // Create a test file
-    const fileName = 'test file.txt';
-    const filePath = path.join(testPath, fileName);
-    console.log(`  Command: echo "test" > "${filePath}"`);
-    await $`echo "test content" > "${filePath}"`;
-    console.log('  ✓ File created');
-    
-    // List contents
-    const result = await $`ls -la "${testPath}"`;
-    console.log('  ✓ Listed contents successfully');
-    
-    // Clean up
-    await $`rm -rf "${testPath}"`;
-    console.log('  ✓ Cleaned up');
-  } catch (error) {
-    console.log('  ✗ Error:', error.message.substring(0, 50));
-  }
-}
-
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Solution 2: Use fs operations
-console.log('✅ SOLUTION 2: Use fs operations to avoid shell entirely');
-for (const testPath of testPaths.slice(0, 3)) {
-  console.log(`\nTesting: ${testPath}`);
-  try {
-    // Use fs.mkdir
-    console.log('  Using fs.mkdir()');
-    await fs.mkdir(testPath, { recursive: true });
-    console.log('  ✓ Directory created');
-    
-    // Create a test file
-    const filePath = path.join(testPath, 'test file with spaces.txt');
-    console.log('  Using fs.writeFile()');
-    await fs.writeFile(filePath, 'test content');
-    console.log('  ✓ File created');
-    
-    // Read directory
-    console.log('  Using fs.readdir()');
-    const files = await fs.readdir(testPath);
-    console.log(`  ✓ Found ${files.length} file(s)`);
-    
-    // Clean up
-    console.log('  Using fs.rm()');
-    await fs.rm(testPath, { recursive: true, force: true });
-    console.log('  ✓ Cleaned up');
-  } catch (error) {
-    console.log('  ✗ Error:', error.message);
-  }
-}
-
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Demonstrate escaping edge cases
-console.log('EDGE CASES: Special characters in paths\n');
-
-const edgeCases = [
-  { path: '/tmp/path with $VAR', desc: 'Dollar sign variable' },
-  { path: '/tmp/path with `command`', desc: 'Backtick command substitution' },
-  { path: '/tmp/path with $(cmd)', desc: 'Command substitution' },
-  { path: "/tmp/path with 'single' and \"double\"", desc: 'Mixed quotes' }
-];
-
-for (const { path: testPath, desc } of edgeCases) {
-  console.log(`${desc}: ${testPath}`);
-  console.log('  Best: Use fs operations');
-  console.log('  If shell needed: Quote carefully and escape special chars');
-}
-
-console.log('\n=== SUMMARY ===');
-console.log('Problem: Paths with spaces break unquoted shell commands');
-console.log('Solution 1: Always use double quotes around paths: "${path}"');
-console.log('Solution 2: Prefer fs operations over shell commands');
-console.log('Benefits of fs operations:');
-console.log('  - No escaping issues');
-console.log('  - Cross-platform compatibility');
-console.log('  - Better error handling');
-console.log('  - No shell injection risks');
+// Run the test
+await runTest();

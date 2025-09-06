@@ -21,154 +21,87 @@ const { $ } = await use('command-stream');
 import { execSync } from 'child_process';
 
 /**
- * Custom error for search query escaping issues
+ * Setup test parameters (no try-catch, should fail on error)
  */
-class SearchQueryEscapingError extends Error {
-  constructor(message, details) {
-    super(message);
-    this.name = 'SearchQueryEscapingError';
-    this.details = details;
-  }
+async function setup() {
+  console.log('📦 Setting up test parameters...');
+  
+  const owner = 'microsoft';
+  const repo = 'vscode';
+  const labelWithSpaces = 'help wanted';
+  const searchQuery = `repo:${owner}/${repo} is:issue is:open label:"${labelWithSpaces}"`;
+  
+  console.log(`   Repository: ${owner}/${repo}`);
+  console.log(`   Label: "${labelWithSpaces}"`);
+  console.log(`   Query: ${searchQuery}`);
+  console.log('✅ Setup complete\n');
+  
+  return { owner, repo, labelWithSpaces, searchQuery };
 }
 
 /**
- * Main test - minimal reproduction
+ * Main test - ONE try-catch block for reproduction and workaround
  */
 async function runTest() {
+  // SETUP (no try-catch)
+  const { owner, repo, labelWithSpaces, searchQuery } = await setup();
+  
   console.log('='.repeat(60));
-  console.log('REPRODUCING ISSUE\n');
   
   try {
     // TRY: Reproduce the issue - GitHub search with label containing spaces
-    const owner = 'microsoft';
-    const repo = 'vscode';
-    const labelWithSpaces = 'help wanted';
-    
+    console.log('REPRODUCING ISSUE\n');
     console.log('1️⃣  Using command-stream $ for GitHub search:');
-    console.log(`   Repository: ${owner}/${repo}`);
-    console.log(`   Label: "${labelWithSpaces}"`);
     
-    // Build search query
-    const searchQuery = `repo:${owner}/${repo} is:issue is:open label:"${labelWithSpaces}"`;
-    console.log(`   Query: ${searchQuery}\n`);
+    // This should fail with escaping issues
+    const result = await $`gh search issues "${searchQuery}" --limit 1 --json url,title 2>&1`;
     
-    try {
-      // Attempt 1: Direct interpolation with quotes
-      console.log('   Attempt 1: Direct interpolation');
-      const result1 = await $`gh search issues "${searchQuery}" --limit 1 --json url,title 2>&1`;
+    // Check if it failed as expected
+    if (result.code !== 0 && result.stderr?.toString().includes('Invalid search query')) {
+      const errorOutput = result.stderr.toString();
+      const actualQuery = errorOutput.match(/"([^"]+)" type:issue/)?.[1] || 'unknown';
       
-      if (result1.code !== 0 && result1.stderr?.toString().includes('Invalid search query')) {
-        const errorOutput = result1.stderr.toString();
-        // Extract the actual query that was sent
-        const actualQuery = errorOutput.match(/"([^"]+)" type:issue/)?.[1] || 'unknown';
-        
-        throw new SearchQueryEscapingError(
-          'Direct interpolation failed',
-          {
-            expectedQuery: searchQuery,
-            actualQuery: actualQuery,
-            error: errorOutput.split('\n')[0]
-          }
-        );
-      }
-      
-      console.log('   ✅ Direct interpolation worked (issue may be fixed)');
-      
-    } catch (error1) {
-      if (error1 instanceof SearchQueryEscapingError) {
-        console.log(`   ❌ ${error1.message}`);
-        console.log(`      Expected: ${error1.details.expectedQuery}`);
-        console.log(`      Actual: ${error1.details.actualQuery}`);
-        console.log(`      Error: ${error1.details.error}\n`);
-      }
-      
-      // Attempt 2: Without outer quotes
-      console.log('   Attempt 2: Without outer quotes');
-      try {
-        const result2 = await $`gh search issues ${searchQuery} --limit 1 --json url,title 2>&1`;
-        
-        if (result2.code !== 0 && result2.stderr?.toString().includes('Invalid search query')) {
-          const errorOutput = result2.stderr.toString();
-          const actualQuery = errorOutput.match(/"([^"]+)" type:issue/)?.[1] || 'unknown';
-          
-          throw new SearchQueryEscapingError(
-            'Unquoted interpolation failed',
-            {
-              expectedQuery: searchQuery,
-              actualQuery: actualQuery,
-              error: errorOutput.split('\n')[0]
-            }
-          );
-        }
-        
-        console.log('   ✅ Unquoted interpolation worked');
-        
-      } catch (error2) {
-        if (error2 instanceof SearchQueryEscapingError) {
-          console.log(`   ❌ ${error2.message}`);
-          console.log(`      Actual query: ${error2.details.actualQuery}\n`);
-        }
-        
-        // Attempt 3: Array of arguments
-        console.log('   Attempt 3: Arguments as array');
-        try {
-          const searchArgs = [`repo:${owner}/${repo}`, 'is:issue', 'is:open', `label:"${labelWithSpaces}"`];
-          const result3 = await $`gh search issues ${searchArgs} --limit 1 --json url,title 2>&1`;
-          
-          if (result3.code !== 0) {
-            throw new SearchQueryEscapingError(
-              'Array arguments failed',
-              {
-                args: searchArgs,
-                error: result3.stderr?.toString().split('\n')[0]
-              }
-            );
-          }
-          
-          const issues = JSON.parse(result3.stdout.toString() || '[]');
-          console.log(`   ✅ Array arguments worked! Found ${issues.length} issue(s)`);
-          
-        } catch (error3) {
-          if (error3 instanceof SearchQueryEscapingError) {
-            console.log(`   ❌ ${error3.message}`);
-            console.log(`      Args: ${error3.details.args.join(' ')}`);
-            console.log(`      Error: ${error3.details.error}`);
-          }
-          
-          // All command-stream attempts failed
-          console.log('\n❌ ISSUE CONFIRMED: All command-stream attempts failed');
-          
-          console.log('\n' + '='.repeat(60));
-          console.log('APPLYING WORKAROUND\n');
-          
-          // WORKAROUND: Use execSync
-          console.log('2️⃣  Using execSync workaround:');
-          
-          const command = `gh search issues 'repo:${owner}/${repo} is:issue is:open label:"${labelWithSpaces}"' --limit 1 --json url,title`;
-          console.log(`   Command: ${command}\n`);
-          
-          try {
-            const output = execSync(command, { encoding: 'utf8' });
-            const issues = JSON.parse(output || '[]');
-            
-            if (issues.length > 0) {
-              console.log(`   ✅ WORKAROUND SUCCESSFUL!`);
-              console.log(`   Found ${issues.length} issue(s)`);
-              console.log(`   Example: ${issues[0].title}`);
-            } else {
-              console.log(`   ⚠️  No issues found (may be correct)`);
-            }
-          } catch (execError) {
-            console.log(`   ❌ Even execSync failed: ${execError.message}`);
-            console.log('   Note: Repository may not have issues with this label');
-          }
-        }
-      }
+      // Throw error to trigger workaround in catch block
+      const error = new Error('GitHub search query escaping failed');
+      error.expectedQuery = searchQuery;
+      error.actualQuery = actualQuery;
+      error.fullError = errorOutput.split('\n')[0];
+      throw error;
     }
     
-  } catch (unexpectedError) {
-    console.error('\n❌ Unexpected error:', unexpectedError.message);
-    throw unexpectedError;
+    // If we get here, the issue may be fixed
+    const issues = JSON.parse(result.stdout.toString() || '[]');
+    console.log(`✅ Command worked (issue may be fixed). Found ${issues.length} issue(s)`);
+    
+  } catch (error) {
+    // CATCH: Apply workaround
+    console.log('❌ ISSUE CONFIRMED: command-stream escaping failed');
+    
+    if (error.actualQuery) {
+      console.log(`   Expected query: ${error.expectedQuery}`);
+      console.log(`   Actual query sent: ${error.actualQuery}`);
+      console.log(`   Error: ${error.fullError}`);
+    }
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('APPLYING WORKAROUND\n');
+    
+    // WORKAROUND: Use execSync with proper quoting
+    console.log('2️⃣  Using execSync workaround:');
+    
+    const command = `gh search issues 'repo:${owner}/${repo} is:issue is:open label:"${labelWithSpaces}"' --limit 1 --json url,title`;
+    console.log(`   Command: ${command}`);
+    
+    const output = execSync(command, { encoding: 'utf8' });
+    const issues = JSON.parse(output || '[]');
+    
+    if (issues.length > 0) {
+      console.log(`\n✅ WORKAROUND SUCCESSFUL!`);
+      console.log(`   Found ${issues.length} issue(s)`);
+      console.log(`   Example: ${issues[0].title}`);
+    } else {
+      console.log(`\n⚠️  No issues found (repository may not have issues with this label)`);
+    }
   }
   
   // SUMMARY
@@ -178,17 +111,10 @@ async function runTest() {
   console.log('   • Quotes within labels get escaped multiple times');
   console.log('   • Results in invalid search queries like:');
   console.log('     repo:\\"owner/repo is:issue label:\\\\\\"help wanted\\\\\\" type:issue');
-  console.log('\n✅ WORKAROUND OPTIONS:');
-  console.log('   1. Use execSync with single quotes around entire query');
-  console.log('   2. Pass arguments as array (sometimes works)');
-  console.log('   3. Avoid labels with spaces when possible');
-  console.log('\nExample workaround code:');
-  console.log('  execSync(`gh search issues \'${query}\' --json url`, {encoding: "utf8"})');
+  console.log('\n✅ WORKAROUND:');
+  console.log('   Use execSync with single quotes around entire query:');
+  console.log('   execSync(`gh search issues \'${query}\' --json url`, {encoding: "utf8"})');
 }
 
-// Run the test with top-level await
-try {
-  await runTest();
-} catch (error) {
-  process.exit(1);
-}
+// Run the test
+await runTest();

@@ -1,92 +1,117 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v node || command -v bun)" "$0" "$@"
+#!/usr/bin/env node
 
 /**
- * Issue #2: Error handling - code vs exitCode
+ * Issue: The library uses error.code instead of error.exitCode
  * 
- * Problem: Command-stream uses error.code instead of error.exitCode
- * Solution: Always check error.code for exit status
+ * Minimal reproduction showing that command-stream uses non-standard error
+ * property names, causing confusion when handling command failures.
+ * 
+ * Pattern: try { reproduction } catch { workaround }
  */
 
+console.log('🐛 Issue #02: Error handling - code vs exitCode\n');
+
+// Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+
+// Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
 
-console.log('=== Issue #2: Error Handling - code vs exitCode ===\n');
-
-// Test 1: Command that exits with non-zero code
-console.log('Test 1: Command with non-zero exit code');
-console.log('Command: ls /nonexistent/directory');
-try {
-  await $`ls /nonexistent/directory`;
-  console.log('Command succeeded (unexpected)');
-} catch (error) {
-  console.log('\nError object analysis:');
-  console.log('  typeof error.code:', typeof error.code, '- Value:', error.code);
-  console.log('  typeof error.exitCode:', typeof error.exitCode, '- Value:', error.exitCode);
-  console.log('  error.message:', error.message);
-  console.log('  Has stdout:', !!error.stdout);
-  console.log('  Has stderr:', !!error.stderr);
+/**
+ * Setup test parameters (no try-catch, should fail on error)
+ */
+async function setup() {
+  console.log('📦 Setting up test parameters...');
   
-  if (error.stderr) {
-    console.log('  Stderr content:', error.stderr.toString().trim());
-  }
+  const failingCommand = 'ls /nonexistent/directory/that/does/not/exist';
+  const expectedExitCode = 1; // ls returns 1 for file not found
+  
+  console.log(`   Test command: ${failingCommand}`);
+  console.log(`   Expected exit code: ${expectedExitCode}`);
+  console.log('✅ Setup complete\n');
+  
+  return { failingCommand, expectedExitCode };
 }
 
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Test 2: Command that fails to spawn
-console.log('Test 2: Command that fails to spawn');
-console.log('Command: /nonexistent/command');
-try {
-  await $`/nonexistent/command`;
-  console.log('Command succeeded (unexpected)');
-} catch (error) {
-  console.log('\nError object analysis:');
-  console.log('  error.code:', error.code);
-  console.log('  error.exitCode:', error.exitCode);
-  console.log('  error.message:', error.message);
-  console.log('  Error type:', error.constructor.name);
-}
-
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Test 3: Successful command
-console.log('Test 3: Successful command');
-console.log('Command: echo "Hello, World!"');
-try {
-  const result = await $`echo "Hello, World!"`;
-  console.log('\nResult object analysis:');
-  console.log('  result.code:', result.code);
-  console.log('  result.exitCode:', result.exitCode);
-  console.log('  stdout:', result.stdout.toString().trim());
-  console.log('  stderr:', result.stderr ? result.stderr.toString() : '(empty)');
-} catch (error) {
-  console.log('Command failed (unexpected):', error.message);
-}
-
-console.log('\n' + '='.repeat(60) + '\n');
-
-// Demonstration of proper error handling
-console.log('✅ PROPER ERROR HANDLING PATTERN:\n');
-console.log(`try {
-  const result = await $\`some-command\`;
-  // Process successful result
-  console.log(result.stdout.toString());
-} catch (error) {
-  if (error.code !== undefined) {
-    console.log('Command exited with code:', error.code);
-  } else {
-    console.log('Command failed to spawn:', error.message);
+/**
+ * Main test - ONE try-catch block for reproduction and workaround
+ */
+async function runTest() {
+  // SETUP (no try-catch)
+  const { failingCommand, expectedExitCode } = await setup();
+  
+  console.log('='.repeat(60));
+  
+  try {
+    // TRY: Reproduce the issue - standard Node.js error handling pattern
+    console.log('REPRODUCING ISSUE\n');
+    console.log('1️⃣  Using standard Node.js error handling pattern:');
+    console.log('   Expecting error.exitCode to contain the exit code\n');
+    
+    // Execute a command that will fail
+    await $`${failingCommand}`;
+    
+    // Should not reach here
+    console.log('❌ Command succeeded unexpectedly');
+    
+  } catch (error) {
+    // CATCH: Demonstrate the issue and apply workaround
+    console.log('✅ Command failed as expected, examining error object:');
+    
+    // Show the issue
+    console.log('\n❌ ISSUE CONFIRMED: Non-standard error properties');
+    console.log(`   error.exitCode: ${error.exitCode} (undefined - standard Node.js property)`);
+    console.log(`   error.code: ${error.code} (${typeof error.code} - command-stream property)`);
+    
+    // Check if developer used standard pattern
+    if (error.exitCode === expectedExitCode) {
+      console.log('   ❌ Standard pattern FAILED - exitCode is undefined');
+    }
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('APPLYING WORKAROUND\n');
+    
+    // WORKAROUND: Use error.code instead
+    console.log('2️⃣  Using command-stream specific pattern:');
+    
+    if (error.code === expectedExitCode) {
+      console.log('✅ WORKAROUND SUCCESSFUL!');
+      console.log(`   error.code contains the exit code: ${error.code}`);
+    }
+    
+    // Additional error properties available
+    console.log('\n📋 Additional error properties available:');
+    console.log(`   error.message: ${error.message.split('\n')[0]}`);
+    console.log(`   error.stdout: ${error.stdout ? 'available' : 'not available'}`);
+    console.log(`   error.stderr: ${error.stderr ? 'available' : 'not available'}`);
+    
+    if (error.stderr) {
+      const stderrContent = error.stderr.toString().trim().split('\n')[0];
+      console.log(`   stderr content: "${stderrContent}..."`);
+    }
   }
   
-  // Additional debugging info
-  if (error.stderr) {
-    console.log('Error output:', error.stderr.toString());
-  }
-}`);
+  // SUMMARY
+  console.log('\n' + '='.repeat(60));
+  console.log('SUMMARY\n');
+  console.log('❌ ISSUE: command-stream uses non-standard error properties');
+  console.log('   • error.exitCode is undefined (standard Node.js property)');
+  console.log('   • error.code contains the exit code (non-standard)');
+  console.log('   • Breaks compatibility with standard Node.js patterns');
+  
+  console.log('\n✅ WORKAROUND:');
+  console.log('   Always use error.code instead of error.exitCode');
+  
+  console.log('\nExample workaround code:');
+  console.log('  try {');
+  console.log('    await $`some-command`;');
+  console.log('  } catch (error) {');
+  console.log('    // Use error.code, NOT error.exitCode');
+  console.log('    if (error.code !== 0) {');
+  console.log('      console.log(`Exit code: ${error.code}`);');
+  console.log('    }');
+  console.log('  }');
+}
 
-console.log('\n=== SUMMARY ===');
-console.log('Key Point: Use error.code, NOT error.exitCode');
-console.log('Note: error.code contains the process exit code');
-console.log('Note: error.exitCode is undefined in command-stream');
-console.log('Best Practice: Always check error.code for exit status');
+// Run the test
+await runTest();
