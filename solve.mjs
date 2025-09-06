@@ -317,22 +317,32 @@ _Details will be added as the solution is developed..._
 ${prBody}`, { verbose: true });
           }
           
-          const prCreateResult = await $`cd ${tempDir} && gh pr create --draft --title "[WIP] ${issueTitle}" --body "${prBody}" --base ${defaultBranch} --head ${branchName}`;
-          
-          if (prCreateResult.code !== 0) {
-            await log(`❌ Failed to create pull request`, { level: 'error' });
-            await log(`   Error: ${prCreateResult.stderr ? prCreateResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-            await log(`   stdout: ${prCreateResult.stdout ? prCreateResult.stdout.toString() : 'none'}`, { level: 'error' });
-            await log(`   Working directory: ${tempDir}`, { verbose: true });
-            await log(`   Current branch: ${branchName}`, { verbose: true });
-            process.exit(1);
-          } else {
-            // Extract PR URL from output
-            prUrl = prCreateResult.stdout.toString().trim();
+          // Use execSync for gh pr create to avoid command-stream output issues
+          // Similar to how create-test-repo.mjs handles it
+          try {
+            const { execSync } = await import('child_process');
+            
+            // Write PR body to temp file to avoid shell escaping issues
+            const prBodyFile = `/tmp/pr-body-${Date.now()}.md`;
+            await fs.writeFile(prBodyFile, prBody);
+            
+            const command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+            
+            if (argv.verbose) {
+              await log(`   Command: ${command}`, { verbose: true });
+            }
+            
+            const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
+            
+            // Clean up temp file
+            await fs.unlink(prBodyFile).catch(() => {});
+            
+            // Extract PR URL from output - gh pr create outputs the URL to stdout
+            prUrl = output.trim();
             
             if (!prUrl) {
               await log(`⚠️ Warning: PR created but no URL returned`, { level: 'warning' });
-              await log(`   Output: ${prCreateResult.stdout.toString()}`, { verbose: true });
+              await log(`   Output: ${output}`, { verbose: true });
               
               // Try to get the PR URL using gh pr list
               await log(`   Attempting to find PR using gh pr list...`, { verbose: true });
@@ -357,6 +367,12 @@ ${prBody}`, { verbose: true });
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
+          } catch (prCreateError) {
+            await log(`❌ Failed to create pull request`, { level: 'error' });
+            await log(`   Error: ${prCreateError.message}`, { level: 'error' });
+            await log(`   Working directory: ${tempDir}`, { verbose: true });
+            await log(`   Current branch: ${branchName}`, { verbose: true });
+            process.exit(1);
           }
         }
       }

@@ -14,10 +14,13 @@ This directory contains reproducible test cases for issues encountered with the 
 8. **issue-08-getcwd-error.mjs** - getcwd() failed error when working in deleted directories
 9. **issue-09-auto-quoting.mjs** - String interpolation with quotes can add extra quotes to output
 10. **issue-10-git-push-silent-failure.mjs** - Git push silently fails with empty output despite returning success code
+11. **issue-11-gh-pr-create-output.mjs** - gh pr create output not captured, returns empty string despite successful PR creation
 
 ## Critical Issues
 
-⚠️ **Issue #10 - Git Push Silent Failure**: This is the most critical issue discovered. Git push commands appear to succeed (exit code 0) but don't actually push any data to the remote repository. This causes silent failures in CI/CD pipelines and repository creation scripts. Always use `execSync` for git push operations.
+⚠️ **Issue #10 - Git Push Silent Failure**: Git push commands appear to succeed (exit code 0) but don't actually push any data to the remote repository. This causes silent failures in CI/CD pipelines and repository creation scripts. Always use `execSync` for git push operations.
+
+⚠️ **Issue #11 - GitHub PR Create Output Lost**: The `gh pr create` command successfully creates pull requests but command-stream fails to capture the output (PR URL). The stdout is empty even though the command succeeds. This breaks workflows that need to capture and process the created PR URL. Always use `execSync` for gh pr create operations.
 
 ## Running the Tests
 
@@ -186,6 +189,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    - Complex strings: Use heredocs or base64 encoding
    - Path handling: Always quote paths with spaces
    - **Git push/pull**: Use execSync instead of command-stream (critical issue #10)
+   - **GitHub PR creation**: Use execSync for `gh pr create` to capture PR URL (critical issue #11)
    - Authentication operations: Fall back to child_process when command-stream fails silently
 
 ## Alternative Approaches
