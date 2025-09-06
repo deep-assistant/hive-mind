@@ -33,16 +33,15 @@ if (dryRun) {
 
 try {
   // Get current GitHub user
-  const userResult = await $`gh api user --jq .login`;
+  const userResult = await $`gh api user --jq .login 2>/dev/null`;
   const githubUser = userResult.stdout.toString().trim();
-  console.log(`👤 GitHub User: ${githubUser}`);
-  console.log('');
+  console.log(`👤 User: ${githubUser}`);
 
   // List all repositories for the user
-  console.log('🔍 Searching for test repositories...');
+  process.stdout.write('🔍 Searching for test repositories... ');
   
   // Get all repos (up to 100, adjust if needed)
-  const reposResult = await $`gh repo list ${githubUser} --limit 100 --json name,url,createdAt,isPrivate`;
+  const reposResult = await $`gh repo list ${githubUser} --limit 100 --json name,url,createdAt,isPrivate > /tmp/repos.json 2>/dev/null && cat /tmp/repos.json`;
   const repos = JSON.parse(reposResult.stdout.toString());
   
   // Filter for test repositories matching the pattern
@@ -51,14 +50,16 @@ try {
   );
   
   if (testRepos.length === 0) {
-    console.log('✅ No test repositories found matching pattern: test-hello-world-*');
+    console.log('none found ✅');
     console.log('');
     console.log('Nothing to clean up!');
     process.exit(0);
   }
   
   // Display found repositories
-  console.log(`\n📦 Found ${testRepos.length} test repositories:\n`);
+  console.log(`found ${testRepos.length}`);
+  console.log('');
+  console.log(`📦 Test repositories:\n`);
   
   testRepos.forEach((repo, index) => {
     const createdDate = new Date(repo.createdAt);
@@ -67,31 +68,26 @@ try {
                     ageInDays === 1 ? 'yesterday' : 
                     `${ageInDays} days ago`;
     
-    console.log(`  ${index + 1}. ${repo.name}`);
-    console.log(`     Created: ${createdDate.toISOString().split('T')[0]} (${ageText})`);
-    console.log(`     URL: ${repo.url}`);
-    console.log(`     Type: ${repo.isPrivate ? 'Private' : 'Public'}`);
-    console.log('');
+    console.log(`  ${(index + 1).toString().padStart(2)}. ${repo.name.substring(17)} (${ageText})`);
   });
   
+  console.log('');
+  
   if (dryRun) {
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log(`🔍 DRY RUN COMPLETE - Would delete ${testRepos.length} repositories`);
-    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('✅ DRY RUN COMPLETE');
+    console.log(`Would delete ${testRepos.length} repositories`);
     console.log('');
-    console.log('To actually delete these repositories, run without --dry-run:');
-    console.log('  ./cleanup-test-repos.mjs        # Interactive mode');
-    console.log('  ./cleanup-test-repos.mjs --force # Delete without confirmation');
+    console.log('To actually delete:');
+    console.log('  ./cleanup-test-repos.mjs        # With confirmation');
+    console.log('  ./cleanup-test-repos.mjs --force # Without confirmation');
     process.exit(0);
   }
   
   // Ask for confirmation if not in force mode
   if (!forceMode) {
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log(`⚠️  WARNING: This will permanently delete ${testRepos.length} repositories!`);
-    console.log('═══════════════════════════════════════════════════════════════');
+    console.log(`⚠️  This will permanently delete ${testRepos.length} repositories!`);
     console.log('');
-    console.log('Type "yes" to confirm deletion, or press Ctrl+C to cancel:');
+    console.log('Type "yes" to confirm, or Ctrl+C to cancel:');
     
     // Read user input
     const readline = (await import('readline')).default;
@@ -108,7 +104,7 @@ try {
     });
     
     if (answer.toLowerCase() !== 'yes') {
-      console.log('\n❌ Deletion cancelled');
+      console.log('\n❌ Cancelled');
       process.exit(0);
     }
   }
@@ -135,14 +131,11 @@ try {
   }
   
   console.log('');
-  console.log('═══════════════════════════════════════════════════════════════');
-  console.log('✨ Cleanup Complete!');
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('✨ Cleanup complete!');
   console.log('');
-  console.log(`📊 Results:`);
-  console.log(`   Deleted: ${deletedCount} repositories`);
+  console.log(`Deleted: ${deletedCount} repositories`);
   if (failedCount > 0) {
-    console.log(`   Failed: ${failedCount} repositories`);
+    console.log(`Failed: ${failedCount} repositories`);
   }
   
 } catch (error) {
