@@ -26,4 +26,4 @@ gh auth status
 claude-profiles --restore gitpod
 
 # Start watching for local changes, to reupload them if they exist
-claude-profiles --watch gitpod
+claude-profiles --watch gitpod --verbose --log
