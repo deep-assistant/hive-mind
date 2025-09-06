@@ -13,16 +13,16 @@ const fs = (await import('fs')).promises;
 const crypto = (await import('crypto')).default;
 
 // Global log file reference
-let permanentLogFile = null;
+let logFile = null;
 
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
   const { level = 'info' } = options;
   
   // Write to file if log file is set
-  if (permanentLogFile) {
+  if (logFile) {
     const logMessage = `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
-    await fs.appendFile(permanentLogFile, logMessage + '\n').catch(() => {});
+    await fs.appendFile(logFile, logMessage + '\n').catch(() => {});
   }
   
   // Write to console based on level
@@ -75,6 +75,16 @@ const argv = yargs(process.argv.slice(2))
   .argv;
 
 const issueUrl = argv._[0];
+
+// Create permanent log file immediately with timestamp
+const scriptDir = path.dirname(process.argv[1]);
+const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+logFile = path.join(scriptDir, `solve-${timestamp}.log`);
+
+// Create the log file immediately
+await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
+await log(`📁 Log file: ${logFile}`);
+await log(`   (All output will be logged here)\n`);
 
 // Validate GitHub issue URL format
 if (!issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/)) {
@@ -417,18 +427,6 @@ Proceed.`;
   let toolUseCount = 0;
   let lastMessage = '';
 
-  // Create permanent log file immediately with timestamp
-  const scriptDir = path.dirname(process.argv[1]);
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  permanentLogFile = path.join(scriptDir, `solve-${timestamp}.log`);
-
-  // Create the log file immediately
-  await fs.writeFile(permanentLogFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
-
-
-  await log(`📁 Log file: ${permanentLogFile}`);
-  await log(`   (Real-time output will be logged here)\n`);
-
   // Build claude command with optional resume flag
   let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
 
@@ -490,12 +488,12 @@ Proceed.`;
         // Try to rename log file to include session ID
         try {
           const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-          await fs.rename(permanentLogFile, sessionLogFile);
-          permanentLogFile = sessionLogFile;
-          await log(`📁 Log renamed to: ${permanentLogFile}`);
+          await fs.rename(logFile, sessionLogFile);
+          logFile = sessionLogFile;
+          await log(`📁 Log renamed to: ${logFile}`);
         } catch (renameError) {
           // If rename fails, keep original filename
-          await log(`📁 Keeping log file: ${permanentLogFile}`);
+          await log(`📁 Keeping log file: ${logFile}`);
         }
         await log('');
       }
@@ -552,7 +550,7 @@ Proceed.`;
 
   if (commandFailed) {
     await log('\n❌ Command execution failed. Check the log file for details.');
-    await log(`📁 Log file: ${permanentLogFile}`);
+    await log(`📁 Log file: ${logFile}`);
     process.exit(1);
   }
 
@@ -564,7 +562,7 @@ Proceed.`;
 
   if (sessionId) {
     await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${permanentLogFile}`);
+    await log(`✅ Complete log file: ${logFile}`);
 
     if (limitReached) {
       await log(`\n⏰ LIMIT REACHED DETECTED!`);
@@ -581,7 +579,7 @@ Proceed.`;
     // Don't show log preview, it's too technical
   } else {
     await log(`❌ No session ID extracted`);
-    await log(`📁 Log file available: ${permanentLogFile}`);
+    await log(`📁 Log file available: ${logFile}`);
   }
 
   // Now search for newly created pull requests and comments
@@ -664,13 +662,13 @@ Proceed.`;
     await log('\n📋 No new pull request or comment was created.');
     await log('   The issue may have been resolved differently or required no action.');
     await log(`\n💡 Review the session log for details:`);
-    await log(`   ${permanentLogFile}`);
+    await log(`   ${logFile}`);
     process.exit(0);
 
   } catch (searchError) {
     await log('\n⚠️  Could not verify results:', searchError.message);
     await log(`\n💡 Check the log file for details:`);
-    await log(`   ${permanentLogFile}`);
+    await log(`   ${logFile}`);
     process.exit(0);
   }
 
