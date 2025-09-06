@@ -323,7 +323,6 @@ When you face something extremely hard, use divide and conquer — it always hel
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
   let sessionId = null;
-  let permanentLogFile = null;
   let limitReached = false;
   let messageCount = 0;
   let toolUseCount = 0;
