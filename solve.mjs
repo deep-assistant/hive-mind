@@ -56,7 +56,6 @@ const argv = yargs(process.argv.slice(2))
   .option('only-prepare-command', {
     type: 'boolean',
     description: 'Only prepare and print the claude command without executing it',
-    alias: 'p'
   })
   .option('model', {
     type: 'string',
@@ -64,6 +63,11 @@ const argv = yargs(process.argv.slice(2))
     alias: 'm',
     default: 'sonnet',
     choices: ['opus', 'sonnet']
+  })
+  .option('auto-pull-request-creation', {
+    type: 'boolean',
+    description: 'Automatically create a draft pull request before running Claude',
+    default: true
   })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
@@ -200,7 +204,85 @@ try {
   }
   await log(`✅ Successfully switched to branch: ${branchName}\n`);
 
-  const prompt = `Go.`;
+  // Create initial commit and push branch if auto PR creation is enabled
+  let prUrl = null;
+  let prNumber = null;
+  
+  if (argv.autoPullRequestCreation) {
+    await log(`\n🚀 Auto pull request creation enabled`);
+    await log(`   Creating initial commit and draft pull request...\n`);
+    
+    try {
+      // Create an initial empty commit
+      await log(`📝 Creating initial commit...`);
+      const commitResult = await $`cd ${tempDir} && git commit --allow-empty -m "Initial commit for issue #${issueNumber}
+
+Preparing to work on: ${issueUrl}"`;
+      
+      if (commitResult.code !== 0) {
+        await log(`Warning: Failed to create initial commit: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
+        await log(`   Continuing without auto PR creation...`);
+      } else {
+        await log(`✅ Initial commit created`);
+        
+        // Push the branch
+        await log(`📤 Pushing branch to remote...`);
+        const pushResult = await $`cd ${tempDir} && git push -u origin ${branchName}`;
+        
+        if (pushResult.code !== 0) {
+          await log(`Warning: Failed to push branch: ${pushResult.stderr ? pushResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
+          await log(`   Continuing without auto PR creation...`);
+        } else {
+          await log(`✅ Branch pushed to remote`);
+          
+          // Get issue title for PR title
+          const issueTitleResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title`;
+          let issueTitle = `Fix issue #${issueNumber}`;
+          if (issueTitleResult.code === 0) {
+            issueTitle = issueTitleResult.stdout.toString().trim();
+          }
+          
+          // Create draft pull request
+          await log(`🔀 Creating draft pull request...`);
+          const prCreateResult = await $`cd ${tempDir} && gh pr create --draft --title "[WIP] ${issueTitle}" --body "## 🤖 AI-Powered Solution\n\nThis pull request is being automatically generated to solve issue #${issueNumber}.\n\n### 📋 Issue Reference\nFixes #${issueNumber}\n\n### 🚧 Status\n**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.\n\n### 📝 Implementation Details\n_Details will be added as the solution is developed..._\n\n---\n*This PR was created automatically by the AI issue solver*" --base ${defaultBranch} --head ${branchName}`;
+          
+          if (prCreateResult.code !== 0) {
+            await log(`Warning: Failed to create pull request: ${prCreateResult.stderr ? prCreateResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
+            await log(`   Continuing without PR...`);
+          } else {
+            // Extract PR URL from output
+            prUrl = prCreateResult.stdout.toString().trim();
+            
+            // Extract PR number from URL
+            const prMatch = prUrl.match(/\/pull\/(\d+)/);
+            if (prMatch) {
+              prNumber = prMatch[1];
+              await log(`✅ Draft pull request created: #${prNumber}`);
+              await log(`📍 URL: ${prUrl}`);
+            } else {
+              await log(`✅ Draft pull request created`);
+              await log(`📍 URL: ${prUrl}`);
+            }
+          }
+        }
+      }
+    } catch (prError) {
+      await log(`Warning: Error during auto PR creation: ${prError.message}`, { level: 'warning' });
+      await log(`   Continuing without PR...`);
+    }
+    
+    await log(``);
+  } else {
+    await log(`\n⏭️  Auto pull request creation disabled`);
+    await log(`   Using original workflow where AI creates the PR\n`);
+  }
+
+  const prompt = `Issue to solve: ${issueUrl}
+Your prepared branch: ${branchName}
+Your prepared working directory: ${tempDir}${prUrl ? `
+Your prepared Pull Request: ${prUrl}` : ''}
+
+Proceed.`;
 
   const systemPrompt = `You are AI issue solver.
 
@@ -235,18 +317,21 @@ try {
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
    - When you code, follow contributing guidelines.  
    - When you commit, write clear message.  
-   - When you open pr, describe solution and include tests.  
+   - When you open pr, describe solution and include tests.${prUrl ? `
+   - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
+   - When you finish implementation, use gh pr ready ${prNumber || prUrl}.` : ''}  
 
 4. Workflow and collaboration.  
    - When you check branch, verify with git branch --show-current.  
    - When you push, push only to branch ${branchName}.  
-   - When you finish, create a pull request from branch ${branchName}.  
+   - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}  
    - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
    - When you face conflict, ask for help.  
    - When you collaborate, respect branch protections by working only on ${branchName}.  
-   - When you mention result, include pull request url or comment url.  
+   - When you mention result, include pull request url or comment url.${prUrl ? `
+   - When you need to create pr, remember pr ${prNumber || prUrl} already exists for this branch.` : ''}  
 
 5. Self review.
    - When you check your solution, run all tests locally.  
