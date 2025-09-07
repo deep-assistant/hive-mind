@@ -17,6 +17,7 @@ This directory contains reproducible test cases for issues encountered with the 
 11. **issue-11-gh-pr-create-output.mjs** - gh pr create output not captured, returns empty string despite successful PR creation
 12. **issue-12-github-search-escaping.mjs** - GitHub search queries with labels containing spaces get multiply escaped
 13. **issue-13-complex-shell-escaping.mjs** - Complex shell commands with nested quotes and variables fail unpredictably
+14. **issue-14-cwd-with-cd-pattern.mjs** - Using `cd ${dir} && command` pattern doesn't actually execute commands in the specified directory
 
 ## Critical Issues
 
@@ -27,6 +28,8 @@ This directory contains reproducible test cases for issues encountered with the 
 ⚠️ **Issue #12 - GitHub Search Query Escaping**: GitHub search queries with labels containing spaces fail due to multiple layers of escaping. The query `label:"help wanted"` becomes `label:\\\"help wanted\\\"` causing API errors. Use `execSync` or carefully construct array arguments.
 
 ⚠️ **Issue #13 - Complex Shell Command Escaping**: Commands with multi-line strings, nested quotes, or special characters fail unpredictably. This affects git commits with detailed messages, GitHub PR descriptions, and any complex shell operations. Use temp files or `execSync` for complex content.
+
+⚠️ **Issue #14 - CWD with CD Pattern Failure**: The pattern `$`cd ${dir} && command`` doesn't work as expected. Commands appear to succeed but don't actually execute in the specified directory. This causes critical failures with git operations where files aren't staged or committed despite success codes. Always use `$({ cwd: dir })`command`` instead.
 
 ## Running the Tests
 
@@ -68,6 +71,11 @@ for script in issue-*.mjs; do echo "=== $script ==="; node "$script"; done
 6. **For Bun compatibility:**
    - Be aware of shell path issues
    - Consider using Node.js for scripts that heavily rely on shell commands
+
+7. **For directory-specific commands:**
+   - Never use `$`cd ${dir} && command`` pattern
+   - Always use `$({ cwd: dir })`command`` instead
+   - The cd pattern fails silently, leaving commands executing in wrong directory
 
 ## General Principle
 
