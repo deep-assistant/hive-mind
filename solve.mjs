@@ -253,6 +253,14 @@ try {
 
   await log(`${formatAligned('✅', 'Cloned to:', tempDir)}`);
   
+  // Verify and fix remote configuration
+  const remoteCheckResult = await $`cd ${tempDir} && git remote -v 2>&1`;
+  if (!remoteCheckResult.stdout || !remoteCheckResult.stdout.toString().includes('origin')) {
+    await log(`   Setting up git remote...`, { verbose: true });
+    // Add origin remote manually
+    await $`cd ${tempDir} && git remote add origin https://github.com/${repoToClone}.git 2>&1`;
+  }
+  
   // If using fork, set up upstream remote
   if (forkedRepo && upstreamRemote) {
     await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
@@ -468,12 +476,13 @@ Proceed.`;
       }
       
       await log(formatAligned('📝', 'Creating commit:', 'With CLAUDE.md file'));
-      const commitResult = await $`cd ${tempDir} && git commit -m "Initial commit with task details for issue #${issueNumber}
+      const commitMessage = `Initial commit with task details for issue #${issueNumber}
 
 Adding CLAUDE.md with task information for AI processing.
 This file will be removed when the task is complete.
 
-Issue: ${issueUrl}" 2>&1`;
+Issue: ${issueUrl}`;
+      const commitResult = await $`cd ${tempDir} && git commit -m "${commitMessage}" 2>&1`;
       
       if (commitResult.code !== 0) {
         await log(`❌ Failed to create initial commit`, { level: 'error' });
@@ -487,11 +496,11 @@ Issue: ${issueUrl}" 2>&1`;
         }
         
         // Verify commit was created before pushing
-        const verifyCommitResult = await $({ silent: true })`cd ${tempDir} && git log --oneline -1 2>&1`;
+        const verifyCommitResult = await $`cd ${tempDir} && git log --oneline -1 2>&1`;
         if (verifyCommitResult.code === 0) {
-          const latestCommit = verifyCommitResult.stdout.toString().trim();
+          const latestCommit = verifyCommitResult.stdout ? verifyCommitResult.stdout.toString().trim() : '';
           if (argv.verbose) {
-            await log(`   Latest commit: ${latestCommit}`);
+            await log(`   Latest commit: ${latestCommit || '(empty - this is a problem!)'}`);
             
             // Show git status
             const statusResult = await $`cd ${tempDir} && git status --short 2>&1`;
@@ -499,7 +508,12 @@ Issue: ${issueUrl}" 2>&1`;
             
             // Show remote info
             const remoteResult = await $`cd ${tempDir} && git remote -v 2>&1`;
-            await log(`   Remotes: ${remoteResult.stdout ? remoteResult.stdout.toString().split('\n')[0] : 'none'}`);
+            const remoteOutput = remoteResult.stdout ? remoteResult.stdout.toString().trim() : 'none';
+            await log(`   Remotes: ${remoteOutput ? remoteOutput.split('\n')[0] : 'none configured'}`);
+            
+            // Show branch info
+            const branchResult = await $`cd ${tempDir} && git branch -vv 2>&1`;
+            await log(`   Branch info: ${branchResult.stdout ? branchResult.stdout.toString().trim() : 'none'}`);
           }
         }
         
