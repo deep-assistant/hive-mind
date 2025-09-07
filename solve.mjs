@@ -437,7 +437,8 @@ try {
   
   if (argv.autoPullRequestCreation) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
-    await log(`   Creating:               Initial commit and draft PR...`);
+    await log(`     Creating:               Initial commit and draft PR...`);
+    await log('');
     
     try {
       // Create an initial empty commit
@@ -476,7 +477,9 @@ Preparing to work on: ${issueUrl}" 2>&1`;
           await log(`   Command: git push -u origin ${branchName}`, { verbose: true });
         }
         
-        const pushResult = await $`cd ${tempDir} && git push -u origin ${branchName} 2>&1`;
+        // Push the branch - use force-with-lease to ensure our commit gets pushed
+        // This is safe because we just created this branch
+        const pushResult = await $`cd ${tempDir} && git push --force-with-lease -u origin ${branchName} 2>&1`;
         
         if (pushResult.code !== 0) {
           const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
@@ -536,8 +539,20 @@ Preparing to work on: ${issueUrl}" 2>&1`;
           
           // CRITICAL: Wait for GitHub to process the push before creating PR
           // This prevents "No commits between branches" error
-          await log(`   Waiting for GitHub to sync...`, { verbose: true });
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await log(`   Waiting for GitHub to sync...`);
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Increase wait time
+          
+          // Double-check that the commit is on GitHub
+          const remoteCheckResult = await $({ silent: true })`cd ${tempDir} && git ls-remote origin ${branchName} 2>&1`;
+          if (remoteCheckResult.code === 0) {
+            const remoteRef = remoteCheckResult.stdout.toString().trim();
+            if (remoteRef) {
+              await log(`   Remote branch verified: ${remoteRef.split('\t')[0].substring(0, 7)}...`, { verbose: true });
+            } else {
+              await log(`   Warning: Remote branch appears empty!`);
+              await log(`   This may cause PR creation to fail.`);
+            }
+          }
           
           // Get issue title for PR title
           await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
@@ -561,15 +576,23 @@ Preparing to work on: ${issueUrl}" 2>&1`;
             await log(`   Current user: ${currentUser}`, { verbose: true });
             
             // Check if user has push access (is a collaborator or owner)
-            // Use silent mode AND redirect stderr to completely suppress output
-            let permCheckResult;
+            // IMPORTANT: We need to completely suppress the JSON error output
+            // Using execSync to have full control over stderr
             try {
-              // Try to check permissions silently - redirect stderr to suppress JSON error
-              permCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>/dev/null`;
+              const { execSync } = await import('child_process');
+              // This will throw if user doesn't have access, but won't print anything
+              execSync(`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>/dev/null`, 
+                       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+              canAssign = true;
+              await log(`   User has collaborator access`, { verbose: true });
             } catch (e) {
-              // If the command fails, we know user doesn't have access
-              permCheckResult = { code: 1 };
+              // User doesn't have access, which is fine - we just won't assign
+              canAssign = false;
+              await log(`   User is not a collaborator (will skip assignment)`, { verbose: true });
             }
+            
+            // Set permCheckResult for backward compatibility
+            const permCheckResult = { code: canAssign ? 0 : 1 };
             if (permCheckResult.code === 0) {
               canAssign = true;
               await log(`   User has collaborator access`, { verbose: true });
