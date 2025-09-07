@@ -213,17 +213,45 @@ try {
   }
   
   // Clone the repository (or fork) using gh tool with authentication
-  await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}\n`);
-  const cloneResult = await $`gh repo clone ${repoToClone} ${tempDir}`;
+  await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}`);
+  
+  // Use 2>&1 to capture all output and filter "Cloning into" message
+  const cloneResult = await $`gh repo clone ${repoToClone} ${tempDir} 2>&1`;
   
   // Verify clone was successful
   if (cloneResult.code !== 0) {
-    await log(`${formatAligned('❌', 'Error:', 'Failed to clone repository')}`);
-    await log(cloneResult.stderr ? cloneResult.stderr.toString() : 'Unknown error');
+    const errorOutput = (cloneResult.stderr || cloneResult.stdout || 'Unknown error').toString().trim();
+    await log(``);
+    await log(`${formatAligned('❌', 'CLONE FAILED', '')}`, { level: 'error' });
+    await log(``);
+    await log(`  🔍 What happened:`);
+    await log(`     Failed to clone repository ${repoToClone}`);
+    await log(``);
+    await log(`  📦 Error details:`);
+    for (const line of errorOutput.split('\n')) {
+      if (line.trim()) await log(`     ${line}`);
+    }
+    await log(``);
+    await log(`  💡 Common causes:`);
+    await log(`     • Repository doesn't exist or is private`);
+    await log(`     • No GitHub authentication`);
+    await log(`     • Network connectivity issues`);
+    if (argv.fork) {
+      await log(`     • Fork not ready yet (try again in a moment)`);
+    }
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Check authentication: gh auth status`);
+    await log(`     2. Login if needed: gh auth login`);
+    await log(`     3. Verify access: gh repo view ${owner}/${repo}`);
+    if (argv.fork) {
+      await log(`     4. Check fork: gh repo view ${repoToClone}`);
+    }
+    await log(``);
     process.exit(1);
   }
 
-  await log(`${formatAligned('✅', 'Cloned to:', tempDir)}\n`);
+  await log(`${formatAligned('✅', 'Cloned to:', tempDir)}`);
   
   // If using fork, set up upstream remote
   if (forkedRepo && upstreamRemote) {
@@ -261,10 +289,25 @@ try {
 
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
   if (!defaultBranch) {
-    await log(`Error: Unable to detect default branch`);
+    await log(``);
+    await log(`${formatAligned('❌', 'DEFAULT BRANCH DETECTION FAILED', '')}`, { level: 'error' });
+    await log(``);
+    await log(`  🔍 What happened:`);
+    await log(`     Unable to determine the repository's default branch.`);
+    await log(``);
+    await log(`  💡 This might mean:`);
+    await log(`     • Repository is empty (no commits)`);
+    await log(`     • Unusual repository configuration`);
+    await log(`     • Git command issues`);
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Check repository: gh repo view ${owner}/${repo}`);
+    await log(`     2. Verify locally: cd ${tempDir} && git branch`);
+    await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
+    await log(``);
     process.exit(1);
   }
-  await log(`${formatAligned('📌', 'Default branch:', defaultBranch)}\n`);
+  await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
 
   // Ensure we're on a clean default branch
   const statusResult = await $`cd ${tempDir} && git status --porcelain`;
@@ -286,12 +329,33 @@ try {
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  await log(`${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
+  await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
   const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName} 2>&1`;
 
   if (checkoutResult.code !== 0) {
-    await log(`Error: Failed to create branch ${branchName}:`);
-    await log(checkoutResult.stderr ? checkoutResult.stderr.toString() : 'Unknown error');
+    const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
+    await log(``);
+    await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
+    await log(``);
+    await log(`  🔍 What happened:`);
+    await log(`     Unable to create branch '${branchName}'.`);
+    await log(``);
+    await log(`  📦 Git output:`);
+    for (const line of errorOutput.split('\n')) {
+      await log(`     ${line}`);
+    }
+    await log(``);
+    await log(`  💡 Possible causes:`);
+    await log(`     • Branch name already exists`);
+    await log(`     • Uncommitted changes in repository`);
+    await log(`     • Git configuration issues`);
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Try running the command again (uses random names)`);
+    await log(`     2. Check git status: cd ${tempDir} && git status`);
+    await log(`     3. View existing branches: cd ${tempDir} && git branch -a`);
+    await log(``);
+    await log(`  📂 Working directory: ${tempDir}`);
     process.exit(1);
   }
   
@@ -301,17 +365,72 @@ try {
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   
   if (currentBranchResult.code !== 0) {
-    await log(`${formatAligned('❌', 'Error:', 'Failed to verify current branch')}`);
-    await log(currentBranchResult.stderr ? currentBranchResult.stderr.toString() : 'Unknown error');
+    const errorOutput = (currentBranchResult.stderr || currentBranchResult.stdout || 'Unknown error').toString().trim();
+    await log(``);
+    await log(`${formatAligned('❌', 'BRANCH VERIFICATION FAILED', '')}`, { level: 'error' });
+    await log(``);
+    await log(`  🔍 What happened:`);
+    await log(`     Cannot verify current branch after creation.`);
+    await log(``);
+    await log(`  📦 Git output:`);
+    for (const line of errorOutput.split('\n')) {
+      await log(`     ${line}`);
+    }
+    await log(``);
+    await log(`  💡 This is unusual and might indicate:`);
+    await log(`     • Git installation problem`);
+    await log(`     • Corrupted repository`);
+    await log(`     • File system permissions issue`);
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Check git version: git --version`);
+    await log(`     2. Try manual verification: cd ${tempDir} && git branch`);
+    await log(`     3. Check disk space: df -h ${tempDir}`);
+    await log(``);
     process.exit(1);
   }
   
   const currentBranch = currentBranchResult.stdout.toString().trim();
   if (currentBranch !== branchName) {
-    await log(`${formatAligned('❌', 'Error:', `Failed to switch to branch ${branchName}, currently on ${currentBranch}`)}`);
+    await log(``);
+    await log(`${formatAligned('❌', 'BRANCH SWITCH FAILED', '')}`, { level: 'error' });
+    await log(``);
+    await log(`  🔍 What happened:`);
+    await log(`     Created branch '${branchName}' but still on '${currentBranch}'.`);
+    await log(``);
+    await log(`  📊 Branch status:`);
+    await log(`     Expected: ${branchName}`);
+    await log(`     Current:  ${currentBranch}`);
+    await log(``);
+    await log(`  💡 This might happen when:`);
+    await log(`     • Branch creation was only partial`);
+    await log(`     • Uncommitted changes prevent switching`);
+    await log(`     • Git hooks interfere with checkout`);
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Try manual switch:`);
+    await log(`        cd ${tempDir} && git checkout ${branchName}`);
+    await log(`     2. Check for hooks:`);
+    await log(`        ls ${tempDir}/.git/hooks/`);
+    await log(`     3. Try with force:`);
+    await log(`        cd ${tempDir} && git checkout -f ${branchName}`);
+    await log(``);
+    await log(`  📂 Working directory: ${tempDir}`);
+    await log(``);
+    
+    // Try to help by showing what branches exist
+    const branchListResult = await $`cd ${tempDir} && git branch 2>&1`;
+    if (branchListResult.code === 0) {
+      await log(`  🌿 Available branches:`);
+      for (const branch of branchListResult.stdout.toString().split('\n')) {
+        if (branch.trim()) await log(`     ${branch}`);
+      }
+      await log(``);
+    }
+    
     process.exit(1);
   }
-  await log(`${formatAligned('✅', 'Current branch:', branchName)}\n`);
+  await log(`${formatAligned('✅', 'Current branch:', branchName)}`);
 
   // Create initial commit and push branch if auto PR creation is enabled
   let prUrl = null;
