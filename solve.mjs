@@ -85,6 +85,12 @@ const argv = yargs(process.argv.slice(2))
     alias: 'v',
     default: false
   })
+  .option('fork', {
+    type: 'boolean',
+    description: 'Fork the repository if you don\'t have write access',
+    alias: 'f',
+    default: false
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -104,6 +110,14 @@ logFile = path.join(scriptDir, `solve-${timestamp}.log`);
 await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)\n`);
+
+// Helper function to format aligned console output
+const formatAligned = (icon, label, value, indent = 0) => {
+  const spaces = ' '.repeat(indent);
+  const labelWidth = 25 - indent;
+  const paddedLabel = label.padEnd(labelWidth, ' ');
+  return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
+};
 
 // Validate GitHub issue URL format
 if (!issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/)) {
@@ -150,18 +164,85 @@ if (isResuming) {
 }
 
 try {
-  // Clone the repository using gh tool with authentication (full clone for proper git history)
-  await log(`Cloning repository ${owner}/${repo} using gh tool...\n`);
-  const cloneResult = await $`gh repo clone ${owner}/${repo} ${tempDir}`;
+  // Determine if we need to fork the repository
+  let repoToClone = `${owner}/${repo}`;
+  let forkedRepo = null;
+  let upstreamRemote = null;
+  
+  if (argv.fork) {
+    await log(`\n${formatAligned('🍴', 'Fork mode:', 'ENABLED')}`);
+    await log(`${formatAligned('', 'Checking fork status...', '')}\n`);
+    
+    // Get current user
+    const userResult = await $`gh api user --jq .login`;
+    if (userResult.code !== 0) {
+      await log(`${formatAligned('❌', 'Error:', 'Failed to get current user')}`);
+      process.exit(1);
+    }
+    const currentUser = userResult.stdout.toString().trim();
+    
+    // Check if fork already exists
+    const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+    
+    if (forkCheckResult.code === 0) {
+      // Fork exists
+      await log(`${formatAligned('✅', 'Fork exists:', `${currentUser}/${repo}`)}`);
+      repoToClone = `${currentUser}/${repo}`;
+      forkedRepo = `${currentUser}/${repo}`;
+      upstreamRemote = `${owner}/${repo}`;
+    } else {
+      // Need to create fork
+      await log(`${formatAligned('🔄', 'Creating fork...', '')}`);
+      const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false`;
+      
+      if (forkResult.code !== 0) {
+        await log(`${formatAligned('❌', 'Error:', 'Failed to create fork')}`);
+        await log(forkResult.stderr ? forkResult.stderr.toString() : 'Unknown error');
+        process.exit(1);
+      }
+      
+      await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
+      repoToClone = `${currentUser}/${repo}`;
+      forkedRepo = `${currentUser}/${repo}`;
+      upstreamRemote = `${owner}/${repo}`;
+      
+      // Wait a moment for fork to be ready
+      await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be ready...')}`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+  
+  // Clone the repository (or fork) using gh tool with authentication
+  await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}\n`);
+  const cloneResult = await $`gh repo clone ${repoToClone} ${tempDir}`;
   
   // Verify clone was successful
   if (cloneResult.code !== 0) {
-    await log(`Error: Failed to clone repository`);
+    await log(`${formatAligned('❌', 'Error:', 'Failed to clone repository')}`);
     await log(cloneResult.stderr ? cloneResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
 
-  await log(`✅ Repository cloned successfully to ${tempDir}\n`);
+  await log(`${formatAligned('✅', 'Cloned to:', tempDir)}\n`);
+  
+  // If using fork, set up upstream remote
+  if (forkedRepo && upstreamRemote) {
+    await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
+    const upstreamResult = await $`cd ${tempDir} && git remote add upstream https://github.com/${upstreamRemote}.git`;
+    
+    if (upstreamResult.code !== 0) {
+      await log(`${formatAligned('⚠️', 'Warning:', 'Failed to add upstream remote')}`);
+    } else {
+      await log(`${formatAligned('✅', 'Upstream set:', upstreamRemote)}`);
+      
+      // Fetch upstream
+      await log(`${formatAligned('🔄', 'Fetching upstream...', '')}`);
+      const fetchResult = await $`cd ${tempDir} && git fetch upstream`;
+      if (fetchResult.code === 0) {
+        await log(`${formatAligned('✅', 'Upstream fetched:', 'Successfully')}`);
+      }
+    }
+  }
 
   // Set up git authentication using gh
   const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
@@ -183,7 +264,7 @@ try {
     await log(`Error: Unable to detect default branch`);
     process.exit(1);
   }
-  await log(`📌 Default branch detected: ${defaultBranch}\n`);
+  await log(`${formatAligned('📌', 'Default branch:', defaultBranch)}\n`);
 
   // Ensure we're on a clean default branch
   const statusResult = await $`cd ${tempDir} && git status --porcelain`;
@@ -205,7 +286,7 @@ try {
   // Create a branch for the issue
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
-  await log(`🌿 Creating branch: ${branchName} from ${defaultBranch}`);
+  await log(`${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
   const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
 
   if (checkoutResult.code !== 0) {
@@ -214,36 +295,36 @@ try {
     process.exit(1);
   }
   
-  await log(`✅ Successfully created branch: ${branchName}`);
+  await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
 
   // Verify we're on the correct branch
   const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
   
   if (currentBranchResult.code !== 0) {
-    await log(`Error: Failed to verify current branch`);
+    await log(`${formatAligned('❌', 'Error:', 'Failed to verify current branch')}`);
     await log(currentBranchResult.stderr ? currentBranchResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
   
   const currentBranch = currentBranchResult.stdout.toString().trim();
   if (currentBranch !== branchName) {
-    await log('\n');
-    await log(`Error: Failed to switch to branch ${branchName}, currently on ${currentBranch}\n`);
+    await log(`${formatAligned('❌', 'Error:', `Failed to switch to branch ${branchName}, currently on ${currentBranch}`)}`);
     process.exit(1);
   }
-  await log(`✅ Successfully switched to branch: ${branchName}\n`);
+  await log(`${formatAligned('✅', 'Current branch:', branchName)}\n`);
 
   // Create initial commit and push branch if auto PR creation is enabled
   let prUrl = null;
   let prNumber = null;
   
   if (argv.autoPullRequestCreation) {
-    await log(`\n🚀 Auto pull request creation enabled`);
-    await log(`   Creating initial commit and draft pull request...\n`);
+    await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
+    await log(formatAligned('', 'Creating:', 'Initial commit and draft PR...', 2));
+    await log('');
     
     try {
       // Create an initial empty commit
-      await log(`📝 Creating initial commit...`);
+      await log(formatAligned('📝', 'Creating commit:', 'Initial empty commit'));
       
       if (argv.verbose) {
         await log(`   Command: git commit --allow-empty -m "Initial commit for issue #${issueNumber}..."`, { verbose: true });
@@ -259,33 +340,78 @@ Preparing to work on: ${issueUrl}"`;
         await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
         process.exit(1);
       } else {
-        await log(`✅ Initial commit created`);
+        await log(formatAligned('✅', 'Commit created:', 'Successfully'));
         if (argv.verbose) {
           await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
         }
         
         // Push the branch
-        await log(`📤 Pushing branch to remote...`);
+        await log(formatAligned('📤', 'Pushing branch:', 'To remote repository...'));
         
         if (argv.verbose) {
           await log(`   Command: git push -u origin ${branchName}`, { verbose: true });
         }
         
-        const pushResult = await $`cd ${tempDir} && git push -u origin ${branchName}`;
+        const pushResult = await $`cd ${tempDir} && git push -u origin ${branchName} 2>&1`;
         
         if (pushResult.code !== 0) {
-          await log(`❌ Failed to push branch`, { level: 'error' });
-          await log(`   Error: ${pushResult.stderr ? pushResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-          await log(`   stdout: ${pushResult.stdout ? pushResult.stdout.toString() : 'none'}`, { verbose: true });
-          process.exit(1);
+          const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
+          
+          // Check for permission denied error
+          if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {
+            await log(`\n${formatAligned('❌', 'PERMISSION DENIED:', 'Cannot push to repository')}`, { level: 'error' });
+            await log(``);
+            await log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+            await log(``);
+            await log(`  🔒 You don't have write access to ${owner}/${repo}`);
+            await log(``);
+            await log(`  This typically happens when:`);
+            await log(`    • You're not a collaborator on the repository`);
+            await log(`    • The repository belongs to another user/organization`);
+            await log(``);
+            await log(`  📋 HOW TO FIX THIS:`);
+            await log(``);
+            await log(`  Option 1: Use the --fork flag (RECOMMENDED)`);
+            await log(`  ${'-'.repeat(40)}`);
+            await log(`  Run the command again with --fork:`);
+            await log(``);
+            await log(`    ./solve.mjs "${issueUrl}" --fork`);
+            await log(``);
+            await log(`  This will:`);
+            await log(`    ✓ Fork the repository to your account`);
+            await log(`    ✓ Push changes to your fork`);
+            await log(`    ✓ Create a PR from your fork to the original repo`);
+            await log(``);
+            await log(`  Option 2: Request collaborator access`);
+            await log(`  ${'-'.repeat(40)}`);
+            await log(`  Ask the repository owner to add you as a collaborator:`);
+            await log(`    → Go to: https://github.com/${owner}/${repo}/settings/access`);
+            await log(``);
+            await log(`  Option 3: Manual fork and clone`);
+            await log(`  ${'-'.repeat(40)}`);
+            await log(`  1. Fork the repo: https://github.com/${owner}/${repo}/fork`);
+            await log(`  2. Clone your fork and work there`);
+            await log(`  3. Create a PR from your fork`);
+            await log(``);
+            await log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+            await log(``);
+            await log(`💡 Tip: The --fork option automates the entire fork workflow!`);
+            await log(``);
+            process.exit(1);
+          } else {
+            // Other push errors
+            await log(`${formatAligned('❌', 'Failed to push:', 'See error below')}`, { level: 'error' });
+            await log(`   Error: ${errorOutput}`, { level: 'error' });
+            process.exit(1);
+          }
         } else {
-          await log(`✅ Branch pushed to remote`);
+          await log(`${formatAligned('✅', 'Branch pushed:', 'Successfully to remote')}`);
           if (argv.verbose) {
             await log(`   Push output: ${pushResult.stdout.toString().trim()}`, { verbose: true });
           }
           
           // Get issue title for PR title
-          await log(`📋 Getting issue title...`, { verbose: true });
+          await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
           const issueTitleResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title`;
           let issueTitle = `Fix issue #${issueNumber}`;
           if (issueTitleResult.code === 0) {
@@ -296,7 +422,7 @@ Preparing to work on: ${issueUrl}"`;
           }
           
           // Get current GitHub user to set as assignee
-          await log(`👤 Getting current GitHub user...`, { verbose: true });
+          await log(formatAligned('👤', 'Getting user:', 'Current GitHub account...'), { verbose: true });
           const currentUserResult = await $`gh api user --jq .login`;
           let currentUser = null;
           if (currentUserResult.code === 0) {
@@ -307,7 +433,7 @@ Preparing to work on: ${issueUrl}"`;
           }
           
           // Create draft pull request
-          await log(`🔀 Creating draft pull request...`);
+          await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
           
           const prBody = `## 🤖 AI-Powered Solution
 
@@ -345,8 +471,15 @@ ${prBody}`, { verbose: true });
             const prBodyFile = `/tmp/pr-body-${Date.now()}.md`;
             await fs.writeFile(prBodyFile, prBody);
             
-            // Build command with optional assignee
-            let command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+            // Build command with optional assignee and handle forks
+            let command;
+            if (argv.fork && forkedRepo) {
+              // For forks, specify the full head reference
+              const forkUser = forkedRepo.split('/')[0];
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${owner}:${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+            } else {
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+            }
             if (currentUser) {
               command += ` --assignee ${currentUser}`;
             }
@@ -381,14 +514,14 @@ ${prBody}`, { verbose: true });
               const prMatch = prUrl.match(/\/pull\/(\d+)/);
               if (prMatch) {
                 prNumber = prMatch[1];
-                await log(`✅ Draft pull request created: #${prNumber}`);
-                await log(`📍 URL: ${prUrl}`);
+                await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
+                await log(formatAligned('📍', 'PR URL:', prUrl));
                 if (currentUser) {
-                  await log(`👤 Assigned to: ${currentUser}`);
+                  await log(formatAligned('👤', 'Assigned to:', currentUser));
                 }
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
-                await log(`🔗 Linking issue #${issueNumber} to PR #${prNumber} in Development section...`);
+                await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
                 try {
                   // First, get the node IDs for both the issue and the PR
                   const issueNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { issue(number: ${issueNumber}) { id } } }' --jq .data.repository.issue.id`;
@@ -398,6 +531,7 @@ ${prBody}`, { verbose: true });
                   }
                   
                   const issueNodeId = issueNodeResult.stdout.toString().trim();
+                  await log(`   Issue node ID: ${issueNodeId}`, { verbose: true });
                   
                   const prNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { id } } }' --jq .data.repository.pullRequest.id`;
                   
@@ -406,6 +540,7 @@ ${prBody}`, { verbose: true });
                   }
                   
                   const prNodeId = prNodeResult.stdout.toString().trim();
+                  await log(`   PR node ID: ${prNodeId}`, { verbose: true });
                   
                   // Now link them using the GraphQL mutation
                   // GitHub automatically creates the link when we use "Fixes #" but we can ensure it's properly linked
@@ -422,7 +557,7 @@ ${prBody}`, { verbose: true });
                   if (linkCheckResult.code === 0) {
                     const linkedIssues = linkCheckResult.stdout.toString().trim().split('\n').filter(n => n);
                     if (linkedIssues.includes(issueNumber)) {
-                      await log(`✅ Issue #${issueNumber} successfully linked to PR #${prNumber} in Development section`);
+                      await log(formatAligned('✅', 'Link verified:', `Issue #${issueNumber} → PR #${prNumber}`));
                     } else {
                       await log(`⚠️ Issue not found in closing references, GitHub should auto-link via "Fixes #${issueNumber}" in body`, { level: 'warning' });
                     }
@@ -434,8 +569,8 @@ ${prBody}`, { verbose: true });
                   await log(`   GitHub should auto-link via "Fixes #${issueNumber}" in the PR body`, { level: 'warning' });
                 }
               } else {
-                await log(`✅ Draft pull request created`);
-                await log(`📍 URL: ${prUrl}`);
+                await log(formatAligned('✅', 'PR created:', 'Successfully'));
+                await log(formatAligned('📍', 'PR URL:', prUrl));
               }
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
@@ -456,14 +591,17 @@ ${prBody}`, { verbose: true });
     
     await log(``);
   } else {
-    await log(`\n⏭️  Auto pull request creation disabled`);
-    await log(`   Using original workflow where AI creates the PR\n`);
+    await log(`\n${formatAligned('⏭️', 'Auto PR creation:', 'DISABLED')}`);
+    await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
+    await log('');
   }
 
   const prompt = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${prUrl ? `
-Your prepared Pull Request: ${prUrl}` : ''}
+Your prepared Pull Request: ${prUrl}` : ''}${argv.fork && forkedRepo ? `
+Your forked repository: ${forkedRepo}
+Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
 
@@ -506,8 +644,10 @@ Proceed.`;
 
 4. Workflow and collaboration.  
    - When you check branch, verify with git branch --show-current.  
-   - When you push, push only to branch ${branchName}.  
-   - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}  
+   - When you push, push only to branch ${branchName}.${argv.fork && forkedRepo ? `
+   - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
+   - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}${argv.fork && forkedRepo ? `
+   - When you create pr, use --repo ${owner}/${repo} to create PR against original repo.` : ''}  
    - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
@@ -526,7 +666,7 @@ Proceed.`;
   const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
 
   // Get timestamps from GitHub servers before executing the command
-  await log('📅 Getting reference timestamps from GitHub...');
+  await log(`${formatAligned('📅', 'Getting timestamps:', 'From GitHub servers...')}`);
 
   let referenceTime;
   try {
@@ -538,7 +678,7 @@ Proceed.`;
     }
     
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
-    await log(`  📝 Issue last updated: ${issueUpdatedAt.toISOString()}`);
+    await log(formatAligned('📝', 'Issue updated:', issueUpdatedAt.toISOString(), 2));
 
     // Get the last comment's timestamp (if any)
     const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
@@ -551,9 +691,9 @@ Proceed.`;
     const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
     const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
     if (lastCommentTime) {
-      await log(`  💬 Last comment time: ${lastCommentTime.toISOString()}`);
+      await log(formatAligned('💬', 'Last comment:', lastCommentTime.toISOString(), 2));
     } else {
-      await log(`  💬 No comments found on issue`);
+      await log(formatAligned('💬', 'Comments:', 'None found', 2));
     }
 
     // Get the most recent pull request's timestamp
@@ -567,9 +707,9 @@ Proceed.`;
     const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
     const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
     if (lastPrTime) {
-      await log(`  🔀 Most recent pull request in repo: ${lastPrTime.toISOString()}`);
+      await log(formatAligned('🔀', 'Recent PR:', lastPrTime.toISOString(), 2));
     } else {
-      await log(`  🔀 No pull requests found in repo`);
+      await log(formatAligned('🔀', 'Pull requests:', 'None found', 2));
     }
 
     // Use the most recent timestamp as reference
@@ -581,7 +721,7 @@ Proceed.`;
       referenceTime = lastPrTime;
     }
 
-    await log(`✅ Using reference timestamp: ${referenceTime.toISOString()}`);
+    await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())}`);
   } catch (timestampError) {
     await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
     await log(`  Error: ${timestampError.message}`);
@@ -590,7 +730,7 @@ Proceed.`;
   }
 
   // Execute claude command from the cloned repository directory
-  await log(`\n🤖 Executing Claude (${argv.model.toUpperCase()}) from repository directory...`);
+  await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
 
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
@@ -612,20 +752,27 @@ Proceed.`;
 
   // Print the command being executed (with cd for reproducibility)
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  await log(`📋 Command details:`);
-  await log(`   📂 Working directory: ${tempDir}`);
-  await log(`   🌿 Branch: ${branchName}`);
-  await log(`   🤖 Model: Claude ${argv.model.toUpperCase()}`);
-  await log(`\n📋 Full command:`);
+  await log(`\n${formatAligned('📋', 'Command details:', '')}`);
+  await log(formatAligned('📂', 'Working directory:', tempDir, 2));
+  await log(formatAligned('🌿', 'Branch:', branchName, 2));
+  await log(formatAligned('🤖', 'Model:', `Claude ${argv.model.toUpperCase()}`, 2));
+  if (argv.fork && forkedRepo) {
+    await log(formatAligned('🍴', 'Fork:', forkedRepo, 2));
+    await log(formatAligned('🔗', 'Upstream:', `${owner}/${repo}`, 2));
+  }
+  await log(`\n${formatAligned('📋', 'Full command:', '')}`);
   await log(`   ${fullCommand}`);
   await log('');
 
   // If only preparing command or dry-run, exit here
   if (argv.onlyPrepareCommand || argv.dryRun) {
-    await log(`✅ Command preparation complete`);
-    await log(`📂 Repository cloned to: ${tempDir}`);
-    await log(`🌿 Branch created: ${branchName}`);
-    await log(`\n💡 To execute manually:`);
+    await log(formatAligned('✅', 'Preparation:', 'Complete'));
+    await log(formatAligned('📂', 'Repository at:', tempDir));
+    await log(formatAligned('🌿', 'Branch ready:', branchName));
+    if (argv.fork && forkedRepo) {
+      await log(formatAligned('🍴', 'Using fork:', forkedRepo));
+    }
+    await log(`\n${formatAligned('💡', 'To execute:', '')}`);
     await log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
     process.exit(0);
   }
