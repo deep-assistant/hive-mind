@@ -1230,22 +1230,73 @@ Self review.
         continue;
       }
 
-      // Extract session ID on first message
-      if (!sessionId && json.session_id) {
-        sessionId = json.session_id;
-        await log(`🔧 Session ID: ${sessionId}`);
-        
-        // Try to rename log file to include session ID
-        try {
-          const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-          await fs.rename(logFile, sessionLogFile);
-          logFile = sessionLogFile;
-          await log(`📁 Log renamed to: ${logFile}`);
-        } catch (renameError) {
-          // If rename fails, keep original filename
-          await log(`📁 Keeping log file: ${logFile}`);
+      // Extract session ID from any level of the JSON structure
+      if (!sessionId) {
+        // Debug: Log what we're checking
+        if (argv.verbose && json.session_id) {
+          await log(`   Found session_id in JSON: ${json.session_id}`, { verbose: true });
         }
-        await log('');
+        
+        // Check multiple possible locations for session_id
+        const possibleSessionId = json.session_id || 
+                                 json.uuid || 
+                                 (json.message && json.message.session_id) ||
+                                 (json.metadata && json.metadata.session_id);
+        
+        if (possibleSessionId) {
+          sessionId = possibleSessionId;
+          await log(`🔧 Session ID: ${sessionId}`);
+          
+          // Try to rename log file to include session ID
+          try {
+            const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
+            
+            // Check if target file already exists
+            try {
+              await fs.access(sessionLogFile);
+              await log(`📁 Session log already exists: ${sessionLogFile}`);
+              // Don't rename if target exists
+            } catch {
+              // Target doesn't exist, safe to rename
+              try {
+                await fs.rename(logFile, sessionLogFile);
+                logFile = sessionLogFile;
+                await log(`📁 Log renamed to: ${logFile}`);
+              } catch (renameErr) {
+                // If rename fails (e.g., cross-device link), try copying
+                if (argv.verbose) {
+                  await log(`   Rename failed: ${renameErr.message}, trying copy...`, { verbose: true });
+                }
+                
+                try {
+                  // Read current log content
+                  const oldLogFile = logFile;
+                  const currentContent = await fs.readFile(oldLogFile, 'utf8');
+                  // Write to new file
+                  await fs.writeFile(sessionLogFile, currentContent);
+                  // Update log file reference
+                  logFile = sessionLogFile;
+                  await log(`📁 Log copied to: ${logFile}`);
+                  
+                  // Try to delete old file (non-critical if it fails)
+                  try {
+                    await fs.unlink(oldLogFile);
+                  } catch {
+                    // Ignore deletion errors
+                  }
+                } catch (copyErr) {
+                  await log(`⚠️  Could not copy log file: ${copyErr.message}`, { level: 'warning' });
+                  await log(`📁 Keeping log file: ${logFile}`);
+                }
+              }
+            }
+          } catch (renameError) {
+            // If rename fails, keep original filename
+            await log(`⚠️  Could not rename log file: ${renameError.message}`, { level: 'warning' });
+            await log(`📁 Keeping log file: ${logFile}`);
+          }
+          await log('');
+        }
       }
 
       // Display user-friendly progress
