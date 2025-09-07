@@ -712,12 +712,15 @@ Issue: ${issueUrl}`;
           // Create draft pull request
           await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
           
+          // Use full repository reference for cross-repo PRs (forks)
+          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
+          
           const prBody = `## 🤖 AI-Powered Solution
 
-This pull request is being automatically generated to solve issue #${issueNumber}.
+This pull request is being automatically generated to solve issue ${issueRef}.
 
 ### 📋 Issue Reference
-Fixes #${issueNumber}
+Fixes ${issueRef}
 
 ### 🚧 Status
 **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
@@ -849,13 +852,10 @@ ${prBody}`, { verbose: true });
                   await log(`   PR node ID: ${prNodeId}`, { verbose: true });
                   
                   // Now link them using the GraphQL mutation
-                  // GitHub automatically creates the link when we use "Fixes #" but we can ensure it's properly linked
-                  // by updating the PR body with the closing keyword if not already present
-                  
-                  // The Development section link is actually created automatically by GitHub when:
+                  // GitHub automatically creates the link when we use "Fixes #" or "Fixes owner/repo#"
+                  // The Development section link is created automatically by GitHub when:
                   // 1. The PR body contains "Fixes #N", "Closes #N", or "Resolves #N"
-                  // 2. The PR is in the same repository as the issue
-                  // Since we already have "Fixes #${issueNumber}" in the body, it should auto-link
+                  // 2. For cross-repo (fork) PRs, we need "Fixes owner/repo#N"
                   
                   // Let's verify the link was created
                   const linkCheckResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { closingIssuesReferences(first: 10) { nodes { number } } } } }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number'`;
@@ -865,14 +865,40 @@ ${prBody}`, { verbose: true });
                     if (linkedIssues.includes(issueNumber)) {
                       await log(formatAligned('✅', 'Link verified:', `Issue #${issueNumber} → PR #${prNumber}`));
                     } else {
-                      await log(`⚠️ Issue not found in closing references, GitHub should auto-link via "Fixes #${issueNumber}" in body`, { level: 'warning' });
+                      // This is a problem - the link wasn't created
+                      await log(``);
+                      await log(formatAligned('⚠️', 'ISSUE LINK MISSING:', 'PR not linked to issue'), { level: 'warning' });
+                      await log(``);
+                      
+                      if (argv.fork) {
+                        await log(`   The PR was created from a fork but wasn't linked to the issue.`, { level: 'warning' });
+                        await log(`   Expected: "Fixes ${owner}/${repo}#${issueNumber}" in PR body`, { level: 'warning' });
+                        await log(``);
+                        await log(`   To fix manually:`, { level: 'warning' });
+                        await log(`   1. Edit the PR description at: ${prUrl}`, { level: 'warning' });
+                        await log(`   2. Add this line: Fixes ${owner}/${repo}#${issueNumber}`, { level: 'warning' });
+                      } else {
+                        await log(`   The PR wasn't linked to issue #${issueNumber}`, { level: 'warning' });
+                        await log(`   Expected: "Fixes #${issueNumber}" in PR body`, { level: 'warning' });
+                        await log(``);
+                        await log(`   To fix manually:`, { level: 'warning' });
+                        await log(`   1. Edit the PR description at: ${prUrl}`, { level: 'warning' });
+                        await log(`   2. Ensure it contains: Fixes #${issueNumber}`, { level: 'warning' });
+                      }
+                      await log(``);
                     }
                   } else {
-                    await log(`⚠️ Could not verify issue link, but GitHub should auto-link via "Fixes #${issueNumber}" in body`, { level: 'warning' });
+                    // Could not verify but show what should have been used
+                    const expectedRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
+                    await log(`⚠️ Could not verify issue link (API error)`, { level: 'warning' });
+                    await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
+                    await log(`   Please verify manually at: ${prUrl}`, { level: 'warning' });
                   }
                 } catch (linkError) {
+                  const expectedRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
                   await log(`⚠️ Could not verify issue linking: ${linkError.message}`, { level: 'warning' });
-                  await log(`   GitHub should auto-link via "Fixes #${issueNumber}" in the PR body`, { level: 'warning' });
+                  await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
+                  await log(`   Please check manually at: ${prUrl}`, { level: 'warning' });
                 }
               } else {
                 await log(formatAligned('✅', 'PR created:', 'Successfully'));
