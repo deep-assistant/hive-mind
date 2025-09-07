@@ -160,7 +160,7 @@ if (isResuming) {
 } else {
   tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
   await fs.mkdir(tempDir, { recursive: true });
-  await log(`Creating temporary directory: ${tempDir}\n`);
+  await log(`\nCreating temporary directory: ${tempDir}`);
 }
 
 try {
@@ -330,7 +330,10 @@ try {
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
   await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
-  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName} 2>&1`;
+  
+  // IMPORTANT: Don't use 2>&1 here as it can interfere with exit codes
+  // Git checkout -b outputs to stderr but that's normal
+  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
 
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
@@ -359,78 +362,74 @@ try {
     process.exit(1);
   }
   
-  await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
-
-  // Verify we're on the correct branch
-  const currentBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  // CRITICAL: Verify the branch was actually created and we switched to it
+  // This is necessary because git checkout -b can sometimes fail silently
+  await log(`${formatAligned('🔍', 'Verifying:', 'Branch creation...')}`);
+  const verifyResult = await $`cd ${tempDir} && git branch --show-current`;
   
-  if (currentBranchResult.code !== 0) {
-    const errorOutput = (currentBranchResult.stderr || currentBranchResult.stdout || 'Unknown error').toString().trim();
+  if (verifyResult.code !== 0 || !verifyResult.stdout) {
     await log(``);
     await log(`${formatAligned('❌', 'BRANCH VERIFICATION FAILED', '')}`, { level: 'error' });
     await log(``);
     await log(`  🔍 What happened:`);
-    await log(`     Cannot verify current branch after creation.`);
+    await log(`     Unable to verify branch after creation attempt.`);
     await log(``);
-    await log(`  📦 Git output:`);
-    for (const line of errorOutput.split('\n')) {
-      await log(`     ${line}`);
-    }
-    await log(``);
-    await log(`  💡 This is unusual and might indicate:`);
-    await log(`     • Git installation problem`);
-    await log(`     • Corrupted repository`);
-    await log(`     • File system permissions issue`);
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Check git version: git --version`);
-    await log(`     2. Try manual verification: cd ${tempDir} && git branch`);
-    await log(`     3. Check disk space: df -h ${tempDir}`);
+    await log(`  🔧 Debug commands to try:`);
+    await log(`     cd ${tempDir} && git branch -a`);
+    await log(`     cd ${tempDir} && git status`);
     await log(``);
     process.exit(1);
   }
   
-  const currentBranch = currentBranchResult.stdout.toString().trim();
-  if (currentBranch !== branchName) {
+  const actualBranch = verifyResult.stdout.toString().trim();
+  if (actualBranch !== branchName) {
+    // Branch wasn't actually created or we didn't switch to it
     await log(``);
-    await log(`${formatAligned('❌', 'BRANCH SWITCH FAILED', '')}`, { level: 'error' });
+    await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
     await log(``);
     await log(`  🔍 What happened:`);
-    await log(`     Created branch '${branchName}' but still on '${currentBranch}'.`);
+    await log(`     Git checkout -b command didn't create or switch to the branch.`);
     await log(``);
     await log(`  📊 Branch status:`);
-    await log(`     Expected: ${branchName}`);
-    await log(`     Current:  ${currentBranch}`);
-    await log(``);
-    await log(`  💡 This might happen when:`);
-    await log(`     • Branch creation was only partial`);
-    await log(`     • Uncommitted changes prevent switching`);
-    await log(`     • Git hooks interfere with checkout`);
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Try manual switch:`);
-    await log(`        cd ${tempDir} && git checkout ${branchName}`);
-    await log(`     2. Check for hooks:`);
-    await log(`        ls ${tempDir}/.git/hooks/`);
-    await log(`     3. Try with force:`);
-    await log(`        cd ${tempDir} && git checkout -f ${branchName}`);
-    await log(``);
-    await log(`  📂 Working directory: ${tempDir}`);
+    await log(`     Attempted to create: ${branchName}`);
+    await log(`     Currently on: ${actualBranch || '(unknown)'}`);
     await log(``);
     
-    // Try to help by showing what branches exist
-    const branchListResult = await $`cd ${tempDir} && git branch 2>&1`;
-    if (branchListResult.code === 0) {
+    // Show all branches to help debug
+    const allBranchesResult = await $`cd ${tempDir} && git branch -a 2>&1`;
+    if (allBranchesResult.code === 0) {
       await log(`  🌿 Available branches:`);
-      for (const branch of branchListResult.stdout.toString().split('\n')) {
-        if (branch.trim()) await log(`     ${branch}`);
+      for (const line of allBranchesResult.stdout.toString().split('\n')) {
+        if (line.trim()) await log(`     ${line}`);
       }
       await log(``);
     }
     
+    await log(`  💡 This is unusual. Possible causes:`);
+    await log(`     • Git version incompatibility`);
+    await log(`     • File system permissions issue`);
+    await log(`     • Repository corruption`);
+    await log(``);
+    await log(`  🔧 How to fix:`);
+    await log(`     1. Try creating the branch manually:`);
+    await log(`        cd ${tempDir}`);
+    await log(`        git checkout -b ${branchName}`);
+    await log(`     `);
+    await log(`     2. If that fails, try two-step approach:`);
+    await log(`        cd ${tempDir}`);
+    await log(`        git branch ${branchName}`);
+    await log(`        git checkout ${branchName}`);
+    await log(`     `);
+    await log(`     3. Check your git version:`);
+    await log(`        git --version`);
+    await log(``);
+    await log(`  📂 Working directory: ${tempDir}`);
+    await log(``);
     process.exit(1);
   }
-  await log(`${formatAligned('✅', 'Current branch:', branchName)}`);
+  
+  await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
+  await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
 
   // Create initial commit and push branch if auto PR creation is enabled
   let prUrl = null;
