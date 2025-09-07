@@ -431,9 +431,18 @@ try {
   await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
   await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
 
-  // Create initial commit and push branch if auto PR creation is enabled
+  // Initialize PR variables and prompt early
   let prUrl = null;
   let prNumber = null;
+  
+  // Build the prompt (will be updated with PR URL later if created)
+  let prompt = `Issue to solve: ${issueUrl}
+Your prepared branch: ${branchName}
+Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
+Your forked repository: ${forkedRepo}
+Original repository (upstream): ${owner}/${repo}` : ''}
+
+Proceed.`;
   
   if (argv.autoPullRequestCreation) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
@@ -441,16 +450,30 @@ try {
     await log('');
     
     try {
-      // Create an initial empty commit
-      await log(formatAligned('📝', 'Creating commit:', 'Initial empty commit'));
+      // Create CLAUDE.md file with the task details
+      await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
       
-      if (argv.verbose) {
-        await log(`   Command: git commit --allow-empty -m "Initial commit for issue #${issueNumber}..."`, { verbose: true });
+      // Write the prompt to CLAUDE.md (using the same prompt we'll send to Claude)
+      await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), prompt);
+      await log(formatAligned('✅', 'File created:', 'CLAUDE.md'));
+      
+      // Add and commit the file
+      await log(formatAligned('📦', 'Adding file:', 'To git staging'));
+      const addResult = await $`cd ${tempDir} && git add CLAUDE.md 2>&1`;
+      
+      if (addResult.code !== 0) {
+        await log(`❌ Failed to add CLAUDE.md`, { level: 'error' });
+        await log(`   Error: ${addResult.stderr ? addResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+        process.exit(1);
       }
       
-      const commitResult = await $`cd ${tempDir} && git commit --allow-empty -m "Initial commit for issue #${issueNumber}
+      await log(formatAligned('📝', 'Creating commit:', 'With CLAUDE.md file'));
+      const commitResult = await $`cd ${tempDir} && git commit -m "Initial commit with task details for issue #${issueNumber}
 
-Preparing to work on: ${issueUrl}" 2>&1`;
+Adding CLAUDE.md with task information for AI processing.
+This file will be removed when the task is complete.
+
+Issue: ${issueUrl}" 2>&1`;
       
       if (commitResult.code !== 0) {
         await log(`❌ Failed to create initial commit`, { level: 'error' });
@@ -458,7 +481,7 @@ Preparing to work on: ${issueUrl}" 2>&1`;
         await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
         process.exit(1);
       } else {
-        await log(formatAligned('✅', 'Commit created:', 'Successfully'));
+        await log(formatAligned('✅', 'Commit created:', 'Successfully with CLAUDE.md'));
         if (argv.verbose) {
           await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
         }
@@ -695,6 +718,32 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
                 }
                 
+                // Remove CLAUDE.md now that PR is successfully created
+                // We need to commit and push the deletion so it's reflected in the PR
+                try {
+                  await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
+                  await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+                  
+                  // Commit the deletion
+                  const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
+                  if (deleteCommitResult.code === 0) {
+                    await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+                    
+                    // Push the deletion
+                    const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
+                    if (pushDeleteResult.code === 0) {
+                      await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+                    } else {
+                      await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+                    }
+                  } else {
+                    await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+                  }
+                } catch (e) {
+                  // File might not exist or already removed, that's fine
+                  await log(`   CLAUDE.md already removed or not found`, { verbose: true });
+                }
+                
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
                 await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
                 try {
@@ -746,6 +795,32 @@ ${prBody}`, { verbose: true });
               } else {
                 await log(formatAligned('✅', 'PR created:', 'Successfully'));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
+              }
+              
+              // Remove CLAUDE.md after successful PR creation
+              // We need to commit and push the deletion so it's reflected in the PR
+              try {
+                await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
+                await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+                
+                // Commit the deletion
+                const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
+                if (deleteCommitResult.code === 0) {
+                  await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+                  
+                  // Push the deletion
+                  const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
+                  if (pushDeleteResult.code === 0) {
+                    await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+                  } else {
+                    await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+                  }
+                } else {
+                  await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+                }
+              } catch (e) {
+                // File might not exist, that's fine
+                await log(`   CLAUDE.md already removed or not found`, { verbose: true });
               }
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
@@ -866,18 +941,21 @@ ${prBody}`, { verbose: true });
     await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
   }
 
-  const prompt = `Issue to solve: ${issueUrl}
+  // Update prompt with PR URL if it was created
+  if (prUrl) {
+    prompt = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
-Your prepared working directory: ${tempDir}${prUrl ? `
-Your prepared Pull Request: ${prUrl}` : ''}${argv.fork && forkedRepo ? `
+Your prepared working directory: ${tempDir}
+Your prepared Pull Request: ${prUrl}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
+  }
 
   const systemPrompt = `You are AI issue solver.
 
-0. General guidelines.
+General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
    - When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
    - When CI is failing, make sure you download the logs locally and carefully investigate them.
@@ -887,7 +965,7 @@ Proceed.`;
    - When testing your assumptions, use the example scripts.
    - When you face something extremely hard, use divide and conquer — it always helps.
 
-1. Initial research.  
+Initial research.  
    - When you read issue, read all details and comments thoroughly.  
    - When you need issue details, use gh issue view ${issueUrl}.  
    - When you need related code, use gh search code --owner ${owner} [keywords].  
@@ -896,7 +974,7 @@ Proceed.`;
    - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
    - When issue is not defined enough, write a comment to ask clarifying questions.  
 
-2. Solution development and testing.  
+Solution development and testing.  
    - When issue is solvable, implement code with tests.  
    - When you test, start from small functions.  
    - When you test, write unit tests with mocks.  
@@ -904,7 +982,7 @@ Proceed.`;
    - When you test solution, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
 
-3. Preparing pull request.  
+Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
    - When you code, follow contributing guidelines.  
    - When you commit, write clear message.  
@@ -912,7 +990,7 @@ Proceed.`;
    - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
    - When you finish implementation, use gh pr ready ${prNumber || prUrl}.` : ''}  
 
-4. Workflow and collaboration.  
+Workflow and collaboration.  
    - When you check branch, verify with git branch --show-current.  
    - When you push, push only to branch ${branchName}.${argv.fork && forkedRepo ? `
    - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
@@ -926,7 +1004,7 @@ Proceed.`;
    - When you mention result, include pull request url or comment url.${prUrl ? `
    - When you need to create pr, remember pr ${prNumber || prUrl} already exists for this branch.` : ''}  
 
-5. Self review.
+Self review.
    - When you check your solution, run all tests locally.  
    - When you compare with repo style, use gh pr diff [number].  
    - When you finalize, confirm code, tests, and description are consistent.`;
