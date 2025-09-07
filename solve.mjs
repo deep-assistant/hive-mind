@@ -109,7 +109,7 @@ logFile = path.join(scriptDir, `solve-${timestamp}.log`);
 // Create the log file immediately
 await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
-await log(`   (All output will be logged here)\n`);
+await log(`   (All output will be logged here)`);
 
 // Helper function to format aligned console output
 const formatAligned = (icon, label, value, indent = 0) => {
@@ -550,12 +550,14 @@ Preparing to work on: ${issueUrl}" 2>&1`;
             await log(`   Current user: ${currentUser}`, { verbose: true });
             
             // Check if user has push access (is a collaborator or owner)
-            const permCheckResult = await $`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>&1`;
+            // Use silent mode to suppress API error output
+            const permCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>&1`;
             if (permCheckResult.code === 0) {
               canAssign = true;
               await log(`   User has collaborator access`, { verbose: true });
             } else {
-              await log(`   User is not a collaborator (cannot assign)`, { verbose: true });
+              // User doesn't have permission, but that's okay - we just won't assign
+              await log(`   User is not a collaborator (will skip assignment)`, { verbose: true });
             }
           } else {
             await log(`   Warning: Could not get current user`, { verbose: true });
@@ -708,14 +710,25 @@ ${prBody}`, { verbose: true });
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
           } catch (prCreateError) {
-            // Check if it's just an assignment error
             const errorMsg = prCreateError.message || '';
+            
+            // Clean up the error message - extract the meaningful part
+            let cleanError = errorMsg;
+            if (errorMsg.includes('pull request create failed:')) {
+              cleanError = errorMsg.split('pull request create failed:')[1].trim();
+            } else if (errorMsg.includes('Command failed:')) {
+              // Extract just the error part, not the full command
+              const lines = errorMsg.split('\n');
+              cleanError = lines[lines.length - 1] || errorMsg;
+            }
+            
+            // Check for specific error types
             if (errorMsg.includes('could not assign user') || errorMsg.includes('not found')) {
               // Assignment failed but PR might have been created
               await log(formatAligned('⚠️', 'Warning:', 'Could not assign user'), { level: 'warning' });
               
-              // Try to get the PR that was just created
-              const prListResult = await $`cd ${tempDir} && gh pr list --head ${branchName} --json url,number --jq '.[0]' 2>&1`;
+              // Try to get the PR that was just created (use silent mode)
+              const prListResult = await $({ silent: true })`cd ${tempDir} && gh pr list --head ${branchName} --json url,number --jq '.[0]' 2>&1`;
               if (prListResult.code === 0 && prListResult.stdout.toString().trim()) {
                 try {
                   const prData = JSON.parse(prListResult.stdout.toString().trim());
@@ -729,14 +742,75 @@ ${prBody}`, { verbose: true });
                 }
               } else {
                 // PR creation actually failed
-                await log(formatAligned('❌', 'Error:', 'Failed to create pull request'), { level: 'error' });
-                await log(`   ${errorMsg}`, { level: 'error' });
+                await log(``);
+                await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
+                await log(``);
+                await log(`  🔍 What happened:`);
+                await log(`     Failed to create pull request after pushing branch.`);
+                await log(``);
+                await log(`  📦 Error details:`);
+                for (const line of cleanError.split('\n')) {
+                  if (line.trim()) await log(`     ${line.trim()}`);
+                }
+                await log(``);
+                await log(`  🔧 How to fix:`);
+                await log(`     1. Check GitHub to see if PR was partially created`);
+                await log(`     2. Try creating PR manually: gh pr create`);
+                await log(`     3. Verify branch was pushed: git push -u origin ${branchName}`);
+                await log(``);
                 process.exit(1);
               }
+            } else if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'t be blank')) {
+              // Empty PR error
+              await log(``);
+              await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
+              await log(``);
+              await log(`  🔍 What happened:`);
+              await log(`     Cannot create PR - no commits between branches.`);
+              await log(``);
+              await log(`  📦 Error details:`);
+              for (const line of cleanError.split('\n')) {
+                if (line.trim()) await log(`     ${line.trim()}`);
+              }
+              await log(``);
+              await log(`  💡 Possible causes:`);
+              await log(`     • The branch wasn't pushed properly`);
+              await log(`     • The commit wasn't created`);
+              await log(`     • GitHub sync issue`);
+              await log(``);
+              await log(`  🔧 How to fix:`);
+              await log(`     1. Verify commit exists:`);
+              await log(`        cd ${tempDir} && git log --oneline -5`);
+              await log(`     2. Push again with tracking:`);
+              await log(`        cd ${tempDir} && git push -u origin ${branchName}`);
+              await log(`     3. Create PR manually:`);
+              await log(`        cd ${tempDir} && gh pr create --draft`);
+              await log(``);
+              await log(`  📂 Working directory: ${tempDir}`);
+              await log(`  🌿 Current branch: ${branchName}`);
+              await log(``);
+              process.exit(1);
             } else {
-              // Real error, not just assignment
-              await log(formatAligned('❌', 'Error:', 'Failed to create pull request'), { level: 'error' });
-              await log(`   ${errorMsg}`, { level: 'error' });
+              // Generic PR creation error
+              await log(``);
+              await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
+              await log(``);
+              await log(`  🔍 What happened:`);
+              await log(`     Failed to create pull request.`);
+              await log(``);
+              await log(`  📦 Error details:`);
+              for (const line of cleanError.split('\n')) {
+                if (line.trim()) await log(`     ${line.trim()}`);
+              }
+              await log(``);
+              await log(`  🔧 How to fix:`);
+              await log(`     1. Try creating PR manually:`);
+              await log(`        cd ${tempDir} && gh pr create --draft`);
+              await log(`     2. Check branch status:`);
+              await log(`        cd ${tempDir} && git status`);
+              await log(`     3. Verify GitHub authentication:`);
+              await log(`        gh auth status`);
+              await log(``);
               process.exit(1);
             }
           }
@@ -746,12 +820,9 @@ ${prBody}`, { verbose: true });
       await log(`Warning: Error during auto PR creation: ${prError.message}`, { level: 'warning' });
       await log(`   Continuing without PR...`);
     }
-    
-    await log(``);
   } else {
     await log(`\n${formatAligned('⏭️', 'Auto PR creation:', 'DISABLED')}`);
     await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
-    await log('');
   }
 
   const prompt = `Issue to solve: ${issueUrl}
