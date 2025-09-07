@@ -437,8 +437,7 @@ try {
   
   if (argv.autoPullRequestCreation) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
-    await log(formatAligned('', 'Creating:', 'Initial commit and draft PR...', 2));
-    await log('');
+    await log(`   Creating:               Initial commit and draft PR...`);
     
     try {
       // Create an initial empty commit
@@ -461,6 +460,13 @@ Preparing to work on: ${issueUrl}" 2>&1`;
         await log(formatAligned('✅', 'Commit created:', 'Successfully'));
         if (argv.verbose) {
           await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
+        }
+        
+        // Verify commit was created before pushing
+        const verifyCommitResult = await $({ silent: true })`cd ${tempDir} && git log --oneline -1 2>&1`;
+        if (verifyCommitResult.code === 0) {
+          const latestCommit = verifyCommitResult.stdout.toString().trim();
+          await log(`   Latest commit: ${latestCommit}`, { verbose: true });
         }
         
         // Push the branch
@@ -528,9 +534,14 @@ Preparing to work on: ${issueUrl}" 2>&1`;
             await log(`   Push output: ${pushResult.stdout.toString().trim()}`, { verbose: true });
           }
           
+          // CRITICAL: Wait for GitHub to process the push before creating PR
+          // This prevents "No commits between branches" error
+          await log(`   Waiting for GitHub to sync...`, { verbose: true });
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
           // Get issue title for PR title
           await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
-          const issueTitleResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title`;
+          const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
           let issueTitle = `Fix issue #${issueNumber}`;
           if (issueTitleResult.code === 0) {
             issueTitle = issueTitleResult.stdout.toString().trim();
@@ -541,7 +552,7 @@ Preparing to work on: ${issueUrl}" 2>&1`;
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
           await log(formatAligned('👤', 'Getting user:', 'Current GitHub account...'), { verbose: true });
-          const currentUserResult = await $`gh api user --jq .login 2>&1`;
+          const currentUserResult = await $({ silent: true })`gh api user --jq .login 2>&1`;
           let currentUser = null;
           let canAssign = false;
           
@@ -550,8 +561,15 @@ Preparing to work on: ${issueUrl}" 2>&1`;
             await log(`   Current user: ${currentUser}`, { verbose: true });
             
             // Check if user has push access (is a collaborator or owner)
-            // Use silent mode to suppress API error output
-            const permCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>&1`;
+            // Use silent mode AND redirect stderr to completely suppress output
+            let permCheckResult;
+            try {
+              // Try to check permissions silently - redirect stderr to suppress JSON error
+              permCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>/dev/null`;
+            } catch (e) {
+              // If the command fails, we know user doesn't have access
+              permCheckResult = { code: 1 };
+            }
             if (permCheckResult.code === 0) {
               canAssign = true;
               await log(`   User has collaborator access`, { verbose: true });
