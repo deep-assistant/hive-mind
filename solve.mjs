@@ -287,7 +287,7 @@ try {
   const randomHex = crypto.randomBytes(4).toString('hex');
   const branchName = `issue-${issueNumber}-${randomHex}`;
   await log(`${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
-  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
+  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName} 2>&1`;
 
   if (checkoutResult.code !== 0) {
     await log(`Error: Failed to create branch ${branchName}:`);
@@ -332,7 +332,7 @@ try {
       
       const commitResult = await $`cd ${tempDir} && git commit --allow-empty -m "Initial commit for issue #${issueNumber}
 
-Preparing to work on: ${issueUrl}"`;
+Preparing to work on: ${issueUrl}" 2>&1`;
       
       if (commitResult.code !== 0) {
         await log(`❌ Failed to create initial commit`, { level: 'error' });
@@ -421,15 +421,26 @@ Preparing to work on: ${issueUrl}"`;
             await log(`   Warning: Could not get issue title, using default`, { verbose: true });
           }
           
-          // Get current GitHub user to set as assignee
+          // Get current GitHub user to set as assignee (but validate it's a collaborator)
           await log(formatAligned('👤', 'Getting user:', 'Current GitHub account...'), { verbose: true });
-          const currentUserResult = await $`gh api user --jq .login`;
+          const currentUserResult = await $`gh api user --jq .login 2>&1`;
           let currentUser = null;
+          let canAssign = false;
+          
           if (currentUserResult.code === 0) {
             currentUser = currentUserResult.stdout.toString().trim();
             await log(`   Current user: ${currentUser}`, { verbose: true });
+            
+            // Check if user has push access (is a collaborator or owner)
+            const permCheckResult = await $`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>&1`;
+            if (permCheckResult.code === 0) {
+              canAssign = true;
+              await log(`   User has collaborator access`, { verbose: true });
+            } else {
+              await log(`   User is not a collaborator (cannot assign)`, { verbose: true });
+            }
           } else {
-            await log(`   Warning: Could not get current user for assignee`, { verbose: true });
+            await log(`   Warning: Could not get current user`, { verbose: true });
           }
           
           // Create draft pull request
@@ -480,7 +491,8 @@ ${prBody}`, { verbose: true });
             } else {
               command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
             }
-            if (currentUser) {
+            // Only add assignee if user has permissions
+            if (currentUser && canAssign) {
               command += ` --assignee ${currentUser}`;
             }
             
@@ -516,8 +528,10 @@ ${prBody}`, { verbose: true });
                 prNumber = prMatch[1];
                 await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
-                if (currentUser) {
+                if (currentUser && canAssign) {
                   await log(formatAligned('👤', 'Assigned to:', currentUser));
+                } else if (currentUser && !canAssign) {
+                  await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
                 }
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
@@ -576,11 +590,37 @@ ${prBody}`, { verbose: true });
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
           } catch (prCreateError) {
-            await log(`❌ Failed to create pull request`, { level: 'error' });
-            await log(`   Error: ${prCreateError.message}`, { level: 'error' });
-            await log(`   Working directory: ${tempDir}`, { verbose: true });
-            await log(`   Current branch: ${branchName}`, { verbose: true });
-            process.exit(1);
+            // Check if it's just an assignment error
+            const errorMsg = prCreateError.message || '';
+            if (errorMsg.includes('could not assign user') || errorMsg.includes('not found')) {
+              // Assignment failed but PR might have been created
+              await log(formatAligned('⚠️', 'Warning:', 'Could not assign user'), { level: 'warning' });
+              
+              // Try to get the PR that was just created
+              const prListResult = await $`cd ${tempDir} && gh pr list --head ${branchName} --json url,number --jq '.[0]' 2>&1`;
+              if (prListResult.code === 0 && prListResult.stdout.toString().trim()) {
+                try {
+                  const prData = JSON.parse(prListResult.stdout.toString().trim());
+                  prUrl = prData.url;
+                  prNumber = prData.number;
+                  await log(formatAligned('✅', 'PR created:', `#${prNumber} (without assignee)`));
+                  await log(formatAligned('📍', 'PR URL:', prUrl));
+                } catch (parseErr) {
+                  // If we can't parse, continue without PR info
+                  await log(formatAligned('⚠️', 'PR status:', 'Unknown (check GitHub)'));
+                }
+              } else {
+                // PR creation actually failed
+                await log(formatAligned('❌', 'Error:', 'Failed to create pull request'), { level: 'error' });
+                await log(`   ${errorMsg}`, { level: 'error' });
+                process.exit(1);
+              }
+            } else {
+              // Real error, not just assignment
+              await log(formatAligned('❌', 'Error:', 'Failed to create pull request'), { level: 'error' });
+              await log(`   ${errorMsg}`, { level: 'error' });
+              process.exit(1);
+            }
           }
         }
       }
