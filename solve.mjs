@@ -490,7 +490,17 @@ Issue: ${issueUrl}" 2>&1`;
         const verifyCommitResult = await $({ silent: true })`cd ${tempDir} && git log --oneline -1 2>&1`;
         if (verifyCommitResult.code === 0) {
           const latestCommit = verifyCommitResult.stdout.toString().trim();
-          await log(`   Latest commit: ${latestCommit}`, { verbose: true });
+          if (argv.verbose) {
+            await log(`   Latest commit: ${latestCommit}`);
+            
+            // Show git status
+            const statusResult = await $`cd ${tempDir} && git status --short 2>&1`;
+            await log(`   Git status: ${statusResult.stdout ? statusResult.stdout.toString().trim() || 'clean' : 'clean'}`);
+            
+            // Show remote info
+            const remoteResult = await $`cd ${tempDir} && git remote -v 2>&1`;
+            await log(`   Remotes: ${remoteResult.stdout ? remoteResult.stdout.toString().split('\n')[0] : 'none'}`);
+          }
         }
         
         // Push the branch
@@ -501,9 +511,23 @@ Issue: ${issueUrl}" 2>&1`;
         }
         
         // Push the branch with the CLAUDE.md commit
+        if (argv.verbose) {
+          await log(`   Push command: git push -f -u origin ${branchName}`);
+        }
+        
         // Always use force push to ensure our commit gets to GitHub
         // (The branch is new with random name, so force is safe)
         const pushResult = await $`cd ${tempDir} && git push -f -u origin ${branchName} 2>&1`;
+        
+        if (argv.verbose) {
+          await log(`   Push exit code: ${pushResult.code}`);
+          if (pushResult.stdout) {
+            await log(`   Push output: ${pushResult.stdout.toString().trim()}`);
+          }
+          if (pushResult.stderr) {
+            await log(`   Push stderr: ${pushResult.stderr.toString().trim()}`);
+          }
+        }
         
         if (pushResult.code !== 0) {
           const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
@@ -581,11 +605,28 @@ Issue: ${issueUrl}" 2>&1`;
             await log(`   Warning: Branch not found on GitHub!`);
             await log(`   This will cause PR creation to fail.`);
             
+            if (argv.verbose) {
+              await log(`   Branch check result: ${branchCheckResult.stdout || branchCheckResult.stderr || 'empty'}`);
+              
+              // Show all branches on GitHub
+              const allBranchesResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches --jq '.[].name' 2>&1`;
+              if (allBranchesResult.code === 0) {
+                await log(`   All GitHub branches: ${allBranchesResult.stdout.toString().split('\n').slice(0, 5).join(', ')}...`);
+              }
+            }
+            
             // Try one more force push with explicit refspec
             await log(`   Attempting explicit push...`);
-            const explicitPushResult = await $`cd ${tempDir} && git push origin HEAD:refs/heads/${branchName} -f 2>&1`;
+            const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName} -f`;
+            if (argv.verbose) {
+              await log(`   Command: ${explicitPushCmd}`);
+            }
+            const explicitPushResult = await $`cd ${tempDir} && ${explicitPushCmd} 2>&1`;
             if (explicitPushResult.code === 0) {
               await log(`   Explicit push completed`);
+              if (argv.verbose && explicitPushResult.stdout) {
+                await log(`   Output: ${explicitPushResult.stdout.toString().trim()}`);
+              }
               // Wait a bit more for GitHub to process
               await new Promise(resolve => setTimeout(resolve, 3000));
             } else {
