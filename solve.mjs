@@ -501,14 +501,9 @@ Issue: ${issueUrl}" 2>&1`;
         }
         
         // Push the branch with the CLAUDE.md commit
-        // First try normal push, then force if needed
-        let pushResult = await $`cd ${tempDir} && git push -u origin ${branchName} 2>&1`;
-        
-        // If normal push fails (branch might exist from previous attempt), try force push
-        if (pushResult.code !== 0 && pushResult.stdout && pushResult.stdout.toString().includes('rejected')) {
-          await log(`   First push failed, trying force push...`, { verbose: true });
-          pushResult = await $`cd ${tempDir} && git push -f -u origin ${branchName} 2>&1`;
-        }
+        // Always use force push to ensure our commit gets to GitHub
+        // (The branch is new with random name, so force is safe)
+        const pushResult = await $`cd ${tempDir} && git push -f -u origin ${branchName} 2>&1`;
         
         if (pushResult.code !== 0) {
           const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
@@ -569,45 +564,33 @@ Issue: ${issueUrl}" 2>&1`;
           // CRITICAL: Wait for GitHub to process the push before creating PR
           // This prevents "No commits between branches" error
           await log(`   Waiting for GitHub to sync...`);
-          await new Promise(resolve => setTimeout(resolve, 5000)); // Increase wait time
+          await new Promise(resolve => setTimeout(resolve, 8000)); // Longer wait for GitHub to process
           
-          // Double-check that the commit is on GitHub by checking the remote log
-          const remoteCheckResult = await $({ silent: true })`cd ${tempDir} && git ls-remote origin ${branchName} 2>&1`;
-          if (remoteCheckResult.code === 0) {
-            const remoteRef = remoteCheckResult.stdout.toString().trim();
-            if (remoteRef && remoteRef.length > 0) {
-              const remoteSha = remoteRef.split('\t')[0];
-              await log(`   Remote branch verified: ${remoteSha.substring(0, 7)}...`, { verbose: true });
-              
-              // Also verify our local commit SHA matches
-              const localShaResult = await $({ silent: true })`cd ${tempDir} && git rev-parse HEAD 2>&1`;
-              if (localShaResult.code === 0) {
-                const localSha = localShaResult.stdout.toString().trim();
-                if (localSha.startsWith(remoteSha) || remoteSha.startsWith(localSha)) {
-                  await log(`   Commit successfully pushed to GitHub`, { verbose: true });
-                } else {
-                  await log(`   Warning: Local and remote SHAs don't match!`);
-                  await log(`   Local:  ${localSha.substring(0, 7)}`);
-                  await log(`   Remote: ${remoteSha.substring(0, 7)}`);
-                  await log(`   Attempting to force push...`);
-                  
-                  // Force push to ensure our commit is on the remote
-                  const forcePushResult = await $`cd ${tempDir} && git push -f origin ${branchName} 2>&1`;
-                  if (forcePushResult.code === 0) {
-                    await log(`   Force push successful`);
-                  }
-                }
-              }
+          // Verify the push actually worked by checking GitHub API
+          const branchCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches/${branchName} --jq .name 2>&1`;
+          if (branchCheckResult.code === 0 && branchCheckResult.stdout.toString().trim() === branchName) {
+            await log(`   Branch verified on GitHub: ${branchName}`);
+            
+            // Get the commit SHA from GitHub
+            const shaCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches/${branchName} --jq .commit.sha 2>&1`;
+            if (shaCheckResult.code === 0) {
+              const remoteSha = shaCheckResult.stdout.toString().trim();
+              await log(`   Remote commit SHA: ${remoteSha.substring(0, 7)}...`);
+            }
+          } else {
+            await log(`   Warning: Branch not found on GitHub!`);
+            await log(`   This will cause PR creation to fail.`);
+            
+            // Try one more force push with explicit refspec
+            await log(`   Attempting explicit push...`);
+            const explicitPushResult = await $`cd ${tempDir} && git push origin HEAD:refs/heads/${branchName} -f 2>&1`;
+            if (explicitPushResult.code === 0) {
+              await log(`   Explicit push completed`);
+              // Wait a bit more for GitHub to process
+              await new Promise(resolve => setTimeout(resolve, 3000));
             } else {
-              await log(`   Warning: Remote branch appears empty!`);
-              await log(`   This may cause PR creation to fail.`);
-              
-              // Try to force push again
-              await log(`   Attempting force push to fix...`);
-              const forcePushResult = await $`cd ${tempDir} && git push -f origin ${branchName} 2>&1`;
-              if (forcePushResult.code === 0) {
-                await log(`   Force push successful`);
-              }
+              await log(`   ERROR: Cannot push to GitHub!`);
+              await log(`   Error: ${explicitPushResult.stderr || explicitPushResult.stdout || 'Unknown'}`);
             }
           }
           
