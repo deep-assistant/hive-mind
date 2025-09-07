@@ -254,17 +254,17 @@ try {
   await log(`${formatAligned('✅', 'Cloned to:', tempDir)}`);
   
   // Verify and fix remote configuration
-  const remoteCheckResult = await $`cd ${tempDir} && git remote -v 2>&1`;
+  const remoteCheckResult = await $({ cwd: tempDir })`git remote -v 2>&1`;
   if (!remoteCheckResult.stdout || !remoteCheckResult.stdout.toString().includes('origin')) {
     await log(`   Setting up git remote...`, { verbose: true });
     // Add origin remote manually
-    await $`cd ${tempDir} && git remote add origin https://github.com/${repoToClone}.git 2>&1`;
+    await $({ cwd: tempDir })`git remote add origin https://github.com/${repoToClone}.git 2>&1`;
   }
   
   // If using fork, set up upstream remote
   if (forkedRepo && upstreamRemote) {
     await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
-    const upstreamResult = await $`cd ${tempDir} && git remote add upstream https://github.com/${upstreamRemote}.git`;
+    const upstreamResult = await $({ cwd: tempDir })`git remote add upstream https://github.com/${upstreamRemote}.git`;
     
     if (upstreamResult.code !== 0) {
       await log(`${formatAligned('⚠️', 'Warning:', 'Failed to add upstream remote')}`);
@@ -273,7 +273,7 @@ try {
       
       // Fetch upstream
       await log(`${formatAligned('🔄', 'Fetching upstream...', '')}`);
-      const fetchResult = await $`cd ${tempDir} && git fetch upstream`;
+      const fetchResult = await $({ cwd: tempDir })`git fetch upstream`;
       if (fetchResult.code === 0) {
         await log(`${formatAligned('✅', 'Upstream fetched:', 'Successfully')}`);
       }
@@ -281,13 +281,13 @@ try {
   }
 
   // Set up git authentication using gh
-  const authSetupResult = await $`cd ${tempDir} && gh auth setup-git 2>&1`;
+  const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
   if (authSetupResult.code !== 0) {
     await log('Note: gh auth setup-git had issues, continuing anyway\n');
   }
 
   // Verify we're on the default branch and get its name
-  const defaultBranchResult = await $`cd ${tempDir} && git branch --show-current`;
+  const defaultBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
   
   if (defaultBranchResult.code !== 0) {
     await log(`Error: Failed to get current branch`);
@@ -318,7 +318,7 @@ try {
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
 
   // Ensure we're on a clean default branch
-  const statusResult = await $`cd ${tempDir} && git status --porcelain`;
+  const statusResult = await $({ cwd: tempDir })`git status --porcelain`;
 
   if (statusResult.code !== 0) {
     await log(`Error: Failed to check git status`);
@@ -341,7 +341,7 @@ try {
   
   // IMPORTANT: Don't use 2>&1 here as it can interfere with exit codes
   // Git checkout -b outputs to stderr but that's normal
-  const checkoutResult = await $`cd ${tempDir} && git checkout -b ${branchName}`;
+  const checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName}`;
 
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
@@ -373,7 +373,7 @@ try {
   // CRITICAL: Verify the branch was actually created and we switched to it
   // This is necessary because git checkout -b can sometimes fail silently
   await log(`${formatAligned('🔍', 'Verifying:', 'Branch creation...')}`);
-  const verifyResult = await $`cd ${tempDir} && git branch --show-current`;
+  const verifyResult = await $({ cwd: tempDir })`git branch --show-current`;
   
   if (verifyResult.code !== 0 || !verifyResult.stdout) {
     await log(``);
@@ -404,7 +404,7 @@ try {
     await log(``);
     
     // Show all branches to help debug
-    const allBranchesResult = await $`cd ${tempDir} && git branch -a 2>&1`;
+    const allBranchesResult = await $({ cwd: tempDir })`git branch -a 2>&1`;
     if (allBranchesResult.code === 0) {
       await log(`  🌿 Available branches:`);
       for (const line of allBranchesResult.stdout.toString().split('\n')) {
@@ -467,12 +467,20 @@ Proceed.`;
       
       // Add and commit the file
       await log(formatAligned('📦', 'Adding file:', 'To git staging'));
-      const addResult = await $`cd ${tempDir} && git add CLAUDE.md 2>&1`;
+      
+      // Use explicit cwd option for better reliability
+      const addResult = await $({ cwd: tempDir })`git add CLAUDE.md`;
       
       if (addResult.code !== 0) {
         await log(`❌ Failed to add CLAUDE.md`, { level: 'error' });
         await log(`   Error: ${addResult.stderr ? addResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
         process.exit(1);
+      }
+      
+      // Verify the file was actually staged
+      if (argv.verbose) {
+        const statusResult = await $({ cwd: tempDir })`git status --short`;
+        await log(`   Git status after add: ${statusResult.stdout ? statusResult.stdout.toString().trim() : 'empty'}`);
       }
       
       await log(formatAligned('📝', 'Creating commit:', 'With CLAUDE.md file'));
@@ -482,7 +490,9 @@ Adding CLAUDE.md with task information for AI processing.
 This file will be removed when the task is complete.
 
 Issue: ${issueUrl}`;
-      const commitResult = await $`cd ${tempDir} && git commit -m "${commitMessage}" 2>&1`;
+      
+      // Use explicit cwd option for better reliability
+      const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
       
       if (commitResult.code !== 0) {
         await log(`❌ Failed to create initial commit`, { level: 'error' });
@@ -496,23 +506,23 @@ Issue: ${issueUrl}`;
         }
         
         // Verify commit was created before pushing
-        const verifyCommitResult = await $`cd ${tempDir} && git log --oneline -1 2>&1`;
+        const verifyCommitResult = await $({ cwd: tempDir })`git log --oneline -1 2>&1`;
         if (verifyCommitResult.code === 0) {
           const latestCommit = verifyCommitResult.stdout ? verifyCommitResult.stdout.toString().trim() : '';
           if (argv.verbose) {
             await log(`   Latest commit: ${latestCommit || '(empty - this is a problem!)'}`);
             
             // Show git status
-            const statusResult = await $`cd ${tempDir} && git status --short 2>&1`;
+            const statusResult = await $({ cwd: tempDir })`git status --short 2>&1`;
             await log(`   Git status: ${statusResult.stdout ? statusResult.stdout.toString().trim() || 'clean' : 'clean'}`);
             
             // Show remote info
-            const remoteResult = await $`cd ${tempDir} && git remote -v 2>&1`;
+            const remoteResult = await $({ cwd: tempDir })`git remote -v 2>&1`;
             const remoteOutput = remoteResult.stdout ? remoteResult.stdout.toString().trim() : 'none';
             await log(`   Remotes: ${remoteOutput ? remoteOutput.split('\n')[0] : 'none configured'}`);
             
             // Show branch info
-            const branchResult = await $`cd ${tempDir} && git branch -vv 2>&1`;
+            const branchResult = await $({ cwd: tempDir })`git branch -vv 2>&1`;
             await log(`   Branch info: ${branchResult.stdout ? branchResult.stdout.toString().trim() : 'none'}`);
           }
         }
@@ -531,7 +541,7 @@ Issue: ${issueUrl}`;
         
         // Always use force push to ensure our commit gets to GitHub
         // (The branch is new with random name, so force is safe)
-        const pushResult = await $`cd ${tempDir} && git push -f -u origin ${branchName} 2>&1`;
+        const pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
         
         if (argv.verbose) {
           await log(`   Push exit code: ${pushResult.code}`);
@@ -743,7 +753,7 @@ ${prBody}`, { verbose: true });
             if (argv.fork && forkedRepo) {
               // For forks, specify the full head reference
               const forkUser = forkedRepo.split('/')[0];
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${owner}:${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
               command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
             }
@@ -797,12 +807,12 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
                   
                   // Commit the deletion
-                  const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
+                  const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
                   if (deleteCommitResult.code === 0) {
                     await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
                     
                     // Push the deletion
-                    const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
+                    const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
                     if (pushDeleteResult.code === 0) {
                       await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
                     } else {
