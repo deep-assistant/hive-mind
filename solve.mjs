@@ -91,6 +91,11 @@ const argv = yargs(process.argv.slice(2))
     alias: 'f',
     default: false
   })
+  .option('attach-solution-logs', {
+    type: 'boolean',
+    description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+    default: false
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -100,6 +105,33 @@ const issueUrl = argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
+
+// Show security warning for attach-solution-logs option
+if (argv.attachSolutionLogs) {
+  await log('');
+  await log('⚠️  SECURITY WARNING: --attach-solution-logs is ENABLED', { level: 'warning' });
+  await log('');
+  await log('   This option will upload the complete solution log file to the Pull Request.');
+  await log('   The log may contain sensitive information such as:');
+  await log('   • API keys, tokens, or secrets');
+  await log('   • File paths and directory structures');
+  await log('   • Command outputs and error messages');
+  await log('   • Internal system information');
+  await log('');
+  await log('   ⚠️  DO NOT use this option with public repositories or if the log');
+  await log('       might contain sensitive data that should not be shared publicly.');
+  await log('');
+  await log('   Continuing in 5 seconds... (Press Ctrl+C to abort)');
+  await log('');
+  
+  // Give user time to abort if they realize this might be dangerous
+  for (let i = 5; i > 0; i--) {
+    process.stdout.write(`\r   Countdown: ${i} seconds remaining...`);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  process.stdout.write('\r   Proceeding with log attachment enabled.                    \n');
+  await log('');
+}
 
 // Create permanent log file immediately with timestamp
 const scriptDir = path.dirname(process.argv[1]);
@@ -1509,8 +1541,65 @@ Self review.
           await log(`  ✅ PR is already ready for review`, { verbose: true });
         }
         
+        // Upload log file to PR if requested
+        if (argv.attachSolutionLogs) {
+          await log(`\n📎 Uploading solution log to Pull Request...`);
+          
+          try {
+            // Check if log file exists and is not empty
+            const logStats = await fs.stat(logFile);
+            if (logStats.size === 0) {
+              await log(`  ⚠️  Log file is empty, skipping upload`);
+            } else if (logStats.size > 25 * 1024 * 1024) { // 25MB GitHub limit
+              await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
+            } else {
+              // Read log file content
+              const logContent = await fs.readFile(logFile, 'utf8');
+              
+              // Create a formatted comment with the log file content
+              const logComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI solution process.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB)</summary>
+
+\`\`\`
+${logContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+              // Write comment to temp file
+              const tempLogCommentFile = `/tmp/log-comment-${Date.now()}.md`;
+              await fs.writeFile(tempLogCommentFile, logComment);
+              
+              // Add comment to the PR
+              const commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+              
+              // Clean up temp file
+              await fs.unlink(tempLogCommentFile).catch(() => {});
+              
+              if (commentResult.code === 0) {
+                await log(`  ✅ Solution log uploaded to PR as comment`);
+                await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+              } else {
+                await log(`  ❌ Failed to upload log to PR: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+              }
+            }
+          } catch (uploadError) {
+            await log(`  ❌ Error uploading log file: ${uploadError.message}`);
+          }
+        }
+        
         await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
         await log(`📍 URL: ${pr.url}`);
+        if (argv.attachSolutionLogs) {
+          await log(`📎 Solution log has been attached to the Pull Request`);
+        }
         await log(`\n✨ Please review the pull request for the proposed solution.`);
         process.exit(0);
       } else {
@@ -1541,8 +1630,66 @@ Self review.
     if (newCommentsByUser.length > 0) {
       const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
       await log(`  ✅ Found new comment by ${currentUser}`);
+      
+      // Upload log file to issue if requested
+      if (argv.attachSolutionLogs) {
+        await log(`\n📎 Uploading solution log to issue...`);
+        
+        try {
+          // Check if log file exists and is not empty
+          const logStats = await fs.stat(logFile);
+          if (logStats.size === 0) {
+            await log(`  ⚠️  Log file is empty, skipping upload`);
+          } else if (logStats.size > 25 * 1024 * 1024) { // 25MB GitHub limit
+            await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
+          } else {
+            // Read log file content
+            const logContent = await fs.readFile(logFile, 'utf8');
+            
+            // Create a formatted comment with the log file content
+            const logComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI analysis process.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB)</summary>
+
+\`\`\`
+${logContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+            // Write comment to temp file
+            const tempLogCommentFile = `/tmp/log-comment-issue-${Date.now()}.md`;
+            await fs.writeFile(tempLogCommentFile, logComment);
+            
+            // Add comment to the issue
+            const commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+            
+            // Clean up temp file
+            await fs.unlink(tempLogCommentFile).catch(() => {});
+            
+            if (commentResult.code === 0) {
+              await log(`  ✅ Solution log uploaded to issue as comment`);
+              await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+            } else {
+              await log(`  ❌ Failed to upload log to issue: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+            }
+          }
+        } catch (uploadError) {
+          await log(`  ❌ Error uploading log file: ${uploadError.message}`);
+        }
+      }
+      
       await log(`\n💬 SUCCESS: Comment posted on issue`);
       await log(`📍 URL: ${lastComment.html_url}`);
+      if (argv.attachSolutionLogs) {
+        await log(`📎 Solution log has been attached to the issue`);
+      }
       await log(`\n✨ A clarifying comment has been added to the issue.`);
       process.exit(0);
     } else if (allComments.length > 0) {
