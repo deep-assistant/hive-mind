@@ -1094,7 +1094,8 @@ Preparing pull request.
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
    - When you code, follow contributing guidelines.  
    - When you commit, write clear message.  
-   - When you open pr, describe solution and include tests.${prUrl ? `
+   - When you open pr, describe solution and include tests.
+   - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.${prUrl ? `
    - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
    - When you finish implementation, use gh pr ready ${prNumber || prUrl}.` : ''}  
 
