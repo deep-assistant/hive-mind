@@ -22,8 +22,5 @@ echo "🔄 Verify GitHub login status"
 gh auth status
 
 # --- Claude restore ---
-# Restore from Gist
-claude-profiles --restore gitpod
-
-# Start watching for local changes, to reupload them if they exist
-claude-profiles --watch gitpod --skip-projects --verbose --log
+# Restore from Gist and start watching for local changes, to reupload them if they exist
+claude-profiles --restore gitpod --watch gitpod --skip-projects --verbose --log
