@@ -1452,6 +1452,47 @@ Self review.
       
       if (isPrFromSession) {
         await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
+        
+        // Check if PR body has proper issue linking keywords
+        const prBodyResult = await $`gh pr view ${pr.number} --repo ${owner}/${repo} --json body --jq .body`;
+        if (prBodyResult.code === 0) {
+          const prBody = prBodyResult.stdout.toString();
+          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
+          
+          // Check if any linking keywords exist (case-insensitive)
+          const linkingKeywords = ['fixes', 'closes', 'resolves', 'fix', 'close', 'resolve'];
+          const hasLinkingKeyword = linkingKeywords.some(keyword => {
+            const regex = new RegExp(`\\b${keyword}\\s+${issueRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            return regex.test(prBody);
+          });
+          
+          if (!hasLinkingKeyword) {
+            // No linking keyword found, update PR to add it
+            await log(`  ⚠️  PR doesn't have issue linking keyword, adding it...`);
+            
+            // Prepend "Resolves #issueNumber" with separator
+            const updatedBody = `Resolves ${issueRef}\n\n---\n\n${prBody}`;
+            
+            // Write updated body to temp file
+            const tempBodyFile = `/tmp/pr-body-fix-${Date.now()}.md`;
+            await fs.writeFile(tempBodyFile, updatedBody);
+            
+            // Update the PR
+            const updateResult = await $`gh pr edit ${pr.number} --repo ${owner}/${repo} --body-file "${tempBodyFile}"`;
+            
+            // Clean up temp file
+            await fs.unlink(tempBodyFile).catch(() => {});
+            
+            if (updateResult.code === 0) {
+              await log(`  ✅ Added issue linking to PR`);
+            } else {
+              await log(`  ⚠️  Could not update PR body to add issue link`);
+            }
+          } else {
+            await log(`  ✅ PR already has proper issue linking`, { verbose: true });
+          }
+        }
+        
         await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
         await log(`📍 URL: ${pr.url}`);
         await log(`\n✨ Please review the pull request for the proposed solution.`);
