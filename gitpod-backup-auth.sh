@@ -16,7 +16,7 @@ ls -R -a /workspace/.persisted-configs/gh
 
 # --- Claude backup ---
 # Store to Gist
-claude-profiles --store gitpod
+claude-profiles --store gitpod --skip-projects
 
 # Start watching for local changes, to reupload them if they exist
 # claude-profiles --watch gitpod
