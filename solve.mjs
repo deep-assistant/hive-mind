@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+const fetchFn = typeof fetch !== 'undefined' ? fetch : globalThis.fetch;
+const { use } = eval(await (await fetchFn('https://unpkg.com/use-m/use.js')).text());
 
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
