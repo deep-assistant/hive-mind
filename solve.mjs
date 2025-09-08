@@ -1470,8 +1470,8 @@ Self review.
             // No linking keyword found, update PR to add it
             await log(`  ⚠️  PR doesn't have issue linking keyword, adding it...`);
             
-            // Prepend "Resolves #issueNumber" with separator
-            const updatedBody = `Resolves ${issueRef}\n\n---\n\n${prBody}`;
+            // Append "Resolves #issueNumber" with separator
+            const updatedBody = `${prBody}\n\n---\n\nResolves ${issueRef}`;
             
             // Write updated body to temp file
             const tempBodyFile = `/tmp/pr-body-fix-${Date.now()}.md`;
