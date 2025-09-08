@@ -1429,7 +1429,7 @@ Self review.
     await log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
 
     // First, get all PRs from our branch
-    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state,updatedAt`;
+    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state,updatedAt,isDraft`;
     
     if (allBranchPrsResult.code !== 0) {
       await log('  ⚠️  Failed to check pull requests');
@@ -1491,6 +1491,21 @@ Self review.
           } else {
             await log(`  ✅ PR already has proper issue linking`, { verbose: true });
           }
+        }
+        
+        // Check if PR is in draft state and convert to ready if needed
+        if (pr.isDraft) {
+          await log(`  ⚠️  PR is in draft state, converting to ready for review...`);
+          
+          const readyResult = await $`gh pr ready ${pr.number} --repo ${owner}/${repo}`;
+          
+          if (readyResult.code === 0) {
+            await log(`  ✅ PR converted to ready for review`);
+          } else {
+            await log(`  ⚠️  Could not convert PR to ready (${readyResult.stderr ? readyResult.stderr.toString().trim() : 'unknown error'})`);
+          }
+        } else {
+          await log(`  ✅ PR is already ready for review`, { verbose: true });
         }
         
         await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
