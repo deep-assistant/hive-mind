@@ -151,19 +151,76 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
-// Validate GitHub issue URL format
-if (!issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/)) {
-  await log('Error: Please provide a valid GitHub issue URL (e.g., https://github.com/owner/repo/issues/123)', { level: 'error' });
+// Validate GitHub issue or pull request URL format
+const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
+const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
+
+if (!isIssueUrl && !isPrUrl) {
+  await log('Error: Please provide a valid GitHub issue or pull request URL', { level: 'error' });
+  await log('  Examples:', { level: 'error' });
+  await log('    https://github.com/owner/repo/issues/123 (issue)', { level: 'error' });
+  await log('    https://github.com/owner/repo/pull/456 (pull request)', { level: 'error' });
   process.exit(1);
 }
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
-// Extract repository and issue number from URL
+// Extract repository and number from URL
 const urlParts = issueUrl.split('/');
 const owner = urlParts[3];
 const repo = urlParts[4];
-const issueNumber = urlParts[6];
+const urlNumber = urlParts[6]; // Could be issue or PR number
+
+// Determine mode and get issue details
+let issueNumber;
+let prNumber;
+let prBranch;
+let isContinueMode = false;
+
+if (isPrUrl) {
+  isContinueMode = true;
+  prNumber = urlNumber;
+  
+  await log(`🔄 Continue mode: Working with PR #${prNumber}`);
+  
+  // Get PR details to find the linked issue and branch
+  try {
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number`;
+    
+    if (prResult.code !== 0) {
+      await log('Error: Failed to get PR details', { level: 'error' });
+      await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+      process.exit(1);
+    }
+    
+    const prData = JSON.parse(prResult.stdout.toString());
+    prBranch = prData.headRefName;
+    
+    await log(`📝 PR branch: ${prBranch}`);
+    
+    // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
+    const prBody = prData.body || '';
+    const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
+    
+    if (issueMatch) {
+      issueNumber = issueMatch[1];
+      await log(`🔗 Found linked issue #${issueNumber}`);
+    } else {
+      // If no linked issue found, we can still continue but warn
+      await log('⚠️  Warning: No linked issue found in PR body', { level: 'warning' });
+      await log('   The PR should contain "Fixes #123" or similar to link an issue', { level: 'warning' });
+      // Set issueNumber to PR number as fallback
+      issueNumber = prNumber;
+    }
+  } catch (error) {
+    await log(`Error: Failed to process PR: ${error.message}`, { level: 'error' });
+    process.exit(1);
+  }
+} else {
+  // Traditional issue mode
+  issueNumber = urlNumber;
+  await log(`📝 Issue mode: Working with issue #${issueNumber}`);
+}
 
 // Create or find temporary directory for cloning the repository
 let tempDir;
@@ -366,45 +423,97 @@ try {
     process.exit(1);
   }
 
-  // Create a branch for the issue
-  const randomHex = crypto.randomBytes(4).toString('hex');
-  const branchName = `issue-${issueNumber}-${randomHex}`;
-  await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
+  // Create a branch for the issue or checkout existing PR branch
+  let branchName;
+  let checkoutResult;
   
-  // IMPORTANT: Don't use 2>&1 here as it can interfere with exit codes
-  // Git checkout -b outputs to stderr but that's normal
-  const checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName}`;
+  if (isContinueMode && prBranch) {
+    // Continue mode: checkout existing PR branch
+    branchName = prBranch;
+    await log(`\n${formatAligned('🔄', 'Checking out PR branch:', branchName)}`);
+    
+    // First fetch all branches from remote
+    await log(`${formatAligned('📥', 'Fetching branches:', 'From remote...')}`);
+    const fetchResult = await $({ cwd: tempDir })`git fetch origin`;
+    
+    if (fetchResult.code !== 0) {
+      await log('Warning: Failed to fetch branches from remote', { level: 'warning' });
+    }
+    
+    // Checkout the PR branch (it might exist locally or remotely)
+    const localBranchResult = await $({ cwd: tempDir })`git show-ref --verify --quiet refs/heads/${branchName}`;
+    
+    if (localBranchResult.code === 0) {
+      // Branch exists locally
+      checkoutResult = await $({ cwd: tempDir })`git checkout ${branchName}`;
+    } else {
+      // Branch doesn't exist locally, try to checkout from remote
+      checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName} origin/${branchName}`;
+    }
+  } else {
+    // Traditional mode: create new branch for issue
+    const randomHex = crypto.randomBytes(4).toString('hex');
+    branchName = `issue-${issueNumber}-${randomHex}`;
+    await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
+    
+    // IMPORTANT: Don't use 2>&1 here as it can interfere with exit codes
+    // Git checkout -b outputs to stderr but that's normal
+    checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName}`;
+  }
 
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
     await log(``);
-    await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
-    await log(`     Unable to create branch '${branchName}'.`);
-    await log(``);
-    await log(`  📦 Git output:`);
-    for (const line of errorOutput.split('\n')) {
-      await log(`     ${line}`);
+    
+    if (isContinueMode) {
+      await log(`${formatAligned('❌', 'BRANCH CHECKOUT FAILED', '')}`, { level: 'error' });
+      await log(``);
+      await log(`  🔍 What happened:`);
+      await log(`     Unable to checkout PR branch '${branchName}'.`);
+      await log(``);
+      await log(`  📦 Git output:`);
+      for (const line of errorOutput.split('\n')) {
+        await log(`     ${line}`);
+      }
+      await log(``);
+      await log(`  💡 Possible causes:`);
+      await log(`     • PR branch doesn't exist on remote`);
+      await log(`     • Network connectivity issues`);
+      await log(`     • Permission denied to fetch branches`);
+      await log(``);
+      await log(`  🔧 How to fix:`);
+      await log(`     1. Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
+      await log(`     2. Check remote branches: cd ${tempDir} && git branch -r`);
+      await log(`     3. Try fetching manually: cd ${tempDir} && git fetch origin`);
+    } else {
+      await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
+      await log(``);
+      await log(`  🔍 What happened:`);
+      await log(`     Unable to create branch '${branchName}'.`);
+      await log(``);
+      await log(`  📦 Git output:`);
+      for (const line of errorOutput.split('\n')) {
+        await log(`     ${line}`);
+      }
+      await log(``);
+      await log(`  💡 Possible causes:`);
+      await log(`     • Branch name already exists`);
+      await log(`     • Uncommitted changes in repository`);
+      await log(`     • Git configuration issues`);
+      await log(``);
+      await log(`  🔧 How to fix:`);
+      await log(`     1. Try running the command again (uses random names)`);
+      await log(`     2. Check git status: cd ${tempDir} && git status`);
+      await log(`     3. View existing branches: cd ${tempDir} && git branch -a`);
     }
-    await log(``);
-    await log(`  💡 Possible causes:`);
-    await log(`     • Branch name already exists`);
-    await log(`     • Uncommitted changes in repository`);
-    await log(`     • Git configuration issues`);
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Try running the command again (uses random names)`);
-    await log(`     2. Check git status: cd ${tempDir} && git status`);
-    await log(`     3. View existing branches: cd ${tempDir} && git branch -a`);
+    
     await log(``);
     await log(`  📂 Working directory: ${tempDir}`);
     process.exit(1);
   }
   
-  // CRITICAL: Verify the branch was actually created and we switched to it
-  // This is necessary because git checkout -b can sometimes fail silently
-  await log(`${formatAligned('🔍', 'Verifying:', 'Branch creation...')}`);
+  // CRITICAL: Verify the branch was checked out and we switched to it
+  await log(`${formatAligned('🔍', 'Verifying:', isContinueMode ? 'Branch checkout...' : 'Branch creation...')}`);
   const verifyResult = await $({ cwd: tempDir })`git branch --show-current`;
   
   if (verifyResult.code !== 0 || !verifyResult.stdout) {
@@ -412,7 +521,7 @@ try {
     await log(`${formatAligned('❌', 'BRANCH VERIFICATION FAILED', '')}`, { level: 'error' });
     await log(``);
     await log(`  🔍 What happened:`);
-    await log(`     Unable to verify branch after creation attempt.`);
+    await log(`     Unable to verify branch after ${isContinueMode ? 'checkout' : 'creation'} attempt.`);
     await log(``);
     await log(`  🔧 Debug commands to try:`);
     await log(`     cd ${tempDir} && git branch -a`);
@@ -423,15 +532,19 @@ try {
   
   const actualBranch = verifyResult.stdout.toString().trim();
   if (actualBranch !== branchName) {
-    // Branch wasn't actually created or we didn't switch to it
+    // Branch wasn't actually created/checked out or we didn't switch to it
     await log(``);
-    await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
+    await log(`${formatAligned('❌', isContinueMode ? 'BRANCH CHECKOUT FAILED' : 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
     await log(``);
     await log(`  🔍 What happened:`);
-    await log(`     Git checkout -b command didn't create or switch to the branch.`);
+    if (isContinueMode) {
+      await log(`     Git checkout command didn't switch to the PR branch.`);
+    } else {
+      await log(`     Git checkout -b command didn't create or switch to the branch.`);
+    }
     await log(``);
     await log(`  📊 Branch status:`);
-    await log(`     Attempted to create: ${branchName}`);
+    await log(`     Expected branch: ${branchName}`);
     await log(`     Currently on: ${actualBranch || '(unknown)'}`);
     await log(``);
     
@@ -445,46 +558,81 @@ try {
       await log(``);
     }
     
-    await log(`  💡 This is unusual. Possible causes:`);
-    await log(`     • Git version incompatibility`);
-    await log(`     • File system permissions issue`);
-    await log(`     • Repository corruption`);
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Try creating the branch manually:`);
-    await log(`        cd ${tempDir}`);
-    await log(`        git checkout -b ${branchName}`);
-    await log(`     `);
-    await log(`     2. If that fails, try two-step approach:`);
-    await log(`        cd ${tempDir}`);
-    await log(`        git branch ${branchName}`);
-    await log(`        git checkout ${branchName}`);
-    await log(`     `);
-    await log(`     3. Check your git version:`);
-    await log(`        git --version`);
+    if (isContinueMode) {
+      await log(`  💡 This might mean:`);
+      await log(`     • PR branch doesn't exist on remote`);
+      await log(`     • Branch name mismatch`);
+      await log(`     • Network/permission issues`);
+      await log(``);
+      await log(`  🔧 How to fix:`);
+      await log(`     1. Check PR details: gh pr view ${prNumber} --repo ${owner}/${repo}`);
+      await log(`     2. List remote branches: cd ${tempDir} && git branch -r`);
+      await log(`     3. Try manual checkout: cd ${tempDir} && git checkout ${branchName}`);
+    } else {
+      await log(`  💡 This is unusual. Possible causes:`);
+      await log(`     • Git version incompatibility`);
+      await log(`     • File system permissions issue`);
+      await log(`     • Repository corruption`);
+      await log(``);
+      await log(`  🔧 How to fix:`);
+      await log(`     1. Try creating the branch manually:`);
+      await log(`        cd ${tempDir}`);
+      await log(`        git checkout -b ${branchName}`);
+      await log(`     `);
+      await log(`     2. If that fails, try two-step approach:`);
+      await log(`        cd ${tempDir}`);
+      await log(`        git branch ${branchName}`);
+      await log(`        git checkout ${branchName}`);
+      await log(`     `);
+      await log(`     3. Check your git version:`);
+      await log(`        git --version`);
+    }
     await log(``);
     await log(`  📂 Working directory: ${tempDir}`);
     await log(``);
     process.exit(1);
   }
   
-  await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
-  await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
+  if (isContinueMode) {
+    await log(`${formatAligned('✅', 'Branch checked out:', branchName)}`);
+    await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
+  } else {
+    await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
+    await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
+  }
 
   // Initialize PR variables and prompt early
   let prUrl = null;
-  let prNumber = null;
+  let prNumberForNewPR = null;
   
-  // Build the prompt (will be updated with PR URL later if created)
-  let prompt = `Issue to solve: ${issueUrl}
+  // In continue mode, we already have the PR details
+  if (isContinueMode) {
+    prUrl = issueUrl; // The input URL is the PR URL
+    // prNumber is already set from earlier when we parsed the PR
+  }
+  
+  // Build the prompt (different for continue vs regular mode)
+  let prompt;
+  if (isContinueMode) {
+    prompt = `Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}
+Your prepared branch: ${branchName}
+Your prepared working directory: ${tempDir}
+Your prepared Pull Request: ${prUrl}${argv.fork && forkedRepo ? `
+Your forked repository: ${forkedRepo}
+Original repository (upstream): ${owner}/${repo}` : ''}
+
+Continue.`;
+  } else {
+    prompt = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
+  }
   
-  if (argv.autoPullRequestCreation) {
+  if (argv.autoPullRequestCreation && !isContinueMode) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
     await log(`     Creating:               Initial commit and draft PR...`);
     await log('');
@@ -1076,6 +1224,10 @@ ${prBody}`, { verbose: true });
       await log(`Warning: Error during auto PR creation: ${prError.message}`, { level: 'warning' });
       await log(`   Continuing without PR...`);
     }
+  } else if (isContinueMode) {
+    await log(`\n${formatAligned('🔄', 'Continue mode:', 'ACTIVE')}`);
+    await log(formatAligned('', 'Using existing PR:', `#${prNumber}`, 2));
+    await log(formatAligned('', 'PR URL:', prUrl, 2));
   } else {
     await log(`\n${formatAligned('⏭️', 'Auto PR creation:', 'DISABLED')}`);
     await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
@@ -1103,11 +1255,22 @@ General guidelines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
    - When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
    - When testing your assumptions, use the example scripts.
-   - When you face something extremely hard, use divide and conquer — it always helps.
+   - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
+
+Continue mode context.
+   - This is CONTINUE MODE - you are working with an existing pull request #${prNumber}.
+   - Check all changes from the last commit to understand current progress.
+   - Review the pull request title and description to understand the current approach.
+   - Check for new comments on the pull request for additional feedback or requirements.
+   - Look at the issue context and any linked discussions.
+   - Check if CI workflows failed and investigate the failure logs.
+   - Look for any explicit feedback from users in PR comments or issue updates.
+   - Consider what has already been implemented vs what still needs to be done.
+   - Build upon existing work rather than starting from scratch.` : ''}
 
 Initial research.  
    - When you read issue, read all details and comments thoroughly.  
-   - When you need issue details, use gh issue view ${issueUrl}.  
+   - When you need issue details, use gh issue view ${isContinueMode && issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : issueUrl}.  
    - When you need related code, use gh search code --owner ${owner} [keywords].  
    - When you need repo context, read files in ${tempDir}.  
    - When you study related work, study related previous latest pull requests.  
