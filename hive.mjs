@@ -46,6 +46,19 @@ const log = async (message, options = {}) => {
   }
 };
 
+// Helper function to clean up error messages for better user experience
+const cleanErrorMessage = (error) => {
+  let message = error.message || error.toString();
+  
+  // Remove common noise from error messages
+  message = message.split('\n')[0]; // Take only first line
+  message = message.replace(/^Command failed: /, ''); // Remove "Command failed: " prefix
+  message = message.replace(/^Error: /, ''); // Remove redundant "Error: " prefix
+  message = message.replace(/^\/bin\/sh: \d+: /, ''); // Remove shell path info
+  
+  return message;
+};
+
 // Configure command line arguments
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <github-url> [options]')
@@ -135,7 +148,7 @@ logFile = path.join(scriptDir, `hive-${timestamp}.log`);
 // Create the log file immediately
 await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
-await log(`   (All output will be logged here)\n`);
+await log(`   (All output will be logged here)`);
 
 // Parse GitHub URL to determine organization, repository, or user
 let scope = 'repository';
@@ -254,6 +267,9 @@ class IssueQueue {
 // Create global queue instance
 const issueQueue = new IssueQueue();
 
+// Global shutdown state to prevent duplicate shutdown messages
+let isShuttingDown = false;
+
 // Worker function to process issues from queue
 async function worker(workerId) {
   await log(`🔧 Worker ${workerId} started`, { verbose: true });
@@ -318,7 +334,7 @@ async function worker(workerId) {
           await new Promise(resolve => setTimeout(resolve, 10000));
         }
       } catch (error) {
-        await log(`   ❌ Worker ${workerId} failed on ${issueUrl}: ${error.message}`, { level: 'error' });
+        await log(`   ❌ Worker ${workerId} failed on ${issueUrl}: ${cleanErrorMessage(error)}`, { level: 'error' });
         issueQueue.markFailed(issueUrl);
         break; // Stop trying more PRs for this issue
       }
@@ -359,7 +375,7 @@ async function hasOpenPullRequests(issueUrl) {
     return false;
   } catch (error) {
     // If we can't check, assume no PRs
-    await log(`      ↳ Could not check for PRs: ${error.message.split('\n')[0]}`, { verbose: true });
+    await log(`      ↳ Could not check for PRs: ${cleanErrorMessage(error)}`, { verbose: true });
     return false;
   }
 }
@@ -407,7 +423,7 @@ async function fetchIssues() {
           const output = execSync(listCmd, { encoding: 'utf8' });
           issues = JSON.parse(output || '[]');
         } catch (listError) {
-          await log(`   ⚠️  List failed: ${listError.message.split('\n')[0]}`, { verbose: true });
+          await log(`   ⚠️  List failed: ${cleanErrorMessage(listError)}`, { verbose: true });
           issues = [];
         }
       } else {
@@ -438,7 +454,7 @@ async function fetchIssues() {
           const output = execSync(searchCmd, { encoding: 'utf8' });
           issues = JSON.parse(output || '[]');
         } catch (searchError) {
-          await log(`   ⚠️  Search failed: ${searchError.message.split('\n')[0]}`, { verbose: true });
+          await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
           issues = [];
         }
       }
@@ -498,7 +514,7 @@ async function fetchIssues() {
     return issuesToProcess.map(issue => issue.url);
     
   } catch (error) {
-    await log(`   ❌ Error fetching issues: ${error.message}`, { level: 'error' });
+    await log(`   ❌ Error fetching issues: ${cleanErrorMessage(error)}`, { level: 'error' });
     return [];
   }
 }
@@ -576,25 +592,50 @@ async function monitor() {
   await log(`\n👋 Hive Mind monitoring stopped`);
 }
 
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  await log('\n\n🛑 Received interrupt signal, shutting down gracefully...');
-  issueQueue.stop();
-  await Promise.all(issueQueue.workers);
+// Graceful shutdown handler
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    return; // Prevent duplicate shutdown messages
+  }
+  isShuttingDown = true;
+  
+  try {
+    await log(`\n\n🛑 Received ${signal} signal, shutting down gracefully...`);
+    
+    // Stop the queue and wait for workers to finish
+    issueQueue.stop();
+    
+    // Give workers a moment to finish their current tasks
+    const stats = issueQueue.getStats();
+    if (stats.processing > 0) {
+      await log(`   ⏳ Waiting for ${stats.processing} worker(s) to finish current tasks...`);
+      
+      // Wait up to 10 seconds for workers to finish
+      const maxWaitTime = 10000;
+      const startTime = Date.now();
+      while (issueQueue.getStats().processing > 0 && (Date.now() - startTime) < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    await Promise.all(issueQueue.workers);
+    await log(`   ✅ Shutdown complete`);
+    
+  } catch (error) {
+    await log(`   ⚠️  Error during shutdown: ${cleanErrorMessage(error)}`, { level: 'error' });
+  }
+  
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', async () => {
-  await log('\n\n🛑 Received termination signal, shutting down gracefully...');
-  issueQueue.stop();
-  await Promise.all(issueQueue.workers);
-  process.exit(0);
-});
+// Handle graceful shutdown
+process.on('SIGINT', () => gracefulShutdown('interrupt'));
+process.on('SIGTERM', () => gracefulShutdown('termination'));
 
 // Start monitoring
 try {
   await monitor();
 } catch (error) {
-  await log(`\n❌ Fatal error: ${error.message}`, { level: 'error' });
+  await log(`\n❌ Fatal error: ${cleanErrorMessage(error)}`, { level: 'error' });
   process.exit(1);
 }
