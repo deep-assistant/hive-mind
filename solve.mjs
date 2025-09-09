@@ -1233,8 +1233,8 @@ ${prBody}`, { verbose: true });
     await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
   }
 
-  // Update prompt with PR URL if it was created
-  if (prUrl) {
+  // Update prompt with PR URL if it was created (but not for continue mode since we already set it)
+  if (prUrl && !isContinueMode) {
     prompt = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}
