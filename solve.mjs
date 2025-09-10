@@ -46,6 +46,59 @@ const log = async (message, options = {}) => {
   }
 };
 
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    // Get disk space for current directory
+    const result = await $`df -m .`;
+    const output = result.stdout.toString();
+    
+    // Parse df output - format: Filesystem 1M-blocks Used Available Use% Mounted on
+    const lines = output.trim().split('\n');
+    if (lines.length < 2) {
+      throw new Error('Unable to parse df output');
+    }
+    
+    // Get the data line (skip header)
+    const dataLine = lines[1].trim().split(/\s+/);
+    const availableMB = parseInt(dataLine[3], 10);
+    
+    if (isNaN(availableMB)) {
+      throw new Error('Unable to parse available disk space');
+    }
+    
+    return {
+      availableMB,
+      hasEnoughSpace: availableMB >= minSpaceMB,
+      requiredMB: minSpaceMB
+    };
+  } catch (error) {
+    // Fallback: if df fails, try with alternative approach
+    try {
+      const result = await $`df -BM . | tail -1 | awk '{print $4}' | sed 's/M//'`;
+      const availableMB = parseInt(result.stdout.toString().trim(), 10);
+      
+      if (isNaN(availableMB)) {
+        throw new Error('Unable to determine disk space');
+      }
+      
+      return {
+        availableMB,
+        hasEnoughSpace: availableMB >= minSpaceMB,
+        requiredMB: minSpaceMB
+      };
+    } catch (fallbackError) {
+      await log(`Warning: Unable to check disk space: ${error.message}`, { level: 'warning' });
+      // Assume enough space if we can't check
+      return {
+        availableMB: -1,
+        hasEnoughSpace: true,
+        requiredMB: minSpaceMB
+      };
+    }
+  }
+};
+
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <issue-url> [options]')
@@ -95,6 +148,11 @@ const argv = yargs(process.argv.slice(2))
     type: 'boolean',
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
     default: false
+  })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum free disk space in MB required to proceed (default: 500)',
+    default: 500
   })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
@@ -220,6 +278,32 @@ if (isPrUrl) {
   // Traditional issue mode
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
+}
+
+// Check disk space before proceeding
+await log(`\n💾 Checking disk space...`);
+const diskSpaceCheck = await checkDiskSpace(argv.minDiskSpace);
+
+if (diskSpaceCheck.availableMB >= 0) {
+  await log(`   Available: ${diskSpaceCheck.availableMB} MB`);
+  await log(`   Required: ${diskSpaceCheck.requiredMB} MB`);
+}
+
+if (!diskSpaceCheck.hasEnoughSpace) {
+  await log(`\n❌ Insufficient disk space!`, { level: 'error' });
+  if (diskSpaceCheck.availableMB >= 0) {
+    await log(`   Available: ${diskSpaceCheck.availableMB} MB`, { level: 'error' });
+    await log(`   Required: ${diskSpaceCheck.requiredMB} MB`, { level: 'error' });
+  }
+  await log(`\n   This could prevent successful pull request creation.`, { level: 'error' });
+  await log(`   Use --min-disk-space to adjust the threshold.`, { level: 'error' });
+  process.exit(1);
+}
+
+if (diskSpaceCheck.availableMB >= 0) {
+  await log(`   ✅ Sufficient disk space available`);
+} else {
+  await log(`   ⚠️  Could not determine disk space, proceeding anyway`, { level: 'warning' });
 }
 
 // Create or find temporary directory for cloning the repository
