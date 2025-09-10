@@ -108,6 +108,8 @@ git config --global user.name "$(gh api user --jq .login)"
 git config --global user.email "$(gh api user/emails --jq '.[] | select(.primary==true).email')"
 gh auth setup-git
 
+(cd ~ && git clone https://github.com/deep-assistant/hive-mind)
+
 EOF_HIVE
 
 echo "[*] Setup complete."
