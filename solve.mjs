@@ -96,6 +96,11 @@ const argv = yargs(process.argv.slice(2))
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
     default: false
   })
+  .option('auto-continue', {
+    type: 'boolean',
+    description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
+    default: false
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -176,6 +181,56 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let isContinueMode = false;
+
+// Auto-continue logic: check for existing PRs if --auto-continue is enabled
+if (argv.autoContinue && isIssueUrl) {
+  issueNumber = urlNumber;
+  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
+  
+  try {
+    // Get all PRs linked to this issue
+    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
+    
+    if (prListResult.code === 0) {
+      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
+      
+      if (prs.length > 0) {
+        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
+        
+        // Find PRs that are older than 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        for (const pr of prs) {
+          const createdAt = new Date(pr.createdAt);
+          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
+          
+          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
+          
+          // Check if this PR is older than 24 hours and not closed
+          if (createdAt < twentyFourHoursAgo && pr.state === 'OPEN') {
+            await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+            
+            // Switch to continue mode
+            isContinueMode = true;
+            prNumber = pr.number;
+            prBranch = pr.headRefName;
+            break;
+          }
+        }
+        
+        if (!isContinueMode) {
+          await log(`⏭️  No PRs older than 24 hours found - creating new PR as usual`);
+        }
+      } else {
+        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
+      }
+    }
+  } catch (prSearchError) {
+    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
+    await log(`   Continuing with normal flow...`);
+  }
+}
 
 if (isPrUrl) {
   isContinueMode = true;
