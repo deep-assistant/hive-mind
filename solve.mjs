@@ -983,31 +983,7 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
                 }
                 
-                // Remove CLAUDE.md now that PR is successfully created
-                // We need to commit and push the deletion so it's reflected in the PR
-                try {
-                  await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                  await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                  
-                  // Commit the deletion
-                  const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                  if (deleteCommitResult.code === 0) {
-                    await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                    
-                    // Push the deletion
-                    const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-                    if (pushDeleteResult.code === 0) {
-                      await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                    } else {
-                      await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                    }
-                  } else {
-                    await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                  }
-                } catch (e) {
-                  // File might not exist or already removed, that's fine
-                  await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-                }
+                // CLAUDE.md will be removed after Claude command completes
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
                 await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
@@ -1085,31 +1061,7 @@ ${prBody}`, { verbose: true });
                 await log(formatAligned('📍', 'PR URL:', prUrl));
               }
               
-              // Remove CLAUDE.md after successful PR creation
-              // We need to commit and push the deletion so it's reflected in the PR
-              try {
-                await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                
-                // Commit the deletion
-                const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                if (deleteCommitResult.code === 0) {
-                  await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                  
-                  // Push the deletion
-                  const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
-                  if (pushDeleteResult.code === 0) {
-                    await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                  } else {
-                    await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                  }
-                } else {
-                  await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                }
-              } catch (e) {
-                // File might not exist, that's fine
-                await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-              }
+              // CLAUDE.md will be removed after Claude command completes
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
@@ -1579,6 +1531,32 @@ Self review.
 
   await log('\n\n✅ Claude command completed');
   await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
+  
+  // Remove CLAUDE.md now that Claude command has finished
+  // We need to commit and push the deletion so it's reflected in the PR
+  try {
+    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
+    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+    
+    // Commit the deletion
+    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
+    if (deleteCommitResult.code === 0) {
+      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+      
+      // Push the deletion
+      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+      if (pushDeleteResult.code === 0) {
+        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+      } else {
+        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+      }
+    } else {
+      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+    }
+  } catch (e) {
+    // File might not exist or already removed, that's fine
+    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
+  }
 
   // Show summary of session and log file
   await log('\n=== Session Summary ===');
