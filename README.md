@@ -12,3 +12,8 @@ It is also should be possible to connect this AI to collective human intelligenc
 Meaning this system may communicate with humans for requirements, expertice, feedback.
 
 The HIVE MIND.
+
+Ubuntu 24.04 server installation:
+```bash
+curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
+```
