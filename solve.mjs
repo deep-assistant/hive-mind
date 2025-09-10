@@ -96,6 +96,12 @@ const argv = yargs(process.argv.slice(2))
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
     default: false
   })
+  .option('auto-continue', {
+    type: 'boolean',
+    description: 'Automatically continue when Claude limit resets (waits until reset time)',
+    default: false,
+    alias: 'c'
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -149,6 +155,111 @@ const formatAligned = (icon, label, value, indent = 0) => {
   const labelWidth = 25 - indent;
   const paddedLabel = label.padEnd(labelWidth, ' ');
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
+};
+
+// Helper function to parse time string and calculate wait time
+const parseResetTime = (timeStr) => {
+  // Parse time format like "5:30am" or "11:45pm"
+  const match = timeStr.match(/(\d{1,2}):(\d{2})([ap]m)/i);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+  
+  const [, hourStr, minuteStr, ampm] = match;
+  let hour = parseInt(hourStr);
+  const minute = parseInt(minuteStr);
+  
+  // Convert to 24-hour format
+  if (ampm.toLowerCase() === 'pm' && hour !== 12) {
+    hour += 12;
+  } else if (ampm.toLowerCase() === 'am' && hour === 12) {
+    hour = 0;
+  }
+  
+  return { hour, minute };
+};
+
+// Calculate milliseconds until the next occurrence of the specified time
+const calculateWaitTime = (resetTime) => {
+  const { hour, minute } = parseResetTime(resetTime);
+  
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(hour, minute, 0, 0);
+  
+  // If the time has already passed today, schedule for tomorrow
+  if (today <= now) {
+    today.setDate(today.getDate() + 1);
+  }
+  
+  return today.getTime() - now.getTime();
+};
+
+// Auto-continue function that waits until limit resets
+const autoContinueWhenLimitResets = async (issueUrl, sessionId, tempDir) => {
+  try {
+    const resetTime = global.limitResetTime;
+    const waitMs = calculateWaitTime(resetTime);
+    
+    await log(`\n⏰ Waiting until ${resetTime} for limit to reset...`);
+    await log(`   Wait time: ${Math.round(waitMs / (1000 * 60))} minutes`);
+    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
+    
+    // Show countdown every 30 minutes for long waits, every minute for short waits
+    const countdownInterval = waitMs > 30 * 60 * 1000 ? 30 * 60 * 1000 : 60 * 1000;
+    let remainingMs = waitMs;
+    
+    const countdownTimer = setInterval(async () => {
+      remainingMs -= countdownInterval;
+      if (remainingMs > 0) {
+        const remainingMinutes = Math.round(remainingMs / (1000 * 60));
+        await log(`⏳ ${remainingMinutes} minutes remaining until ${resetTime}`);
+      }
+    }, countdownInterval);
+    
+    // Wait until reset time
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    clearInterval(countdownTimer);
+    
+    await log(`\n✅ Limit reset time reached! Resuming session...`);
+    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
+    
+    // Recursively call the solve script with --resume
+    // We need to reconstruct the command with appropriate flags
+    const childProcess = await import('child_process');
+    
+    // Build the resume command
+    const resumeArgs = [
+      process.argv[1], // solve.mjs path
+      issueUrl,
+      '--resume', sessionId,
+      '--auto-continue' // Keep auto-continue enabled
+    ];
+    
+    // Preserve other flags from original invocation
+    if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
+    if (argv.verbose) resumeArgs.push('--verbose');
+    if (argv.fork) resumeArgs.push('--fork');
+    if (argv.attachSolutionLogs) resumeArgs.push('--attach-solution-logs');
+    
+    await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
+    
+    // Execute the resume command
+    const child = childProcess.spawn('node', resumeArgs, {
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    
+    child.on('close', (code) => {
+      process.exit(code);
+    });
+    
+  } catch (error) {
+    await log(`\n❌ Auto-continue failed: ${error.message}`, { level: 'error' });
+    await log(`\n🔄 Manual resume command:`);
+    await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+    process.exit(1);
+  }
 };
 
 // Validate GitHub issue or pull request URL format
@@ -1530,8 +1641,26 @@ Self review.
           for (const item of json.message.content) {
             if (item.type === 'text' && item.text) {
               lastMessage = item.text.substring(0, 100); // First 100 chars
-              if (item.text.includes('limit reached')) {
+              
+              // Enhanced limit detection with auto-continue support
+              const text = item.text;
+              if (text.includes('limit reached')) {
                 limitReached = true;
+                
+                // Look for the specific pattern with reset time (improved to catch more variations)
+                const resetPattern = /(\d+)[-\s]hour\s+limit\s+reached.*?resets?\s*(?:at\s+)?(\d{1,2}:\d{2}[ap]m)/i;
+                const match = text.match(resetPattern);
+                
+                if (match) {
+                  const [, hours, resetTime] = match;
+                  // Store the reset time for auto-continue functionality
+                  global.limitResetTime = resetTime;
+                  global.limitHours = hours;
+                  await log(`\n🔍 Detected ${hours}-hour limit reached, resets at ${resetTime}`, { verbose: true });
+                } else {
+                  // Fallback for generic limit messages
+                  await log(`\n🔍 Generic limit reached detected`, { verbose: true });
+                }
               }
             }
           }
@@ -1589,9 +1718,21 @@ Self review.
 
     if (limitReached) {
       await log(`\n⏰ LIMIT REACHED DETECTED!`);
-      await log(`\n🔄 To resume when limit resets, use:\n`);
-      await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-      await log(`\n   This will continue from where it left off with full context.\n`);
+      
+      if (argv.autoContinue && global.limitResetTime) {
+        await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
+        await autoContinueWhenLimitResets(issueUrl, sessionId, tempDir);
+      } else {
+        await log(`\n🔄 To resume when limit resets, use:\n`);
+        await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+        
+        if (global.limitResetTime) {
+          await log(`\n💡 Or enable auto-continue to wait until ${global.limitResetTime}:\n`);
+          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue`);
+        }
+        
+        await log(`\n   This will continue from where it left off with full context.\n`);
+      }
     } else {
       // Show command to resume session in interactive mode
       await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
@@ -1879,8 +2020,8 @@ ${logContent}
   await log('Error executing command:', error.message);
   process.exit(1);
 } finally {
-  // Clean up temporary directory (but not when resuming or when limit reached)
-  if (!argv.resume && !limitReached) {
+  // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
+  if (!argv.resume && !limitReached && !(argv.autoContinue && global.limitResetTime)) {
     try {
       process.stdout.write('\n🧹 Cleaning up...');
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -1890,6 +2031,8 @@ ${logContent}
     }
   } else if (argv.resume) {
     await log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
+  } else if (limitReached && argv.autoContinue) {
+    await log(`\n📁 Keeping directory for auto-continue: ${tempDir}`);
   } else if (limitReached) {
     await log(`\n📁 Keeping directory for future resume: ${tempDir}`);
   }
