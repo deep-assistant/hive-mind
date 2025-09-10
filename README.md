@@ -13,7 +13,14 @@ Meaning this system may communicate with humans for requirements, expertice, fee
 
 The HIVE MIND.
 
-Ubuntu 24.04 server installation:
+## Find all `claude --resume` commands in hive logs
+
+```bash
+grep -E '\(cd /tmp/gh-issue-solver-[0-9]+ && claude --resume [0-9a-f-]{36}\)' hive-*.log
+```
+
+## Ubuntu 24.04 server installation
+
 ```bash
 curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
 ```
