@@ -1554,6 +1554,26 @@ Self review.
 
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
+      
+      // Check for critical errors that should cause failure
+      const criticalErrorPatterns = [
+        'ENOSPC: no space left on device',
+        'npm error code ENOSPC',
+        'Command failed:',
+        'Error:',
+        'error code',
+        'errno -28'
+      ];
+      
+      const isCriticalError = criticalErrorPatterns.some(pattern => 
+        data.toLowerCase().includes(pattern.toLowerCase())
+      );
+      
+      if (isCriticalError) {
+        commandFailed = true;
+        await log(`\n❌ Critical error detected in stderr: ${data}`, { level: 'error' });
+      }
+      
       // Only show actual errors, not verbose output
       if (data.includes('Error') || data.includes('error')) {
         await log(`\n⚠️  ${data}`, { level: 'error' });
