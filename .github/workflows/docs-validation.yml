@@ -1,0 +1,50 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Make check script executable
+      run: chmod +x check-doc-limits.sh
+      
+    - name: Check file size limits
+      run: ./check-doc-limits.sh
+      
+    - name: Validate examples are executable
+      run: |
+        cd examples
+        for file in *.mjs; do
+          if [ -f "$file" ]; then
+            echo "Testing $file..."
+            node "$file"
+          fi
+        done
+        
+    - name: Check for working code examples
+      run: |
+        echo "🔍 Verifying all code examples run without errors..."
+        find examples/ -name "*.mjs" -exec node {} \;
+        echo "✅ All examples executed successfully"
+        
+    - name: Validate README structure
+      run: |
+        echo "📋 Checking README structure..."
+        grep -q "Quick Start" README.md || { echo "❌ Missing Quick Start section"; exit 1; }
+        grep -q "Architecture" README.md || { echo "❌ Missing Architecture section"; exit 1; }
+        grep -q "Configuration" README.md || { echo "❌ Missing Configuration section"; exit 1; }
+        echo "✅ README structure is valid"
