@@ -29,12 +29,15 @@ apt_update_safe() {
 apt_cleanup() {
   echo "[*] Cleaning up apt cache..."
   sudo apt-get clean
+  sudo apt-get autoclean
+  sudo apt-get autoremove
   sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 }
 
 # --- Ensure prerequisites ---
 apt_update_safe
-sudo apt install -y wget curl unzip git sudo ca-certificates gnupg
+
+sudo apt install -y wget curl unzip git sudo ca-certificates gnupg dotnet-sdk-8.0
 apt_cleanup
 
 # --- Switch to hive user for language tools and gh setup ---
