@@ -70,7 +70,7 @@ fi
 # --- Run interactive GitHub login ---
 if ! gh auth status &>/dev/null; then
   echo "[*] Launching GitHub auth login..."
-  gh auth login -s user
+  gh auth login -h github.com -s repo,workflow,user,read:org,gist
 fi
 
 # --- Bun ---
