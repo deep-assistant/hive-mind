@@ -156,6 +156,18 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
+// Helper function to check if CLAUDE.md exists in a PR branch
+const checkClaudeMdInBranch = async (owner, repo, branchName) => {
+  try {
+    // Use GitHub CLI to check if CLAUDE.md exists in the branch
+    const result = await $`gh api repos/${owner}/${repo}/contents/CLAUDE.md?ref=${branchName}`;
+    return result.code === 0;
+  } catch (error) {
+    // If file doesn't exist or there's an error, CLAUDE.md doesn't exist
+    return false;
+  }
+};
+
 // Validate GitHub issue or pull request URL format
 const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
 const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
@@ -207,20 +219,35 @@ if (argv.autoContinue && isIssueUrl) {
           
           await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
           
-          // Check if this PR is older than 24 hours and not closed
-          if (createdAt < twentyFourHoursAgo && pr.state === 'OPEN') {
-            await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+          // Check if PR is open (not closed)
+          if (pr.state === 'OPEN') {
+            // Check if CLAUDE.md exists in this PR branch
+            const claudeMdExists = await checkClaudeMdInBranch(owner, repo, pr.headRefName);
             
-            // Switch to continue mode
-            isContinueMode = true;
-            prNumber = pr.number;
-            prBranch = pr.headRefName;
-            break;
+            if (!claudeMdExists) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
+              
+              // Switch to continue mode immediately (don't wait 24 hours if CLAUDE.md is missing)
+              isContinueMode = true;
+              prNumber = pr.number;
+              prBranch = pr.headRefName;
+              break;
+            } else if (createdAt < twentyFourHoursAgo) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+              
+              // Switch to continue mode
+              isContinueMode = true;
+              prNumber = pr.number;
+              prBranch = pr.headRefName;
+              break;
+            } else {
+              await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
+            }
           }
         }
         
         if (!isContinueMode) {
-          await log(`⏭️  No PRs older than 24 hours found - creating new PR as usual`);
+          await log(`⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual`);
         }
       } else {
         await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
