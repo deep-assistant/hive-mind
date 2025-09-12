@@ -254,6 +254,85 @@ await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
+// Helper function to check GitHub permissions and warn about missing scopes
+const checkGitHubPermissions = async () => {
+  try {
+    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    
+    // Get auth status including token scopes
+    const authStatusResult = await $`gh auth status 2>&1`;
+    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
+    
+    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
+      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
+      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      return false;
+    }
+    
+    await log(`✅ GitHub authentication: OK`);
+    
+    // Parse the auth status output to extract token scopes
+    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
+    if (!scopeMatch) {
+      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      return true; // Continue despite not being able to check scopes
+    }
+    
+    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
+    const scopeString = scopeMatch[1];
+    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
+    await log(`📋 Token scopes: ${scopes.join(', ')}`);
+    
+    // Check for important scopes and warn if missing
+    const warnings = [];
+    
+    if (!scopes.includes('workflow')) {
+      warnings.push({
+        scope: 'workflow',
+        issue: 'Cannot push changes to .github/workflows/ directory',
+        solution: 'Run: gh auth refresh -h github.com -s workflow'
+      });
+    }
+    
+    if (!scopes.includes('repo')) {
+      warnings.push({
+        scope: 'repo',
+        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
+        solution: 'Run: gh auth refresh -h github.com -s repo'
+      });
+    }
+    
+    // Display warnings
+    if (warnings.length > 0) {
+      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      
+      for (const warning of warnings) {
+        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
+        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
+        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
+      }
+      
+      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
+      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+    } else {
+      await log(`✅ All required permissions: Available`);
+    }
+    
+    return true;
+  } catch (error) {
+    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
+    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    return true; // Continue despite permission check failure
+  }
+};
+
+// Check GitHub permissions early in the process
+const hasValidAuth = await checkGitHubPermissions();
+if (!hasValidAuth) {
+  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  process.exit(1);
+}
+
 // Parse GitHub URL to determine organization, repository, or user
 let scope = 'repository';
 let owner = null;
