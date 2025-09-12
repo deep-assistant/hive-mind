@@ -1761,14 +1761,27 @@ Proceed.`;
         const lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
         await log(formatAligned('📅', 'Last commit time:', lastCommitTime.toISOString(), 2));
 
-        // Count new PR comments after last commit
-        const prCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
-        if (prCommentsResult.code === 0) {
-          const prComments = JSON.parse(prCommentsResult.stdout.toString());
-          newPrComments = prComments.filter(comment => 
-            new Date(comment.created_at) > lastCommitTime
-          ).length;
+        // Count new PR comments after last commit (both code review comments and conversation comments)
+        let prReviewComments = [];
+        let prConversationComments = [];
+        
+        // Get PR code review comments
+        const prReviewCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
+        if (prReviewCommentsResult.code === 0) {
+          prReviewComments = JSON.parse(prReviewCommentsResult.stdout.toString());
         }
+        
+        // Get PR conversation comments (PR is also an issue)
+        const prConversationCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${prNumber}/comments`;
+        if (prConversationCommentsResult.code === 0) {
+          prConversationComments = JSON.parse(prConversationCommentsResult.stdout.toString());
+        }
+        
+        // Combine and count all PR comments after last commit
+        const allPrComments = [...prReviewComments, ...prConversationComments];
+        newPrComments = allPrComments.filter(comment => 
+          new Date(comment.created_at) > lastCommitTime
+        ).length;
 
         // Count new issue comments after last commit
         const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
@@ -1836,7 +1849,9 @@ Initial research.
    - When you study related work, study related previous latest pull requests.  
    - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
    - When issue is not defined enough, write a comment to ask clarifying questions.
-   - When you need latest comments on pull request (sorted newest first), use: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
+   - When you need latest comments on pull request (sorted newest first), use:
+     * For PR conversation comments: gh api repos/${owner}/${repo}/issues/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
+     * For PR code review comments: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
    - When you need latest comments on issue (sorted newest first), use: gh api repos/${owner}/${repo}/issues/{issue_number}/comments --jq 'sort_by(.created_at) | reverse'  
 
 Solution development and testing.  
