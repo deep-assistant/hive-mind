@@ -15,6 +15,28 @@ const crypto = (await use('crypto')).default;
 // Import Wikifunctions skills for enhanced AI capabilities
 const { WikifunctionsSkills } = await import('./wikifunctions-skills.mjs');
 
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
+    const availableMB = parseInt(stdout.toString().replace('M', ''));
+    
+    if (availableMB < minSpaceMB) {
+      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
+      await log('   This may prevent successful pull request creation.', { level: 'error' });
+      await log('   Please free up disk space and try again.', { level: 'error' });
+      return false;
+    }
+    
+    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
 // Global log file reference
 let logFile = null;
 
@@ -142,6 +164,11 @@ const argv = yargs(process.argv.slice(2))
     type: 'boolean',
     description: 'List available Wikifunctions AI skills and exit',
     default: false
+  })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum required disk space in MB (default: 500)',
+    default: 500
   })
   .demandCommand(1, 'GitHub URL is required')
   .help('h')
@@ -712,6 +739,12 @@ async function gracefulShutdown(signal) {
 // Handle graceful shutdown
 process.on('SIGINT', () => gracefulShutdown('interrupt'));
 process.on('SIGTERM', () => gracefulShutdown('termination'));
+
+// Check disk space before starting monitoring
+const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
+if (!hasEnoughSpace) {
+  process.exit(1);
+}
 
 // Start monitoring
 try {
