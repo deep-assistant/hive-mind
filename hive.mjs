@@ -329,6 +329,9 @@ async function worker(workerId) {
 
     await log(`\n👷 Worker ${workerId} processing: ${issueUrl}`);
     
+    // Track if this issue failed
+    let issueFailed = false;
+    
     // Process the issue multiple times if needed
     for (let prNum = 1; prNum <= argv.pullRequestsPerIssue; prNum++) {
       if (argv.pullRequestsPerIssue > 1) {
@@ -380,11 +383,15 @@ async function worker(workerId) {
       } catch (error) {
         await log(`   ❌ Worker ${workerId} failed on ${issueUrl}: ${cleanErrorMessage(error)}`, { level: 'error' });
         issueQueue.markFailed(issueUrl);
+        issueFailed = true;
         break; // Stop trying more PRs for this issue
       }
     }
     
-    issueQueue.markCompleted(issueUrl);
+    // Only mark as completed if it didn't fail
+    if (!issueFailed) {
+      issueQueue.markCompleted(issueUrl);
+    }
     
     // Show queue stats
     const stats = issueQueue.getStats();
