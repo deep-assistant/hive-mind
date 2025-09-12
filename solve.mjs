@@ -1370,6 +1370,8 @@ Solution development and testing.
    - When you test integrations, use existing framework.  
    - When you test solution, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
+   - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
+   - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
 
 Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
