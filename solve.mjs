@@ -548,7 +548,7 @@ let mergeStateStatus;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
-if (argv.autoContinueLimit && isIssueUrl) {
+if (argv.autoContinue && isIssueUrl) {
   issueNumber = urlNumber;
   await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
   
@@ -2116,8 +2116,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
         
         if (global.limitResetTime) {
-          await log(`\n💡 Or enable auto-continue to wait until ${global.limitResetTime}:\n`);
-          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue`);
+          await log(`\n💡 Or enable auto-continue-limit to wait until ${global.limitResetTime}:\n`);
+          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
         }
         
         await log(`\n   This will continue from where it left off with full context.\n`);
