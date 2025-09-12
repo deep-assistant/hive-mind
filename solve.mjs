@@ -15,6 +15,28 @@ const crypto = (await use('crypto')).default;
 // Global log file reference
 let logFile = null;
 
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
+    const availableMB = parseInt(stdout.toString().replace('M', ''));
+    
+    if (availableMB < minSpaceMB) {
+      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
+      await log('   This may prevent successful pull request creation.', { level: 'error' });
+      await log('   Please free up disk space and try again.', { level: 'error' });
+      return false;
+    }
+    
+    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -44,6 +66,135 @@ const log = async (message, options = {}) => {
       console.log(message);
       break;
   }
+};
+
+// Helper function to mask GitHub tokens in text
+const maskGitHubToken = (token) => {
+  if (!token || token.length < 12) {
+    return token; // Don't mask very short strings
+  }
+  
+  const start = token.substring(0, 5);
+  const end = token.substring(token.length - 5);
+  const middle = '*'.repeat(Math.max(token.length - 10, 3));
+  
+  return start + middle + end;
+};
+
+// Helper function to get GitHub tokens from local config files
+const getGitHubTokensFromFiles = async () => {
+  const tokens = [];
+  
+  try {
+    // Check ~/.config/gh/hosts.yml
+    const hostsFile = path.join(os.homedir(), '.config/gh/hosts.yml');
+    if (await fs.access(hostsFile).then(() => true).catch(() => false)) {
+      const hostsContent = await fs.readFile(hostsFile, 'utf8');
+      
+      // Look for oauth_token and api_token patterns
+      const oauthMatches = hostsContent.match(/oauth_token:\s*([^\s\n]+)/g);
+      if (oauthMatches) {
+        for (const match of oauthMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+      
+      const apiMatches = hostsContent.match(/api_token:\s*([^\s\n]+)/g);
+      if (apiMatches) {
+        for (const match of apiMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore file access errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to get GitHub tokens from gh command output
+const getGitHubTokensFromCommand = async () => {
+  const tokens = [];
+  
+  try {
+    // Run gh auth status to get token info
+    const authResult = await $`gh auth status 2>&1`.catch(() => ({ stdout: '', stderr: '' }));
+    const authOutput = authResult.stdout?.toString() + authResult.stderr?.toString() || '';
+    
+    // Look for token patterns in the output
+    const tokenPatterns = [
+      /(?:token|oauth|api)[:\s]*([a-zA-Z0-9_]{20,})/gi,
+      /gh[pou]_[a-zA-Z0-9_]{20,}/gi
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      const matches = authOutput.match(pattern);
+      if (matches) {
+        for (let match of matches) {
+          // Clean up the match
+          const token = match.replace(/^(?:token|oauth|api)[:\s]*/, '').trim();
+          if (token && token.length >= 20 && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore command errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to sanitize log content by masking GitHub tokens
+const sanitizeLogContent = async (logContent) => {
+  let sanitized = logContent;
+  
+  try {
+    // Get tokens from both sources
+    const fileTokens = await getGitHubTokensFromFiles();
+    const commandTokens = await getGitHubTokensFromCommand();
+    const allTokens = [...new Set([...fileTokens, ...commandTokens])];
+    
+    // Mask each token found
+    for (const token of allTokens) {
+      if (token && token.length >= 12) {
+        const maskedToken = maskGitHubToken(token);
+        // Use global replace to mask all occurrences
+        sanitized = sanitized.split(token).join(maskedToken);
+      }
+    }
+    
+    // Also look for and mask common GitHub token patterns directly in the log
+    const tokenPatterns = [
+      /gh[pou]_[a-zA-Z0-9_]{20,}/g,
+      /(?:^|[\s:=])([a-f0-9]{40})(?=[\s\n]|$)/gm, // 40-char hex tokens (like personal access tokens)
+      /(?:^|[\s:=])([a-zA-Z0-9_]{20,})(?=[\s\n]|$)/gm // General long tokens
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      sanitized = sanitized.replace(pattern, (match, token) => {
+        if (token && token.length >= 20) {
+          return match.replace(token, maskGitHubToken(token));
+        }
+        return match;
+      });
+    }
+    
+    await log(`  🔒 Sanitized ${allTokens.length} detected GitHub tokens in log content`, { verbose: true });
+    
+  } catch (error) {
+    await log(`  ⚠️  Warning: Could not fully sanitize log content: ${error.message}`, { verbose: true });
+  }
+  
+  return sanitized;
 };
 
 // Configure command line arguments - GitHub issue URL as positional argument
@@ -94,12 +245,18 @@ const argv = yargs(process.argv.slice(2))
   .option('attach-solution-logs', {
     type: 'boolean',
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-    default: false
+    default: false,
+    alias: 'attach-logs'
   })
   .option('auto-continue', {
     type: 'boolean',
     description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
     default: false
+  })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum required disk space in MB (default: 500)',
+    default: 500
   })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
@@ -148,6 +305,12 @@ await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`)
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
+// Check disk space before proceeding
+const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
+if (!hasEnoughSpace) {
+  process.exit(1);
+}
+
 // Helper function to format aligned console output
 const formatAligned = (icon, label, value, indent = 0) => {
   const spaces = ' '.repeat(indent);
@@ -168,6 +331,84 @@ const checkClaudeMdInBranch = async (owner, repo, branchName) => {
   }
 };
 
+// Helper function to check GitHub permissions and warn about missing scopes
+const checkGitHubPermissions = async () => {
+  try {
+    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    
+    // Get auth status including token scopes
+    const authStatusResult = await $`gh auth status 2>&1`;
+    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
+    
+    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
+      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
+      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      return false;
+    }
+    
+    await log(`✅ GitHub authentication: OK`);
+    
+    // Parse the auth status output to extract token scopes
+    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
+    if (!scopeMatch) {
+      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      return true; // Continue despite not being able to check scopes
+    }
+    
+    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
+    const scopeString = scopeMatch[1];
+    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
+    await log(`📋 Token scopes: ${scopes.join(', ')}`);
+    
+    // Check for important scopes and warn if missing
+    const warnings = [];
+    
+    if (!scopes.includes('workflow')) {
+      warnings.push({
+        scope: 'workflow',
+        issue: 'Cannot push changes to .github/workflows/ directory',
+        solution: 'Run: gh auth refresh -h github.com -s workflow'
+      });
+    }
+    
+    if (!scopes.includes('repo')) {
+      warnings.push({
+        scope: 'repo',
+        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
+        solution: 'Run: gh auth refresh -h github.com -s repo'
+      });
+    }
+    
+    // Display warnings
+    if (warnings.length > 0) {
+      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      
+      for (const warning of warnings) {
+        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
+        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
+        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
+      }
+      
+      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
+      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+    } else {
+      await log(`✅ All required permissions: Available`);
+    }
+    
+    return true;
+  } catch (error) {
+    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
+    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    return true; // Continue despite permission check failure
+  }
+};
+
+// Check GitHub permissions early in the process
+const hasValidAuth = await checkGitHubPermissions();
+if (!hasValidAuth) {
+  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  process.exit(1);
+}
 // Validate GitHub issue or pull request URL format
 const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
 const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
@@ -1291,16 +1532,21 @@ General guidelines.
    - When testing your assumptions, use the example scripts.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
-Continue mode context.
-   - This is CONTINUE MODE - you are working with an existing pull request #${prNumber}.
-   - Check all changes from the last commit to understand current progress.
-   - Review the pull request title and description to understand the current approach.
-   - Check for new comments on the pull request for additional feedback or requirements.
-   - Look at the issue context and any linked discussions.
-   - Check if CI workflows failed and investigate the failure logs.
-   - Look for any explicit feedback from users in PR comments or issue updates.
-   - Consider what has already been implemented vs what still needs to be done.
-   - Build upon existing work rather than starting from scratch.` : ''}
+Continue mode.
+   - When you are working on existing pull request #${prNumber}:
+     * Review the pull request title and description to understand the current approach, and continue building upon existing work.
+     * Make sure you use gh pr diff to see actual changes.
+     * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
+     * Look at the issue context of that pull request and any linked discussions.
+     * When pull request is out of sync with default branch, make sure you resolve any conflicts to apply original changes.
+     * Look at the issue context and any linked discussions.
+     * Explore codebase for best coding style and practices on similar changes.
+     * Check all changes from the last commit to understand current progress.
+     * Check for new comments on the pull request for additional feedback or requirements.
+     * Look for any explicit feedback from users in PR comments or issue updates.
+     * Consider what has already been implemented vs what still needs to be done.
+     * Consider any mismatch in requirements with original issue or the pull request description.
+     * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
 
 Initial research.  
    - When you read issue, read all details and comments thoroughly.  
@@ -1318,6 +1564,8 @@ Solution development and testing.
    - When you test integrations, use existing framework.  
    - When you test solution, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
+   - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
+   - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
 
 Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
@@ -1334,7 +1582,7 @@ Workflow and collaboration.
    - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
    - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}${argv.fork && forkedRepo ? `
    - When you create pr, use --repo ${owner}/${repo} to create PR against original repo.` : ''}  
-   - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
+   - When you organize workflow, use pull requests instead of direct merges to default branch (main or master).  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
    - When you face conflict, ask for help.  
@@ -1634,6 +1882,64 @@ Self review.
   await log('\n\n✅ Claude command completed');
   await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
   
+  // Check for and commit any uncommitted changes made by Claude
+  await log('\n🔍 Checking for uncommitted changes...');
+  try {
+    // Check git status to see if there are any uncommitted changes
+    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+    
+    if (gitStatusResult.code === 0) {
+      const statusOutput = gitStatusResult.stdout.toString().trim();
+      
+      if (statusOutput) {
+        // There are uncommitted changes - log them and commit automatically
+        await log(formatAligned('📝', 'Found changes:', 'Uncommitted files detected'));
+        
+        // Show what files have changes
+        const changedFiles = statusOutput.split('\n').map(line => line.trim()).filter(line => line);
+        for (const file of changedFiles) {
+          await log(formatAligned('', '', `  ${file}`, 2));
+        }
+        
+        // Stage all changes
+        const gitAddResult = await $({ cwd: tempDir })`git add . 2>&1`;
+        if (gitAddResult.code === 0) {
+          await log(formatAligned('📦', 'Staged:', 'All changes added to git'));
+          
+          // Commit with a descriptive message
+          const commitMessage = `Auto-commit changes made by Claude
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+          
+          const gitCommitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}" 2>&1`;
+          if (gitCommitResult.code === 0) {
+            await log(formatAligned('✅', 'Committed:', 'Changes automatically committed'));
+            
+            // Push the changes to remote
+            const gitPushResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+            if (gitPushResult.code === 0) {
+              await log(formatAligned('📤', 'Pushed:', 'Changes synced to GitHub'));
+            } else {
+              await log(`⚠️ Warning: Could not push auto-committed changes: ${gitPushResult.stderr.toString().trim()}`, { level: 'warning' });
+            }
+          } else {
+            await log(`⚠️ Warning: Could not commit changes: ${gitCommitResult.stderr.toString().trim()}`, { level: 'warning' });
+          }
+        } else {
+          await log(`⚠️ Warning: Could not stage changes: ${gitAddResult.stderr.toString().trim()}`, { level: 'warning' });
+        }
+      } else {
+        await log(formatAligned('✅', 'No changes:', 'Repository is clean'));
+      }
+    } else {
+      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
+    }
+  } catch (gitError) {
+    await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+  }
+  
   // Remove CLAUDE.md now that Claude command has finished
   // We need to commit and push the deletion so it's reflected in the PR
   try {
@@ -1797,7 +2103,11 @@ Self review.
               await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
             } else {
               // Read log file content
-              const logContent = await fs.readFile(logFile, 'utf8');
+              const rawLogContent = await fs.readFile(logFile, 'utf8');
+              
+              // Sanitize log content to mask GitHub tokens
+              await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+              const logContent = await sanitizeLogContent(rawLogContent);
               
               // Create a formatted comment with the log file content
               const logComment = `## 🤖 Solution Log
@@ -1887,7 +2197,11 @@ ${logContent}
             await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
           } else {
             // Read log file content
-            const logContent = await fs.readFile(logFile, 'utf8');
+            const rawLogContent = await fs.readFile(logFile, 'utf8');
+            
+            // Sanitize log content to mask GitHub tokens
+            await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+            const logContent = await sanitizeLogContent(rawLogContent);
             
             // Create a formatted comment with the log file content
             const logComment = `## 🤖 Solution Log
