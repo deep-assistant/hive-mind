@@ -1476,7 +1476,8 @@ General guidelines.
 Continue mode.
    - When you are working on existing pull request #${prNumber}:
      * Review the pull request title and description to understand the current approach, and continue building upon existing work.
-     * Make sure you use gh pr diff.
+     * Make sure you use gh pr diff to see actual changes.
+     * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
      * Look at the issue context of that pull request and any linked discussions.
      * When pull request is out of sync with main branch, make sure you resolve any conflicts to apply original changes.
      * Look at the issue context and any linked discussions.
