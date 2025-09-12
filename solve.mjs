@@ -15,6 +15,28 @@ const crypto = (await use('crypto')).default;
 // Global log file reference
 let logFile = null;
 
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
+    const availableMB = parseInt(stdout.toString().replace('M', ''));
+    
+    if (availableMB < minSpaceMB) {
+      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
+      await log('   This may prevent successful pull request creation.', { level: 'error' });
+      await log('   Please free up disk space and try again.', { level: 'error' });
+      return false;
+    }
+    
+    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -231,6 +253,11 @@ const argv = yargs(process.argv.slice(2))
     description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
     default: false
   })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum required disk space in MB (default: 500)',
+    default: 500
+  })
   .demandCommand(1, 'The GitHub issue URL is required')
   .help('h')
   .alias('h', 'help')
@@ -277,6 +304,12 @@ logFile = path.join(scriptDir, `solve-${timestamp}.log`);
 await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
+
+// Check disk space before proceeding
+const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
+if (!hasEnoughSpace) {
+  process.exit(1);
+}
 
 // Helper function to format aligned console output
 const formatAligned = (icon, label, value, indent = 0) => {
