@@ -1781,14 +1781,18 @@ Proceed.`;
 
         await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
         await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
+        
+        if (newPrComments > 0 || newIssueComments > 0) {
+          await log(formatAligned('🚨', 'ACTION REQUIRED:', 'New comments detected and will be highlighted in system prompt', 2));
+        }
 
         // Build comment info for system prompt
         const commentLines = [];
         if (newPrComments > 0) {
-          commentLines.push(`New comments on the pull request: ${newPrComments}`);
+          commentLines.push(`🚨 IMPORTANT: There are ${newPrComments} new comments on the pull request since your last commit. You MUST read and address them before proceeding.`);
         }
         if (newIssueComments > 0) {
-          commentLines.push(`New comments on the issue: ${newIssueComments}`);
+          commentLines.push(`🚨 IMPORTANT: There are ${newIssueComments} new comments on the issue since your last commit. You MUST read and address them before proceeding.`);
         }
         
         if (commentLines.length > 0) {
@@ -1814,6 +1818,7 @@ General guidelines.
 
 Continue mode.
    - When you are working on existing pull request #${prNumber}:
+     * FIRST PRIORITY: If there are new comments (indicated above), read them immediately using the commands provided below and address all feedback before continuing with any other work.
      * Review the pull request title and description to understand the current approach, and continue building upon existing work.
      * Make sure you use gh pr diff to see actual changes.
      * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
