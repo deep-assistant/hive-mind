@@ -876,7 +876,44 @@ const validateClaudeConnection = async () => {
   try {
     await log(`🔍 Validating Claude CLI connection...`);
     
-    const result = await $`timeout 30 claude -p hi`;
+    // First try a quick validation approach
+    try {
+      // Check if Claude CLI is installed and get version
+      const versionResult = await $`timeout 10 claude --version`;
+      if (versionResult.code === 0) {
+        const version = versionResult.stdout?.toString().trim();
+        await log(`📦 Claude CLI version: ${version}`);
+      }
+    } catch (versionError) {
+      // Version check failed, but we'll continue with the main validation
+      await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
+    }
+    
+    let result;
+    try {
+      // Primary validation: try with 30 second timeout
+      result = await $`timeout 30 claude -p hi`;
+    } catch (timeoutError) {
+      if (timeoutError.code === 124) {
+        // Timeout occurred - try with longer timeout as fallback
+        await log(`⚠️  Initial validation timed out after 30s, trying with extended timeout...`);
+        try {
+          result = await $`timeout 90 claude -p hi`;
+        } catch (extendedTimeoutError) {
+          if (extendedTimeoutError.code === 124) {
+            await log(`❌ Claude CLI timed out even after 90 seconds`, { level: 'error' });
+            await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
+            await log(`   💡 Try running 'claude -p hi' manually to verify it works`, { level: 'error' });
+            return false;
+          }
+          // Re-throw if it's not a timeout error
+          throw extendedTimeoutError;
+        }
+      } else {
+        // Re-throw if it's not a timeout error
+        throw timeoutError;
+      }
+    }
     
     // Check for common error patterns
     const stdout = result.stdout?.toString() || '';
@@ -901,12 +938,15 @@ const validateClaudeConnection = async () => {
     
     const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
     
-    if (result.code !== 0) {
+    // Use exitCode if code is undefined (Bun shell behavior)
+    const exitCode = result.code ?? result.exitCode ?? 0;
+    
+    if (exitCode !== 0) {
       // Command failed
       if (jsonError) {
         await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
       } else {
-        await log(`❌ Claude CLI failed with exit code ${result.code}`, { level: 'error' });
+        await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
         if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
       }
       
