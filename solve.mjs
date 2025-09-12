@@ -325,7 +325,6 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
-<<<<<<< HEAD
 // Helper function to parse time string and calculate wait time
 const parseResetTime = (timeStr) => {
   // Parse time format like "5:30am" or "11:45pm"
