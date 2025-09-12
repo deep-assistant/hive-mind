@@ -526,14 +526,8 @@ async function fetchIssues() {
       await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
     }
     
-    // Apply max issues limit if set
-    let issuesToProcess = issues;
-    if (argv.maxIssues > 0 && issues.length > argv.maxIssues) {
-      issuesToProcess = issues.slice(0, argv.maxIssues);
-      await log(`   🔢 Limiting to first ${argv.maxIssues} issues`);
-    }
-    
     // Filter out issues with open PRs if option is enabled
+    let issuesToProcess = issues;
     if (argv.skipIssuesWithPrs) {
       await log(`   🔍 Checking for existing pull requests...`);
       const filteredIssues = [];
@@ -552,6 +546,12 @@ async function fetchIssues() {
         await log(`   ⏭️  Skipped ${skippedCount} issue(s) with existing pull requests`);
       }
       issuesToProcess = filteredIssues;
+    }
+    
+    // Apply max issues limit if set (after filtering to exclude skipped issues from count)
+    if (argv.maxIssues > 0 && issuesToProcess.length > argv.maxIssues) {
+      issuesToProcess = issuesToProcess.slice(0, argv.maxIssues);
+      await log(`   🔢 Limiting to first ${argv.maxIssues} issues (after filtering)`);
     }
     
     // In dry-run mode, show the issues that would be processed
