@@ -197,6 +197,72 @@ const sanitizeLogContent = async (logContent) => {
   return sanitized;
 };
 
+// Function to validate Claude CLI connection
+const validateClaudeConnection = async () => {
+  try {
+    await log(`🔍 Validating Claude CLI connection...`);
+    
+    const result = await $`timeout 30 claude -p hi`;
+    
+    // Check for common error patterns
+    const stdout = result.stdout?.toString() || '';
+    const stderr = result.stderr?.toString() || '';
+    
+    // Check for JSON errors in stdout or stderr
+    const checkForJsonError = (text) => {
+      try {
+        // Look for JSON error patterns
+        if (text.includes('"error"') && text.includes('"type"')) {
+          const jsonMatch = text.match(/\{.*"error".*\}/);
+          if (jsonMatch) {
+            const errorObj = JSON.parse(jsonMatch[0]);
+            return errorObj.error;
+          }
+        }
+      } catch (e) {
+        // Not valid JSON, continue with other checks
+      }
+      return null;
+    };
+    
+    const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
+    
+    if (result.code !== 0) {
+      // Command failed
+      if (jsonError) {
+        await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+      } else {
+        await log(`❌ Claude CLI failed with exit code ${result.code}`, { level: 'error' });
+        if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
+      }
+      
+      if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
+        await log('   💡 Please run: claude login', { level: 'error' });
+      }
+      
+      return false;
+    }
+    
+    // Check for error patterns in successful response
+    if (jsonError) {
+      await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+      if (jsonError.type === 'forbidden') {
+        await log('   💡 Please run: claude login', { level: 'error' });
+      }
+      return false;
+    }
+    
+    // Success - Claude responded (LLM responses are probabilistic, so any response is good)
+    await log(`✅ Claude CLI connection validated successfully`);
+    return true;
+    
+  } catch (error) {
+    await log(`❌ Failed to validate Claude CLI connection: ${cleanErrorMessage(error)}`, { level: 'error' });
+    await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
+    return false;
+  }
+};
+
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <issue-url> [options]')
@@ -314,6 +380,13 @@ await log(`   (All output will be logged here)`);
 // Check disk space before proceeding
 const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
 if (!hasEnoughSpace) {
+  process.exit(1);
+}
+
+// Validate Claude CLI connection before proceeding
+const isClaudeConnected = await validateClaudeConnection();
+if (!isClaudeConnected) {
+  await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
   process.exit(1);
 }
 
