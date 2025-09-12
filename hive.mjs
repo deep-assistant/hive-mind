@@ -12,6 +12,29 @@ const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
 
+
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
+    const availableMB = parseInt(stdout.toString().replace('M', ''));
+    
+    if (availableMB < minSpaceMB) {
+      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
+      await log('   This may prevent successful pull request creation.', { level: 'error' });
+      await log('   Please free up disk space and try again.', { level: 'error' });
+      return false;
+    }
+    
+    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
 // Global log file reference
 let logFile = null;
 
@@ -57,6 +80,98 @@ const cleanErrorMessage = (error) => {
   message = message.replace(/^\/bin\/sh: \d+: /, ''); // Remove shell path info
   
   return message;
+};
+
+// Helper function to fetch all issues with pagination and rate limiting
+const fetchAllIssuesWithPagination = async (baseCommand) => {
+  const { execSync } = await import('child_process');
+  
+  try {
+    // First, try without pagination to see if we get more than the default limit
+    await log(`   📊 Fetching issues with improved limits and rate limiting...`, { verbose: true });
+    
+    // Add a 5-second delay before making the API call to respect rate limits
+    await log(`   ⏰ Waiting 5 seconds before API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const startTime = Date.now();
+    
+    // Use a much higher limit instead of 100, and remove any existing limit from the command
+    const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
+    const improvedCommand = `${commandWithoutLimit} --limit 1000`;
+    
+    await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
+    const output = execSync(improvedCommand, { encoding: 'utf8' });
+    const endTime = Date.now();
+    
+    const issues = JSON.parse(output || '[]');
+    
+    await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
+    
+    // If we got exactly 1000 results, there might be more - log a warning
+    if (issues.length === 1000) {
+      await log(`   ⚠️  Hit the 1000 issue limit - there may be more issues available`, { level: 'warning' });
+      await log(`   💡 Consider filtering by labels or date ranges for repositories with >1000 open issues`, { level: 'info' });
+    }
+    
+    // Add a 5-second delay after the call to be extra safe with rate limits
+    await log(`   ⏰ Adding 5-second delay after API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    return issues;
+  } catch (error) {
+    await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    
+    // Fallback to original behavior with 100 limit
+    try {
+      await log(`   🔄 Falling back to default behavior...`, { verbose: true });
+      const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Shorter delay for fallback
+      const output = execSync(fallbackCommand, { encoding: 'utf8' });
+      const issues = JSON.parse(output || '[]');
+      await log(`   ⚠️  Fallback: fetched ${issues.length} issues (limited to 100)`, { level: 'warning' });
+      return issues;
+    } catch (fallbackError) {
+      await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
+      return [];
+    }
+  }
+};
+
+// Helper function to clean up temporary directories
+const cleanupTempDirectories = async () => {
+  if (!argv.autoCleanup) {
+    return;
+  }
+  
+  try {
+    await log(`\n🧹 Auto-cleanup enabled, removing temporary directories...`);
+    await log(`   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*`, { verbose: true });
+    
+    // Execute cleanup command using command-stream
+    const cleanupCommand = $`sudo rm -rf /tmp/* /var/tmp/*`;
+    
+    let exitCode = 0;
+    for await (const chunk of cleanupCommand.stream()) {
+      if (chunk.type === 'stderr') {
+        const error = chunk.data.toString().trim();
+        if (error && !error.includes('cannot remove')) { // Ignore "cannot remove" warnings for files in use
+          await log(`   [cleanup WARNING] ${error}`, { level: 'warn', verbose: true });
+        }
+      } else if (chunk.type === 'exit') {
+        exitCode = chunk.code;
+      }
+    }
+    
+    if (exitCode === 0) {
+      await log(`   ✅ Temporary directories cleaned successfully`);
+    } else {
+      await log(`   ⚠️  Cleanup completed with warnings (exit code: ${exitCode})`, { level: 'warn' });
+    }
+  } catch (error) {
+    await log(`   ❌ Error during cleanup: ${cleanErrorMessage(error)}`, { level: 'error' });
+    // Don't fail the entire process if cleanup fails
+  }
 };
 
 // Configure command line arguments
@@ -130,9 +245,26 @@ const argv = yargs(process.argv.slice(2))
     description: 'Run once and exit instead of continuous monitoring',
     default: false
   })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum required disk space in MB (default: 500)',
+    default: 500
+  })
+  .option('auto-cleanup', {
+    type: 'boolean',
+    description: 'Automatically clean temporary directories (/tmp/* /var/tmp/*) when finished successfully',
+    default: false
+  })
+  .option('fork', {
+    type: 'boolean',
+    description: 'Fork the repository if you don\'t have write access',
+    alias: 'f',
+    default: false
+  })
   .demandCommand(1, 'GitHub URL is required')
   .help('h')
   .alias('h', 'help')
+  .strict()
   .argv;
 
 const githubUrl = argv._[0];
@@ -149,6 +281,86 @@ logFile = path.join(scriptDir, `hive-${timestamp}.log`);
 await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
+
+
+// Helper function to check GitHub permissions and warn about missing scopes
+const checkGitHubPermissions = async () => {
+  try {
+    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    
+    // Get auth status including token scopes
+    const authStatusResult = await $`gh auth status 2>&1`;
+    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
+    
+    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
+      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
+      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      return false;
+    }
+    
+    await log(`✅ GitHub authentication: OK`);
+    
+    // Parse the auth status output to extract token scopes
+    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
+    if (!scopeMatch) {
+      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      return true; // Continue despite not being able to check scopes
+    }
+    
+    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
+    const scopeString = scopeMatch[1];
+    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
+    await log(`📋 Token scopes: ${scopes.join(', ')}`);
+    
+    // Check for important scopes and warn if missing
+    const warnings = [];
+    
+    if (!scopes.includes('workflow')) {
+      warnings.push({
+        scope: 'workflow',
+        issue: 'Cannot push changes to .github/workflows/ directory',
+        solution: 'Run: gh auth refresh -h github.com -s workflow'
+      });
+    }
+    
+    if (!scopes.includes('repo')) {
+      warnings.push({
+        scope: 'repo',
+        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
+        solution: 'Run: gh auth refresh -h github.com -s repo'
+      });
+    }
+    
+    // Display warnings
+    if (warnings.length > 0) {
+      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      
+      for (const warning of warnings) {
+        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
+        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
+        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
+      }
+      
+      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
+      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+    } else {
+      await log(`✅ All required permissions: Available`);
+    }
+    
+    return true;
+  } catch (error) {
+    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
+    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    return true; // Continue despite permission check failure
+  }
+};
+
+// Check GitHub permissions early in the process
+const hasValidAuth = await checkGitHubPermissions();
+if (!hasValidAuth) {
+  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  process.exit(1);
+}
 
 // Parse GitHub URL to determine organization, repository, or user
 let scope = 'repository';
@@ -194,6 +406,9 @@ if (argv.skipIssuesWithPrs) {
 await log(`   🔄 Concurrency: ${argv.concurrency} parallel workers`);
 await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
 await log(`   🤖 Model: ${argv.model}`);
+if (argv.fork) {
+  await log(`   🍴 Fork: ENABLED (will fork repos if no write access)`);
+}
 await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
 await log(`   ${argv.once ? '🚀 Mode: Single run' : '♾️  Mode: Continuous monitoring'}`);
 if (argv.maxIssues > 0) {
@@ -201,6 +416,9 @@ if (argv.maxIssues > 0) {
 }
 if (argv.dryRun) {
   await log(`   🧪 DRY RUN MODE - No actual processing`);
+}
+if (argv.autoCleanup) {
+  await log(`   🧹 Auto-cleanup: ENABLED (will clean /tmp/* /var/tmp/* on success)`);
 }
 await log('');
 
@@ -285,6 +503,9 @@ async function worker(workerId) {
 
     await log(`\n👷 Worker ${workerId} processing: ${issueUrl}`);
     
+    // Track if this issue failed
+    let issueFailed = false;
+    
     // Process the issue multiple times if needed
     for (let prNum = 1; prNum <= argv.pullRequestsPerIssue; prNum++) {
       if (argv.pullRequestsPerIssue > 1) {
@@ -293,14 +514,16 @@ async function worker(workerId) {
       
       try {
         if (argv.dryRun) {
-          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}`);
+          const forkFlag = argv.fork ? ' --fork' : '';
+          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
           // Execute solve.mjs using command-stream
           await log(`   🚀 Executing solve.mjs for ${issueUrl}...`);
           
           const startTime = Date.now();
-          const solveCommand = $`./solve.mjs "${issueUrl}" --model ${argv.model}`;
+          const forkFlag = argv.fork ? ' --fork' : '';
+          const solveCommand = $`./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
           
           // Stream output and capture result
           let exitCode = 0;
@@ -336,11 +559,15 @@ async function worker(workerId) {
       } catch (error) {
         await log(`   ❌ Worker ${workerId} failed on ${issueUrl}: ${cleanErrorMessage(error)}`, { level: 'error' });
         issueQueue.markFailed(issueUrl);
+        issueFailed = true;
         break; // Stop trying more PRs for this issue
       }
     }
     
-    issueQueue.markCompleted(issueUrl);
+    // Only mark as completed if it didn't fail
+    if (!issueFailed) {
+      issueQueue.markCompleted(issueUrl);
+    }
     
     // Show queue stats
     const stats = issueQueue.getStats();
@@ -392,23 +619,21 @@ async function fetchIssues() {
     let issues = [];
     
     if (argv.allIssues) {
-      // Fetch all open issues without label filter
+      // Fetch all open issues without label filter using pagination
       let searchCmd;
       if (scope === 'repository') {
-        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --limit 100 --json url,title,number`;
+        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --json url,title,number`;
       } else if (scope === 'organization') {
-        searchCmd = `gh search issues org:${owner} is:open --limit 100 --json url,title,number,repository`;
+        searchCmd = `gh search issues org:${owner} is:open --json url,title,number,repository`;
       } else {
         // User scope
-        searchCmd = `gh search issues user:${owner} is:open --limit 100 --json url,title,number,repository`;
+        searchCmd = `gh search issues user:${owner} is:open --json url,title,number,repository`;
       }
       
+      await log(`   🔎 Fetching all issues with pagination and rate limiting...`);
       await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
       
-      // Use execSync to avoid escaping issues
-      const { execSync } = await import('child_process');
-      const output = execSync(searchCmd, { encoding: 'utf8' });
-      issues = JSON.parse(output || '[]');
+      issues = await fetchAllIssuesWithPagination(searchCmd);
       
     } else {
       // Use label filter
@@ -416,12 +641,12 @@ async function fetchIssues() {
       
       // For repositories, use gh issue list which works better with new repos
       if (scope === 'repository') {
-        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --limit 100 --json url,title,number`;
+        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --json url,title,number`;
+        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
         await log(`   🔎 Command: ${listCmd}`, { verbose: true });
         
         try {
-          const output = execSync(listCmd, { encoding: 'utf8' });
-          issues = JSON.parse(output || '[]');
+          issues = await fetchAllIssuesWithPagination(listCmd);
         } catch (listError) {
           await log(`   ⚠️  List failed: ${cleanErrorMessage(listError)}`, { verbose: true });
           issues = [];
@@ -441,18 +666,18 @@ async function fetchIssues() {
         
         if (argv.monitorTag.includes(' ')) {
           searchQuery = `${baseQuery} label:"${argv.monitorTag}"`;
-          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
         } else {
           searchQuery = `${baseQuery} label:${argv.monitorTag}`;
-          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
         }
         
+        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
         await log(`   🔎 Search query: ${searchQuery}`, { verbose: true });
         await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
         
         try {
-          const output = execSync(searchCmd, { encoding: 'utf8' });
-          issues = JSON.parse(output || '[]');
+          issues = await fetchAllIssuesWithPagination(searchCmd);
         } catch (searchError) {
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
           issues = [];
@@ -475,14 +700,8 @@ async function fetchIssues() {
       await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
     }
     
-    // Apply max issues limit if set
-    let issuesToProcess = issues;
-    if (argv.maxIssues > 0 && issues.length > argv.maxIssues) {
-      issuesToProcess = issues.slice(0, argv.maxIssues);
-      await log(`   🔢 Limiting to first ${argv.maxIssues} issues`);
-    }
-    
     // Filter out issues with open PRs if option is enabled
+    let issuesToProcess = issues;
     if (argv.skipIssuesWithPrs) {
       await log(`   🔍 Checking for existing pull requests...`);
       const filteredIssues = [];
@@ -501,6 +720,12 @@ async function fetchIssues() {
         await log(`   ⏭️  Skipped ${skippedCount} issue(s) with existing pull requests`);
       }
       issuesToProcess = filteredIssues;
+    }
+    
+    // Apply max issues limit if set (after filtering to exclude skipped issues from count)
+    if (argv.maxIssues > 0 && issuesToProcess.length > argv.maxIssues) {
+      issuesToProcess = issuesToProcess.slice(0, argv.maxIssues);
+      await log(`   🔢 Limiting to first ${argv.maxIssues} issues (after filtering)`);
     }
     
     // In dry-run mode, show the issues that would be processed
@@ -577,6 +802,11 @@ async function monitor() {
       await log(`\n✅ All issues processed!`);
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
+      
+      // Perform cleanup if enabled and there were successful completions
+      if (stats.completed > 0) {
+        await cleanupTempDirectories();
+      }
       break;
     }
     
@@ -588,6 +818,12 @@ async function monitor() {
   // Stop workers
   issueQueue.stop();
   await Promise.all(issueQueue.workers);
+  
+  // Perform cleanup if enabled and there were successful completions
+  const finalStats = issueQueue.getStats();
+  if (finalStats.completed > 0) {
+    await cleanupTempDirectories();
+  }
   
   await log(`\n👋 Hive Mind monitoring stopped`);
 }
@@ -619,6 +855,13 @@ async function gracefulShutdown(signal) {
     }
     
     await Promise.all(issueQueue.workers);
+    
+    // Perform cleanup if enabled and there were successful completions
+    const finalStats = issueQueue.getStats();
+    if (finalStats.completed > 0) {
+      await cleanupTempDirectories();
+    }
+    
     await log(`   ✅ Shutdown complete`);
     
   } catch (error) {
@@ -631,6 +874,12 @@ async function gracefulShutdown(signal) {
 // Handle graceful shutdown
 process.on('SIGINT', () => gracefulShutdown('interrupt'));
 process.on('SIGTERM', () => gracefulShutdown('termination'));
+
+// Check disk space before starting monitoring
+const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
+if (!hasEnoughSpace) {
+  process.exit(1);
+}
 
 // Start monitoring
 try {

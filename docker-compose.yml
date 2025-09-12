@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  hive-mind-solver:
+    build: .
+    volumes:
+      # Mount GitHub credentials
+      - ~/.config/gh:/workspace/.persisted-configs/gh:ro
+      # Mount Claude credentials (adjust paths as needed)
+      - ~/.local/share/claude-profiles:/workspace/.persisted-configs/claude:ro
+      - ~/.config/claude-code:/workspace/.persisted-configs/claude-code:ro
+      # Mount working directory for persistent changes
+      - ./output:/workspace/output
+    environment:
+      # Pass through any needed environment variables
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
+    command: |
+      bash -c "
+        # Restore credentials first
+        ./docker-restore-auth.sh
+        # Then run the solve script with passed arguments
+        exec ./solve.mjs $$@
+      "
+    # Allow passing arguments to solve.mjs
+    stdin_open: true
+    tty: true
