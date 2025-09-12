@@ -433,6 +433,7 @@ const urlNumber = urlParts[6]; // Could be issue or PR number
 let issueNumber;
 let prNumber;
 let prBranch;
+let mergeStateStatus;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
@@ -508,7 +509,7 @@ if (isPrUrl) {
   
   // Get PR details to find the linked issue and branch
   try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number`;
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus`;
     
     if (prResult.code !== 0) {
       await log('Error: Failed to get PR details', { level: 'error' });
@@ -518,6 +519,7 @@ if (isPrUrl) {
     
     const prData = JSON.parse(prResult.stdout.toString());
     prBranch = prData.headRefName;
+    mergeStateStatus = prData.mergeStateStatus;
     
     await log(`📝 PR branch: ${prBranch}`);
     
@@ -941,7 +943,7 @@ try {
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}
 Your prepared Pull Request: ${prUrl}
-Note: Check mergeStateStatus to identify any merge conflicts with the default branch.${argv.fork && forkedRepo ? `
+Existing pull request's merge state status: ${mergeStateStatus}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 

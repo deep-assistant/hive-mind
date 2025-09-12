@@ -12,6 +12,7 @@ const testContinueModePrompt = () => {
   const branchName = 'issue-71-145a3af2';
   const tempDir = '/tmp/test-dir';
   const prUrl = 'https://github.com/deep-assistant/hive-mind/pull/72';
+  const mergeStateStatus = 'CLEAN';
   
   // This is the same logic as in solve.mjs
   let prompt;
@@ -20,7 +21,7 @@ const testContinueModePrompt = () => {
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}
 Your prepared Pull Request: ${prUrl}
-Note: Check mergeStateStatus to identify any merge conflicts with the default branch.
+Existing pull request's merge state status: ${mergeStateStatus}
 
 Continue.`;
   }
@@ -30,9 +31,9 @@ Continue.`;
   console.log(prompt);
   console.log('=====================================');
   
-  // Verify mergeStateStatus is mentioned
-  const containsMergeStateStatus = prompt.includes('mergeStateStatus');
-  console.log(`\nTest result: mergeStateStatus mentioned = ${containsMergeStateStatus}`);
+  // Verify mergeStateStatus is mentioned with actual value
+  const containsMergeStateStatus = prompt.includes('Existing pull request\'s merge state status: CLEAN');
+  console.log(`\nTest result: mergeStateStatus with actual value included = ${containsMergeStateStatus}`);
   
   return containsMergeStateStatus;
 };
