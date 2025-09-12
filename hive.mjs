@@ -12,8 +12,6 @@ const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
 
-// Import Wikifunctions skills for enhanced AI capabilities
-const { WikifunctionsSkills } = await import('./wikifunctions-skills.mjs');
 
 // Function to check available disk space
 const checkDiskSpace = async (minSpaceMB = 500) => {
@@ -247,16 +245,6 @@ const argv = yargs(process.argv.slice(2))
     description: 'Run once and exit instead of continuous monitoring',
     default: false
   })
-  .option('wikifunctions-demo', {
-    type: 'boolean',
-    description: 'Demonstrate Wikifunctions.org AI skills and exit',
-    default: false
-  })
-  .option('wikifunctions-skills', {
-    type: 'boolean',
-    description: 'List available Wikifunctions AI skills and exit',
-    default: false
-  })
   .option('min-disk-space', {
     type: 'number',
     description: 'Minimum required disk space in MB (default: 500)',
@@ -294,73 +282,6 @@ await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
-// Initialize Wikifunctions skills
-const wikifunctionsSkills = new WikifunctionsSkills();
-await log(`🧠 Initializing Wikifunctions skills integration...`);
-try {
-  const availableSkills = wikifunctionsSkills.getAvailableSkills();
-  await log(`   ✅ ${availableSkills.length} AI skills available from Wikifunctions.org`);
-  await log(`   📚 Skills: ${availableSkills.map(s => s.name).join(', ')}`, { verbose: true });
-} catch (error) {
-  await log(`   ⚠️  Wikifunctions skills initialization warning: ${error.message}`, { level: 'warning' });
-}
-
-// Handle Wikifunctions options
-if (argv.wikifunctionsSkills) {
-  await log(`\n🧠 Available Wikifunctions AI Skills:\n`);
-  const skills = wikifunctionsSkills.getAvailableSkills();
-  skills.forEach((skill, index) => {
-    console.log(`${index + 1}. ${skill.name}`);
-    console.log(`   ${skill.description}`);
-    console.log(`   Example: ${skill.example}\n`);
-  });
-  process.exit(0);
-}
-
-if (argv.wikifunctionsDemo) {
-  await log(`\n🚀 Wikifunctions AI Skills Demo:\n`);
-  
-  const demos = [
-    {
-      name: 'Prime Number Check',
-      test: async () => {
-        const isPrime = await wikifunctionsSkills.isPrime(17);
-        return `Is 17 prime? ${isPrime ? 'Yes' : 'No'}`;
-      }
-    },
-    {
-      name: 'Function Search',
-      test: async () => {
-        const mathFunctions = await wikifunctionsSkills.searchFunctions('math', 2);
-        return `Found ${mathFunctions.length} math-related functions`;
-      }
-    },
-    {
-      name: 'Basic API Test', 
-      test: async () => {
-        const func = await wikifunctionsSkills.fetchFunction('Z801');
-        return func.error ? 'API connection failed' : 'API connection successful';
-      }
-    }
-  ];
-  
-  for (let i = 0; i < demos.length; i++) {
-    const demo = demos[i];
-    try {
-      await log(`${i + 1}. ${demo.name}:`);
-      const result = await demo.test();
-      await log(`   ${result} ✅`);
-    } catch (demoError) {
-      await log(`   ⚠️  ${demo.name} failed: ${demoError.message}`, { level: 'warning' });
-      await log(`   ℹ️  This might be due to network issues or API rate limiting`, { level: 'info' });
-    }
-  }
-  
-  await log(`\n💡 Note: Wikifunctions.org is a live service and may have temporary availability issues.`);
-  await log(`   The integration is ready and will work when the service is available.`);
-  
-  process.exit(0);
-}
 
 // Helper function to check GitHub permissions and warn about missing scopes
 const checkGitHubPermissions = async () => {
