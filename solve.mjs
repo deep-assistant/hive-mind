@@ -1742,7 +1742,65 @@ Original repository (upstream): ${owner}/${repo}` : ''}
 Proceed.`;
   }
 
-  const systemPrompt = `You are AI issue solver.
+  // Count new comments on PR and issue after last commit
+  let newPrComments = 0;
+  let newIssueComments = 0;
+  let commentInfo = '';
+
+  if (prNumber && branchName) {
+    try {
+      await log(`${formatAligned('💬', 'Counting comments:', 'Checking for new comments since last commit...')}`);
+      
+      // Get the last commit timestamp from the PR branch
+      let lastCommitResult = await $`git log -1 --format="%aI" origin/${branchName}`;
+      if (lastCommitResult.code !== 0) {
+        // Fallback to local branch if remote doesn't exist
+        lastCommitResult = await $`git log -1 --format="%aI" ${branchName}`;
+      }
+      if (lastCommitResult.code === 0) {
+        const lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
+        await log(formatAligned('📅', 'Last commit time:', lastCommitTime.toISOString(), 2));
+
+        // Count new PR comments after last commit
+        const prCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
+        if (prCommentsResult.code === 0) {
+          const prComments = JSON.parse(prCommentsResult.stdout.toString());
+          newPrComments = prComments.filter(comment => 
+            new Date(comment.created_at) > lastCommitTime
+          ).length;
+        }
+
+        // Count new issue comments after last commit
+        const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+        if (issueCommentsResult.code === 0) {
+          const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
+          newIssueComments = issueComments.filter(comment => 
+            new Date(comment.created_at) > lastCommitTime
+          ).length;
+        }
+
+        await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
+        await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
+
+        // Build comment info for system prompt
+        const commentLines = [];
+        if (newPrComments > 0) {
+          commentLines.push(`New comments on the pull request: ${newPrComments}`);
+        }
+        if (newIssueComments > 0) {
+          commentLines.push(`New comments on the issue: ${newIssueComments}`);
+        }
+        
+        if (commentLines.length > 0) {
+          commentInfo = '\n\n' + commentLines.join('\n') + '\n';
+        }
+      }
+    } catch (error) {
+      await log(`Warning: Could not count new comments: ${error.message}`, { level: 'warning' });
+    }
+  }
+
+  const systemPrompt = `You are AI issue solver.${commentInfo}
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
@@ -1777,7 +1835,9 @@ Initial research.
    - When you need repo context, read files in ${tempDir}.  
    - When you study related work, study related previous latest pull requests.  
    - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
-   - When issue is not defined enough, write a comment to ask clarifying questions.  
+   - When issue is not defined enough, write a comment to ask clarifying questions.
+   - When you need latest comments on pull request (sorted newest first), use: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
+   - When you need latest comments on issue (sorted newest first), use: gh api repos/${owner}/${repo}/issues/{issue_number}/comments --jq 'sort_by(.created_at) | reverse'  
 
 Solution development and testing.  
    - When issue is solvable, implement code with tests.  
