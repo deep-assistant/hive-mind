@@ -1686,6 +1686,64 @@ Self review.
   await log('\n\n✅ Claude command completed');
   await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
   
+  // Check for and commit any uncommitted changes made by Claude
+  await log('\n🔍 Checking for uncommitted changes...');
+  try {
+    // Check git status to see if there are any uncommitted changes
+    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+    
+    if (gitStatusResult.code === 0) {
+      const statusOutput = gitStatusResult.stdout.toString().trim();
+      
+      if (statusOutput) {
+        // There are uncommitted changes - log them and commit automatically
+        await log(formatAligned('📝', 'Found changes:', 'Uncommitted files detected'));
+        
+        // Show what files have changes
+        const changedFiles = statusOutput.split('\n').map(line => line.trim()).filter(line => line);
+        for (const file of changedFiles) {
+          await log(formatAligned('', '', `  ${file}`, 2));
+        }
+        
+        // Stage all changes
+        const gitAddResult = await $({ cwd: tempDir })`git add . 2>&1`;
+        if (gitAddResult.code === 0) {
+          await log(formatAligned('📦', 'Staged:', 'All changes added to git'));
+          
+          // Commit with a descriptive message
+          const commitMessage = `Auto-commit changes made by Claude
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+          
+          const gitCommitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}" 2>&1`;
+          if (gitCommitResult.code === 0) {
+            await log(formatAligned('✅', 'Committed:', 'Changes automatically committed'));
+            
+            // Push the changes to remote
+            const gitPushResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+            if (gitPushResult.code === 0) {
+              await log(formatAligned('📤', 'Pushed:', 'Changes synced to GitHub'));
+            } else {
+              await log(`⚠️ Warning: Could not push auto-committed changes: ${gitPushResult.stderr.toString().trim()}`, { level: 'warning' });
+            }
+          } else {
+            await log(`⚠️ Warning: Could not commit changes: ${gitCommitResult.stderr.toString().trim()}`, { level: 'warning' });
+          }
+        } else {
+          await log(`⚠️ Warning: Could not stage changes: ${gitAddResult.stderr.toString().trim()}`, { level: 'warning' });
+        }
+      } else {
+        await log(formatAligned('✅', 'No changes:', 'Repository is clean'));
+      }
+    } else {
+      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
+    }
+  } catch (gitError) {
+    await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+  }
+  
   // Remove CLAUDE.md now that Claude command has finished
   // We need to commit and push the deletion so it's reflected in the PR
   try {
