@@ -171,9 +171,16 @@ const argv = yargs(process.argv.slice(2))
     description: 'Automatically clean temporary directories (/tmp/* /var/tmp/*) when finished successfully',
     default: false
   })
+  .option('fork', {
+    type: 'boolean',
+    description: 'Fork the repository if you don\'t have write access',
+    alias: 'f',
+    default: false
+  })
   .demandCommand(1, 'GitHub URL is required')
   .help('h')
   .alias('h', 'help')
+  .strict()
   .argv;
 
 const githubUrl = argv._[0];
@@ -235,6 +242,9 @@ if (argv.skipIssuesWithPrs) {
 await log(`   🔄 Concurrency: ${argv.concurrency} parallel workers`);
 await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
 await log(`   🤖 Model: ${argv.model}`);
+if (argv.fork) {
+  await log(`   🍴 Fork: ENABLED (will fork repos if no write access)`);
+}
 await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
 await log(`   ${argv.once ? '🚀 Mode: Single run' : '♾️  Mode: Continuous monitoring'}`);
 if (argv.maxIssues > 0) {
@@ -340,14 +350,16 @@ async function worker(workerId) {
       
       try {
         if (argv.dryRun) {
-          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}`);
+          const forkFlag = argv.fork ? ' --fork' : '';
+          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
           // Execute solve.mjs using command-stream
           await log(`   🚀 Executing solve.mjs for ${issueUrl}...`);
           
           const startTime = Date.now();
-          const solveCommand = $`./solve.mjs "${issueUrl}" --model ${argv.model}`;
+          const forkFlag = argv.fork ? ' --fork' : '';
+          const solveCommand = $`./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
           
           // Stream output and capture result
           let exitCode = 0;
