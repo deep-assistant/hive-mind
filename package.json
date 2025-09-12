@@ -6,7 +6,8 @@
   "type": "module",
   "bin": {
     "hive": "./hive.mjs",
-    "solve": "./solve.mjs"
+    "solve": "./solve.mjs",
+    "task": "./task.mjs"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -35,6 +36,7 @@
   "files": [
     "hive.mjs",
     "solve.mjs",
+    "task.mjs",
     "*.md"
   ]
 }
