@@ -891,25 +891,20 @@ const validateClaudeConnection = async () => {
     
     let result;
     try {
-      // Primary validation: try with 30 second timeout
-      result = await $`timeout 30 claude -p hi`;
-    } catch (timeoutError) {
-      if (timeoutError.code === 124) {
-        // Timeout occurred - try with longer timeout as fallback
-        await log(`⚠️  Initial validation timed out after 30s, trying with extended timeout...`);
-        try {
-          result = await $`timeout 90 claude -p hi`;
-        } catch (extendedTimeoutError) {
-          if (extendedTimeoutError.code === 124) {
-            await log(`❌ Claude CLI timed out even after 90 seconds`, { level: 'error' });
-            await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
-            await log(`   💡 Try running 'claude -p hi' manually to verify it works`, { level: 'error' });
-            return false;
-          }
-          // Re-throw if it's not a timeout error
-          throw extendedTimeoutError;
+      // Primary validation: use printf piping which is faster and more reliable
+      result = await $`printf hi | claude -p`;
+    } catch (pipeError) {
+      // If piping fails, fallback to the timeout approach as last resort
+      await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
+      try {
+        result = await $`timeout 60 claude -p hi`;
+      } catch (timeoutError) {
+        if (timeoutError.code === 124) {
+          await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
+          await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
+          await log(`   💡 Try running 'claude -p hi' manually to verify it works`, { level: 'error' });
+          return false;
         }
-      } else {
         // Re-throw if it's not a timeout error
         throw timeoutError;
       }
