@@ -1808,8 +1808,8 @@ General guidelines.
    - When CI is failing, make sure you download the logs locally and carefully investigate them.
    - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
-   - When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
-   - When testing your assumptions, use the example scripts.
+   - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples/experiments folder so you can reuse them later.
+   - When testing your assumptions, use the example/experiment scripts.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
 Continue mode.
@@ -1834,8 +1834,9 @@ Initial research.
    - When you need related code, use gh search code --owner ${owner} [keywords].  
    - When you need repo context, read files in ${tempDir}.  
    - When you study related work, study related previous latest pull requests.  
-   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
    - When issue is not defined enough, write a comment to ask clarifying questions.
+   - When you are fixing a bug, please make sure you first find the actual root cause, do as much experiments as needed.
+   - When you are fixing a bug and code does not have enough tracing/logs, add them and make sure they stay in the code, but are switched off by default.
    - When you need latest comments on pull request (sorted newest first), use: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
    - When you need latest comments on issue (sorted newest first), use: gh api repos/${owner}/${repo}/issues/{issue_number}/comments --jq 'sort_by(.created_at) | reverse'  
 
@@ -1852,7 +1853,8 @@ Solution development and testing.
 Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
    - When you code, follow contributing guidelines.  
-   - When you commit, write clear message.  
+   - When you commit, write clear message.
+   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].
    - When you open pr, describe solution and include tests.
    - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.${prUrl ? `
    - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
