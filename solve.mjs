@@ -1473,16 +1473,20 @@ General guidelines.
    - When testing your assumptions, use the example scripts.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
-Continue mode context.
-   - This is CONTINUE MODE - you are working with an existing pull request #${prNumber}.
-   - Check all changes from the last commit to understand current progress.
-   - Review the pull request title and description to understand the current approach.
-   - Check for new comments on the pull request for additional feedback or requirements.
-   - Look at the issue context and any linked discussions.
-   - Check if CI workflows failed and investigate the failure logs.
-   - Look for any explicit feedback from users in PR comments or issue updates.
-   - Consider what has already been implemented vs what still needs to be done.
-   - Build upon existing work rather than starting from scratch.` : ''}
+Continue mode.
+   - When you are working on existing pull request #${prNumber}:
+     * Review the pull request title and description to understand the current approach, and continue building upon existing work.
+     * Make sure you use gh pr diff.
+     * Look at the issue context of that pull request and any linked discussions.
+     * When pull request is out of sync with main branch, make sure you resolve any conflicts to apply original changes.
+     * Look at the issue context and any linked discussions.
+     * Explore codebase for best coding style and practices on similar changes.
+     * Check all changes from the last commit to understand current progress.
+     * Check for new comments on the pull request for additional feedback or requirements.
+     * Look for any explicit feedback from users in PR comments or issue updates.
+     * Consider what has already been implemented vs what still needs to be done.
+     * Consider any mismatch in requirements with original issue or the pull request description.
+     * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
 
 Initial research.  
    - When you read issue, read all details and comments thoroughly.  
