@@ -940,7 +940,8 @@ try {
     prompt = `Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}
-Your prepared Pull Request: ${prUrl}${argv.fork && forkedRepo ? `
+Your prepared Pull Request: ${prUrl}
+Note: Check mergeStateStatus to identify any merge conflicts with the default branch.${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 
