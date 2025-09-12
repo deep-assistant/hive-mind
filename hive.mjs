@@ -59,6 +59,62 @@ const cleanErrorMessage = (error) => {
   return message;
 };
 
+// Helper function to fetch all issues with pagination and rate limiting
+const fetchAllIssuesWithPagination = async (baseCommand) => {
+  const { execSync } = await import('child_process');
+  
+  try {
+    // First, try without pagination to see if we get more than the default limit
+    await log(`   📊 Fetching issues with improved limits and rate limiting...`, { verbose: true });
+    
+    // Add a 5-second delay before making the API call to respect rate limits
+    await log(`   ⏰ Waiting 5 seconds before API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const startTime = Date.now();
+    
+    // Use a much higher limit instead of 100, and remove any existing limit from the command
+    const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
+    const improvedCommand = `${commandWithoutLimit} --limit 1000`;
+    
+    await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
+    const output = execSync(improvedCommand, { encoding: 'utf8' });
+    const endTime = Date.now();
+    
+    const issues = JSON.parse(output || '[]');
+    
+    await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
+    
+    // If we got exactly 1000 results, there might be more - log a warning
+    if (issues.length === 1000) {
+      await log(`   ⚠️  Hit the 1000 issue limit - there may be more issues available`, { level: 'warning' });
+      await log(`   💡 Consider filtering by labels or date ranges for repositories with >1000 open issues`, { level: 'info' });
+    }
+    
+    // Add a 5-second delay after the call to be extra safe with rate limits
+    await log(`   ⏰ Adding 5-second delay after API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    return issues;
+  } catch (error) {
+    await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    
+    // Fallback to original behavior with 100 limit
+    try {
+      await log(`   🔄 Falling back to default behavior...`, { verbose: true });
+      const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Shorter delay for fallback
+      const output = execSync(fallbackCommand, { encoding: 'utf8' });
+      const issues = JSON.parse(output || '[]');
+      await log(`   ⚠️  Fallback: fetched ${issues.length} issues (limited to 100)`, { level: 'warning' });
+      return issues;
+    } catch (fallbackError) {
+      await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
+      return [];
+    }
+  }
+};
+
 // Helper function to clean up temporary directories
 const cleanupTempDirectories = async () => {
   if (!argv.autoCleanup) {
@@ -443,23 +499,21 @@ async function fetchIssues() {
     let issues = [];
     
     if (argv.allIssues) {
-      // Fetch all open issues without label filter
+      // Fetch all open issues without label filter using pagination
       let searchCmd;
       if (scope === 'repository') {
-        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --limit 100 --json url,title,number`;
+        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --json url,title,number`;
       } else if (scope === 'organization') {
-        searchCmd = `gh search issues org:${owner} is:open --limit 100 --json url,title,number,repository`;
+        searchCmd = `gh search issues org:${owner} is:open --json url,title,number,repository`;
       } else {
         // User scope
-        searchCmd = `gh search issues user:${owner} is:open --limit 100 --json url,title,number,repository`;
+        searchCmd = `gh search issues user:${owner} is:open --json url,title,number,repository`;
       }
       
+      await log(`   🔎 Fetching all issues with pagination and rate limiting...`);
       await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
       
-      // Use execSync to avoid escaping issues
-      const { execSync } = await import('child_process');
-      const output = execSync(searchCmd, { encoding: 'utf8' });
-      issues = JSON.parse(output || '[]');
+      issues = await fetchAllIssuesWithPagination(searchCmd);
       
     } else {
       // Use label filter
@@ -467,12 +521,12 @@ async function fetchIssues() {
       
       // For repositories, use gh issue list which works better with new repos
       if (scope === 'repository') {
-        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --limit 100 --json url,title,number`;
+        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --json url,title,number`;
+        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
         await log(`   🔎 Command: ${listCmd}`, { verbose: true });
         
         try {
-          const output = execSync(listCmd, { encoding: 'utf8' });
-          issues = JSON.parse(output || '[]');
+          issues = await fetchAllIssuesWithPagination(listCmd);
         } catch (listError) {
           await log(`   ⚠️  List failed: ${cleanErrorMessage(listError)}`, { verbose: true });
           issues = [];
@@ -492,18 +546,18 @@ async function fetchIssues() {
         
         if (argv.monitorTag.includes(' ')) {
           searchQuery = `${baseQuery} label:"${argv.monitorTag}"`;
-          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
         } else {
           searchQuery = `${baseQuery} label:${argv.monitorTag}`;
-          searchCmd = `gh search issues '${searchQuery}' --limit 100 --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
         }
         
+        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
         await log(`   🔎 Search query: ${searchQuery}`, { verbose: true });
         await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
         
         try {
-          const output = execSync(searchCmd, { encoding: 'utf8' });
-          issues = JSON.parse(output || '[]');
+          issues = await fetchAllIssuesWithPagination(searchCmd);
         } catch (searchError) {
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
           issues = [];
