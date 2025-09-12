@@ -68,6 +68,135 @@ const log = async (message, options = {}) => {
   }
 };
 
+// Helper function to mask GitHub tokens in text
+const maskGitHubToken = (token) => {
+  if (!token || token.length < 12) {
+    return token; // Don't mask very short strings
+  }
+  
+  const start = token.substring(0, 5);
+  const end = token.substring(token.length - 5);
+  const middle = '*'.repeat(Math.max(token.length - 10, 3));
+  
+  return start + middle + end;
+};
+
+// Helper function to get GitHub tokens from local config files
+const getGitHubTokensFromFiles = async () => {
+  const tokens = [];
+  
+  try {
+    // Check ~/.config/gh/hosts.yml
+    const hostsFile = path.join(os.homedir(), '.config/gh/hosts.yml');
+    if (await fs.access(hostsFile).then(() => true).catch(() => false)) {
+      const hostsContent = await fs.readFile(hostsFile, 'utf8');
+      
+      // Look for oauth_token and api_token patterns
+      const oauthMatches = hostsContent.match(/oauth_token:\s*([^\s\n]+)/g);
+      if (oauthMatches) {
+        for (const match of oauthMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+      
+      const apiMatches = hostsContent.match(/api_token:\s*([^\s\n]+)/g);
+      if (apiMatches) {
+        for (const match of apiMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore file access errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to get GitHub tokens from gh command output
+const getGitHubTokensFromCommand = async () => {
+  const tokens = [];
+  
+  try {
+    // Run gh auth status to get token info
+    const authResult = await $`gh auth status 2>&1`.catch(() => ({ stdout: '', stderr: '' }));
+    const authOutput = authResult.stdout?.toString() + authResult.stderr?.toString() || '';
+    
+    // Look for token patterns in the output
+    const tokenPatterns = [
+      /(?:token|oauth|api)[:\s]*([a-zA-Z0-9_]{20,})/gi,
+      /gh[pou]_[a-zA-Z0-9_]{20,}/gi
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      const matches = authOutput.match(pattern);
+      if (matches) {
+        for (let match of matches) {
+          // Clean up the match
+          const token = match.replace(/^(?:token|oauth|api)[:\s]*/, '').trim();
+          if (token && token.length >= 20 && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore command errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to sanitize log content by masking GitHub tokens
+const sanitizeLogContent = async (logContent) => {
+  let sanitized = logContent;
+  
+  try {
+    // Get tokens from both sources
+    const fileTokens = await getGitHubTokensFromFiles();
+    const commandTokens = await getGitHubTokensFromCommand();
+    const allTokens = [...new Set([...fileTokens, ...commandTokens])];
+    
+    // Mask each token found
+    for (const token of allTokens) {
+      if (token && token.length >= 12) {
+        const maskedToken = maskGitHubToken(token);
+        // Use global replace to mask all occurrences
+        sanitized = sanitized.split(token).join(maskedToken);
+      }
+    }
+    
+    // Also look for and mask common GitHub token patterns directly in the log
+    const tokenPatterns = [
+      /gh[pou]_[a-zA-Z0-9_]{20,}/g,
+      /(?:^|[\s:=])([a-f0-9]{40})(?=[\s\n]|$)/gm, // 40-char hex tokens (like personal access tokens)
+      /(?:^|[\s:=])([a-zA-Z0-9_]{20,})(?=[\s\n]|$)/gm // General long tokens
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      sanitized = sanitized.replace(pattern, (match, token) => {
+        if (token && token.length >= 20) {
+          return match.replace(token, maskGitHubToken(token));
+        }
+        return match;
+      });
+    }
+    
+    await log(`  🔒 Sanitized ${allTokens.length} detected GitHub tokens in log content`, { verbose: true });
+    
+  } catch (error) {
+    await log(`  ⚠️  Warning: Could not fully sanitize log content: ${error.message}`, { verbose: true });
+  }
+  
+  return sanitized;
+};
+
 // Configure command line arguments - GitHub issue URL as positional argument
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <issue-url> [options]')
@@ -116,6 +245,12 @@ const argv = yargs(process.argv.slice(2))
   .option('attach-solution-logs', {
     type: 'boolean',
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+    default: false,
+    alias: 'attach-logs'
+  })
+  .option('auto-continue', {
+    type: 'boolean',
+    description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
     default: false
   })
   .option('min-disk-space', {
@@ -184,6 +319,85 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
+// Helper function to check GitHub permissions and warn about missing scopes
+const checkGitHubPermissions = async () => {
+  try {
+    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    
+    // Get auth status including token scopes
+    const authStatusResult = await $`gh auth status 2>&1`;
+    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
+    
+    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
+      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
+      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      return false;
+    }
+    
+    await log(`✅ GitHub authentication: OK`);
+    
+    // Parse the auth status output to extract token scopes
+    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
+    if (!scopeMatch) {
+      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      return true; // Continue despite not being able to check scopes
+    }
+    
+    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
+    const scopeString = scopeMatch[1];
+    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
+    await log(`📋 Token scopes: ${scopes.join(', ')}`);
+    
+    // Check for important scopes and warn if missing
+    const warnings = [];
+    
+    if (!scopes.includes('workflow')) {
+      warnings.push({
+        scope: 'workflow',
+        issue: 'Cannot push changes to .github/workflows/ directory',
+        solution: 'Run: gh auth refresh -h github.com -s workflow'
+      });
+    }
+    
+    if (!scopes.includes('repo')) {
+      warnings.push({
+        scope: 'repo',
+        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
+        solution: 'Run: gh auth refresh -h github.com -s repo'
+      });
+    }
+    
+    // Display warnings
+    if (warnings.length > 0) {
+      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      
+      for (const warning of warnings) {
+        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
+        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
+        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
+      }
+      
+      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
+      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+    } else {
+      await log(`✅ All required permissions: Available`);
+    }
+    
+    return true;
+  } catch (error) {
+    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
+    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    return true; // Continue despite permission check failure
+  }
+};
+
+// Check GitHub permissions early in the process
+const hasValidAuth = await checkGitHubPermissions();
+if (!hasValidAuth) {
+  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  process.exit(1);
+}
+
 // Validate GitHub issue or pull request URL format
 const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
 const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
@@ -209,6 +423,56 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let isContinueMode = false;
+
+// Auto-continue logic: check for existing PRs if --auto-continue is enabled
+if (argv.autoContinue && isIssueUrl) {
+  issueNumber = urlNumber;
+  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
+  
+  try {
+    // Get all PRs linked to this issue
+    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
+    
+    if (prListResult.code === 0) {
+      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
+      
+      if (prs.length > 0) {
+        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
+        
+        // Find PRs that are older than 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        for (const pr of prs) {
+          const createdAt = new Date(pr.createdAt);
+          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
+          
+          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
+          
+          // Check if this PR is older than 24 hours and not closed
+          if (createdAt < twentyFourHoursAgo && pr.state === 'OPEN') {
+            await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+            
+            // Switch to continue mode
+            isContinueMode = true;
+            prNumber = pr.number;
+            prBranch = pr.headRefName;
+            break;
+          }
+        }
+        
+        if (!isContinueMode) {
+          await log(`⏭️  No PRs older than 24 hours found - creating new PR as usual`);
+        }
+      } else {
+        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
+      }
+    }
+  } catch (prSearchError) {
+    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
+    await log(`   Continuing with normal flow...`);
+  }
+}
 
 if (isPrUrl) {
   isContinueMode = true;
@@ -1016,31 +1280,7 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
                 }
                 
-                // Remove CLAUDE.md now that PR is successfully created
-                // We need to commit and push the deletion so it's reflected in the PR
-                try {
-                  await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                  await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                  
-                  // Commit the deletion
-                  const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                  if (deleteCommitResult.code === 0) {
-                    await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                    
-                    // Push the deletion
-                    const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-                    if (pushDeleteResult.code === 0) {
-                      await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                    } else {
-                      await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                    }
-                  } else {
-                    await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                  }
-                } catch (e) {
-                  // File might not exist or already removed, that's fine
-                  await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-                }
+                // CLAUDE.md will be removed after Claude command completes
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
                 await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
@@ -1118,31 +1358,7 @@ ${prBody}`, { verbose: true });
                 await log(formatAligned('📍', 'PR URL:', prUrl));
               }
               
-              // Remove CLAUDE.md after successful PR creation
-              // We need to commit and push the deletion so it's reflected in the PR
-              try {
-                await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                
-                // Commit the deletion
-                const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                if (deleteCommitResult.code === 0) {
-                  await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                  
-                  // Push the deletion
-                  const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
-                  if (pushDeleteResult.code === 0) {
-                    await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                  } else {
-                    await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                  }
-                } else {
-                  await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                }
-              } catch (e) {
-                // File might not exist, that's fine
-                await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-              }
+              // CLAUDE.md will be removed after Claude command completes
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
@@ -1290,16 +1506,21 @@ General guidelines.
    - When testing your assumptions, use the example scripts.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
-Continue mode context.
-   - This is CONTINUE MODE - you are working with an existing pull request #${prNumber}.
-   - Check all changes from the last commit to understand current progress.
-   - Review the pull request title and description to understand the current approach.
-   - Check for new comments on the pull request for additional feedback or requirements.
-   - Look at the issue context and any linked discussions.
-   - Check if CI workflows failed and investigate the failure logs.
-   - Look for any explicit feedback from users in PR comments or issue updates.
-   - Consider what has already been implemented vs what still needs to be done.
-   - Build upon existing work rather than starting from scratch.` : ''}
+Continue mode.
+   - When you are working on existing pull request #${prNumber}:
+     * Review the pull request title and description to understand the current approach, and continue building upon existing work.
+     * Make sure you use gh pr diff to see actual changes.
+     * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
+     * Look at the issue context of that pull request and any linked discussions.
+     * When pull request is out of sync with main branch, make sure you resolve any conflicts to apply original changes.
+     * Look at the issue context and any linked discussions.
+     * Explore codebase for best coding style and practices on similar changes.
+     * Check all changes from the last commit to understand current progress.
+     * Check for new comments on the pull request for additional feedback or requirements.
+     * Look for any explicit feedback from users in PR comments or issue updates.
+     * Consider what has already been implemented vs what still needs to be done.
+     * Consider any mismatch in requirements with original issue or the pull request description.
+     * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
 
 Initial research.  
    - When you read issue, read all details and comments thoroughly.  
@@ -1317,6 +1538,8 @@ Solution development and testing.
    - When you test integrations, use existing framework.  
    - When you test solution, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
+   - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
+   - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
 
 Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
@@ -1587,6 +1810,26 @@ Self review.
 
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
+      
+      // Check for critical errors that should cause failure
+      const criticalErrorPatterns = [
+        'ENOSPC: no space left on device',
+        'npm error code ENOSPC',
+        'Command failed:',
+        'Error:',
+        'error code',
+        'errno -28'
+      ];
+      
+      const isCriticalError = criticalErrorPatterns.some(pattern => 
+        data.toLowerCase().includes(pattern.toLowerCase())
+      );
+      
+      if (isCriticalError) {
+        commandFailed = true;
+        await log(`\n❌ Critical error detected in stderr: ${data}`, { level: 'error' });
+      }
+      
       // Only show actual errors, not verbose output
       if (data.includes('Error') || data.includes('error')) {
         await log(`\n⚠️  ${data}`, { level: 'error' });
@@ -1612,6 +1855,90 @@ Self review.
 
   await log('\n\n✅ Claude command completed');
   await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
+  
+  // Check for and commit any uncommitted changes made by Claude
+  await log('\n🔍 Checking for uncommitted changes...');
+  try {
+    // Check git status to see if there are any uncommitted changes
+    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+    
+    if (gitStatusResult.code === 0) {
+      const statusOutput = gitStatusResult.stdout.toString().trim();
+      
+      if (statusOutput) {
+        // There are uncommitted changes - log them and commit automatically
+        await log(formatAligned('📝', 'Found changes:', 'Uncommitted files detected'));
+        
+        // Show what files have changes
+        const changedFiles = statusOutput.split('\n').map(line => line.trim()).filter(line => line);
+        for (const file of changedFiles) {
+          await log(formatAligned('', '', `  ${file}`, 2));
+        }
+        
+        // Stage all changes
+        const gitAddResult = await $({ cwd: tempDir })`git add . 2>&1`;
+        if (gitAddResult.code === 0) {
+          await log(formatAligned('📦', 'Staged:', 'All changes added to git'));
+          
+          // Commit with a descriptive message
+          const commitMessage = `Auto-commit changes made by Claude
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+          
+          const gitCommitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}" 2>&1`;
+          if (gitCommitResult.code === 0) {
+            await log(formatAligned('✅', 'Committed:', 'Changes automatically committed'));
+            
+            // Push the changes to remote
+            const gitPushResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+            if (gitPushResult.code === 0) {
+              await log(formatAligned('📤', 'Pushed:', 'Changes synced to GitHub'));
+            } else {
+              await log(`⚠️ Warning: Could not push auto-committed changes: ${gitPushResult.stderr.toString().trim()}`, { level: 'warning' });
+            }
+          } else {
+            await log(`⚠️ Warning: Could not commit changes: ${gitCommitResult.stderr.toString().trim()}`, { level: 'warning' });
+          }
+        } else {
+          await log(`⚠️ Warning: Could not stage changes: ${gitAddResult.stderr.toString().trim()}`, { level: 'warning' });
+        }
+      } else {
+        await log(formatAligned('✅', 'No changes:', 'Repository is clean'));
+      }
+    } else {
+      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
+    }
+  } catch (gitError) {
+    await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+  }
+  
+  // Remove CLAUDE.md now that Claude command has finished
+  // We need to commit and push the deletion so it's reflected in the PR
+  try {
+    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
+    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+    
+    // Commit the deletion
+    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
+    if (deleteCommitResult.code === 0) {
+      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+      
+      // Push the deletion
+      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+      if (pushDeleteResult.code === 0) {
+        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+      } else {
+        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+      }
+    } else {
+      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+    }
+  } catch (e) {
+    // File might not exist or already removed, that's fine
+    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
+  }
 
   // Show summary of session and log file
   await log('\n=== Session Summary ===');
@@ -1750,7 +2077,11 @@ Self review.
               await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
             } else {
               // Read log file content
-              const logContent = await fs.readFile(logFile, 'utf8');
+              const rawLogContent = await fs.readFile(logFile, 'utf8');
+              
+              // Sanitize log content to mask GitHub tokens
+              await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+              const logContent = await sanitizeLogContent(rawLogContent);
               
               // Create a formatted comment with the log file content
               const logComment = `## 🤖 Solution Log
@@ -1840,7 +2171,11 @@ ${logContent}
             await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
           } else {
             // Read log file content
-            const logContent = await fs.readFile(logFile, 'utf8');
+            const rawLogContent = await fs.readFile(logFile, 'utf8');
+            
+            // Sanitize log content to mask GitHub tokens
+            await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+            const logContent = await sanitizeLogContent(rawLogContent);
             
             // Create a formatted comment with the log file content
             const logComment = `## 🤖 Solution Log
