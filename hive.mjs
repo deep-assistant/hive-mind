@@ -59,6 +59,42 @@ const cleanErrorMessage = (error) => {
   return message;
 };
 
+// Helper function to clean up temporary directories
+const cleanupTempDirectories = async () => {
+  if (!argv.autoCleanup) {
+    return;
+  }
+  
+  try {
+    await log(`\n🧹 Auto-cleanup enabled, removing temporary directories...`);
+    await log(`   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*`, { verbose: true });
+    
+    // Execute cleanup command using command-stream
+    const cleanupCommand = $`sudo rm -rf /tmp/* /var/tmp/*`;
+    
+    let exitCode = 0;
+    for await (const chunk of cleanupCommand.stream()) {
+      if (chunk.type === 'stderr') {
+        const error = chunk.data.toString().trim();
+        if (error && !error.includes('cannot remove')) { // Ignore "cannot remove" warnings for files in use
+          await log(`   [cleanup WARNING] ${error}`, { level: 'warn', verbose: true });
+        }
+      } else if (chunk.type === 'exit') {
+        exitCode = chunk.code;
+      }
+    }
+    
+    if (exitCode === 0) {
+      await log(`   ✅ Temporary directories cleaned successfully`);
+    } else {
+      await log(`   ⚠️  Cleanup completed with warnings (exit code: ${exitCode})`, { level: 'warn' });
+    }
+  } catch (error) {
+    await log(`   ❌ Error during cleanup: ${cleanErrorMessage(error)}`, { level: 'error' });
+    // Don't fail the entire process if cleanup fails
+  }
+};
+
 // Configure command line arguments
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <github-url> [options]')
@@ -128,6 +164,11 @@ const argv = yargs(process.argv.slice(2))
   .option('once', {
     type: 'boolean',
     description: 'Run once and exit instead of continuous monitoring',
+    default: false
+  })
+  .option('auto-cleanup', {
+    type: 'boolean',
+    description: 'Automatically clean temporary directories (/tmp/* /var/tmp/*) when finished successfully',
     default: false
   })
   .demandCommand(1, 'GitHub URL is required')
@@ -201,6 +242,9 @@ if (argv.maxIssues > 0) {
 }
 if (argv.dryRun) {
   await log(`   🧪 DRY RUN MODE - No actual processing`);
+}
+if (argv.autoCleanup) {
+  await log(`   🧹 Auto-cleanup: ENABLED (will clean /tmp/* /var/tmp/* on success)`);
 }
 await log('');
 
@@ -577,6 +621,11 @@ async function monitor() {
       await log(`\n✅ All issues processed!`);
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
+      
+      // Perform cleanup if enabled and there were successful completions
+      if (stats.completed > 0) {
+        await cleanupTempDirectories();
+      }
       break;
     }
     
@@ -588,6 +637,12 @@ async function monitor() {
   // Stop workers
   issueQueue.stop();
   await Promise.all(issueQueue.workers);
+  
+  // Perform cleanup if enabled and there were successful completions
+  const finalStats = issueQueue.getStats();
+  if (finalStats.completed > 0) {
+    await cleanupTempDirectories();
+  }
   
   await log(`\n👋 Hive Mind monitoring stopped`);
 }
@@ -619,6 +674,13 @@ async function gracefulShutdown(signal) {
     }
     
     await Promise.all(issueQueue.workers);
+    
+    // Perform cleanup if enabled and there were successful completions
+    const finalStats = issueQueue.getStats();
+    if (finalStats.completed > 0) {
+      await cleanupTempDirectories();
+    }
+    
     await log(`   ✅ Shutdown complete`);
     
   } catch (error) {
