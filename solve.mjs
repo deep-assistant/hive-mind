@@ -1479,7 +1479,7 @@ Continue mode.
      * Make sure you use gh pr diff to see actual changes.
      * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
      * Look at the issue context of that pull request and any linked discussions.
-     * When pull request is out of sync with main branch, make sure you resolve any conflicts to apply original changes.
+     * When pull request is out of sync with default branch, make sure you resolve any conflicts to apply original changes.
      * Look at the issue context and any linked discussions.
      * Explore codebase for best coding style and practices on similar changes.
      * Check all changes from the last commit to understand current progress.
@@ -1523,7 +1523,7 @@ Workflow and collaboration.
    - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
    - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}${argv.fork && forkedRepo ? `
    - When you create pr, use --repo ${owner}/${repo} to create PR against original repo.` : ''}  
-   - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
+   - When you organize workflow, use pull requests instead of direct merges to default branch (main or master).  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
    - When you face conflict, ask for help.  
