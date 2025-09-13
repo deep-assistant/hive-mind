@@ -7,7 +7,8 @@
   "bin": {
     "hive": "./hive.mjs",
     "solve": "./solve.mjs",
-    "task": "./task.mjs"
+    "task": "./task.mjs",
+    "review": "./review.mjs"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -37,6 +38,7 @@
     "hive.mjs",
     "solve.mjs",
     "task.mjs",
+    "review.mjs",
     "*.md"
   ]
 }
