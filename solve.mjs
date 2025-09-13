@@ -1995,8 +1995,9 @@ General guidelines.
    - When CI is failing, make sure you download the logs locally and carefully investigate them.
    - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
-   - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples/experiments folder so you can reuse them later.
-   - When testing your assumptions, use the example/experiment scripts.
+   - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples or/and experiments folders so you can reuse them later.
+   - When testing your assumptions, use the experiment scripts, and add it to experiments folder.
+   - When your experiments can show real world use case of the software, add it to examples folder.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
 Continue mode.
