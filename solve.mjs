@@ -1976,6 +1976,10 @@ Proceed.`;
         
         if (commentLines.length > 0) {
           commentInfo = '\n\n' + commentLines.join('\n') + '\n';
+          // Also add the comment info to the visible prompt for user
+          if (isContinueMode) {
+            prompt = prompt.replace('Continue.', commentLines.join('\n') + '\n\nContinue.');
+          }
         }
       }
     } catch (error) {
