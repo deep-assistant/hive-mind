@@ -40,5 +40,3 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 ```bash
 grep -E '\(cd /tmp/gh-issue-solver-[0-9]+ && claude --resume [0-9a-f-]{36}\)' hive-*.log
 ```
-
-
