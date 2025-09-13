@@ -428,6 +428,11 @@ const argv = yargs(process.argv.slice(2))
     default: false,
     alias: 'c'
   })
+  .option('auto-continue-only-on-new-comments', {
+    type: 'boolean',
+    description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
+    default: false
+  })
   .option('min-disk-space', {
     type: 'number',
     description: 'Minimum required disk space in MB (default: 500)',
@@ -2038,6 +2043,18 @@ Proceed.`;
 
         await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
         await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
+
+        // Check if --auto-continue-only-on-new-comments is enabled and fail if no new comments
+        if (argv.autoContinueOnlyOnNewComments && (isContinueMode || argv.autoContinue)) {
+          const totalNewComments = newPrComments + newIssueComments;
+          if (totalNewComments === 0) {
+            await log(`❌ auto-continue-only-on-new-comments: No new comments found since last commit`);
+            await log(`   This option requires new comments to proceed with auto-continue or continue mode.`);
+            process.exit(1);
+          } else {
+            await log(`✅ auto-continue-only-on-new-comments: Found ${totalNewComments} new comments, continuing...`);
+          }
+        }
 
         // Build comment info for system prompt
         const commentLines = [];
