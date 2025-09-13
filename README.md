@@ -19,7 +19,7 @@ That mean it can lead to unexpected side effects.
 
 There is also a known issue of space leakage. So you need to make sure you are able to reinstall your virtual machine to clear space and/or any damage to the virtual machine.
 
-Minumum system requirements to run `hive.mjs`:
+Minimum system requirements to run `hive.mjs`:
 ```
 1 CPU Core
 1 GB RAM
