@@ -3,7 +3,7 @@
 
 # Hive mind
 
-The master mind (orchestrator) AI that constrols hive of AIs or humans.
+The master mind (orchestrator) AI that constrols hive/swarm of AIs or humans.
 
 The HIVE MIND. The SWARM MIND.
 
