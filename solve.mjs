@@ -15,6 +15,106 @@ const crypto = (await use('crypto')).default;
 // Global log file reference
 let logFile = null;
 
+// Function to check available disk space
+const checkDiskSpace = async (minSpaceMB = 500) => {
+  try {
+    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
+    const availableMB = parseInt(stdout.toString().replace('M', ''));
+    
+    if (availableMB < minSpaceMB) {
+      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
+      await log('   This may prevent successful pull request creation.', { level: 'error' });
+      await log('   Please free up disk space and try again.', { level: 'error' });
+      return false;
+    }
+    
+    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
+// Function to check available memory
+const checkMemory = async (minMemoryMB = 256) => {
+  try {
+    // Get memory info from /proc/meminfo
+    const { stdout } = await $`grep -E "MemAvailable|MemFree|SwapFree|SwapTotal" /proc/meminfo`;
+    const memInfo = stdout.toString();
+    
+    // Parse memory values (they're in kB)
+    const availableMatch = memInfo.match(/MemAvailable:\s+(\d+)/);
+    const freeMatch = memInfo.match(/MemFree:\s+(\d+)/);
+    const swapFreeMatch = memInfo.match(/SwapFree:\s+(\d+)/);
+    const swapTotalMatch = memInfo.match(/SwapTotal:\s+(\d+)/);
+    
+    const availableMB = availableMatch ? Math.floor(parseInt(availableMatch[1]) / 1024) : 0;
+    const freeMB = freeMatch ? Math.floor(parseInt(freeMatch[1]) / 1024) : 0;
+    const swapFreeMB = swapFreeMatch ? Math.floor(parseInt(swapFreeMatch[1]) / 1024) : 0;
+    const swapTotalMB = swapTotalMatch ? Math.floor(parseInt(swapTotalMatch[1]) / 1024) : 0;
+    
+    await log(`🧠 Memory check: ${availableMB}MB available, ${freeMB}MB free, ${swapFreeMB}MB swap free`);
+    
+    // Calculate effective available memory (RAM + swap)
+    const effectiveAvailableMB = availableMB + swapFreeMB;
+    
+    if (availableMB < minMemoryMB) {
+      if (effectiveAvailableMB >= minMemoryMB) {
+        await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required, but ${swapFreeMB}MB swap available`, { level: 'warning' });
+        await log('   Continuing with swap support (effective memory: ' + effectiveAvailableMB + 'MB)', { level: 'warning' });
+      } else {
+        await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
+        await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
+        
+        if (swapTotalMB < 1024) {
+          await log('', { level: 'error' });
+          await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
+          await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
+          await log('   sudo chmod 600 /swapfile', { level: 'error' });
+          await log('   sudo mkswap /swapfile', { level: 'error' });
+          await log('   sudo swapon /swapfile', { level: 'error' });
+          await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
+          await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+        }
+        
+        return false;
+      }
+    }
+    
+    if (availableMB >= minMemoryMB) {
+      await log(`✅ Memory check passed: ${availableMB}MB available (${minMemoryMB}MB required)`);
+    }
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
+// Function to get system resource snapshot
+const getResourceSnapshot = async () => {
+  try {
+    const memInfo = await $`cat /proc/meminfo | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
+    const loadAvg = await $`cat /proc/loadavg`;
+    const uptime = await $`uptime`;
+    
+    return {
+      timestamp: new Date().toISOString(),
+      memory: memInfo.stdout.toString().trim(),
+      load: loadAvg.stdout.toString().trim(),
+      uptime: uptime.stdout.toString().trim()
+    };
+  } catch (error) {
+    return {
+      timestamp: new Date().toISOString(),
+      error: `Failed to get resource snapshot: ${error.message}`
+    };
+  }
+};
+
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -43,6 +143,236 @@ const log = async (message, options = {}) => {
     default:
       console.log(message);
       break;
+  }
+};
+
+// Helper function to mask GitHub tokens in text
+const maskGitHubToken = (token) => {
+  if (!token || token.length < 12) {
+    return token; // Don't mask very short strings
+  }
+  
+  const start = token.substring(0, 5);
+  const end = token.substring(token.length - 5);
+  const middle = '*'.repeat(Math.max(token.length - 10, 3));
+  
+  return start + middle + end;
+};
+
+// Helper function to get GitHub tokens from local config files
+const getGitHubTokensFromFiles = async () => {
+  const tokens = [];
+  
+  try {
+    // Check ~/.config/gh/hosts.yml
+    const hostsFile = path.join(os.homedir(), '.config/gh/hosts.yml');
+    if (await fs.access(hostsFile).then(() => true).catch(() => false)) {
+      const hostsContent = await fs.readFile(hostsFile, 'utf8');
+      
+      // Look for oauth_token and api_token patterns
+      const oauthMatches = hostsContent.match(/oauth_token:\s*([^\s\n]+)/g);
+      if (oauthMatches) {
+        for (const match of oauthMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+      
+      const apiMatches = hostsContent.match(/api_token:\s*([^\s\n]+)/g);
+      if (apiMatches) {
+        for (const match of apiMatches) {
+          const token = match.split(':')[1].trim();
+          if (token && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore file access errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to get GitHub tokens from gh command output
+const getGitHubTokensFromCommand = async () => {
+  const tokens = [];
+  
+  try {
+    // Run gh auth status to get token info
+    const authResult = await $`gh auth status 2>&1`.catch(() => ({ stdout: '', stderr: '' }));
+    const authOutput = authResult.stdout?.toString() + authResult.stderr?.toString() || '';
+    
+    // Look for token patterns in the output
+    const tokenPatterns = [
+      /(?:token|oauth|api)[:\s]*([a-zA-Z0-9_]{20,})/gi,
+      /gh[pou]_[a-zA-Z0-9_]{20,}/gi
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      const matches = authOutput.match(pattern);
+      if (matches) {
+        for (let match of matches) {
+          // Clean up the match
+          const token = match.replace(/^(?:token|oauth|api)[:\s]*/, '').trim();
+          if (token && token.length >= 20 && !tokens.includes(token)) {
+            tokens.push(token);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Silently ignore command errors
+  }
+  
+  return tokens;
+};
+
+// Helper function to sanitize log content by masking GitHub tokens
+const sanitizeLogContent = async (logContent) => {
+  let sanitized = logContent;
+  
+  try {
+    // Get tokens from both sources
+    const fileTokens = await getGitHubTokensFromFiles();
+    const commandTokens = await getGitHubTokensFromCommand();
+    const allTokens = [...new Set([...fileTokens, ...commandTokens])];
+    
+    // Mask each token found
+    for (const token of allTokens) {
+      if (token && token.length >= 12) {
+        const maskedToken = maskGitHubToken(token);
+        // Use global replace to mask all occurrences
+        sanitized = sanitized.split(token).join(maskedToken);
+      }
+    }
+    
+    // Also look for and mask common GitHub token patterns directly in the log
+    const tokenPatterns = [
+      /gh[pou]_[a-zA-Z0-9_]{20,}/g,
+      /(?:^|[\s:=])([a-f0-9]{40})(?=[\s\n]|$)/gm, // 40-char hex tokens (like personal access tokens)
+      /(?:^|[\s:=])([a-zA-Z0-9_]{20,})(?=[\s\n]|$)/gm // General long tokens
+    ];
+    
+    for (const pattern of tokenPatterns) {
+      sanitized = sanitized.replace(pattern, (match, token) => {
+        if (token && token.length >= 20) {
+          return match.replace(token, maskGitHubToken(token));
+        }
+        return match;
+      });
+    }
+    
+    await log(`  🔒 Sanitized ${allTokens.length} detected GitHub tokens in log content`, { verbose: true });
+    
+  } catch (error) {
+    await log(`  ⚠️  Warning: Could not fully sanitize log content: ${error.message}`, { verbose: true });
+  }
+  
+  return sanitized;
+};
+
+// Function to validate Claude CLI connection
+const validateClaudeConnection = async () => {
+  try {
+    await log(`🔍 Validating Claude CLI connection...`);
+    
+    // First try a quick validation approach
+    try {
+      // Check if Claude CLI is installed and get version
+      const versionResult = await $`timeout 10 claude --version`;
+      if (versionResult.code === 0) {
+        const version = versionResult.stdout?.toString().trim();
+        await log(`📦 Claude CLI version: ${version}`);
+      }
+    } catch (versionError) {
+      // Version check failed, but we'll continue with the main validation
+      await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
+    }
+    
+    let result;
+    try {
+      // Primary validation: use printf piping with sonnet model (cheapest)
+      result = await $`printf hi | claude --model sonnet -p`;
+    } catch (pipeError) {
+      // If piping fails, fallback to the timeout approach as last resort
+      await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
+      try {
+        result = await $`timeout 60 claude --model sonnet -p hi`;
+      } catch (timeoutError) {
+        if (timeoutError.code === 124) {
+          await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
+          await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
+          await log(`   💡 Try running 'claude --model sonnet -p hi' manually to verify it works`, { level: 'error' });
+          return false;
+        }
+        // Re-throw if it's not a timeout error
+        throw timeoutError;
+      }
+    }
+    
+    // Check for common error patterns
+    const stdout = result.stdout?.toString() || '';
+    const stderr = result.stderr?.toString() || '';
+    
+    // Check for JSON errors in stdout or stderr
+    const checkForJsonError = (text) => {
+      try {
+        // Look for JSON error patterns
+        if (text.includes('"error"') && text.includes('"type"')) {
+          const jsonMatch = text.match(/\{.*"error".*\}/);
+          if (jsonMatch) {
+            const errorObj = JSON.parse(jsonMatch[0]);
+            return errorObj.error;
+          }
+        }
+      } catch (e) {
+        // Not valid JSON, continue with other checks
+      }
+      return null;
+    };
+    
+    const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
+    
+    // Use exitCode if code is undefined (Bun shell behavior)
+    const exitCode = result.code ?? result.exitCode ?? 0;
+    
+    if (exitCode !== 0) {
+      // Command failed
+      if (jsonError) {
+        await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+      } else {
+        await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
+        if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
+      }
+      
+      if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
+        await log('   💡 Please run: claude login', { level: 'error' });
+      }
+      
+      return false;
+    }
+    
+    // Check for error patterns in successful response
+    if (jsonError) {
+      await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+      if (jsonError.type === 'forbidden') {
+        await log('   💡 Please run: claude login', { level: 'error' });
+      }
+      return false;
+    }
+    
+    // Success - Claude responded (LLM responses are probabilistic, so any response is good)
+    await log(`✅ Claude CLI connection validated successfully`);
+    return true;
+    
+  } catch (error) {
+    await log(`❌ Failed to validate Claude CLI connection: ${cleanErrorMessage(error)}`, { level: 'error' });
+    await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
+    return false;
   }
 };
 
@@ -94,9 +424,40 @@ const argv = yargs(process.argv.slice(2))
   .option('attach-solution-logs', {
     type: 'boolean',
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+    default: false,
+    alias: 'attach-logs'
+  })
+  .option('auto-continue', {
+    type: 'boolean',
+    description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
     default: false
   })
-  .demandCommand(1, 'The GitHub issue URL is required')
+  .option('auto-continue-limit', {
+    type: 'boolean',
+    description: 'Automatically continue when Claude limit resets (waits until reset time)',
+    default: false,
+    alias: 'c'
+  })
+  .option('auto-continue-only-on-new-comments', {
+    type: 'boolean',
+    description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
+    default: false
+  })
+  .option('min-disk-space', {
+    type: 'number',
+    description: 'Minimum required disk space in MB (default: 500)',
+    default: 500
+  })
+  .option('force-claude-bun-run', {
+    type: 'boolean',
+    description: 'Experimental: Update Claude Node.js script to run with bun instead of node',
+    default: false
+  })
+  .option('force-claude-nodejs-run', {
+    type: 'boolean',
+    description: 'Experimental: Restore Claude script to run with Node.js instead of bun',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .argv;
@@ -143,6 +504,186 @@ await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`)
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
+// Handle Claude runtime switching (experimental feature)
+const handleClaudeRuntimeSwitch = async () => {
+  if (argv['force-claude-bun-run']) {
+    await log(`\n🔧 Switching Claude runtime to bun...`);
+    try {
+      // Check if bun is available
+      try {
+        await $`which bun`;
+        await log(`   ✅ Bun runtime found`);
+      } catch (bunError) {
+        await log(`❌ Bun runtime not found. Please install bun first: https://bun.sh/`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      // Find Claude executable path
+      const claudePathResult = await $`which claude`;
+      const claudePath = claudePathResult.stdout.toString().trim();
+      
+      if (!claudePath) {
+        await log(`❌ Claude executable not found`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      await log(`   Claude path: ${claudePath}`);
+      
+      // Check if file is writable
+      try {
+        await fs.access(claudePath, fs.constants.W_OK);
+      } catch (accessError) {
+        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
+        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      // Read current shebang
+      const firstLine = await $`head -1 "${claudePath}"`;
+      const currentShebang = firstLine.stdout.toString().trim();
+      await log(`   Current shebang: ${currentShebang}`);
+      
+      if (currentShebang.includes('bun')) {
+        await log(`   ✅ Claude is already configured to use bun`);
+        process.exit(0);
+      }
+      
+      // Create backup
+      const backupPath = `${claudePath}.nodejs-backup`;
+      await $`cp "${claudePath}" "${backupPath}"`;
+      await log(`   📦 Backup created: ${backupPath}`);
+      
+      // Read file content and replace shebang
+      const content = await fs.readFile(claudePath, 'utf8');
+      const newContent = content.replace(/^#!.*node.*$/m, '#!/usr/bin/env bun');
+      
+      if (content === newContent) {
+        await log(`⚠️  No Node.js shebang found to replace`, { level: 'warning' });
+        await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
+        process.exit(0);
+      }
+      
+      await fs.writeFile(claudePath, newContent);
+      await log(`   ✅ Claude shebang updated to use bun`);
+      await log(`   🔄 Claude will now run with bun runtime`);
+      
+    } catch (error) {
+      await log(`❌ Failed to switch Claude to bun: ${error.message}`, { level: 'error' });
+      process.exit(1);
+    }
+    
+    // Exit after switching runtime
+    process.exit(0);
+  }
+  
+  if (argv['force-claude-nodejs-run']) {
+    await log(`\n🔧 Restoring Claude runtime to Node.js...`);
+    try {
+      // Check if Node.js is available
+      try {
+        await $`which node`;
+        await log(`   ✅ Node.js runtime found`);
+      } catch (nodeError) {
+        await log(`❌ Node.js runtime not found. Please install Node.js first`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      // Find Claude executable path
+      const claudePathResult = await $`which claude`;
+      const claudePath = claudePathResult.stdout.toString().trim();
+      
+      if (!claudePath) {
+        await log(`❌ Claude executable not found`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      await log(`   Claude path: ${claudePath}`);
+      
+      // Check if file is writable
+      try {
+        await fs.access(claudePath, fs.constants.W_OK);
+      } catch (accessError) {
+        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
+        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
+        process.exit(1);
+      }
+      
+      // Read current shebang
+      const firstLine = await $`head -1 "${claudePath}"`;
+      const currentShebang = firstLine.stdout.toString().trim();
+      await log(`   Current shebang: ${currentShebang}`);
+      
+      if (currentShebang.includes('node') && !currentShebang.includes('bun')) {
+        await log(`   ✅ Claude is already configured to use Node.js`);
+        process.exit(0);
+      }
+      
+      // Check if backup exists
+      const backupPath = `${claudePath}.nodejs-backup`;
+      try {
+        await fs.access(backupPath);
+        // Restore from backup
+        await $`cp "${backupPath}" "${claudePath}"`;
+        await log(`   ✅ Restored Claude from backup: ${backupPath}`);
+      } catch (backupError) {
+        // No backup available, manually update shebang
+        await log(`   📝 No backup found, manually updating shebang...`);
+        const content = await fs.readFile(claudePath, 'utf8');
+        const newContent = content.replace(/^#!.*bun.*$/m, '#!/usr/bin/env node');
+        
+        if (content === newContent) {
+          await log(`⚠️  No bun shebang found to replace`, { level: 'warning' });
+          await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
+          process.exit(0);
+        }
+        
+        await fs.writeFile(claudePath, newContent);
+        await log(`   ✅ Claude shebang updated to use Node.js`);
+      }
+      
+      await log(`   🔄 Claude will now run with Node.js runtime`);
+      
+    } catch (error) {
+      await log(`❌ Failed to restore Claude to Node.js: ${error.message}`, { level: 'error' });
+      process.exit(1);
+    }
+    
+    // Exit after restoring runtime
+    process.exit(0);
+  }
+};
+
+// Execute Claude runtime switching if requested
+await handleClaudeRuntimeSwitch();
+
+// Validate GitHub URL requirement (unless using runtime switching options)
+if (!issueUrl && !argv['force-claude-bun-run'] && !argv['force-claude-nodejs-run']) {
+  await log(`❌ GitHub issue URL is required when not using Claude runtime switching options`, { level: 'error' });
+  await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
+  await log(`   Or: solve --force-claude-bun-run (to switch Claude to bun)`, { level: 'error' });
+  await log(`   Or: solve --force-claude-nodejs-run (to restore Claude to Node.js)`, { level: 'error' });
+  process.exit(1);
+}
+
+// Check disk space before proceeding
+const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
+if (!hasEnoughSpace) {
+  process.exit(1);
+}
+
+// Check memory before proceeding (early check to prevent Claude kills)
+const hasEnoughMemory = await checkMemory(256);
+if (!hasEnoughMemory) {
+  process.exit(1);
+}
+
+// Validate Claude CLI connection before proceeding
+const isClaudeConnected = await validateClaudeConnection();
+if (!isClaudeConnected) {
+  await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
+  process.exit(1);
+}
+
 // Helper function to format aligned console output
 const formatAligned = (icon, label, value, indent = 0) => {
   const spaces = ' '.repeat(indent);
@@ -151,6 +692,201 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
+// Helper function to parse time string and calculate wait time
+const parseResetTime = (timeStr) => {
+  // Parse time format like "5:30am" or "11:45pm"
+  const match = timeStr.match(/(\d{1,2}):(\d{2})([ap]m)/i);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+  
+  const [, hourStr, minuteStr, ampm] = match;
+  let hour = parseInt(hourStr);
+  const minute = parseInt(minuteStr);
+  
+  // Convert to 24-hour format
+  if (ampm.toLowerCase() === 'pm' && hour !== 12) {
+    hour += 12;
+  } else if (ampm.toLowerCase() === 'am' && hour === 12) {
+    hour = 0;
+  }
+  
+  return { hour, minute };
+};
+
+// Calculate milliseconds until the next occurrence of the specified time
+const calculateWaitTime = (resetTime) => {
+  const { hour, minute } = parseResetTime(resetTime);
+  
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(hour, minute, 0, 0);
+  
+  // If the time has already passed today, schedule for tomorrow
+  if (today <= now) {
+    today.setDate(today.getDate() + 1);
+  }
+  
+  return today.getTime() - now.getTime();
+};
+
+// Auto-continue function that waits until limit resets
+const autoContinueWhenLimitResets = async (issueUrl, sessionId, tempDir) => {
+  try {
+    const resetTime = global.limitResetTime;
+    const waitMs = calculateWaitTime(resetTime);
+    
+    await log(`\n⏰ Waiting until ${resetTime} for limit to reset...`);
+    await log(`   Wait time: ${Math.round(waitMs / (1000 * 60))} minutes`);
+    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
+    
+    // Show countdown every 30 minutes for long waits, every minute for short waits
+    const countdownInterval = waitMs > 30 * 60 * 1000 ? 30 * 60 * 1000 : 60 * 1000;
+    let remainingMs = waitMs;
+    
+    const countdownTimer = setInterval(async () => {
+      remainingMs -= countdownInterval;
+      if (remainingMs > 0) {
+        const remainingMinutes = Math.round(remainingMs / (1000 * 60));
+        await log(`⏳ ${remainingMinutes} minutes remaining until ${resetTime}`);
+      }
+    }, countdownInterval);
+    
+    // Wait until reset time
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    clearInterval(countdownTimer);
+    
+    await log(`\n✅ Limit reset time reached! Resuming session...`);
+    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
+    
+    // Recursively call the solve script with --resume
+    // We need to reconstruct the command with appropriate flags
+    const childProcess = await import('child_process');
+    
+    // Build the resume command
+    const resumeArgs = [
+      process.argv[1], // solve.mjs path
+      issueUrl,
+      '--resume', sessionId,
+      '--auto-continue-limit' // Keep auto-continue-limit enabled
+    ];
+    
+    // Preserve other flags from original invocation
+    if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
+    if (argv.verbose) resumeArgs.push('--verbose');
+    if (argv.fork) resumeArgs.push('--fork');
+    if (argv.attachSolutionLogs) resumeArgs.push('--attach-solution-logs');
+    
+    await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
+    
+    // Execute the resume command
+    const child = childProcess.spawn('node', resumeArgs, {
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    
+    child.on('close', (code) => {
+      process.exit(code);
+    });
+    
+  } catch (error) {
+    await log(`\n❌ Auto-continue failed: ${error.message}`, { level: 'error' });
+    await log(`\n🔄 Manual resume command:`);
+    await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+    process.exit(1);
+  }
+};
+
+// Helper function to check if CLAUDE.md exists in a PR branch
+const checkClaudeMdInBranch = async (owner, repo, branchName) => {
+  try {
+    // Use GitHub CLI to check if CLAUDE.md exists in the branch
+    const result = await $`gh api repos/${owner}/${repo}/contents/CLAUDE.md?ref=${branchName}`;
+    return result.code === 0;
+  } catch (error) {
+    // If file doesn't exist or there's an error, CLAUDE.md doesn't exist
+    return false;
+  }
+};
+
+// Helper function to check GitHub permissions and warn about missing scopes
+const checkGitHubPermissions = async () => {
+  try {
+    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    
+    // Get auth status including token scopes
+    const authStatusResult = await $`gh auth status 2>&1`;
+    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
+    
+    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
+      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
+      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      return false;
+    }
+    
+    await log(`✅ GitHub authentication: OK`);
+    
+    // Parse the auth status output to extract token scopes
+    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
+    if (!scopeMatch) {
+      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      return true; // Continue despite not being able to check scopes
+    }
+    
+    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
+    const scopeString = scopeMatch[1];
+    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
+    await log(`📋 Token scopes: ${scopes.join(', ')}`);
+    
+    // Check for important scopes and warn if missing
+    const warnings = [];
+    
+    if (!scopes.includes('workflow')) {
+      warnings.push({
+        scope: 'workflow',
+        issue: 'Cannot push changes to .github/workflows/ directory',
+        solution: 'Run: gh auth refresh -h github.com -s workflow'
+      });
+    }
+    
+    if (!scopes.includes('repo')) {
+      warnings.push({
+        scope: 'repo',
+        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
+        solution: 'Run: gh auth refresh -h github.com -s repo'
+      });
+    }
+    
+    // Display warnings
+    if (warnings.length > 0) {
+      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      
+      for (const warning of warnings) {
+        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
+        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
+        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
+      }
+      
+      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
+      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+    } else {
+      await log(`✅ All required permissions: Available`);
+    }
+    
+    return true;
+  } catch (error) {
+    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
+    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    return true; // Continue despite permission check failure
+  }
+};
+
+// Check GitHub permissions early in the process
+const hasValidAuth = await checkGitHubPermissions();
+if (!hasValidAuth) {
+  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  process.exit(1);
+}
 // Validate GitHub issue or pull request URL format
 const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
 const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
@@ -175,7 +911,73 @@ const urlNumber = urlParts[6]; // Could be issue or PR number
 let issueNumber;
 let prNumber;
 let prBranch;
+let mergeStateStatus;
 let isContinueMode = false;
+
+// Auto-continue logic: check for existing PRs if --auto-continue is enabled
+if (argv.autoContinue && isIssueUrl) {
+  issueNumber = urlNumber;
+  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
+  
+  try {
+    // Get all PRs linked to this issue
+    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
+    
+    if (prListResult.code === 0) {
+      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
+      
+      if (prs.length > 0) {
+        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
+        
+        // Find PRs that are older than 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        for (const pr of prs) {
+          const createdAt = new Date(pr.createdAt);
+          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
+          
+          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
+          
+          // Check if PR is open (not closed)
+          if (pr.state === 'OPEN') {
+            // Check if CLAUDE.md exists in this PR branch
+            const claudeMdExists = await checkClaudeMdInBranch(owner, repo, pr.headRefName);
+            
+            if (!claudeMdExists) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
+              
+              // Switch to continue mode immediately (don't wait 24 hours if CLAUDE.md is missing)
+              isContinueMode = true;
+              prNumber = pr.number;
+              prBranch = pr.headRefName;
+              break;
+            } else if (createdAt < twentyFourHoursAgo) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+              
+              // Switch to continue mode
+              isContinueMode = true;
+              prNumber = pr.number;
+              prBranch = pr.headRefName;
+              break;
+            } else {
+              await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
+            }
+          }
+        }
+        
+        if (!isContinueMode) {
+          await log(`⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual`);
+        }
+      } else {
+        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
+      }
+    }
+  } catch (prSearchError) {
+    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
+    await log(`   Continuing with normal flow...`);
+  }
+}
 
 if (isPrUrl) {
   isContinueMode = true;
@@ -185,7 +987,7 @@ if (isPrUrl) {
   
   // Get PR details to find the linked issue and branch
   try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number`;
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus`;
     
     if (prResult.code !== 0) {
       await log('Error: Failed to get PR details', { level: 'error' });
@@ -195,6 +997,7 @@ if (isPrUrl) {
     
     const prData = JSON.parse(prResult.stdout.toString());
     prBranch = prData.headRefName;
+    mergeStateStatus = prData.mergeStateStatus;
     
     await log(`📝 PR branch: ${prBranch}`);
     
@@ -617,7 +1420,8 @@ try {
     prompt = `Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}
-Your prepared Pull Request: ${prUrl}${argv.fork && forkedRepo ? `
+Your prepared Pull Request: ${prUrl}
+Existing pull request's merge state status: ${mergeStateStatus}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 
@@ -983,31 +1787,7 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
                 }
                 
-                // Remove CLAUDE.md now that PR is successfully created
-                // We need to commit and push the deletion so it's reflected in the PR
-                try {
-                  await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                  await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                  
-                  // Commit the deletion
-                  const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                  if (deleteCommitResult.code === 0) {
-                    await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                    
-                    // Push the deletion
-                    const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-                    if (pushDeleteResult.code === 0) {
-                      await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                    } else {
-                      await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                    }
-                  } else {
-                    await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                  }
-                } catch (e) {
-                  // File might not exist or already removed, that's fine
-                  await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-                }
+                // CLAUDE.md will be removed after Claude command completes
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
                 await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
@@ -1085,31 +1865,7 @@ ${prBody}`, { verbose: true });
                 await log(formatAligned('📍', 'PR URL:', prUrl));
               }
               
-              // Remove CLAUDE.md after successful PR creation
-              // We need to commit and push the deletion so it's reflected in the PR
-              try {
-                await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-                await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-                
-                // Commit the deletion
-                const deleteCommitResult = await $`cd ${tempDir} && git add CLAUDE.md && git commit -m "Remove CLAUDE.md - PR created successfully" 2>&1`;
-                if (deleteCommitResult.code === 0) {
-                  await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-                  
-                  // Push the deletion
-                  const pushDeleteResult = await $`cd ${tempDir} && git push origin ${branchName} 2>&1`;
-                  if (pushDeleteResult.code === 0) {
-                    await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-                  } else {
-                    await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-                  }
-                } else {
-                  await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-                }
-              } catch (e) {
-                // File might not exist, that's fine
-                await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-              }
+              // CLAUDE.md will be removed after Claude command completes
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
@@ -1245,7 +2001,94 @@ Original repository (upstream): ${owner}/${repo}` : ''}
 Proceed.`;
   }
 
-  const systemPrompt = `You are AI issue solver.
+  // Count new comments on PR and issue after last commit
+  let newPrComments = 0;
+  let newIssueComments = 0;
+  let commentInfo = '';
+
+  if (prNumber && branchName) {
+    try {
+      await log(`${formatAligned('💬', 'Counting comments:', 'Checking for new comments since last commit...')}`);
+      
+      // Get the last commit timestamp from the PR branch
+      let lastCommitResult = await $`git log -1 --format="%aI" origin/${branchName}`;
+      if (lastCommitResult.code !== 0) {
+        // Fallback to local branch if remote doesn't exist
+        lastCommitResult = await $`git log -1 --format="%aI" ${branchName}`;
+      }
+      if (lastCommitResult.code === 0) {
+        const lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
+        await log(formatAligned('📅', 'Last commit time:', lastCommitTime.toISOString(), 2));
+
+        // Count new PR comments after last commit (both code review comments and conversation comments)
+        let prReviewComments = [];
+        let prConversationComments = [];
+        
+        // Get PR code review comments
+        const prReviewCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
+        if (prReviewCommentsResult.code === 0) {
+          prReviewComments = JSON.parse(prReviewCommentsResult.stdout.toString());
+        }
+        
+        // Get PR conversation comments (PR is also an issue)
+        const prConversationCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${prNumber}/comments`;
+        if (prConversationCommentsResult.code === 0) {
+          prConversationComments = JSON.parse(prConversationCommentsResult.stdout.toString());
+        }
+        
+        // Combine and count all PR comments after last commit
+        const allPrComments = [...prReviewComments, ...prConversationComments];
+        newPrComments = allPrComments.filter(comment => 
+          new Date(comment.created_at) > lastCommitTime
+        ).length;
+
+        // Count new issue comments after last commit
+        const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+        if (issueCommentsResult.code === 0) {
+          const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
+          newIssueComments = issueComments.filter(comment => 
+            new Date(comment.created_at) > lastCommitTime
+          ).length;
+        }
+
+        await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
+        await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
+
+        // Check if --auto-continue-only-on-new-comments is enabled and fail if no new comments
+        if (argv.autoContinueOnlyOnNewComments && (isContinueMode || argv.autoContinue)) {
+          const totalNewComments = newPrComments + newIssueComments;
+          if (totalNewComments === 0) {
+            await log(`❌ auto-continue-only-on-new-comments: No new comments found since last commit`);
+            await log(`   This option requires new comments to proceed with auto-continue or continue mode.`);
+            process.exit(1);
+          } else {
+            await log(`✅ auto-continue-only-on-new-comments: Found ${totalNewComments} new comments, continuing...`);
+          }
+        }
+
+        // Build comment info for system prompt
+        const commentLines = [];
+        if (newPrComments > 0) {
+          commentLines.push(`New comments on the pull request: ${newPrComments}`);
+        }
+        if (newIssueComments > 0) {
+          commentLines.push(`New comments on the issue: ${newIssueComments}`);
+        }
+        
+        if (commentLines.length > 0) {
+          commentInfo = '\n\n' + commentLines.join('\n') + '\n';
+          // Also add the comment info to the visible prompt for user
+          if (isContinueMode) {
+            prompt = prompt.replace('Continue.', commentLines.join('\n') + '\n\nContinue.');
+          }
+        }
+      }
+    } catch (error) {
+      await log(`Warning: Could not count new comments: ${error.message}`, { level: 'warning' });
+    }
+  }
+
+  const systemPrompt = `You are AI issue solver.${commentInfo}
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
@@ -1253,20 +2096,26 @@ General guidelines.
    - When CI is failing, make sure you download the logs locally and carefully investigate them.
    - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
-   - When you create debug, test, or example scripts for fixing, always keep them in an examples folder so you can reuse them later.
-   - When testing your assumptions, use the example scripts.
+   - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples or/and experiments folders so you can reuse them later.
+   - When testing your assumptions, use the experiment scripts, and add it to experiments folder.
+   - When your experiments can show real world use case of the software, add it to examples folder.
    - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
 
-Continue mode context.
-   - This is CONTINUE MODE - you are working with an existing pull request #${prNumber}.
-   - Check all changes from the last commit to understand current progress.
-   - Review the pull request title and description to understand the current approach.
-   - Check for new comments on the pull request for additional feedback or requirements.
-   - Look at the issue context and any linked discussions.
-   - Check if CI workflows failed and investigate the failure logs.
-   - Look for any explicit feedback from users in PR comments or issue updates.
-   - Consider what has already been implemented vs what still needs to be done.
-   - Build upon existing work rather than starting from scratch.` : ''}
+Continue mode.
+   - When you are working on existing pull request #${prNumber}:
+     * Review the pull request title and description to understand the current approach, and continue building upon existing work.
+     * Make sure you use gh pr diff to see actual changes.
+     * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
+     * Look at the issue context of that pull request and any linked discussions.
+     * When pull request is out of sync with default branch, make sure you resolve any conflicts to apply original changes.
+     * Look at the issue context and any linked discussions.
+     * Explore codebase for best coding style and practices on similar changes.
+     * Check all changes from the last commit to understand current progress.
+     * Check for new comments on the pull request for additional feedback or requirements.
+     * Look for any explicit feedback from users in PR comments or issue updates.
+     * Consider what has already been implemented vs what still needs to be done.
+     * Consider any mismatch in requirements with original issue or the pull request description.
+     * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
 
 Initial research.  
    - When you read issue, read all details and comments thoroughly.  
@@ -1274,8 +2123,13 @@ Initial research.
    - When you need related code, use gh search code --owner ${owner} [keywords].  
    - When you need repo context, read files in ${tempDir}.  
    - When you study related work, study related previous latest pull requests.  
-   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].  
-   - When issue is not defined enough, write a comment to ask clarifying questions.  
+   - When issue is not defined enough, write a comment to ask clarifying questions.
+   - When you are fixing a bug, please make sure you first find the actual root cause, do as much experiments as needed.
+   - When you are fixing a bug and code does not have enough tracing/logs, add them and make sure they stay in the code, but are switched off by default.
+   - When you need latest comments on pull request (sorted newest first), use:
+     * For PR conversation comments: gh api repos/${owner}/${repo}/issues/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
+     * For PR code review comments: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
+   - When you need latest comments on issue (sorted newest first), use: gh api repos/${owner}/${repo}/issues/{issue_number}/comments --jq 'sort_by(.created_at) | reverse'  
 
 Solution development and testing.  
    - When issue is solvable, implement code with tests.  
@@ -1284,11 +2138,14 @@ Solution development and testing.
    - When you test integrations, use existing framework.  
    - When you test solution, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
+   - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
+   - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
 
 Preparing pull request.  
    - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
    - When you code, follow contributing guidelines.  
-   - When you commit, write clear message.  
+   - When you commit, write clear message.
+   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].
    - When you open pr, describe solution and include tests.
    - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.${prUrl ? `
    - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
@@ -1300,7 +2157,7 @@ Workflow and collaboration.
    - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
    - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}${argv.fork && forkedRepo ? `
    - When you create pr, use --repo ${owner}/${repo} to create PR against original repo.` : ''}  
-   - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
+   - When you organize workflow, use pull requests instead of direct merges to default branch (main or master).  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
    - When you face conflict, ask for help.  
@@ -1383,6 +2240,12 @@ Self review.
 
   // Execute claude command from the cloned repository directory
   await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
+  
+  // Take resource snapshot before execution
+  const resourcesBefore = await getResourceSnapshot();
+  await log(`📈 System resources before execution:`, { verbose: true });
+  await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
+  await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
 
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
@@ -1530,8 +2393,26 @@ Self review.
           for (const item of json.message.content) {
             if (item.type === 'text' && item.text) {
               lastMessage = item.text.substring(0, 100); // First 100 chars
-              if (item.text.includes('limit reached')) {
+              
+              // Enhanced limit detection with auto-continue support
+              const text = item.text;
+              if (text.includes('limit reached')) {
                 limitReached = true;
+                
+                // Look for the specific pattern with reset time (improved to catch more variations)
+                const resetPattern = /(\d+)[-\s]hour\s+limit\s+reached.*?resets?\s*(?:at\s+)?(\d{1,2}:\d{2}[ap]m)/i;
+                const match = text.match(resetPattern);
+                
+                if (match) {
+                  const [, hours, resetTime] = match;
+                  // Store the reset time for auto-continue functionality
+                  global.limitResetTime = resetTime;
+                  global.limitHours = hours;
+                  await log(`\n🔍 Detected ${hours}-hour limit reached, resets at ${resetTime}`, { verbose: true });
+                } else {
+                  // Fallback for generic limit messages
+                  await log(`\n🔍 Generic limit reached detected`, { verbose: true });
+                }
               }
             }
           }
@@ -1554,6 +2435,49 @@ Self review.
 
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
+      
+      // Check for critical errors that should cause failure
+      const criticalErrorPatterns = [
+        'ENOSPC: no space left on device',
+        'npm error code ENOSPC',
+        'Command failed:',
+        'Error:',
+        'error code',
+        'errno -28',
+        'killed',
+        'Killed',
+        'SIGKILL',
+        'SIGTERM',
+        'out of memory',
+        'OOM',
+        'memory exhausted'
+      ];
+      
+      const isCriticalError = criticalErrorPatterns.some(pattern => 
+        data.toLowerCase().includes(pattern.toLowerCase())
+      );
+      
+      if (isCriticalError) {
+        commandFailed = true;
+        await log(`\n❌ Critical error detected in stderr: ${data}`, { level: 'error' });
+        
+        // Check if this looks like a process kill due to memory
+        const memoryKillPatterns = ['killed', 'Killed', 'SIGKILL', 'out of memory', 'OOM'];
+        const isMemoryKill = memoryKillPatterns.some(pattern => 
+          data.toLowerCase().includes(pattern.toLowerCase())
+        );
+        
+        if (isMemoryKill) {
+          await log('\n💀 Process appears to have been killed, likely due to insufficient memory', { level: 'error' });
+          const resourcesNow = await getResourceSnapshot();
+          const availableMatch = resourcesNow.memory.match(/MemAvailable:\s+(\d+)/);
+          if (availableMatch) {
+            const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
+            await log(`   Current available memory: ${availableMB}MB`, { level: 'error' });
+          }
+        }
+      }
+      
       // Only show actual errors, not verbose output
       if (data.includes('Error') || data.includes('error')) {
         await log(`\n⚠️  ${data}`, { level: 'error' });
@@ -1563,7 +2487,32 @@ Self review.
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
-        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}`, { level: 'error' });
+        
+        // Provide more detailed explanation for common exit codes
+        let exitReason = '';
+        switch (chunk.code) {
+          case 137:
+            exitReason = ' (SIGKILL - likely killed due to memory constraints)';
+            break;
+          case 139:
+            exitReason = ' (SIGSEGV - segmentation fault)';
+            break;
+          case 143:
+            exitReason = ' (SIGTERM - terminated)';
+            break;
+          case 1:
+            exitReason = ' (general error)';
+            break;
+          default:
+            exitReason = '';
+        }
+        
+        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}${exitReason}`, { level: 'error' });
+        
+        if (chunk.code === 137) {
+          await log('\n💀 This exit code typically indicates the process was killed by the system', { level: 'error' });
+          await log('   Most common cause: Insufficient memory (OOM killer)', { level: 'error' });
+        }
       }
     }
   }
@@ -1574,11 +2523,118 @@ Self review.
   if (commandFailed) {
     await log('\n❌ Command execution failed. Check the log file for details.');
     await log(`📁 Log file: ${logFile}`);
+    
+    // Take resource snapshot after failure
+    const resourcesAfter = await getResourceSnapshot();
+    await log(`\n📉 System resources at time of failure:`);
+    await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`);
+    await log(`   Load: ${resourcesAfter.load}`);
+    
+    // Check if it looks like a memory kill
+    const availableMatch = resourcesAfter.memory.match(/MemAvailable:\s+(\d+)/);
+    if (availableMatch) {
+      const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
+      if (availableMB < 100) {
+        await log(`\n💀 Likely killed due to low memory (${availableMB}MB available)`, { level: 'error' });
+        await log('   Consider increasing system swap or using a machine with more RAM.', { level: 'error' });
+      }
+    }
+    
+    // If --attach-solution-logs is enabled, ensure we attach failure logs
+    if (argv.attachSolutionLogs && sessionId) {
+      await log('\n📄 Attempting to attach failure logs to PR/Issue...');
+      // The attach logs logic will handle this in the catch block below
+    }
+    
     process.exit(1);
   }
 
   await log('\n\n✅ Claude command completed');
   await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
+  
+  // Check for and commit any uncommitted changes made by Claude
+  await log('\n🔍 Checking for uncommitted changes...');
+  try {
+    // Check git status to see if there are any uncommitted changes
+    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+    
+    if (gitStatusResult.code === 0) {
+      const statusOutput = gitStatusResult.stdout.toString().trim();
+      
+      if (statusOutput) {
+        // There are uncommitted changes - log them and commit automatically
+        await log(formatAligned('📝', 'Found changes:', 'Uncommitted files detected'));
+        
+        // Show what files have changes
+        const changedFiles = statusOutput.split('\n').map(line => line.trim()).filter(line => line);
+        for (const file of changedFiles) {
+          await log(formatAligned('', '', `  ${file}`, 2));
+        }
+        
+        // Stage all changes
+        const gitAddResult = await $({ cwd: tempDir })`git add . 2>&1`;
+        if (gitAddResult.code === 0) {
+          await log(formatAligned('📦', 'Staged:', 'All changes added to git'));
+          
+          // Commit with a descriptive message
+          const commitMessage = `Auto-commit changes made by Claude
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+          
+          const gitCommitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}" 2>&1`;
+          if (gitCommitResult.code === 0) {
+            await log(formatAligned('✅', 'Committed:', 'Changes automatically committed'));
+            
+            // Push the changes to remote
+            const gitPushResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+            if (gitPushResult.code === 0) {
+              await log(formatAligned('📤', 'Pushed:', 'Changes synced to GitHub'));
+            } else {
+              await log(`⚠️ Warning: Could not push auto-committed changes: ${gitPushResult.stderr.toString().trim()}`, { level: 'warning' });
+            }
+          } else {
+            await log(`⚠️ Warning: Could not commit changes: ${gitCommitResult.stderr.toString().trim()}`, { level: 'warning' });
+          }
+        } else {
+          await log(`⚠️ Warning: Could not stage changes: ${gitAddResult.stderr.toString().trim()}`, { level: 'warning' });
+        }
+      } else {
+        await log(formatAligned('✅', 'No changes:', 'Repository is clean'));
+      }
+    } else {
+      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
+    }
+  } catch (gitError) {
+    await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+  }
+  
+  // Remove CLAUDE.md now that Claude command has finished
+  // We need to commit and push the deletion so it's reflected in the PR
+  try {
+    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
+    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+    
+    // Commit the deletion
+    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
+    if (deleteCommitResult.code === 0) {
+      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+      
+      // Push the deletion
+      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+      if (pushDeleteResult.code === 0) {
+        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+      } else {
+        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+      }
+    } else {
+      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+    }
+  } catch (e) {
+    // File might not exist or already removed, that's fine
+    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
+  }
 
   // Show summary of session and log file
   await log('\n=== Session Summary ===');
@@ -1589,9 +2645,21 @@ Self review.
 
     if (limitReached) {
       await log(`\n⏰ LIMIT REACHED DETECTED!`);
-      await log(`\n🔄 To resume when limit resets, use:\n`);
-      await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-      await log(`\n   This will continue from where it left off with full context.\n`);
+      
+      if (argv.autoContinueLimit && global.limitResetTime) {
+        await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
+        await autoContinueWhenLimitResets(issueUrl, sessionId, tempDir);
+      } else {
+        await log(`\n🔄 To resume when limit resets, use:\n`);
+        await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
+        
+        if (global.limitResetTime) {
+          await log(`\n💡 Or enable auto-continue-limit to wait until ${global.limitResetTime}:\n`);
+          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
+        }
+        
+        await log(`\n   This will continue from where it left off with full context.\n`);
+      }
     } else {
       // Show command to resume session in interactive mode
       await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
@@ -1717,7 +2785,11 @@ Self review.
               await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
             } else {
               // Read log file content
-              const logContent = await fs.readFile(logFile, 'utf8');
+              const rawLogContent = await fs.readFile(logFile, 'utf8');
+              
+              // Sanitize log content to mask GitHub tokens
+              await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+              const logContent = await sanitizeLogContent(rawLogContent);
               
               // Create a formatted comment with the log file content
               const logComment = `## 🤖 Solution Log
@@ -1807,7 +2879,11 @@ ${logContent}
             await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
           } else {
             // Read log file content
-            const logContent = await fs.readFile(logFile, 'utf8');
+            const rawLogContent = await fs.readFile(logFile, 'utf8');
+            
+            // Sanitize log content to mask GitHub tokens
+            await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+            const logContent = await sanitizeLogContent(rawLogContent);
             
             // Create a formatted comment with the log file content
             const logComment = `## 🤖 Solution Log
@@ -1877,10 +2953,42 @@ ${logContent}
 
 } catch (error) {
   await log('Error executing command:', error.message);
+  await log(`Stack trace: ${error.stack}`, { verbose: true });
+  
+  // If --attach-solution-logs is enabled, try to attach failure logs
+  if (argv.attachSolutionLogs && logFile) {
+    await log('\n📄 Attempting to attach failure logs...');
+    
+    // Try to attach to existing PR first
+    if (global.createdPR && global.createdPR.number) {
+      try {
+        const logContent = await fs.readFile(logFile, 'utf8');
+        const truncatedLog = logContent.length > 50000 
+          ? logContent.substring(logContent.length - 50000) + '\n\n... (log truncated, showing last 50KB)'
+          : logContent;
+          
+        const failureComment = `## 🚨 Solution Failed\n\nThe automated solution encountered an error:\n\`\`\`\n${error.message}\n\`\`\`\n\n<details>\n<summary>Click to expand failure log</summary>\n\n\`\`\`\n${truncatedLog}\n\`\`\`\n\n</details>\n\n----\n*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+        
+        const tempFailureCommentFile = `/tmp/failure-comment-${Date.now()}.md`;
+        await fs.writeFile(tempFailureCommentFile, failureComment);
+        
+        const commentResult = await $({ quiet: true })`gh pr comment ${global.createdPR.number} --body-file "${tempFailureCommentFile}"`;
+        
+        if (commentResult.code === 0) {
+          await log('📎 Failure log attached to Pull Request');
+        }
+        
+        await fs.unlink(tempFailureCommentFile).catch(() => {});
+      } catch (attachError) {
+        await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
+      }
+    }
+  }
+  
   process.exit(1);
 } finally {
-  // Clean up temporary directory (but not when resuming or when limit reached)
-  if (!argv.resume && !limitReached) {
+  // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
+  if (!argv.resume && !limitReached && !(argv.autoContinueLimit && global.limitResetTime)) {
     try {
       process.stdout.write('\n🧹 Cleaning up...');
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -1890,6 +2998,8 @@ ${logContent}
     }
   } else if (argv.resume) {
     await log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
+  } else if (limitReached && argv.autoContinueLimit) {
+    await log(`\n📁 Keeping directory for auto-continue: ${tempDir}`);
   } else if (limitReached) {
     await log(`\n📁 Keeping directory for future resume: ${tempDir}`);
   }

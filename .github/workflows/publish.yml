@@ -1,0 +1,74 @@
+name: Publish to NPM and GitHub Releases
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+        
+    - name: Get package version
+      id: package
+      run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+    - name: Check if version is published
+      id: version_check
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
+        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+          echo "already_published=true" >> $GITHUB_OUTPUT
+        else
+          echo "already_published=false" >> $GITHUB_OUTPUT
+        fi
+      
+    - name: Make scripts executable
+      if: steps.version_check.outputs.already_published == 'false'
+      run: |
+        chmod +x hive.mjs
+        chmod +x solve.mjs
+        
+    - name: Publish to NPM
+      if: steps.version_check.outputs.already_published == 'false'
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        
+    - name: Create GitHub Release
+      if: steps.version_check.outputs.already_published == 'false'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.package.outputs.version }}
+        release_name: Release v${{ steps.package.outputs.version }}
+        body: |
+          ## Changes in v${{ steps.package.outputs.version }}
+          
+          This release includes updates to the @deep-assistant/hive-mind package.
+          
+          ### Installation
+          ```bash
+          npm install -g @deep-assistant/hive-mind
+          ```
+          
+          ### Usage
+          ```bash
+          hive --help
+          solve --help
+          ```
+        draft: false
+        prerelease: false

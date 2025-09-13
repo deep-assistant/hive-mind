@@ -67,29 +67,39 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 | `review.mjs` | Code review automation | Collaborative AI reviews, automated feedback |
 | `reviewers-hive.mjs` | Review team management | Multi-agent consensus, reviewer assignment |
 
-### solve.mjs Options
+## 🔧 solve.mjs Options
 ```bash
 ./solve.mjs <issue-url> [options]
 
-  --model, -m         Model (sonnet, opus)                [default: sonnet]
-  --fork, -f          Fork repo if no write access       [default: false]
-  --resume, -r        Resume from session ID
-  --verbose, -v       Enable verbose logging              [default: false]
-  --dry-run, -n       Prepare only, don't execute        [default: false]
-  --attach-solution-logs  Attach logs to PR (⚠️ sensitive) [default: false]
+  --model, -m           Model (sonnet, opus)                  [default: sonnet]
+  --fork, -f            Fork repo if no write access         [default: false]
+  --resume, -r          Resume from session ID
+  --verbose, -v         Enable verbose logging                [default: false]
+  --dry-run, -n         Prepare only, don't execute          [default: false]
+  --only-prepare-command  Only prepare and print claude command [default: false]
+  --auto-pull-request-creation  Create draft PR before Claude [default: false]
+  --attach-solution-logs  Attach logs to PR (⚠️ sensitive)   [default: false]
 ```
 
-### hive.mjs Options  
+## 🔧 hive.mjs Options  
 ```bash
 ./hive.mjs <github-url> [options]
 
-  --monitor-tag, -t   Label to monitor                   [default: "help wanted"]
-  --all-issues, -a    Monitor all issues (ignore labels) [default: false]
-  --concurrency, -c   Parallel workers                   [default: 2]
-  --max-issues        Limit processed issues             [default: unlimited]
-  --interval, -i      Poll interval (seconds)            [default: 300]
-  --once              Single run (don't monitor)         [default: false]
-  --skip-issues-with-prs  Skip issues with existing PRs  [default: false]
+  --monitor-tag, -t     Label to monitor                     [default: "help wanted"]
+  --all-issues, -a      Monitor all issues (ignore labels)   [default: false]
+  --concurrency, -c     Parallel workers                     [default: 2]
+  --max-issues          Limit processed issues               [default: unlimited]
+  --interval, -i        Poll interval (seconds)              [default: 300]
+  --once                Single run (don't monitor)           [default: false]
+  --skip-issues-with-prs  Skip issues with existing PRs     [default: false]
+  --pull-requests-per-issue  Number of PRs per issue        [default: 1]
+  --dry-run             List issues without processing       [default: false]
+  --verbose, -v         Enable verbose logging               [default: false]
+  --min-disk-space      Minimum disk space in MB             [default: 500]
+  --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
+  --fork, -f            Fork repos if no write access       [default: false]
+  --force-claude-bun-run     Switch Claude to bun runtime    [default: false]
+  --force-claude-nodejs-run  Restore Claude to Node.js       [default: false]
 ```
 
 ## 🏗️ Architecture
@@ -159,6 +169,9 @@ export const agents = {
 
 # Skip issues that already have PRs
 ./hive.mjs https://github.com/org/repo --skip-issues-with-prs --verbose
+
+# Auto-cleanup temporary files and fork repos if needed
+./hive.mjs https://github.com/org/repo --auto-cleanup --fork --concurrency 5
 ```
 
 ### Session Management
