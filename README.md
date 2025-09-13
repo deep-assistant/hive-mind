@@ -3,6 +3,32 @@
 
 # Hive mind
 
+## WARNING
+
+It is UNSAFE to run this software on your developer machine.
+
+It is recommended to use SEPARATE Ubuntu 24.04 installation (installation script is prepared for you).
+
+This software uses full autonomous mode of Claude Code, that means it is free to execute any commands it see fit.
+
+That mean it can lead to unexpected side effects.
+
+There is also a known issue of space leakage. So you need to make sure you are able to reinstall your virtual machine to clear space and/or any damage to the virtual machine.
+
+Minumum system requirements to run `hive.mjs`:
+```
+1 CPU Core
+1 GB RAM
+> 2 GB SWAP
+50 GB disk space
+```
+
+## Ubuntu 24.04 server installation
+
+```bash
+curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
+```
+
 The master mind AI that constrols hive of AI.
 
 The orchestrator AI that controls AIs.
@@ -13,14 +39,12 @@ Meaning this system may communicate with humans for requirements, expertice, fee
 
 The HIVE MIND.
 
-## Find all `claude --resume` commands in hive logs
+## Debugging
+
+### Find all `claude --resume` commands in hive logs
 
 ```bash
 grep -E '\(cd /tmp/gh-issue-solver-[0-9]+ && claude --resume [0-9a-f-]{36}\)' hive-*.log
 ```
 
-## Ubuntu 24.04 server installation
 
-```bash
-curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
-```
