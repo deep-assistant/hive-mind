@@ -892,12 +892,12 @@ const validateClaudeConnection = async () => {
     let result;
     try {
       // Primary validation: use printf piping which is faster and more reliable
-      result = await $`printf hi | claude -p`;
+      result = await $`printf hi | claude -p --model sonnet`;
     } catch (pipeError) {
       // If piping fails, fallback to the timeout approach as last resort
       await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
       try {
-        result = await $`timeout 60 claude -p hi`;
+        result = await $`timeout 60 claude -p hi --model sonnet`;
       } catch (timeoutError) {
         if (timeoutError.code === 124) {
           await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
