@@ -26,18 +26,35 @@ try {
   console.log('❌ Error getting commit time:', error.message);
 }
 
-// Test getting PR comments
+// Test getting PR comments (both code review and conversation)
 try {
   console.log('\n2. Testing PR comments API...');
-  const prCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
-  if (prCommentsResult.code === 0) {
-    const prComments = JSON.parse(prCommentsResult.stdout.toString());
-    console.log('✅ PR comments count:', prComments.length);
-    if (prComments.length > 0) {
-      console.log('   Latest comment:', new Date(prComments[prComments.length - 1].created_at).toISOString());
-    }
+  
+  // Get PR code review comments
+  const prReviewCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
+  let prReviewComments = [];
+  if (prReviewCommentsResult.code === 0) {
+    prReviewComments = JSON.parse(prReviewCommentsResult.stdout.toString());
+    console.log('✅ PR code review comments count:', prReviewComments.length);
   } else {
-    console.log('❌ Failed to get PR comments');
+    console.log('❌ Failed to get PR code review comments');
+  }
+  
+  // Get PR conversation comments (PR is also an issue)
+  const prConversationCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${prNumber}/comments`;
+  let prConversationComments = [];
+  if (prConversationCommentsResult.code === 0) {
+    prConversationComments = JSON.parse(prConversationCommentsResult.stdout.toString());
+    console.log('✅ PR conversation comments count:', prConversationComments.length);
+  } else {
+    console.log('❌ Failed to get PR conversation comments');
+  }
+  
+  // Combine all PR comments
+  const allPrComments = [...prReviewComments, ...prConversationComments];
+  console.log('✅ Total PR comments count:', allPrComments.length);
+  if (allPrComments.length > 0) {
+    console.log('   Latest comment:', new Date(allPrComments[allPrComments.length - 1].created_at).toISOString());
   }
 } catch (error) {
   console.log('❌ Error getting PR comments:', error.message);
@@ -63,9 +80,17 @@ try {
 // Test the jq sorting commands
 try {
   console.log('\n4. Testing sorted comment commands...');
-  const sortedPrResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'sort_by(.created_at) | reverse | .[0] | .created_at'`;
-  if (sortedPrResult.code === 0) {
-    console.log('✅ Latest PR comment sorted:', sortedPrResult.stdout.toString().trim());
+  
+  // Test PR conversation comments (most common)
+  const sortedPrConversationResult = await $`gh api repos/${owner}/${repo}/issues/${prNumber}/comments --jq 'sort_by(.created_at) | reverse | .[0] | .created_at'`;
+  if (sortedPrConversationResult.code === 0) {
+    console.log('✅ Latest PR conversation comment sorted:', sortedPrConversationResult.stdout.toString().trim());
+  }
+  
+  // Test PR code review comments
+  const sortedPrReviewResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'sort_by(.created_at) | reverse | .[0] | .created_at'`;
+  if (sortedPrReviewResult.code === 0) {
+    console.log('✅ Latest PR review comment sorted:', sortedPrReviewResult.stdout.toString().trim());
   }
 } catch (error) {
   console.log('❌ Error with sorted PR commands:', error.message);
