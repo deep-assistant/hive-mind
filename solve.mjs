@@ -57,25 +57,35 @@ const checkMemory = async (minMemoryMB = 256) => {
     
     await log(`🧠 Memory check: ${availableMB}MB available, ${freeMB}MB free, ${swapFreeMB}MB swap free`);
     
+    // Calculate effective available memory (RAM + swap)
+    const effectiveAvailableMB = availableMB + swapFreeMB;
+    
     if (availableMB < minMemoryMB) {
-      await log(`❌ Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'error' });
-      await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
-      
-      if (swapTotalMB < 1024) {
-        await log('', { level: 'error' });
-        await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
-        await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
-        await log('   sudo chmod 600 /swapfile', { level: 'error' });
-        await log('   sudo mkswap /swapfile', { level: 'error' });
-        await log('   sudo swapon /swapfile', { level: 'error' });
-        await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
-        await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+      if (effectiveAvailableMB >= minMemoryMB) {
+        await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required, but ${swapFreeMB}MB swap available`, { level: 'warning' });
+        await log('   Continuing with swap support (effective memory: ' + effectiveAvailableMB + 'MB)', { level: 'warning' });
+      } else {
+        await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
+        await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
+        
+        if (swapTotalMB < 1024) {
+          await log('', { level: 'error' });
+          await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
+          await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
+          await log('   sudo chmod 600 /swapfile', { level: 'error' });
+          await log('   sudo mkswap /swapfile', { level: 'error' });
+          await log('   sudo swapon /swapfile', { level: 'error' });
+          await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
+          await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+        }
+        
+        return false;
       }
-      
-      return false;
     }
     
-    await log(`✅ Memory check passed: ${availableMB}MB available (${minMemoryMB}MB required)`);
+    if (availableMB >= minMemoryMB) {
+      await log(`✅ Memory check passed: ${availableMB}MB available (${minMemoryMB}MB required)`);
+    }
     return true;
   } catch (error) {
     await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
