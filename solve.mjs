@@ -37,6 +37,74 @@ const checkDiskSpace = async (minSpaceMB = 500) => {
   }
 };
 
+// Function to check available memory
+const checkMemory = async (minMemoryMB = 256) => {
+  try {
+    // Get memory info from /proc/meminfo
+    const { stdout } = await $`grep -E "MemAvailable|MemFree|SwapFree|SwapTotal" /proc/meminfo`;
+    const memInfo = stdout.toString();
+    
+    // Parse memory values (they're in kB)
+    const availableMatch = memInfo.match(/MemAvailable:\s+(\d+)/);
+    const freeMatch = memInfo.match(/MemFree:\s+(\d+)/);
+    const swapFreeMatch = memInfo.match(/SwapFree:\s+(\d+)/);
+    const swapTotalMatch = memInfo.match(/SwapTotal:\s+(\d+)/);
+    
+    const availableMB = availableMatch ? Math.floor(parseInt(availableMatch[1]) / 1024) : 0;
+    const freeMB = freeMatch ? Math.floor(parseInt(freeMatch[1]) / 1024) : 0;
+    const swapFreeMB = swapFreeMatch ? Math.floor(parseInt(swapFreeMatch[1]) / 1024) : 0;
+    const swapTotalMB = swapTotalMatch ? Math.floor(parseInt(swapTotalMatch[1]) / 1024) : 0;
+    
+    await log(`🧠 Memory check: ${availableMB}MB available, ${freeMB}MB free, ${swapFreeMB}MB swap free`);
+    
+    if (availableMB < minMemoryMB) {
+      await log(`❌ Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'error' });
+      await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
+      
+      if (swapTotalMB < 1024) {
+        await log('', { level: 'error' });
+        await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
+        await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
+        await log('   sudo chmod 600 /swapfile', { level: 'error' });
+        await log('   sudo mkswap /swapfile', { level: 'error' });
+        await log('   sudo swapon /swapfile', { level: 'error' });
+        await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
+        await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+      }
+      
+      return false;
+    }
+    
+    await log(`✅ Memory check passed: ${availableMB}MB available (${minMemoryMB}MB required)`);
+    return true;
+  } catch (error) {
+    await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
+    await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
+    return true; // Continue on check failure to avoid blocking execution
+  }
+};
+
+// Function to get system resource snapshot
+const getResourceSnapshot = async () => {
+  try {
+    const memInfo = await $`cat /proc/meminfo | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
+    const loadAvg = await $`cat /proc/loadavg`;
+    const uptime = await $`uptime`;
+    
+    return {
+      timestamp: new Date().toISOString(),
+      memory: memInfo.stdout.toString().trim(),
+      load: loadAvg.stdout.toString().trim(),
+      uptime: uptime.stdout.toString().trim()
+    };
+  } catch (error) {
+    return {
+      timestamp: new Date().toISOString(),
+      error: `Failed to get resource snapshot: ${error.message}`
+    };
+  }
+};
+
 // Helper function to log to both console and file
 const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -217,18 +285,18 @@ const validateClaudeConnection = async () => {
     
     let result;
     try {
-      // Primary validation: use printf piping which is faster and more reliable
-      result = await $`printf hi | claude -p`;
+      // Primary validation: use printf piping with sonnet model (cheapest)
+      result = await $`printf hi | claude --model sonnet -p`;
     } catch (pipeError) {
       // If piping fails, fallback to the timeout approach as last resort
       await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
       try {
-        result = await $`timeout 60 claude -p hi`;
+        result = await $`timeout 60 claude --model sonnet -p hi`;
       } catch (timeoutError) {
         if (timeoutError.code === 124) {
           await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
           await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
-          await log(`   💡 Try running 'claude -p hi' manually to verify it works`, { level: 'error' });
+          await log(`   💡 Try running 'claude --model sonnet -p hi' manually to verify it works`, { level: 'error' });
           return false;
         }
         // Re-throw if it's not a timeout error
@@ -585,6 +653,12 @@ if (!issueUrl && !argv['force-claude-bun-run'] && !argv['force-claude-nodejs-run
 // Check disk space before proceeding
 const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
 if (!hasEnoughSpace) {
+  process.exit(1);
+}
+
+// Check memory before proceeding (early check to prevent Claude kills)
+const hasEnoughMemory = await checkMemory(256);
+if (!hasEnoughMemory) {
   process.exit(1);
 }
 
@@ -2139,6 +2213,12 @@ Self review.
 
   // Execute claude command from the cloned repository directory
   await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
+  
+  // Take resource snapshot before execution
+  const resourcesBefore = await getResourceSnapshot();
+  await log(`📈 System resources before execution:`, { verbose: true });
+  await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
+  await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
 
   // Use command-stream's async iteration for real-time streaming with file logging
   let commandFailed = false;
@@ -2336,7 +2416,14 @@ Self review.
         'Command failed:',
         'Error:',
         'error code',
-        'errno -28'
+        'errno -28',
+        'killed',
+        'Killed',
+        'SIGKILL',
+        'SIGTERM',
+        'out of memory',
+        'OOM',
+        'memory exhausted'
       ];
       
       const isCriticalError = criticalErrorPatterns.some(pattern => 
@@ -2346,6 +2433,22 @@ Self review.
       if (isCriticalError) {
         commandFailed = true;
         await log(`\n❌ Critical error detected in stderr: ${data}`, { level: 'error' });
+        
+        // Check if this looks like a process kill due to memory
+        const memoryKillPatterns = ['killed', 'Killed', 'SIGKILL', 'out of memory', 'OOM'];
+        const isMemoryKill = memoryKillPatterns.some(pattern => 
+          data.toLowerCase().includes(pattern.toLowerCase())
+        );
+        
+        if (isMemoryKill) {
+          await log('\n💀 Process appears to have been killed, likely due to insufficient memory', { level: 'error' });
+          const resourcesNow = await getResourceSnapshot();
+          const availableMatch = resourcesNow.memory.match(/MemAvailable:\s+(\d+)/);
+          if (availableMatch) {
+            const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
+            await log(`   Current available memory: ${availableMB}MB`, { level: 'error' });
+          }
+        }
       }
       
       // Only show actual errors, not verbose output
@@ -2357,7 +2460,32 @@ Self review.
     } else if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
-        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}`, { level: 'error' });
+        
+        // Provide more detailed explanation for common exit codes
+        let exitReason = '';
+        switch (chunk.code) {
+          case 137:
+            exitReason = ' (SIGKILL - likely killed due to memory constraints)';
+            break;
+          case 139:
+            exitReason = ' (SIGSEGV - segmentation fault)';
+            break;
+          case 143:
+            exitReason = ' (SIGTERM - terminated)';
+            break;
+          case 1:
+            exitReason = ' (general error)';
+            break;
+          default:
+            exitReason = '';
+        }
+        
+        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}${exitReason}`, { level: 'error' });
+        
+        if (chunk.code === 137) {
+          await log('\n💀 This exit code typically indicates the process was killed by the system', { level: 'error' });
+          await log('   Most common cause: Insufficient memory (OOM killer)', { level: 'error' });
+        }
       }
     }
   }
@@ -2368,6 +2496,29 @@ Self review.
   if (commandFailed) {
     await log('\n❌ Command execution failed. Check the log file for details.');
     await log(`📁 Log file: ${logFile}`);
+    
+    // Take resource snapshot after failure
+    const resourcesAfter = await getResourceSnapshot();
+    await log(`\n📉 System resources at time of failure:`);
+    await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`);
+    await log(`   Load: ${resourcesAfter.load}`);
+    
+    // Check if it looks like a memory kill
+    const availableMatch = resourcesAfter.memory.match(/MemAvailable:\s+(\d+)/);
+    if (availableMatch) {
+      const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
+      if (availableMB < 100) {
+        await log(`\n💀 Likely killed due to low memory (${availableMB}MB available)`, { level: 'error' });
+        await log('   Consider increasing system swap or using a machine with more RAM.', { level: 'error' });
+      }
+    }
+    
+    // If --attach-solution-logs is enabled, ensure we attach failure logs
+    if (argv.attachSolutionLogs && sessionId) {
+      await log('\n📄 Attempting to attach failure logs to PR/Issue...');
+      // The attach logs logic will handle this in the catch block below
+    }
+    
     process.exit(1);
   }
 
@@ -2775,6 +2926,38 @@ ${logContent}
 
 } catch (error) {
   await log('Error executing command:', error.message);
+  await log(`Stack trace: ${error.stack}`, { verbose: true });
+  
+  // If --attach-solution-logs is enabled, try to attach failure logs
+  if (argv.attachSolutionLogs && logFile) {
+    await log('\n📄 Attempting to attach failure logs...');
+    
+    // Try to attach to existing PR first
+    if (global.createdPR && global.createdPR.number) {
+      try {
+        const logContent = await fs.readFile(logFile, 'utf8');
+        const truncatedLog = logContent.length > 50000 
+          ? logContent.substring(logContent.length - 50000) + '\n\n... (log truncated, showing last 50KB)'
+          : logContent;
+          
+        const failureComment = `## 🚨 Solution Failed\n\nThe automated solution encountered an error:\n\`\`\`\n${error.message}\n\`\`\`\n\n<details>\n<summary>Click to expand failure log</summary>\n\n\`\`\`\n${truncatedLog}\n\`\`\`\n\n</details>\n\n----\n*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+        
+        const tempFailureCommentFile = `/tmp/failure-comment-${Date.now()}.md`;
+        await fs.writeFile(tempFailureCommentFile, failureComment);
+        
+        const commentResult = await $({ quiet: true })`gh pr comment ${global.createdPR.number} --body-file "${tempFailureCommentFile}"`;
+        
+        if (commentResult.code === 0) {
+          await log('📎 Failure log attached to Pull Request');
+        }
+        
+        await fs.unlink(tempFailureCommentFile).catch(() => {});
+      } catch (attachError) {
+        await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
+      }
+    }
+  }
+  
   process.exit(1);
 } finally {
   // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
