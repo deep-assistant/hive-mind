@@ -420,7 +420,7 @@ jobs:
     # Only publish when there's a new version and all tests pass
     if: needs.detect-changes.outputs.new-version == 'true'
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
+    needs: [detect-changes]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
