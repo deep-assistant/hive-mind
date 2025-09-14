@@ -41,8 +41,7 @@ const {
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
 const {
-  validateClaudeConnection,
-  handleClaudeRuntimeSwitch
+  validateClaudeConnection
 } = claudeLib;
 
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
@@ -136,16 +135,6 @@ const argv = yargs(hideBin(process.argv))
     description: 'Minimum required disk space in MB (default: 500)',
     default: 500
   })
-  .option('force-claude-bun-run', {
-    type: 'boolean',
-    description: 'Experimental: Update Claude Node.js script to run with bun instead of node',
-    default: false
-  })
-  .option('force-claude-nodejs-run', {
-    type: 'boolean',
-    description: 'Experimental: Restore Claude script to run with Node.js instead of bun',
-    default: false
-  })
   .help('h')
   .alias('h', 'help')
   .argv;
@@ -154,6 +143,30 @@ const issueUrl = argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
+
+// Validate GitHub issue or pull request URL format ONCE AND FOR ALL
+// These will be used throughout the script - no duplicate matching!
+let isIssueUrl = null;
+let isPrUrl = null;
+
+// Only validate if we have a URL
+const needsUrlValidation = issueUrl;
+
+if (needsUrlValidation) {
+  // Do the regex matching ONCE - these results will be used everywhere
+  isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
+  isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
+  
+  // Fail fast if URL is invalid
+  if (!isIssueUrl && !isPrUrl) {
+    console.error('Error: Invalid GitHub URL format');
+    console.error('  Please provide a valid GitHub issue or pull request URL');
+    console.error('  Examples:');
+    console.error('    https://github.com/owner/repo/issues/123 (issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    process.exit(1);
+  }
+}
 
 // Debug logging for attach-logs option
 if (argv.verbose) {
@@ -204,15 +217,10 @@ await log(`📁 Log file: ${getLogFile()}`);
 await log(`   (All output will be logged here)`);
 
 
-// Execute Claude runtime switching if requested
-await handleClaudeRuntimeSwitch(argv);
-
-// Validate GitHub URL requirement (unless using runtime switching options)
-if (!issueUrl && !argv['force-claude-bun-run'] && !argv['force-claude-nodejs-run']) {
-  await log(`❌ GitHub issue URL is required when not using Claude runtime switching options`, { level: 'error' });
+// Validate GitHub URL requirement
+if (!issueUrl) {
+  await log(`❌ GitHub issue URL is required`, { level: 'error' });
   await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
-  await log(`   Or: solve --force-claude-bun-run (to switch Claude to bun)`, { level: 'error' });
-  await log(`   Or: solve --force-claude-nodejs-run (to restore Claude to Node.js)`, { level: 'error' });
   process.exit(1);
 }
 
@@ -349,23 +357,22 @@ if (!hasValidAuth) {
   await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
   process.exit(1);
 }
-// Validate GitHub issue or pull request URL format
-const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
-const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
+
+// NO DUPLICATE VALIDATION! URL was already validated at the beginning.
+// If we have a URL but no validation results, that means the early validation
+// logic has a bug or was bypassed incorrectly.
+if (issueUrl && isIssueUrl === null && isPrUrl === null) {
+  // This should never happen - it means our early validation was skipped incorrectly
+  await log('Internal error: URL validation was not performed correctly', { level: 'error' });
+  await log('This is a bug in the script logic', { level: 'error' });
+  process.exit(1);
+}
 
 if (argv.verbose) {
   await log(`📋 URL validation:`, { verbose: true });
   await log(`   Input URL: ${issueUrl}`, { verbose: true });
   await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
   await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
-}
-
-if (!isIssueUrl && !isPrUrl) {
-  await log('Error: Please provide a valid GitHub issue or pull request URL', { level: 'error' });
-  await log('  Examples:', { level: 'error' });
-  await log('    https://github.com/owner/repo/issues/123 (issue)', { level: 'error' });
-  await log('    https://github.com/owner/repo/pull/456 (pull request)', { level: 'error' });
-  process.exit(1);
 }
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';

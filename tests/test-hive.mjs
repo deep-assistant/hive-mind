@@ -135,12 +135,13 @@ runTest('hive.mjs script loads', () => {
   }
 });
 
-// Test 12: Check for runtime switching options in usage
-runTest('hive.mjs runtime options', () => {
+// Test 12: Check that runtime switching options have been removed
+runTest('hive.mjs no runtime switching', () => {
   const output = execCommand(`${hivePath} 2>&1`);
   
-  if (!output.includes('--force-claude-bun-run') || !output.includes('--force-claude-nodejs-run')) {
-    throw new Error('Runtime switching options not found');
+  // Verify runtime switching options have been removed (they're now in claude-runtime.mjs)
+  if (output.includes('--force-claude-bun-run') || output.includes('--force-claude-nodejs-run')) {
+    throw new Error('Runtime switching options should not be in hive.mjs (moved to claude-runtime.mjs)');
   }
 });
 

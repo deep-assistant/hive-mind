@@ -21,7 +21,7 @@ const { log, setLogFile, formatTimestamp, cleanErrorMessage, formatAligned, disp
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
-const { validateClaudeConnection, handleClaudeRuntimeSwitch } = claudeLib;
+const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
@@ -125,16 +125,6 @@ const argv = yargs(hideBin(process.argv))
     alias: 'f',
     default: false
   })
-  .option('force-claude-bun-run', {
-    type: 'boolean',
-    description: 'Experimental: Update Claude Node.js script to run with bun instead of node',
-    default: false
-  })
-  .option('force-claude-nodejs-run', {
-    type: 'boolean',
-    description: 'Experimental: Restore Claude script to run with Node.js instead of bun',
-    default: false
-  })
   .help('h')
   .alias('h', 'help')
   .strict()
@@ -144,6 +134,23 @@ const githubUrl = argv['github-url'];
 
 // Set global verbose mode
 global.verboseMode = argv.verbose;
+
+// Validate GitHub URL format ONCE AND FOR ALL at the beginning
+// Parse URL format: https://github.com/owner or https://github.com/owner/repo
+let urlMatch = null;
+
+// Only validate if we have a URL
+const needsUrlValidation = githubUrl;
+
+if (needsUrlValidation) {
+  // Do the regex matching ONCE - this result will be used everywhere
+  urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^\/]+)(\/([^\/]+))?$/);
+  if (!urlMatch) {
+    console.error('Error: Invalid GitHub URL format');
+    console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    process.exit(1);
+  }
+}
 
 // Create log file with timestamp
 const scriptDir = path.dirname(process.argv[1]);
@@ -158,17 +165,10 @@ await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
-// Handle Claude runtime switching (experimental feature) - moved to claude.lib.mjs
-
-// Execute Claude runtime switching if requested
-await handleClaudeRuntimeSwitch(argv);
-
-// Validate GitHub URL requirement (unless using runtime switching options)
-if (!githubUrl && !argv['force-claude-bun-run'] && !argv['force-claude-nodejs-run']) {
-  await log(`❌ GitHub URL is required when not using Claude runtime switching options`, { level: 'error' });
+// Validate GitHub URL requirement
+if (!githubUrl) {
+  await log(`❌ GitHub URL is required`, { level: 'error' });
   await log(`   Usage: hive <github-url> [options]`, { level: 'error' });
-  await log(`   Or: hive --force-claude-bun-run (to switch Claude to bun)`, { level: 'error' });
-  await log(`   Or: hive --force-claude-nodejs-run (to restore Claude to Node.js)`, { level: 'error' });
   process.exit(1);
 }
 
@@ -186,16 +186,19 @@ let scope = 'repository';
 let owner = null;
 let repo = null;
 
-// Parse URL format: https://github.com/owner or https://github.com/owner/repo
-const urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^\/]+)(\/([^\/]+))?$/);
-if (!urlMatch) {
-  await log('Error: Invalid GitHub URL format', { level: 'error' });
-  await log('Expected: https://github.com/owner or https://github.com/owner/repo', { level: 'error' });
+// NO DUPLICATE VALIDATION! URL was already validated at the beginning.
+// If we have a URL but no validation results, that's a logic error.
+if (githubUrl && urlMatch === null) {
+  // This should never happen - it means our early validation was skipped incorrectly
+  await log('Internal error: URL validation was not performed correctly', { level: 'error' });
+  await log('This is a bug in the script logic', { level: 'error' });
   process.exit(1);
 }
 
-owner = urlMatch[1];
-repo = urlMatch[3] || null;
+if (urlMatch) {
+  owner = urlMatch[1];
+  repo = urlMatch[3] || null;
+}
 
 // Determine scope
 if (!repo) {
