@@ -19,11 +19,8 @@ jobs:
       with:
         node-version: '20'
         
-    - name: Make check script executable
-      run: chmod +x check-doc-limits.sh
-      
-    - name: Check file size limits
-      run: ./check-doc-limits.sh
+    - name: Run documentation validation
+      run: node tests/docs-validation.mjs
       
     - name: Validate examples are executable
       run: |
@@ -41,10 +38,3 @@ jobs:
         find examples/ -name "*.mjs" -exec node {} \;
         echo "✅ All examples executed successfully"
         
-    - name: Validate README structure
-      run: |
-        echo "📋 Checking README structure..."
-        grep -q "Quick Start" README.md || { echo "❌ Missing Quick Start section"; exit 1; }
-        grep -q "Architecture" README.md || { echo "❌ Missing Architecture section"; exit 1; }
-        grep -q "Configuration" README.md || { echo "❌ Missing Configuration section"; exit 1; }
-        echo "✅ README structure is valid"
