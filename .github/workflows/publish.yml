@@ -1,13 +1,62 @@
 name: Publish to NPM and GitHub Releases
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Comprehensive Tests", "Memory Check Cross-Platform", "Documentation Validation"]
+    types:
+      - completed
     branches: [ main ]
-    paths:
-      - 'package.json'
 
 jobs:
+  check-prerequisites:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Tests failed - skipping publish
+      run: |
+        echo "❌ Workflow '${{ github.event.workflow_run.name }}' failed"
+        echo "Publishing is skipped when tests fail"
+        exit 0
+
+  check-version:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version: ${{ steps.check.outputs.version }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check if package.json changed and version is new
+      id: check
+      run: |
+        # Get the list of changed files in the last commit
+        CHANGED_FILES=$(git diff --name-only HEAD HEAD~1)
+        
+        # Check if package.json was modified
+        if echo "$CHANGED_FILES" | grep -q "^package.json$"; then
+          VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          
+          # Check if version is already published
+          if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+            echo "Version $VERSION already published"
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version $VERSION detected"
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "package.json not modified"
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+        fi
+
   publish:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for creating releases
@@ -20,42 +69,24 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         registry-url: 'https://registry.npmjs.org'
         
-    - name: Get package version
-      id: package
-      run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-      
-    - name: Check if version is published
-      id: version_check
-      run: |
-        VERSION=$(node -p "require('./package.json').version")
-        PACKAGE_NAME=$(node -p "require('./package.json').name")
-        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-          echo "already_published=true" >> $GITHUB_OUTPUT
-        else
-          echo "already_published=false" >> $GITHUB_OUTPUT
-        fi
-      
     - name: Make scripts executable
-      if: steps.version_check.outputs.already_published == 'false'
       run: |
         chmod +x hive.mjs
         chmod +x solve.mjs
         
     - name: Publish to NPM
-      if: steps.version_check.outputs.already_published == 'false'
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         
     - name: Create GitHub Release
-      if: steps.version_check.outputs.already_published == 'false'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        VERSION=${{ steps.package.outputs.version }}
+        VERSION=${{ needs.check-version.outputs.version }}
         PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
           --title "${VERSION}" \
