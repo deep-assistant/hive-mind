@@ -1,25 +1,62 @@
 name: Publish to NPM and GitHub Releases
 
 on:
-  workflow_run:
-    workflows: ["Comprehensive Tests", "Memory Check Cross-Platform", "Documentation Validation"]
-    types:
-      - completed
+  push:
     branches: [ main ]
+    paths:
+      - 'package.json'
 
 jobs:
-  check-prerequisites:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+  wait-for-checks:
     runs-on: ubuntu-latest
+    outputs:
+      tests_passed: ${{ steps.check_status.outputs.tests_passed }}
+    
     steps:
-    - name: Tests failed - skipping publish
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Wait for other workflows to complete
       run: |
-        echo "❌ Workflow '${{ github.event.workflow_run.name }}' failed"
-        echo "Publishing is skipped when tests fail"
-        exit 0
+        echo "Waiting for other workflows to complete..."
+        # Wait up to 10 minutes for other workflows
+        for i in {1..60}; do
+          sleep 10
+          
+          # Check if there are any pending or in_progress checks
+          PENDING=$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '.check_runs[] | select(.status != "completed") | .name' | wc -l)
+          
+          if [ "$PENDING" -eq 0 ]; then
+            echo "All checks completed"
+            break
+          fi
+          
+          echo "Waiting... ($i/60) - $PENDING checks still running"
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Check if all required workflows passed
+      id: check_status
+      run: |
+        # Get all check runs for this commit
+        FAILED=$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '.check_runs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null) | .name' | wc -l)
+        
+        if [ "$FAILED" -gt 0 ]; then
+          echo "❌ Some checks failed:"
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs --jq '.check_runs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != null) | "  - \(.name): \(.conclusion)"'
+          echo "tests_passed=false" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "✅ All checks passed"
+          echo "tests_passed=true" >> $GITHUB_OUTPUT
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   check-version:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: wait-for-checks
+    if: needs.wait-for-checks.outputs.tests_passed == 'true'
     runs-on: ubuntu-latest
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
