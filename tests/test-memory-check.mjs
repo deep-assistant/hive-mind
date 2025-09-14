@@ -5,6 +5,10 @@
  * Tests system resource checking functionality
  */
 
+// Temporarily unset CI to avoid command-stream trace logs in tests
+const originalCI = process.env.CI;
+delete process.env.CI;
+
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -243,6 +247,11 @@ console.log(`  ✅ Passed: ${testsPassed}`);
 console.log(`  ❌ Failed: ${testsFailed}`);
 console.log(`  Platform: ${process.platform}`);
 console.log('='.repeat(50));
+
+// Restore CI if it was set
+if (originalCI !== undefined) {
+  process.env.CI = originalCI;
+}
 
 // Exit with appropriate code
 process.exit(testsFailed > 0 ? 1 : 0);

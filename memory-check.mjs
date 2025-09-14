@@ -7,7 +7,16 @@ if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
 
+// Temporarily unset CI to avoid command-stream trace logs
+const originalCI = process.env.CI;
+delete process.env.CI;
+
 const { $ } = await use('command-stream');
+
+// Restore CI if it was set
+if (originalCI !== undefined) {
+  process.env.CI = originalCI;
+}
 // Create a silent version of $ that doesn't mirror output to stdout
 // Note: command-stream may still emit trace logs to stderr in some environments
 // These are filtered out by consuming code when parsing JSON
