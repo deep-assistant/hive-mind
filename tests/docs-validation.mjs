@@ -109,7 +109,7 @@ const runTests = async () => {
     process.exit(0);
   } else {
     console.log(`💥 Found ${errorsFound} errors in documentation validation`);
-    console.log('📝 Please fix the issues above before proceeding');
+    console.log('📝 Split large files into subdirectories as required');
     process.exit(1);
   }
 };
