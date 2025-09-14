@@ -18,6 +18,9 @@ This directory contains reproducible test cases for issues encountered with the 
 12. **issue-12-github-search-escaping.mjs** - GitHub search queries with labels containing spaces get multiply escaped
 13. **issue-13-complex-shell-escaping.mjs** - Complex shell commands with nested quotes and variables fail unpredictably
 14. **issue-14-cwd-with-cd-pattern.mjs** - Using `cd ${dir} && command` pattern doesn't actually execute commands in the specified directory
+15. **issue-15-timeout-claude-cli.mjs** - Claude CLI commands timeout issues
+16. **issue-16-unwanted-stdout.mjs** - Unwanted stdout output even with mirror:false
+17. **issue-17-trace-logs-in-ci.mjs** - command-stream emits trace logs when CI=true environment variable is set
 
 ## Critical Issues
 
@@ -30,6 +33,8 @@ This directory contains reproducible test cases for issues encountered with the 
 ⚠️ **Issue #13 - Complex Shell Command Escaping**: Commands with multi-line strings, nested quotes, or special characters fail unpredictably. This affects git commits with detailed messages, GitHub PR descriptions, and any complex shell operations. Use temp files or `execSync` for complex content.
 
 ⚠️ **Issue #14 - CWD with CD Pattern Failure**: The pattern `$`cd ${dir} && command`` doesn't work as expected. Commands appear to succeed but don't actually execute in the specified directory. This causes critical failures with git operations where files aren't staged or committed despite success codes. Always use `$({ cwd: dir })`command`` instead.
+
+⚠️ **Issue #17 - Trace Logs in CI Environment**: When the `CI` environment variable is set to `true` (as in GitHub Actions), command-stream emits trace logs to stderr in the format `[TRACE 2025-01-14T12:34:56.789Z] ...`. These logs appear even with `mirror: false` and `capture: true` options, breaking JSON parsing and causing test failures. Workaround: redirect stderr with `2>/dev/null` or filter trace logs from output.
 
 ## Running the Tests
 
@@ -205,6 +210,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    - **Git push/pull**: Use execSync instead of command-stream (critical issue #10)
    - **GitHub PR creation**: Use execSync for `gh pr create` to capture PR URL (critical issue #11)
    - Authentication operations: Fall back to child_process when command-stream fails silently
+   - **CI environments**: Add `2>/dev/null` to commands or filter trace logs (critical issue #17)
 
 ## Alternative Approaches
 
@@ -215,16 +221,39 @@ If command-stream issues become blockers, consider:
 3. **Node.js child_process** - Direct control, no abstraction layer
 4. **Pure fs operations** - Avoid shell entirely for file operations
 
+## CI/CD Specific Issues
+
+### Issue #17: Trace Logs in CI Environment
+When `CI=true` is set (GitHub Actions, GitLab CI, etc.), command-stream emits verbose trace logs to stderr:
+
+```javascript
+// This breaks in CI
+const result = await $`echo '{"status":"ok"}'`;
+JSON.parse(result.stdout); // Fails due to trace logs mixed in
+
+// Workaround 1: Redirect stderr
+const result = await $`echo '{"status":"ok"}' 2>/dev/null`;
+
+// Workaround 2: Filter trace logs
+const output = result.stdout.split('\n')
+  .filter(line => !line.startsWith('[TRACE'))
+  .join('\n');
+```
+
+See `issue-17-technical-analysis.md` for detailed analysis.
+
 ## Conclusion
 
 While command-stream offers an elegant syntax for shell operations, it currently has significant UX issues that can lead to frustration and bugs. The library would benefit from:
 - Better automatic escaping
 - Standardized error handling
 - Improved Bun compatibility
+- Option to disable trace logs in CI
 - Comprehensive documentation
 
 Until these issues are addressed, developers should:
 - Prefer fs operations over shell commands
 - Always test with actual production data
 - Have fallback strategies for shell operations
+- Test in CI environment before deployment
 - Consider alternative libraries for critical applications
