@@ -13,6 +13,10 @@ jobs:
   memory-check-linux:
     runs-on: ubuntu-latest
     
+    # Unset CI to avoid command-stream trace logs
+    env:
+      CI: ""
+    
     strategy:
       matrix:
         node-version: [20.x]
@@ -60,7 +64,7 @@ jobs:
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --quiet --json; then
+        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -69,7 +73,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --quiet --json; then
+        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -78,6 +82,10 @@ jobs:
 
   memory-check-macos:
     runs-on: macos-latest
+    
+    # Unset CI to avoid command-stream trace logs
+    env:
+      CI: ""
     
     strategy:
       matrix:
@@ -130,7 +138,7 @@ jobs:
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --quiet --json; then
+        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -139,7 +147,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --quiet --json; then
+        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else

@@ -30,17 +30,6 @@ function runTest(name, testFn) {
 
 function execCommand(command) {
   try {
-    // In CI environment, don't capture stderr when expecting JSON
-    // to avoid trace logs contaminating output
-    const isCI = process.env.CI === 'true';
-    const needsCleanJSON = command.includes('--json');
-    
-    if (isCI && needsCleanJSON) {
-      // Remove any 2>&1 from command to avoid capturing trace logs
-      const cleanCommand = command.replace(' 2>&1', '');
-      return execSync(cleanCommand, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
-    }
-    
     return execSync(command, { encoding: 'utf8', stdio: 'pipe' });
   } catch (error) {
     // For commands that exit with non-zero, we still want the output
@@ -58,31 +47,11 @@ runTest('memory-check.mjs exists', () => {
 
 // Test 2: Check basic help works
 runTest('memory-check.mjs --help', () => {
-  // In CI, help command generates massive trace logs
-  // Just verify the command runs without error
-  try {
-    // Use shorter timeout and ignore stderr in CI
-    const isCI = process.env.CI === 'true';
-    const command = isCI 
-      ? `timeout 2s ${memoryCheckPath} --help 2>/dev/null || true`
-      : `${memoryCheckPath} --help 2>&1`;
-    
-    const output = execCommand(command);
-    
-    // In CI, we might get empty output due to 2>/dev/null, that's OK
-    // In non-CI, check for help keywords
-    if (!isCI) {
-      const lowerOutput = output.toLowerCase();
-      if (!lowerOutput.includes('help') && !lowerOutput.includes('usage') && !lowerOutput.includes('options')) {
-        throw new Error('Help output not working');
-      }
-    }
-  } catch (error) {
-    // If the command itself fails (not just validation), that's a real error
-    if (error.message.includes('ENOENT') || error.message.includes('not found')) {
-      throw error;
-    }
-    // Otherwise, assume help worked even if output was weird
+  const output = execCommand(`${memoryCheckPath} --help 2>&1`);
+  
+  // Just check that help works
+  if (!output.includes('help')) {
+    throw new Error('Help output not working');
   }
 });
 
