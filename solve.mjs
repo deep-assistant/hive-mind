@@ -65,27 +65,21 @@ const checkMemory = async (minMemoryMB = 256) => {
         await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required, but ${swapFreeMB}MB swap available`, { level: 'warning' });
         await log('   Continuing with swap support (effective memory: ' + effectiveAvailableMB + 'MB)', { level: 'warning' });
       } else {
-        if (argv.dryRun) {
-          await log(`⚠️  Low memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'warning' });
-          await log('   (Continuing in dry-run mode)', { level: 'warning' });
-          return true;
-        } else {
-          await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
-          await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
-          
-          if (swapTotalMB < 1024) {
-            await log('', { level: 'error' });
-            await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
-            await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
-            await log('   sudo chmod 600 /swapfile', { level: 'error' });
-            await log('   sudo mkswap /swapfile', { level: 'error' });
-            await log('   sudo swapon /swapfile', { level: 'error' });
-            await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
-            await log('   After setting up swap, restart the system if needed.', { level: 'error' });
-          }
-          
-          return false;
+        await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
+        await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
+        
+        if (swapTotalMB < 1024) {
+          await log('', { level: 'error' });
+          await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
+          await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
+          await log('   sudo chmod 600 /swapfile', { level: 'error' });
+          await log('   sudo mkswap /swapfile', { level: 'error' });
+          await log('   sudo swapon /swapfile', { level: 'error' });
+          await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
+          await log('   After setting up swap, restart the system if needed.', { level: 'error' });
         }
+        
+        return false;
       }
     }
     
@@ -129,29 +123,19 @@ const checkMemory = async (minMemoryMB = 256) => {
         
         const effectiveAvailableMB = availableMB + swapFreeMB;
         
-        if (availableMB < minMemoryMB && !argv.dryRun) {
+        if (availableMB < minMemoryMB) {
           await log(`⚠️  Low memory: ${availableMB}MB available, ${minMemoryMB}MB recommended`, { level: 'warning' });
           await log('   This may cause performance issues.', { level: 'warning' });
-        }
-        
-        if (argv.dryRun) {
-          await log(`   (Continuing in dry-run mode)`);
         }
         
         return true;
       } catch (macError) {
         await log(`⚠️  Could not check memory: ${macError.message}`, { level: 'warning' });
-        if (argv.dryRun) {
-          await log(`   (Continuing in dry-run mode)`);
-        }
         return true;
       }
     } else {
       await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
       await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
-      if (argv.dryRun) {
-        await log(`   (Continuing in dry-run mode)`);
-      }
       return true;
     }
   }
