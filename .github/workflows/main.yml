@@ -16,7 +16,7 @@ jobs:
       docs-changed: ${{ steps.changes.outputs.docs }}
       workflow-changed: ${{ steps.changes.outputs.workflow }}
       any-code-changed: ${{ steps.changes.outputs.code }}
-      new-version: ${{ steps.version.outputs.new }}
+      new-version: ${{ steps.version.outputs.new-version }}
       version: ${{ steps.version.outputs.version }}
     
     steps:
@@ -82,12 +82,12 @@ jobs:
         # Only check for new versions on main branch pushes
         if [ "${{ github.ref }}" != "refs/heads/main" ] || [ "${{ github.event_name }}" != "push" ]; then
           echo "Not a main branch push - skipping version check"
-          echo "new=false" >> $GITHUB_OUTPUT
+          echo "new-version=false" >> $GITHUB_OUTPUT
           exit 0
         fi
         
         if [ ! -f "package.json" ]; then
-          echo "new=false" >> $GITHUB_OUTPUT
+          echo "new-version=false" >> $GITHUB_OUTPUT
           echo "No package.json found"
           exit 0
         fi
@@ -98,12 +98,15 @@ jobs:
         # Check if version is already published on NPM
         if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
           echo "Version $VERSION already published"
-          echo "new=false" >> $GITHUB_OUTPUT
+          echo "new-version=false" >> $GITHUB_OUTPUT
         else
-          echo "New version $VERSION detected"
-          echo "new=true" >> $GITHUB_OUTPUT
+          echo "New version $VERSION detected - will publish"
+          echo "new-version=true" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         fi
+        
+        # Debug output
+        echo "Debug: new-version output = $(grep new-version $GITHUB_OUTPUT || echo 'not set')"
 
   # === COMPILATION & SYNTAX CHECKS ===
   test-compilation:
