@@ -415,28 +415,11 @@ jobs:
         chmod +x tests/docs-validation.mjs
         node tests/docs-validation.mjs
 
-  # === ALL TESTS COMPLETE ===
-  all-tests-complete:
-    # Synthetic job that succeeds only when all tests pass
-    if: always()
-    runs-on: ubuntu-latest
-    needs: [test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
-    
-    steps:
-    - name: Check all tests passed
-      run: |
-        # This job succeeds only if all dependent jobs succeeded
-        if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] || [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
-          echo "Some tests failed or were cancelled"
-          exit 1
-        fi
-        echo "✅ All tests passed successfully!"
-
   # === PUBLISH TO NPM ===
   publish:
     if: always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, all-tests-complete]
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
