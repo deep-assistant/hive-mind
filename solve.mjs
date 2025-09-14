@@ -2068,11 +2068,19 @@ Proceed.`;
 
         // Build comment info for system prompt
         const commentLines = [];
-        if (newPrComments > 0) {
+        
+        // Always show comment counts when in continue or auto-continue mode
+        if (isContinueMode || argv.autoContinue) {
           commentLines.push(`New comments on the pull request: ${newPrComments}`);
-        }
-        if (newIssueComments > 0) {
           commentLines.push(`New comments on the issue: ${newIssueComments}`);
+        } else {
+          // Original behavior for non-continue modes: only show if > 0
+          if (newPrComments > 0) {
+            commentLines.push(`New comments on the pull request: ${newPrComments}`);
+          }
+          if (newIssueComments > 0) {
+            commentLines.push(`New comments on the issue: ${newIssueComments}`);
+          }
         }
         
         if (commentLines.length > 0) {
