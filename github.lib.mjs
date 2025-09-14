@@ -224,6 +224,221 @@ export const checkGitHubPermissions = async () => {
   }
 };
 
+/**
+ * Attaches a log file to a GitHub PR or issue as a comment
+ * @param {Object} options - Configuration options
+ * @param {string} options.logFile - Path to the log file
+ * @param {string} options.targetType - 'pr' or 'issue'
+ * @param {number} options.targetNumber - PR or issue number
+ * @param {string} options.owner - Repository owner
+ * @param {string} options.repo - Repository name
+ * @param {Function} options.$ - Command execution function
+ * @param {Function} options.log - Logging function
+ * @param {Function} options.sanitizeLogContent - Function to sanitize log content
+ * @param {boolean} [options.verbose=false] - Enable verbose logging
+ * @returns {Promise<boolean>} - True if upload succeeded
+ */
+export async function attachLogToGitHub(options) {
+  const fs = (await use('fs')).promises;
+  const {
+    logFile,
+    targetType,
+    targetNumber,
+    owner,
+    repo,
+    $,
+    log,
+    sanitizeLogContent,
+    verbose = false
+  } = options;
+
+  const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
+  const ghCommand = targetType === 'pr' ? 'pr' : 'issue';
+
+  try {
+    // Check if log file exists and is not empty
+    const logStats = await fs.stat(logFile);
+    if (logStats.size === 0) {
+      await log(`  ⚠️  Log file is empty, skipping upload`);
+      return false;
+    } else if (logStats.size > 25 * 1024 * 1024) { // 25MB GitHub limit
+      await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
+      return false;
+    }
+
+    // Read and sanitize log content
+    const rawLogContent = await fs.readFile(logFile, 'utf8');
+    if (verbose) {
+      await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+    }
+    const logContent = await sanitizeLogContent(rawLogContent);
+
+    // Create formatted comment
+    const logComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB)</summary>
+
+\`\`\`
+${logContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+    // Check GitHub comment size limit
+    const GITHUB_COMMENT_LIMIT = 65536;
+    let commentResult;
+
+    if (logComment.length > GITHUB_COMMENT_LIMIT) {
+      await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${GITHUB_COMMENT_LIMIT} chars`);
+      await log(`  📎 Uploading log as GitHub Gist instead...`);
+
+      try {
+        // Create gist
+        const tempLogFile = `/tmp/solution-log-${targetType}-${Date.now()}.txt`;
+        await fs.writeFile(tempLogFile, logContent);
+
+        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for ${targetType} #${targetNumber}" --filename "solution-log.txt"`;
+
+        await fs.unlink(tempLogFile).catch(() => {});
+
+        if (gistResult.code === 0) {
+          const gistUrl = gistResult.stdout.toString().trim();
+
+          // Create comment with gist link
+          const gistComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+
+📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
+🔗 [View complete solution log](${gistUrl})
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+          const tempGistCommentFile = `/tmp/log-gist-comment-${targetType}-${Date.now()}.md`;
+          await fs.writeFile(tempGistCommentFile, gistComment);
+
+          commentResult = await $`gh ${ghCommand} comment ${targetNumber} --repo ${owner}/${repo} --body-file "${tempGistCommentFile}"`;
+
+          await fs.unlink(tempGistCommentFile).catch(() => {});
+
+          if (commentResult.code === 0) {
+            await log(`  ✅ Solution log uploaded to ${targetName} as Gist`);
+            await log(`  🔗 Gist URL: ${gistUrl}`);
+            await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+            return true;
+          } else {
+            await log(`  ❌ Failed to upload comment with gist link: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+            return false;
+          }
+        } else {
+          await log(`  ❌ Failed to create gist: ${gistResult.stderr ? gistResult.stderr.toString().trim() : 'unknown error'}`);
+          
+          // Fallback to truncated comment
+          await log(`  🔄 Falling back to truncated comment...`);
+          return await attachTruncatedLog(options);
+        }
+      } catch (gistError) {
+        await log(`  ❌ Error creating gist: ${gistError.message}`);
+        // Try regular comment as last resort
+        return await attachRegularComment(options, logComment);
+      }
+    } else {
+      // Comment fits within limit
+      return await attachRegularComment(options, logComment);
+    }
+  } catch (uploadError) {
+    await log(`  ❌ Error uploading log file: ${uploadError.message}`);
+    return false;
+  }
+}
+
+/**
+ * Helper to attach a truncated log when full log is too large
+ */
+async function attachTruncatedLog(options) {
+  const fs = (await use('fs')).promises;
+  const { logFile, targetType, targetNumber, owner, repo, $, log, sanitizeLogContent } = options;
+  
+  const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
+  const ghCommand = targetType === 'pr' ? 'pr' : 'issue';
+  
+  const rawLogContent = await fs.readFile(logFile, 'utf8');
+  const logContent = await sanitizeLogContent(rawLogContent);
+  const logStats = await fs.stat(logFile);
+  
+  const GITHUB_COMMENT_LIMIT = 65536;
+  const maxContentLength = GITHUB_COMMENT_LIMIT - 500;
+  const truncatedContent = logContent.substring(0, maxContentLength) + '\n\n[... Log truncated due to length ...]';
+  
+  const truncatedComment = `## 🤖 Solution Log (Truncated)
+
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+⚠️ **Log was truncated** due to GitHub comment size limits.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB, truncated)</summary>
+
+\`\`\`
+${truncatedContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+  const tempFile = `/tmp/log-truncated-comment-${targetType}-${Date.now()}.md`;
+  await fs.writeFile(tempFile, truncatedComment);
+  
+  const result = await $`gh ${ghCommand} comment ${targetNumber} --repo ${owner}/${repo} --body-file "${tempFile}"`;
+  
+  await fs.unlink(tempFile).catch(() => {});
+  
+  if (result.code === 0) {
+    await log(`  ✅ Truncated solution log uploaded to ${targetName}`);
+    await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB (truncated)`);
+    return true;
+  } else {
+    await log(`  ❌ Failed to upload truncated log: ${result.stderr ? result.stderr.toString().trim() : 'unknown error'}`);
+    return false;
+  }
+}
+
+/**
+ * Helper to attach a regular comment when it fits within limits
+ */
+async function attachRegularComment(options, logComment) {
+  const fs = (await use('fs')).promises;
+  const { targetType, targetNumber, owner, repo, $, log, logFile } = options;
+  
+  const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
+  const ghCommand = targetType === 'pr' ? 'pr' : 'issue';
+  const logStats = await fs.stat(logFile);
+  
+  const tempFile = `/tmp/log-comment-${targetType}-${Date.now()}.md`;
+  await fs.writeFile(tempFile, logComment);
+  
+  const result = await $`gh ${ghCommand} comment ${targetNumber} --repo ${owner}/${repo} --body-file "${tempFile}"`;
+  
+  await fs.unlink(tempFile).catch(() => {});
+  
+  if (result.code === 0) {
+    await log(`  ✅ Solution log uploaded to ${targetName} as comment`);
+    await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+    return true;
+  } else {
+    await log(`  ❌ Failed to upload log to ${targetName}: ${result.stderr ? result.stderr.toString().trim() : 'unknown error'}`);
+    return false;
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -231,5 +446,6 @@ export default {
   getGitHubTokensFromCommand,
   sanitizeLogContent,
   checkFileInBranch,
-  checkGitHubPermissions
+  checkGitHubPermissions,
+  attachLogToGitHub
 };

@@ -17,7 +17,7 @@ const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
-const { log: libLog, setLogFile, formatTimestamp, cleanErrorMessage } = lib;
+const { log: libLog, setLogFile, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError } = lib;
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');

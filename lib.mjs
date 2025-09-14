@@ -164,6 +164,68 @@ export const cleanErrorMessage = (error) => {
   return message;
 };
 
+// Helper function to format aligned console output
+export const formatAligned = (icon, label, value, indent = 0) => {
+  const spaces = ' '.repeat(indent);
+  const labelWidth = 25 - indent;
+  const paddedLabel = label.padEnd(labelWidth, ' ');
+  return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
+};
+
+// Helper function to display formatted error messages with sections
+export const displayFormattedError = async (options) => {
+  const {
+    title,
+    what,
+    details,
+    causes,
+    fixes,
+    workDir,
+    log: logFn = log,
+    level = 'error'
+  } = options;
+
+  await logFn(``);
+  await logFn(`❌ ${title}`, { level });
+  await logFn(``);
+  
+  if (what) {
+    await logFn(`  🔍 What happened:`);
+    await logFn(`     ${what}`);
+    await logFn(``);
+  }
+  
+  if (details) {
+    await logFn(`  📦 Error details:`);
+    const detailLines = Array.isArray(details) ? details : details.split('\n');
+    for (const line of detailLines) {
+      if (line.trim()) await logFn(`     ${line.trim()}`);
+    }
+    await logFn(``);
+  }
+  
+  if (causes && causes.length > 0) {
+    await logFn(`  💡 Possible causes:`);
+    for (const cause of causes) {
+      await logFn(`     • ${cause}`);
+    }
+    await logFn(``);
+  }
+  
+  if (fixes && fixes.length > 0) {
+    await logFn(`  🔧 How to fix:`);
+    for (let i = 0; i < fixes.length; i++) {
+      await logFn(`     ${i + 1}. ${fixes[i]}`);
+    }
+    await logFn(``);
+  }
+  
+  if (workDir) {
+    await logFn(`  📂 Working directory: ${workDir}`);
+    await logFn(``);
+  }
+};
+
 // Export all functions as default object too
 export default {
   log,
@@ -178,5 +240,7 @@ export default {
   retry,
   formatBytes,
   measureTime,
-  cleanErrorMessage
+  cleanErrorMessage,
+  formatAligned,
+  displayFormattedError
 };
