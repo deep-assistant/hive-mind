@@ -9,6 +9,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
     
     steps:
     - name: Checkout code
@@ -49,26 +52,23 @@ jobs:
         
     - name: Create GitHub Release
       if: steps.version_check.outputs.already_published == 'false'
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ steps.package.outputs.version }}
-        release_name: Release v${{ steps.package.outputs.version }}
-        body: |
-          ## Changes in v${{ steps.package.outputs.version }}
-          
-          This release includes updates to the @deep-assistant/hive-mind package.
-          
-          ### Installation
-          ```bash
-          npm install -g @deep-assistant/hive-mind
-          ```
-          
-          ### Usage
-          ```bash
-          hive --help
-          solve --help
-          ```
-        draft: false
-        prerelease: false
+      run: |
+        gh release create "v${{ steps.package.outputs.version }}" \
+          --title "Release v${{ steps.package.outputs.version }}" \
+          --notes "## Changes in v${{ steps.package.outputs.version }}
+
+        This release includes updates to the @deep-assistant/hive-mind package.
+
+        ### Installation
+        \`\`\`bash
+        npm install -g @deep-assistant/hive-mind
+        \`\`\`
+
+        ### Usage
+        \`\`\`bash
+        hive --help
+        solve --help
+        \`\`\`" \
+          --latest
