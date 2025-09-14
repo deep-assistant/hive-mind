@@ -134,4 +134,5 @@ jobs:
     - name: Run test suite for memory-check.mjs
       run: |
         echo "Running test suite for memory-check.mjs..."
+        unset CI
         node tests/test-memory-check.mjs

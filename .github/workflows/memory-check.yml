@@ -46,10 +46,12 @@ jobs:
     - name: Run memory-check tests
       run: |
         chmod +x tests/test-memory-check.mjs
+        unset CI
         node tests/test-memory-check.mjs
     
     - name: Test memory-check with various thresholds
       run: |
+        unset CI
         echo "Testing with low thresholds (should pass)..."
         ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
@@ -120,10 +122,12 @@ jobs:
     - name: Run memory-check tests
       run: |
         chmod +x tests/test-memory-check.mjs
+        unset CI
         node tests/test-memory-check.mjs
     
     - name: Test memory-check with various thresholds
       run: |
+        unset CI
         echo "Testing with low thresholds (should pass)..."
         ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
@@ -195,6 +199,7 @@ jobs:
     - name: Test memory-check execution
       shell: bash
       run: |
+        unset CI
         # Basic test on Windows - may have limited functionality
         echo "Testing basic execution on Windows..."
         ./memory-check.mjs --min-memory 10 --min-disk-space 100 || true
