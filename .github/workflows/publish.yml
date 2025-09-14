@@ -29,29 +29,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Check if package.json changed and version is new
+    - name: Check if version is new
       id: check
       run: |
-        # Get the list of changed files in the last commit
-        CHANGED_FILES=$(git diff --name-only HEAD HEAD~1)
+        VERSION=$(node -p "require('./package.json').version")
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
         
-        # Check if package.json was modified
-        if echo "$CHANGED_FILES" | grep -q "^package.json$"; then
-          VERSION=$(node -p "require('./package.json').version")
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-          
-          # Check if version is already published
-          if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-            echo "Version $VERSION already published"
-            echo "should_publish=false" >> $GITHUB_OUTPUT
-          else
-            echo "New version $VERSION detected"
-            echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-          fi
-        else
-          echo "package.json not modified"
+        # Check if version is already published on NPM
+        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+          echo "Version $VERSION already published"
           echo "should_publish=false" >> $GITHUB_OUTPUT
+        else
+          echo "New version $VERSION detected"
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
         fi
 
   publish:
