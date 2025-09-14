@@ -381,31 +381,26 @@ jobs:
 
   # === PUBLISH TO NPM ===
   check-publish:
-    # Only run on main branch push when package.json changes and tests pass
+    # Only run on main branch push when package.json or workflow changes and tests pass
     if: |
       always() &&
       github.ref == 'refs/heads/main' && 
       github.event_name == 'push' &&
-      needs.detect-changes.outputs.package-changed == 'true' &&
+      (needs.detect-changes.outputs.package-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true') &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
-    outputs:
-      should_publish: ${{ steps.check.outputs.should_publish }}
-      version: ${{ steps.check.outputs.version }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Check if version is new
-      id: check
       run: |
         # Check if package.json exists
         if [ ! -f "package.json" ]; then
           echo "No package.json found"
-          echo "should_publish=false" >> $GITHUB_OUTPUT
           exit 0
         fi
         
@@ -414,17 +409,10 @@ jobs:
         
         # Check if version is already published on NPM
         if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-          echo "Version $VERSION already published"
-          echo "should_publish=false" >> $GITHUB_OUTPUT
+          echo "✓ Version $VERSION already published"
         else
-          echo "New version $VERSION detected"
-          echo "should_publish=true" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✓ New version $VERSION detected - will be published"
         fi
-        
-        # Debug: Show what was set
-        echo "Debug: should_publish output will be: $(grep should_publish $GITHUB_OUTPUT | cut -d= -f2)"
-        echo "Debug: version output will be: $(grep version $GITHUB_OUTPUT | cut -d= -f2)"
 
   publish:
     if: needs.check-publish.result == 'success'
@@ -515,8 +503,11 @@ jobs:
         else
           echo "⊘ Documentation validation was skipped (no docs changes)"
         fi
-        if [ "${{ needs.detect-changes.outputs.package-changed }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+        if ([ "${{ needs.detect-changes.outputs.package-changed }}" = "true" ] || [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ]) && [ "${{ github.ref }}" = "refs/heads/main" ]; then
           echo "✓ Publishing check was run"
+          if [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ] && [ "${{ needs.detect-changes.outputs.package-changed }}" != "true" ]; then
+            echo "  (triggered by workflow changes)"
+          fi
         else
-          echo "⊘ Publishing was skipped (no package.json changes or not main branch)"
+          echo "⊘ Publishing was skipped (no package.json/workflow changes or not main branch)"
         fi
