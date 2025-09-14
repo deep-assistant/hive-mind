@@ -432,23 +432,11 @@ jobs:
         fi
         echo "✅ All tests passed successfully!"
 
-  # === SHOULD PUBLISH CHECK ===
-  should-publish:
-    # Synthetic job that checks if we should publish
-    if: needs.detect-changes.outputs.new-version == 'true'
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    
-    steps:
-    - name: Confirm publish
-      run: |
-        echo "✅ New version detected: will proceed with publish"
-        echo "Version to publish: ${{ needs.detect-changes.outputs.version }}"
-
   # === PUBLISH TO NPM ===
   publish:
+    if: always()
     runs-on: ubuntu-latest
-    needs: [should-publish, all-tests-complete]
+    needs: [detect-changes, all-tests-complete]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
@@ -462,60 +450,30 @@ jobs:
       with:
         node-version: 20.x
         registry-url: 'https://registry.npmjs.org'
-        
-    - name: Make scripts executable
+    
+    - name: Publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        if [ "${{ needs.detect-changes.outputs.new-version }}" != "true" ]; then
+          echo "⊘ Publishing skipped (no new version detected)"
+          echo "  new-version output: ${{ needs.detect-changes.outputs.new-version }}"
+          exit 0
+        fi
+        
+        echo "✓ New version detected, proceeding with publish"
+        
+        # Make scripts executable
         chmod +x hive.mjs
         chmod +x solve.mjs
         
-    - name: Publish to NPM
-      run: npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Publish to NPM
+        npm publish --access public
         
-    - name: Create GitHub Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        VERSION=$(node -p "require('./package.json').version")
+        # Create GitHub Release
+        VERSION=${{ needs.detect-changes.outputs.version }}
         PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
           --title "${VERSION}" \
           --notes "https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
-
-  # === SUMMARY ===
-  summary:
-    if: always()
-    runs-on: ubuntu-latest
-    needs: [detect-changes, publish]
-    
-    steps:
-    - name: Summary
-      run: |
-        echo "## Workflow Summary"
-        echo ""
-        echo "### Changes Detected:"
-        echo "- Code files (.mjs): ${{ needs.detect-changes.outputs.mjs-changed }}"
-        echo "- Package.json: ${{ needs.detect-changes.outputs.package-changed }}"
-        echo "- Documentation (.md): ${{ needs.detect-changes.outputs.docs-changed }}"
-        echo "- Workflow files: ${{ needs.detect-changes.outputs.workflow-changed }}"
-        echo ""
-        echo "### Jobs Run:"
-        if [ "${{ needs.detect-changes.outputs.any-code-changed }}" = "true" ] || [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ]; then
-          echo "✓ Code tests were run"
-          if [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ]; then
-            echo "  (triggered by workflow changes)"
-          fi
-        else
-          echo "⊘ Code tests were skipped (no code changes)"
-        fi
-        if [ "${{ needs.detect-changes.outputs.docs-changed }}" = "true" ]; then
-          echo "✓ Documentation validation was run"
-        else
-          echo "⊘ Documentation validation was skipped (no docs changes)"
-        fi
-        if [ "${{ needs.detect-changes.outputs.new-version }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          echo "✓ Publishing will run for new version ${{ needs.detect-changes.outputs.version }}"
-        else
-          echo "⊘ Publishing was skipped (no new version or not main branch)"
-        fi
