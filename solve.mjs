@@ -152,8 +152,18 @@ const issueUrl = argv._[0];
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
+// Debug logging for attach-logs option
+if (argv.verbose) {
+  await log(`Debug: argv.attachSolutionLogs = ${argv.attachSolutionLogs}`, { verbose: true });
+  await log(`Debug: argv["attach-solution-logs"] = ${argv["attach-solution-logs"]}`, { verbose: true });
+  await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
+  await log(`Debug: argv["attach-logs"] = ${argv["attach-logs"]}`, { verbose: true });
+}
+
 // Show security warning for attach-solution-logs option
-if (argv.attachSolutionLogs) {
+// Check both the main option and alias due to yargs behavior
+const shouldAttachLogs = argv.attachSolutionLogs || argv.attachLogs || argv['attach-logs'] || argv['attach-solution-logs'];
+if (shouldAttachLogs) {
   await log('');
   await log('⚠️  SECURITY WARNING: --attach-solution-logs is ENABLED', { level: 'warning' });
   await log('');
@@ -313,7 +323,7 @@ const autoContinueWhenLimitResets = async (issueUrl, sessionId, tempDir) => {
     if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
     if (argv.verbose) resumeArgs.push('--verbose');
     if (argv.fork) resumeArgs.push('--fork');
-    if (argv.attachSolutionLogs) resumeArgs.push('--attach-solution-logs');
+    if (shouldAttachLogs) resumeArgs.push('--attach-solution-logs');
     
     await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
     
@@ -894,7 +904,6 @@ try {
 
   // Initialize PR variables early
   let prUrl = null;
-  let prNumberForNewPR = null;
   
   // In continue mode, we already have the PR details
   if (isContinueMode) {
@@ -966,7 +975,7 @@ Issue: ${issueUrl}`;
         }
         
         // Verify commit was created before pushing
-        const verifyCommitResult = await $({ cwd: tempDir })`git log --oneline -1 2>&1`;
+        const verifyCommitResult = await $({ cwd: tempDir })`git log --format="%h %s" -1 2>&1`;
         if (verifyCommitResult.code === 0) {
           const latestCommit = verifyCommitResult.stdout ? verifyCommitResult.stdout.toString().trim() : '';
           if (argv.verbose) {
@@ -1099,7 +1108,7 @@ Issue: ${issueUrl}`;
               }
             }
             
-            // Try one more force push with explicit refspec
+            // Try one more force push with explicit ref
             await log(`   Attempting explicit push...`);
             const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName} -f`;
             if (argv.verbose) {
@@ -1416,7 +1425,7 @@ ${prBody}`, { verbose: true });
               await log(``);
               await log(`  🔧 How to fix:`);
               await log(`     1. Verify commit exists:`);
-              await log(`        cd ${tempDir} && git log --oneline -5`);
+              await log(`        cd ${tempDir} && git log --format="%h %s" -5`);
               await log(`     2. Push again with tracking:`);
               await log(`        cd ${tempDir} && git push -u origin ${branchName}`);
               await log(`     3. Create PR manually:`);
@@ -2108,7 +2117,7 @@ Self review.
     }
     
     // If --attach-solution-logs is enabled, ensure we attach failure logs
-    if (argv.attachSolutionLogs && sessionId) {
+    if (shouldAttachLogs && sessionId) {
       await log('\n📄 Attempting to attach failure logs to PR/Issue...');
       // The attach logs logic will handle this in the catch block below
     }
@@ -2340,7 +2349,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         }
         
         // Upload log file to PR if requested
-        if (argv.attachSolutionLogs) {
+        let logUploadSuccess = false;
+        if (shouldAttachLogs) {
           await log(`\n📎 Uploading solution log to Pull Request...`);
           
           try {
@@ -2421,6 +2431,7 @@ This log file contains the complete execution trace of the AI solution process.
                       await log(`  ✅ Solution log uploaded to PR as Gist`);
                       await log(`  🔗 Gist URL: ${gistUrl}`);
                       await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                      logUploadSuccess = true;
                     } else {
                       await log(`  ❌ Failed to upload comment with gist link: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
                     }
@@ -2494,6 +2505,7 @@ ${truncatedContent}
                 if (commentResult.code === 0) {
                   await log(`  ✅ Solution log uploaded to PR as comment`);
                   await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                  logUploadSuccess = true;
                 } else {
                   await log(`  ❌ Failed to upload log to PR: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
                 }
@@ -2506,8 +2518,10 @@ ${truncatedContent}
         
         await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
         await log(`📍 URL: ${pr.url}`);
-        if (argv.attachSolutionLogs) {
+        if (shouldAttachLogs && logUploadSuccess) {
           await log(`📎 Solution log has been attached to the Pull Request`);
+        } else if (shouldAttachLogs && !logUploadSuccess) {
+          await log(`⚠️  Solution log upload was requested but failed`);
         }
         await log(`\n✨ Please review the pull request for the proposed solution.`);
         process.exit(0);
@@ -2541,7 +2555,7 @@ ${truncatedContent}
       await log(`  ✅ Found new comment by ${currentUser}`);
       
       // Upload log file to issue if requested
-      if (argv.attachSolutionLogs) {
+      if (shouldAttachLogs) {
         await log(`\n📎 Uploading solution log to issue...`);
         
         try {
@@ -2707,7 +2721,7 @@ ${truncatedContent}
       
       await log(`\n💬 SUCCESS: Comment posted on issue`);
       await log(`📍 URL: ${lastComment.html_url}`);
-      if (argv.attachSolutionLogs) {
+      if (shouldAttachLogs) {
         await log(`📎 Solution log has been attached to the issue`);
       }
       await log(`\n✨ A clarifying comment has been added to the issue.`);
@@ -2737,7 +2751,7 @@ ${truncatedContent}
   await log(`Stack trace: ${error.stack}`, { verbose: true });
   
   // If --attach-solution-logs is enabled, try to attach failure logs
-  if (argv.attachSolutionLogs && logFile) {
+  if (shouldAttachLogs && logFile) {
     await log('\n📄 Attempting to attach failure logs...');
     
     // Try to attach to existing PR first
