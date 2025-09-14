@@ -6,12 +6,15 @@ This directory contains reproducible test cases for issues encountered with the 
 
 1. **issue-01-subpath-imports.mjs** - Subpath imports like `package/submodule` fail with @latest tag
 2. **issue-02-module-format-detection.mjs** - Inconsistent module format detection between @latest and specific versions
+3. **issue-03-eval-context.mjs** - use-m fails when modules are imported via `node -e` (eval context)
 
 ## Critical Issues
 
 ⚠️ **Issue #1 - Subpath Import Failures**: The pattern `package@latest/subpath` fails to resolve, while `package@version/subpath` works. This breaks common patterns like `yargs@latest/helpers` for accessing hideBin. Must use specific version numbers as workaround.
 
 ⚠️ **Issue #2 - Module Format Inconsistency**: The same package returns different module formats when using @latest vs specific version. For example, `yargs@latest` requires `.default` access, while `yargs@17.7.2` may not. This causes runtime errors when switching between version tags.
+
+⚠️ **Issue #3 - Eval Context Failures**: use-m fails when modules are imported via `node -e` or any eval context. The error `ERR_INVALID_ARG_VALUE` occurs because Module.createRequire() rejects '[eval]' as an invalid filename. This breaks GitHub Actions tests and REPL imports.
 
 ## Running the Tests
 
@@ -63,7 +66,31 @@ const moduleImport = await use('package-name');
 const module = moduleImport.default || moduleImport;
 ```
 
-### 3. Conditional Loading
+### 3. Eval Context Handling
+```javascript
+// DON'T: Test imports with node -e
+node -e "import('./lib.mjs').then(() => console.log('OK'))"
+
+// DO: Create actual test files
+// test-lib.mjs
+import './lib.mjs';
+console.log('OK');
+
+// OR: Add fallback for eval context in library
+let fs;
+try {
+  if (typeof use === 'undefined') {
+    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  }
+  fs = (await use('fs')).promises;
+} catch (error) {
+  // Fallback for eval context
+  const fsModule = await import('fs');
+  fs = fsModule.promises;
+}
+```
+
+### 4. Conditional Loading
 ```javascript
 // Pattern for modules that might already be loaded
 if (typeof use === 'undefined') {
@@ -71,7 +98,7 @@ if (typeof use === 'undefined') {
 }
 ```
 
-### 4. Cross-Runtime Compatibility
+### 5. Cross-Runtime Compatibility
 ```javascript
 // Shebang for both Node and Bun
 #!/usr/bin/env sh
