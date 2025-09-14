@@ -1,0 +1,219 @@
+publish	UNKNOWN STEP	﻿2025-09-14T07:07:48.9191010Z Current runner version: '2.328.0'
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9225340Z ##[group]Runner Image Provisioner
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9226613Z Hosted Compute Agent
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9227613Z Version: 20250829.383
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9228552Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9229737Z Build Date: 2025-08-29T13:48:48Z
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9230906Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9231803Z ##[group]Operating System
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9232990Z Ubuntu
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9233947Z 24.04.3
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9234762Z LTS
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9235753Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9236668Z ##[group]Runner Image
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9237665Z Image: ubuntu-24.04
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9238631Z Version: 20250907.24.1
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9240430Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250907.24/images/ubuntu/Ubuntu2404-Readme.md
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9243699Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250907.24
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9245479Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9247532Z ##[group]GITHUB_TOKEN Permissions
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9250087Z Contents: read
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9251070Z Metadata: read
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9251922Z Packages: read
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9252948Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9256884Z Secret source: Actions
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9258456Z Prepare workflow directory
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9740081Z Prepare all required actions
+publish	UNKNOWN STEP	2025-09-14T07:07:48.9797634Z Getting action download info
+publish	UNKNOWN STEP	2025-09-14T07:07:49.2365278Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+publish	UNKNOWN STEP	2025-09-14T07:07:49.3236300Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+publish	UNKNOWN STEP	2025-09-14T07:07:49.4119769Z Download action repository 'actions/create-release@v1' (SHA:0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e)
+publish	UNKNOWN STEP	2025-09-14T07:07:49.6809892Z Complete job name: publish
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7475516Z ##[group]Run actions/checkout@v4
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7476359Z with:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7476794Z   repository: deep-assistant/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7477511Z   token: ***
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7477899Z   ssh-strict: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7478285Z   ssh-user: git
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7478692Z   persist-credentials: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7479133Z   clean: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7479530Z   sparse-checkout-cone-mode: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7480009Z   fetch-depth: 1
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7480385Z   fetch-tags: false
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7480811Z   show-progress: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7481217Z   lfs: false
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7481587Z   submodules: false
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7481999Z   set-safe-directory: true
+publish	UNKNOWN STEP	2025-09-14T07:07:49.7482672Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8528100Z Syncing repository: deep-assistant/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8529835Z ##[group]Getting Git version info
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8530737Z Working directory is '/home/runner/work/hive-mind/hive-mind'
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8531690Z [command]/usr/bin/git version
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8593799Z git version 2.51.0
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8619109Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8632644Z Temporarily overriding HOME='/home/runner/work/_temp/87ff6a3b-6255-45a5-9ee5-5fe58ea8d04f' before making global git config changes
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8634343Z Adding repository directory to the temporary git global config as a safe directory
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8638128Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hive-mind/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8677002Z Deleting the contents of '/home/runner/work/hive-mind/hive-mind'
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8680633Z ##[group]Initializing the repository
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8684618Z [command]/usr/bin/git init /home/runner/work/hive-mind/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8758510Z hint: Using 'master' as the name for the initial branch. This default branch name
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8760391Z hint: is subject to change. To configure the initial branch name to use in all
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8761944Z hint: of your new repositories, which will suppress this warning, call:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8763687Z hint:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8764693Z hint: 	git config --global init.defaultBranch <name>
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8765681Z hint:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8766594Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8768121Z hint: 'development'. The just-created branch can be renamed via this command:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8769258Z hint:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8769778Z hint: 	git branch -m <name>
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8770269Z hint:
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8770872Z hint: Disable this message with "git config set advice.defaultBranchName false"
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8772357Z Initialized empty Git repository in /home/runner/work/hive-mind/hive-mind/.git/
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8778967Z [command]/usr/bin/git remote add origin https://github.com/deep-assistant/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8817083Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8818301Z ##[group]Disabling automatic garbage collection
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8820152Z [command]/usr/bin/git config --local gc.auto 0
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8851770Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8853183Z ##[group]Setting up auth
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8858832Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+publish	UNKNOWN STEP	2025-09-14T07:07:49.8891328Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9202437Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9234642Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9480960Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9521530Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9523266Z ##[group]Fetching the repository
+publish	UNKNOWN STEP	2025-09-14T07:07:49.9532925Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +e9ef7608a922e1286cab06f4937784da532965c1:refs/remotes/origin/main
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1632552Z From https://github.com/deep-assistant/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1633754Z  * [new ref]         e9ef7608a922e1286cab06f4937784da532965c1 -> origin/main
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1664728Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1665901Z ##[group]Determining the checkout info
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1667349Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1673008Z [command]/usr/bin/git sparse-checkout disable
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1712653Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1738985Z ##[group]Checking out the ref
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1742171Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1837525Z Switched to a new branch 'main'
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1840186Z branch 'main' set up to track 'origin/main'.
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1846690Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1879889Z [command]/usr/bin/git log -1 --format=%H
+publish	UNKNOWN STEP	2025-09-14T07:07:50.1901122Z e9ef7608a922e1286cab06f4937784da532965c1
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2143809Z ##[group]Run actions/setup-node@v4
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2144354Z with:
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2144731Z   node-version: 18
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2145198Z   registry-url: https://registry.npmjs.org
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2145743Z   always-auth: false
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2146159Z   check-latest: false
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2146712Z   token: ***
+publish	UNKNOWN STEP	2025-09-14T07:07:50.2147097Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:50.3891196Z Found in cache @ /opt/hostedtoolcache/node/18.20.8/x64
+publish	UNKNOWN STEP	2025-09-14T07:07:50.3898418Z ##[group]Environment details
+publish	UNKNOWN STEP	2025-09-14T07:07:52.4992375Z node: v18.20.8
+publish	UNKNOWN STEP	2025-09-14T07:07:52.4993156Z npm: 10.8.2
+publish	UNKNOWN STEP	2025-09-14T07:07:52.4993508Z yarn: 1.22.22
+publish	UNKNOWN STEP	2025-09-14T07:07:52.4994590Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5113280Z ##[group]Run echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5114188Z [36;1mecho "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5220041Z shell: /usr/bin/bash -e {0}
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5220348Z env:
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5220631Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5221001Z   NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5221357Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5646877Z ##[group]Run VERSION=$(node -p "require('./package.json').version")
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5647424Z [36;1mVERSION=$(node -p "require('./package.json').version")[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5647851Z [36;1mPACKAGE_NAME=$(node -p "require('./package.json').name")[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5648289Z [36;1mif npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5648704Z [36;1m  echo "already_published=true" >> $GITHUB_OUTPUT[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5649014Z [36;1melse[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5649291Z [36;1m  echo "already_published=false" >> $GITHUB_OUTPUT[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5649623Z [36;1mfi[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5680695Z shell: /usr/bin/bash -e {0}
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5680973Z env:
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5681250Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5681630Z   NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX
+publish	UNKNOWN STEP	2025-09-14T07:07:52.5681922Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:54.7988598Z ##[group]Run chmod +x hive.mjs
+publish	UNKNOWN STEP	2025-09-14T07:07:54.7988943Z [36;1mchmod +x hive.mjs[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:54.7989202Z [36;1mchmod +x solve.mjs[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8020819Z shell: /usr/bin/bash -e {0}
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8021090Z env:
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8021392Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8021778Z   NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8022077Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8131500Z ##[group]Run npm publish --access public
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8131886Z [36;1mnpm publish --access public[0m
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8160331Z shell: /usr/bin/bash -e {0}
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8160638Z env:
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8160919Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8161591Z   NODE_AUTH_TOKEN: ***
+publish	UNKNOWN STEP	2025-09-14T07:07:54.8161850Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7912120Z npm warn publish npm auto-corrected some errors in your package.json when publishing.  Please run "npm pkg fix" to address these errors.
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7913715Z npm warn publish errors corrected:
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7914427Z npm warn publish "bin[hive]" script name was cleaned
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7915155Z npm warn publish "bin[solve]" script name was cleaned
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7915863Z npm warn publish "bin[task]" script name was cleaned
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7916566Z npm warn publish "bin[review]" script name was cleaned
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7947206Z npm notice
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7948479Z npm notice 📦  @deep-assistant/hive-mind@0.0.3
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7949085Z npm notice Tarball Contents
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7951649Z npm notice 3.7kB DOCKER.md
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7952146Z npm notice 1.2kB LICENSE
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7952566Z npm notice 7.9kB README.md
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7953148Z npm notice 46.6kB flow.md
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7953417Z npm notice 41.9kB hive.mjs
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7953794Z npm notice 969B package.json
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7954209Z npm notice 19.6kB review.mjs
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7954611Z npm notice 145.0kB solve.mjs
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7955015Z npm notice 8.3kB task.mjs
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7955388Z npm notice Tarball Details
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7955783Z npm notice name: @deep-assistant/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7956245Z npm notice version: 0.0.3
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7956682Z npm notice filename: deep-assistant-hive-mind-0.0.3.tgz
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7957094Z npm notice package size: 65.2 kB
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7957422Z npm notice unpacked size: 275.1 kB
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7958003Z npm notice shasum: ec0e6ff24462fc485492785f46c84907abbf2c37
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7958667Z npm notice integrity: sha512-P3p7IilhVIMn4[...]qBg7/CEOFy4IQ==
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7959087Z npm notice total files: 9
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7959623Z npm notice
+publish	UNKNOWN STEP	2025-09-14T07:07:55.7986660Z npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9699612Z + @deep-assistant/hive-mind@0.0.3
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9859417Z ##[group]Run actions/create-release@v1
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9859706Z with:
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9859878Z   tag_name: v0.0.3
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9860069Z   release_name: Release v0.0.3
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9860794Z   body: ## Changes in v0.0.3
+publish	UNKNOWN STEP	
+publish	UNKNOWN STEP	This release includes updates to the @deep-assistant/hive-mind package.
+publish	UNKNOWN STEP	
+publish	UNKNOWN STEP	### Installation
+publish	UNKNOWN STEP	```bash
+publish	UNKNOWN STEP	npm install -g @deep-assistant/hive-mind
+publish	UNKNOWN STEP	```
+publish	UNKNOWN STEP	
+publish	UNKNOWN STEP	### Usage
+publish	UNKNOWN STEP	```bash
+publish	UNKNOWN STEP	hive --help
+publish	UNKNOWN STEP	solve --help
+publish	UNKNOWN STEP	```
+publish	UNKNOWN STEP	
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9861486Z   draft: false
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9861664Z   prerelease: false
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9861838Z env:
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9862054Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9862368Z   NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9862968Z   GITHUB_TOKEN: ***
+publish	UNKNOWN STEP	2025-09-14T07:07:57.9863176Z ##[endgroup]
+publish	UNKNOWN STEP	2025-09-14T07:07:58.2477371Z ##[error]Resource not accessible by integration
+publish	UNKNOWN STEP	2025-09-14T07:07:58.2595902Z Post job cleanup.
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3517142Z [command]/usr/bin/git version
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3554717Z git version 2.51.0
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3598022Z Temporarily overriding HOME='/home/runner/work/_temp/3ba973db-7268-447a-b73a-571d89772c09' before making global git config changes
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3599007Z Adding repository directory to the temporary git global config as a safe directory
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3603502Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hive-mind/hive-mind
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3640657Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3674571Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3902028Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3923979Z http.https://github.com/.extraheader
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3937649Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+publish	UNKNOWN STEP	2025-09-14T07:07:58.3969685Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+publish	UNKNOWN STEP	2025-09-14T07:07:58.4298954Z Cleaning up orphan processes
