@@ -275,7 +275,13 @@ export const checkSystem = async (requirements = {}, options = {}) => {
 
 // CLI interface when run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const argv = yargs(hideBin(process.argv))
+  // Debug: Log when we reach this point
+  if (process.argv.includes('--help')) {
+    console.error('[DEBUG] Reached CLI interface with --help');
+  }
+  
+  const argv = await yargs(hideBin(process.argv))
+    .scriptName('memory-check.mjs')
     .usage('Usage: $0 [options]')
     .option('min-memory', {
       alias: 'm',
@@ -314,7 +320,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     })
     .help('h')
     .alias('h', 'help')
-    .argv;
+    .parseAsync();  // Use parseAsync instead of .argv
   
   // Set up logging based on options
   if (argv.logFile) {
