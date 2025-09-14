@@ -16,15 +16,15 @@ jobs:
       docs-changed: ${{ steps.changes.outputs.docs }}
       workflow-changed: ${{ steps.changes.outputs.workflow }}
       any-code-changed: ${{ steps.changes.outputs.code }}
-      new-version: ${{ steps.version.outputs.new-version }}
-      version: ${{ steps.version.outputs.version }}
+      new-version: ${{ steps.changes.outputs.new-version }}
+      version: ${{ steps.changes.outputs.version }}
     
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 2
     
-    - name: Detect changed files
+    - name: Detect changes and check version
       id: changes
       run: |
         # For PRs, compare against base branch; for pushes, compare with previous commit
@@ -75,38 +75,39 @@ jobs:
         else
           echo "code=false" >> $GITHUB_OUTPUT
         fi
-    
-    - name: Check version status
-      id: version
-      run: |
+        
+        # Check version status
         # Only check for new versions on main branch pushes
         if [ "${{ github.ref }}" != "refs/heads/main" ] || [ "${{ github.event_name }}" != "push" ]; then
           echo "Not a main branch push - skipping version check"
           echo "new-version=false" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        
-        if [ ! -f "package.json" ]; then
-          echo "new-version=false" >> $GITHUB_OUTPUT
-          echo "No package.json found"
-          exit 0
-        fi
-        
-        VERSION=$(node -p "require('./package.json').version")
-        PACKAGE_NAME=$(node -p "require('./package.json').name")
-        
-        # Check if version is already published on NPM
-        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-          echo "Version $VERSION already published"
-          echo "new-version=false" >> $GITHUB_OUTPUT
         else
-          echo "New version $VERSION detected - will publish"
-          echo "new-version=true" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ ! -f "package.json" ]; then
+            echo "new-version=false" >> $GITHUB_OUTPUT
+            echo "No package.json found"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            PACKAGE_NAME=$(node -p "require('./package.json').name")
+            
+            # Check if version is already published on NPM
+            if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+              echo "Version $VERSION already published"
+              echo "new-version=false" >> $GITHUB_OUTPUT
+            else
+              echo "New version $VERSION detected - will publish"
+              echo "new-version=true" >> $GITHUB_OUTPUT
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+            fi
+          fi
         fi
         
         # Debug output
-        echo "Debug: new-version output = $(grep new-version $GITHUB_OUTPUT || echo 'not set')"
+        echo "============ Debug Output ============"
+        echo "GitHub ref: ${{ github.ref }}"
+        echo "Event name: ${{ github.event_name }}"
+        echo "All outputs written to GITHUB_OUTPUT:"
+        cat $GITHUB_OUTPUT || echo "Could not read GITHUB_OUTPUT"
+        echo "======================================"
 
   # === COMPILATION & SYNTAX CHECKS ===
   test-compilation:
