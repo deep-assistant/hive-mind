@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 /**
  * Issue #3: use-m fails in eval context (node -e)
  * 

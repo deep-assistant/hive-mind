@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 // Test script to debug GitHub timestamp fetching logic
 
 // Use use-m to dynamically import modules for cross-runtime compatibility

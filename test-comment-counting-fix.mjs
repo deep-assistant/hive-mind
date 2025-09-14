@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 // Test script to verify the comment counting fix using real GitHub API
 // This creates a test repository, issue, and PR to test the fix
 

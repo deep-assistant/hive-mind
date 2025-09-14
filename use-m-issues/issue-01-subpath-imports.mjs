@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 // Issue: use-m fails to resolve subpath imports like 'yargs/helpers'
 // This is a common pattern in modern npm packages but use-m doesn't handle it well
 

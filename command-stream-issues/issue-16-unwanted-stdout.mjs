@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 // Issue: Command output is always printed to stdout even when only capturing
 // This causes problems when building CLI tools that need clean output
 

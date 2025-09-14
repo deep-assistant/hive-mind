@@ -1,5 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
+#!/usr/bin/env node
 
 // Check if use is already defined (when imported from solve.mjs)
 // If not, fetch it (when running standalone)
@@ -275,12 +274,9 @@ export const checkSystem = async (requirements = {}, options = {}) => {
 
 // CLI interface when run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  // Debug: Log when we reach this point
-  if (process.argv.includes('--help')) {
-    console.error('[DEBUG] Reached CLI interface with --help');
-  }
   
-  const argv = await yargs(hideBin(process.argv))
+  // Create yargs instance with all options
+  const yargsInstance = yargs(hideBin(process.argv))
     .scriptName('memory-check.mjs')
     .usage('Usage: $0 [options]')
     .option('min-memory', {
@@ -319,9 +315,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       description: 'Path to log file for output'
     })
     .help('h')
-    .alias('h', 'help')
-    .parseAsync();  // Use parseAsync instead of .argv
+    .alias('h', 'help');
   
+  // Check for help before parsing
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    yargsInstance.showHelp();
+    process.exit(0);
+  }
+  
+  const argv = await yargsInstance.parseAsync();
+  
+  // If we get here, help wasn't requested or yargs didn't handle it
   // Set up logging based on options
   if (argv.logFile) {
     setLogFile(argv.logFile);

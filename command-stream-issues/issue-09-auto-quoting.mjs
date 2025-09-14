@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v node || command -v bun)" "$0" "$@"
-
+#!/usr/bin/env node
 /**
  * Issue #9: Automatic quote addition in interpolation
  * 

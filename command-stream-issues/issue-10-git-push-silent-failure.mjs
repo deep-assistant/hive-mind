@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 /**
  * Command-Stream Issue #10: Git Push Silent Failure
  * 

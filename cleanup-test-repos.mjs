@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v node || command -v bun)" "$0" "$@"
-
+#!/usr/bin/env node
 /**
  * Cleanup script for test repositories created by create-test-repo.mjs
  * This script will find and delete all repositories matching the pattern: test-hello-world-{UUIDv7}

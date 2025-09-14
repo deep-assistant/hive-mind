@@ -1,6 +1,4 @@
-#!/usr/bin/env sh
-':' //# ; exec "$(command -v bun || command -v node)" "$0" "$@"
-
+#!/usr/bin/env node
 // Issue: use-m doesn't always detect module format correctly
 // Some packages export differently and need special handling
 
