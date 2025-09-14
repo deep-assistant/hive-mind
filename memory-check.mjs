@@ -9,6 +9,8 @@ if (typeof use === 'undefined') {
 
 const { $ } = await use('command-stream');
 // Create a silent version of $ that doesn't mirror output to stdout
+// Note: command-stream may still emit trace logs to stderr in some environments
+// These are filtered out by consuming code when parsing JSON
 const $silent = $({ mirror: false, capture: true });
 
 const yargsModule = await use('yargs@17.7.2');
@@ -29,11 +31,11 @@ export const checkDiskSpace = async (minSpaceMB = 500, options = {}) => {
     
     if (process.platform === 'darwin') {
       // macOS: use df -m (megabytes) and get the 4th column
-      const { stdout } = await $silent`df -m . | tail -1 | awk '{print $4}'`;
+      const { stdout } = await $silent`df -m . 2>/dev/null | tail -1 | awk '{print $4}'`;
       availableMB = parseInt(stdout.toString().trim());
     } else {
       // Linux: use df -BM and get the 4th column  
-      const { stdout } = await $silent`df -BM . | tail -1 | awk '{print $4}'`;
+      const { stdout } = await $silent`df -BM . 2>/dev/null | tail -1 | awk '{print $4}'`;
       availableMB = parseInt(stdout.toString().replace('M', ''));
     }
     
@@ -65,7 +67,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
   if (process.platform === 'darwin') {
     // macOS RAM check using vm_stat
     try {
-      const { stdout: vmStatOutput } = await $silent`vm_stat`;
+      const { stdout: vmStatOutput } = await $silent`vm_stat 2>/dev/null`;
       
       // Parse page size
       const pageSizeMatch = vmStatOutput.toString().match(/page size of (\d+) bytes/);
@@ -89,11 +91,11 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       const availableMB = Math.floor(availableBytes / (1024 * 1024));
       
       // Check swap status
-      const { stdout: swapEnabledOutput } = await $silent`sysctl vm.swap_enabled`;
+      const { stdout: swapEnabledOutput } = await $silent`sysctl vm.swap_enabled 2>/dev/null`;
       const swapEnabled = swapEnabledOutput.toString().includes('1');
       
       // Get swap usage details
-      const { stdout: swapUsageOutput } = await $silent`sysctl vm.swapusage`;
+      const { stdout: swapUsageOutput } = await $silent`sysctl vm.swapusage 2>/dev/null`;
       
       // Parse swap info
       const swapMatch = swapUsageOutput.toString().match(/total = ([\d.]+)M\s+used = ([\d.]+)M/);
@@ -199,9 +201,9 @@ export const getResourceSnapshot = async () => {
   try {
     if (process.platform === 'darwin') {
       // macOS resource snapshot
-      const vmStat = await $silent`vm_stat | head -10`;
-      const uptime = await $silent`uptime`;
-      const swap = await $silent`sysctl vm.swapusage`;
+      const vmStat = await $silent`vm_stat 2>/dev/null | head -10`;
+      const uptime = await $silent`uptime 2>/dev/null`;
+      const swap = await $silent`sysctl vm.swapusage 2>/dev/null`;
       
       return {
         timestamp: new Date().toISOString(),
@@ -211,9 +213,9 @@ export const getResourceSnapshot = async () => {
       };
     } else {
       // Linux resource snapshot
-      const memInfo = await $silent`cat /proc/meminfo | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
-      const loadAvg = await $silent`cat /proc/loadavg`;
-      const uptime = await $silent`uptime`;
+      const memInfo = await $silent`cat /proc/meminfo 2>/dev/null | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
+      const loadAvg = await $silent`cat /proc/loadavg 2>/dev/null`;
+      const uptime = await $silent`uptime 2>/dev/null`;
       
       return {
         timestamp: new Date().toISOString(),

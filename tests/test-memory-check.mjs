@@ -30,6 +30,17 @@ function runTest(name, testFn) {
 
 function execCommand(command) {
   try {
+    // In CI environment, don't capture stderr when expecting JSON
+    // to avoid trace logs contaminating output
+    const isCI = process.env.CI === 'true';
+    const needsCleanJSON = command.includes('--json');
+    
+    if (isCI && needsCleanJSON) {
+      // Remove any 2>&1 from command to avoid capturing trace logs
+      const cleanCommand = command.replace(' 2>&1', '');
+      return execSync(cleanCommand, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+    }
+    
     return execSync(command, { encoding: 'utf8', stdio: 'pipe' });
   } catch (error) {
     // For commands that exit with non-zero, we still want the output
@@ -59,9 +70,26 @@ runTest('memory-check.mjs --help', () => {
 runTest('memory-check.mjs basic execution', () => {
   const output = execCommand(`${memoryCheckPath} --quiet --json 2>&1`);
   
+  // Filter out any trace/debug lines and find JSON output
+  const lines = output.split('\n');
+  let jsonOutput = '';
+  let inJson = false;
+  
+  for (const line of lines) {
+    if (line.trim().startsWith('{')) {
+      inJson = true;
+    }
+    if (inJson) {
+      jsonOutput += line + '\n';
+    }
+    if (line.trim() === '}') {
+      break;
+    }
+  }
+  
   // Should return valid JSON
   try {
-    const result = JSON.parse(output);
+    const result = JSON.parse(jsonOutput);
     if (!result.hasOwnProperty('ram') || !result.hasOwnProperty('disk')) {
       throw new Error('Missing expected properties in JSON output');
     }
@@ -74,8 +102,25 @@ runTest('memory-check.mjs basic execution', () => {
 runTest('memory-check.mjs disk space check', () => {
   const output = execCommand(`${memoryCheckPath} --min-disk-space 1 --quiet --json 2>&1`);
   
+  // Filter out any trace/debug lines and find JSON output
+  const lines = output.split('\n');
+  let jsonOutput = '';
+  let inJson = false;
+  
+  for (const line of lines) {
+    if (line.trim().startsWith('{')) {
+      inJson = true;
+    }
+    if (inJson) {
+      jsonOutput += line + '\n';
+    }
+    if (line.trim() === '}') {
+      break;
+    }
+  }
+  
   try {
-    const result = JSON.parse(output);
+    const result = JSON.parse(jsonOutput);
     if (!result.disk || typeof result.disk.availableMB !== 'number') {
       throw new Error('Disk space information missing or invalid');
     }
@@ -92,8 +137,25 @@ runTest('memory-check.mjs disk space check', () => {
 runTest('memory-check.mjs RAM check', () => {
   const output = execCommand(`${memoryCheckPath} --min-memory 1 --quiet --json 2>&1`);
   
+  // Filter out any trace/debug lines and find JSON output
+  const lines = output.split('\n');
+  let jsonOutput = '';
+  let inJson = false;
+  
+  for (const line of lines) {
+    if (line.trim().startsWith('{')) {
+      inJson = true;
+    }
+    if (inJson) {
+      jsonOutput += line + '\n';
+    }
+    if (line.trim() === '}') {
+      break;
+    }
+  }
+  
   try {
-    const result = JSON.parse(output);
+    const result = JSON.parse(jsonOutput);
     if (!result.ram || typeof result.ram.availableMB !== 'number') {
       throw new Error('RAM information missing or invalid');
     }
@@ -133,8 +195,25 @@ runTest('memory-check.mjs syntax check', () => {
 runTest('memory-check.mjs platform detection', () => {
   const output = execCommand(`${memoryCheckPath} --quiet --json 2>&1`);
   
+  // Filter out any trace/debug lines and find JSON output
+  const lines = output.split('\n');
+  let jsonOutput = '';
+  let inJson = false;
+  
+  for (const line of lines) {
+    if (line.trim().startsWith('{')) {
+      inJson = true;
+    }
+    if (inJson) {
+      jsonOutput += line + '\n';
+    }
+    if (line.trim() === '}') {
+      break;
+    }
+  }
+  
   try {
-    const result = JSON.parse(output);
+    const result = JSON.parse(jsonOutput);
     // Check for swap information (platform-specific)
     if (result.ram && result.ram.swap) {
       // Swap info should be a string
