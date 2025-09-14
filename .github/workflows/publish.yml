@@ -56,19 +56,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         VERSION=${{ steps.package.outputs.version }}
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
-          --title "Release v${VERSION}" \
-          --notes "## Changes in v${VERSION}
-        
-        This release includes updates to the @deep-assistant/hive-mind package.
-        
-        ### Installation
-        \`\`\`bash
-        npm install -g @deep-assistant/hive-mind
-        \`\`\`
-        
-        ### Usage
-        \`\`\`bash
-        hive --help
-        solve --help
-        \`\`\`"
+          --title "${VERSION}" \
+          --notes "https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
