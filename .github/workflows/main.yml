@@ -388,12 +388,12 @@ jobs:
     - name: Test memory-check execution
       shell: bash
       run: |
-        # Basic test on Windows - may have limited functionality
-        echo "Testing basic execution on Windows..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 || true
+        echo "Testing memory-check.mjs on Windows..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
-        echo "Note: Full functionality may be limited on Windows"
+        echo "Testing with JSON output..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
 
   # === DOCUMENTATION VALIDATION ===
   validate-docs:

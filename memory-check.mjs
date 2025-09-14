@@ -36,6 +36,10 @@ export const checkDiskSpace = async (minSpaceMB = 500, options = {}) => {
       // macOS: use df -m (megabytes) and get the 4th column
       const { stdout } = await $silent`df -m . 2>/dev/null | tail -1 | awk '{print $4}'`;
       availableMB = parseInt(stdout.toString().trim());
+    } else if (process.platform === 'win32') {
+      // Windows: use PowerShell to get free space
+      const { stdout } = await $silent`powershell -Command "(Get-PSDrive -Name (Get-Location).Drive.Name).Free / 1MB"`;
+      availableMB = Math.floor(parseFloat(stdout.toString().trim()));
     } else {
       // Linux: use df -BM and get the 4th column  
       const { stdout } = await $silent`df -BM . 2>/dev/null | tail -1 | awk '{print $4}'`;
@@ -132,6 +136,37 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
     } catch (error) {
       await log(`❌ macOS memory check failed: ${error.message}`);
+      return { success: false, availableMB: 0, error: error.message };
+    }
+  } else if (process.platform === 'win32') {
+    // Windows memory check using PowerShell
+    try {
+      const { stdout: memOutput } = await $silent`powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object @{Name='AvailableMB';Expression={[math]::Round($_.FreePhysicalMemory/1024)}}, @{Name='TotalPageFileMB';Expression={[math]::Round($_.TotalVirtualMemorySize/1024)}}, @{Name='FreePageFileMB';Expression={[math]::Round($_.FreeVirtualMemory/1024)}} | ConvertTo-Json"`;
+      
+      const memInfo = JSON.parse(memOutput.toString());
+      const availableMB = memInfo.AvailableMB;
+      const pageFileTotalMB = memInfo.TotalPageFileMB || 0;
+      const pageFileFreeMB = memInfo.FreePageFileMB || 0;
+      const pageFileUsedMB = pageFileTotalMB - pageFileFreeMB;
+      
+      let swapInfo;
+      if (pageFileTotalMB > 0) {
+        swapInfo = `${pageFileTotalMB}MB (${pageFileUsedMB}MB used)`;
+      } else {
+        swapInfo = 'none';
+      }
+      
+      if (availableMB < minMemoryMB) {
+        await log(`❌ Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
+        await log('   Consider closing some applications or increasing virtual memory.');
+        return { success: false, availableMB, required: minMemoryMB, swap: swapInfo };
+      }
+      
+      await log(`🧠 Memory check: ${availableMB}MB available, page file: ${swapInfo}`);
+      return { success: true, availableMB, required: minMemoryMB, swap: swapInfo };
+      
+    } catch (error) {
+      await log(`❌ Windows memory check failed: ${error.message}`);
       return { success: false, availableMB: 0, error: error.message };
     }
   } else {
