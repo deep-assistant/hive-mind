@@ -178,10 +178,11 @@ jobs:
         systeminfo | findstr /C:"OS Name" /C:"OS Version" /C:"System Type"
         echo.
         echo === Memory Information ===
-        wmic OS get TotalVisibleMemorySize,FreePhysicalMemory
+        REM wmic is deprecated in Windows Server 2025, use PowerShell instead
+        powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory | Format-List"
         echo.
         echo === Disk Information ===
-        wmic logicaldisk get size,freespace,caption
+        powershell -Command "Get-CimInstance Win32_LogicalDisk | Select-Object Caption, Size, FreeSpace | Format-Table"
     
     - name: Test memory-check execution
       shell: bash
