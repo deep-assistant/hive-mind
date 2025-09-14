@@ -2808,21 +2808,128 @@ ${logContent}
 ---
 *Log automatically attached by solve.mjs with --attach-solution-logs option*`;
 
-              // Write comment to temp file
-              const tempLogCommentFile = `/tmp/log-comment-${Date.now()}.md`;
-              await fs.writeFile(tempLogCommentFile, logComment);
+              // Check if comment body exceeds GitHub's limit (65536 characters)
+              const GITHUB_COMMENT_LIMIT = 65536;
+              let commentResult;
               
-              // Add comment to the PR
-              const commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
-              
-              // Clean up temp file
-              await fs.unlink(tempLogCommentFile).catch(() => {});
-              
-              if (commentResult.code === 0) {
-                await log(`  ✅ Solution log uploaded to PR as comment`);
-                await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+              if (logComment.length > GITHUB_COMMENT_LIMIT) {
+                await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${GITHUB_COMMENT_LIMIT} chars`);
+                await log(`  📎 Uploading log as GitHub Gist instead...`);
+                
+                try {
+                  // Create a private gist with the sanitized log content
+                  const tempLogFile = `/tmp/solution-log-${Date.now()}.txt`;
+                  await fs.writeFile(tempLogFile, logContent);
+                  
+                  const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for PR #${pr.number}" --filename "solution-log.txt"`;
+                  
+                  // Clean up temp file
+                  await fs.unlink(tempLogFile).catch(() => {});
+                  
+                  if (gistResult.code === 0) {
+                    const gistUrl = gistResult.stdout.toString().trim();
+                    
+                    // Create a simpler comment that links to the gist
+                    const gistComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI solution process.
+
+📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
+🔗 [View complete solution log](${gistUrl})
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+                    // Write the gist comment to temp file
+                    const tempGistCommentFile = `/tmp/log-gist-comment-${Date.now()}.md`;
+                    await fs.writeFile(tempGistCommentFile, gistComment);
+                    
+                    // Add comment with gist link to the PR
+                    commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempGistCommentFile}"`;
+                    
+                    // Clean up temp file
+                    await fs.unlink(tempGistCommentFile).catch(() => {});
+                    
+                    if (commentResult.code === 0) {
+                      await log(`  ✅ Solution log uploaded to PR as Gist`);
+                      await log(`  🔗 Gist URL: ${gistUrl}`);
+                      await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                    } else {
+                      await log(`  ❌ Failed to upload comment with gist link: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                    }
+                  } else {
+                    await log(`  ❌ Failed to create gist: ${gistResult.stderr ? gistResult.stderr.toString().trim() : 'unknown error'}`);
+                    await log(`  🔄 Falling back to truncated comment...`);
+                    
+                    // Fallback: create a truncated version
+                    const maxContentLength = GITHUB_COMMENT_LIMIT - 500; // Leave room for header/footer
+                    const truncatedContent = logContent.substring(0, maxContentLength) + '\n\n[... Log truncated due to length ...]';
+                    
+                    const truncatedComment = `## 🤖 Solution Log (Truncated)
+
+This log file contains the complete execution trace of the AI solution process.
+⚠️ **Log was truncated** due to GitHub comment size limits.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB, truncated)</summary>
+
+\`\`\`
+${truncatedContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+                    const tempTruncatedCommentFile = `/tmp/log-truncated-comment-${Date.now()}.md`;
+                    await fs.writeFile(tempTruncatedCommentFile, truncatedComment);
+                    
+                    commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempTruncatedCommentFile}"`;
+                    
+                    await fs.unlink(tempTruncatedCommentFile).catch(() => {});
+                    
+                    if (commentResult.code === 0) {
+                      await log(`  ✅ Truncated solution log uploaded to PR`);
+                      await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB (truncated)`);
+                    } else {
+                      await log(`  ❌ Failed to upload truncated log: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                    }
+                  }
+                } catch (gistError) {
+                  await log(`  ❌ Error creating gist: ${gistError.message}`);
+                  // Continue with regular comment attempt
+                  const tempLogCommentFile = `/tmp/log-comment-${Date.now()}.md`;
+                  await fs.writeFile(tempLogCommentFile, logComment);
+                  
+                  commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+                  
+                  await fs.unlink(tempLogCommentFile).catch(() => {});
+                  
+                  if (commentResult.code === 0) {
+                    await log(`  ✅ Solution log uploaded to PR as comment`);
+                    await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                  } else {
+                    await log(`  ❌ Failed to upload log to PR: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                  }
+                }
               } else {
-                await log(`  ❌ Failed to upload log to PR: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                // Write comment to temp file
+                const tempLogCommentFile = `/tmp/log-comment-${Date.now()}.md`;
+                await fs.writeFile(tempLogCommentFile, logComment);
+                
+                // Add comment to the PR
+                commentResult = await $`gh pr comment ${pr.number} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+                
+                // Clean up temp file
+                await fs.unlink(tempLogCommentFile).catch(() => {});
+                
+                if (commentResult.code === 0) {
+                  await log(`  ✅ Solution log uploaded to PR as comment`);
+                  await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                } else {
+                  await log(`  ❌ Failed to upload log to PR: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                }
               }
             }
           } catch (uploadError) {
@@ -2902,21 +3009,128 @@ ${logContent}
 ---
 *Log automatically attached by solve.mjs with --attach-solution-logs option*`;
 
-            // Write comment to temp file
-            const tempLogCommentFile = `/tmp/log-comment-issue-${Date.now()}.md`;
-            await fs.writeFile(tempLogCommentFile, logComment);
+            // Check if comment body exceeds GitHub's limit (65536 characters)
+            const GITHUB_COMMENT_LIMIT = 65536;
+            let commentResult;
             
-            // Add comment to the issue
-            const commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
-            
-            // Clean up temp file
-            await fs.unlink(tempLogCommentFile).catch(() => {});
-            
-            if (commentResult.code === 0) {
-              await log(`  ✅ Solution log uploaded to issue as comment`);
-              await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+            if (logComment.length > GITHUB_COMMENT_LIMIT) {
+              await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${GITHUB_COMMENT_LIMIT} chars`);
+              await log(`  📎 Uploading log as GitHub Gist instead...`);
+              
+              try {
+                // Create a private gist with the sanitized log content
+                const tempLogFile = `/tmp/solution-log-issue-${Date.now()}.txt`;
+                await fs.writeFile(tempLogFile, logContent);
+                
+                const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for issue #${issueNumber}" --filename "solution-log.txt"`;
+                
+                // Clean up temp file
+                await fs.unlink(tempLogFile).catch(() => {});
+                
+                if (gistResult.code === 0) {
+                  const gistUrl = gistResult.stdout.toString().trim();
+                  
+                  // Create a simpler comment that links to the gist
+                  const gistComment = `## 🤖 Solution Log
+
+This log file contains the complete execution trace of the AI analysis process.
+
+📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
+🔗 [View complete solution log](${gistUrl})
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+                  // Write the gist comment to temp file
+                  const tempGistCommentFile = `/tmp/log-gist-comment-issue-${Date.now()}.md`;
+                  await fs.writeFile(tempGistCommentFile, gistComment);
+                  
+                  // Add comment with gist link to the issue
+                  commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempGistCommentFile}"`;
+                  
+                  // Clean up temp file
+                  await fs.unlink(tempGistCommentFile).catch(() => {});
+                  
+                  if (commentResult.code === 0) {
+                    await log(`  ✅ Solution log uploaded to issue as Gist`);
+                    await log(`  🔗 Gist URL: ${gistUrl}`);
+                    await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                  } else {
+                    await log(`  ❌ Failed to upload comment with gist link: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                  }
+                } else {
+                  await log(`  ❌ Failed to create gist: ${gistResult.stderr ? gistResult.stderr.toString().trim() : 'unknown error'}`);
+                  await log(`  🔄 Falling back to truncated comment...`);
+                  
+                  // Fallback: create a truncated version
+                  const maxContentLength = GITHUB_COMMENT_LIMIT - 500; // Leave room for header/footer
+                  const truncatedContent = logContent.substring(0, maxContentLength) + '\n\n[... Log truncated due to length ...]';
+                  
+                  const truncatedComment = `## 🤖 Solution Log (Truncated)
+
+This log file contains the complete execution trace of the AI analysis process.
+⚠️ **Log was truncated** due to GitHub comment size limits.
+
+<details>
+<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB, truncated)</summary>
+
+\`\`\`
+${truncatedContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+
+                  const tempTruncatedCommentFile = `/tmp/log-truncated-comment-issue-${Date.now()}.md`;
+                  await fs.writeFile(tempTruncatedCommentFile, truncatedComment);
+                  
+                  commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempTruncatedCommentFile}"`;
+                  
+                  await fs.unlink(tempTruncatedCommentFile).catch(() => {});
+                  
+                  if (commentResult.code === 0) {
+                    await log(`  ✅ Truncated solution log uploaded to issue`);
+                    await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB (truncated)`);
+                  } else {
+                    await log(`  ❌ Failed to upload truncated log: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                  }
+                }
+              } catch (gistError) {
+                await log(`  ❌ Error creating gist: ${gistError.message}`);
+                // Continue with regular comment attempt
+                const tempLogCommentFile = `/tmp/log-comment-issue-${Date.now()}.md`;
+                await fs.writeFile(tempLogCommentFile, logComment);
+                
+                commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+                
+                await fs.unlink(tempLogCommentFile).catch(() => {});
+                
+                if (commentResult.code === 0) {
+                  await log(`  ✅ Solution log uploaded to issue as comment`);
+                  await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+                } else {
+                  await log(`  ❌ Failed to upload log to issue: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+                }
+              }
             } else {
-              await log(`  ❌ Failed to upload log to issue: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+              // Write comment to temp file
+              const tempLogCommentFile = `/tmp/log-comment-issue-${Date.now()}.md`;
+              await fs.writeFile(tempLogCommentFile, logComment);
+              
+              // Add comment to the issue
+              commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body-file "${tempLogCommentFile}"`;
+              
+              // Clean up temp file
+              await fs.unlink(tempLogCommentFile).catch(() => {});
+              
+              if (commentResult.code === 0) {
+                await log(`  ✅ Solution log uploaded to issue as comment`);
+                await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+              } else {
+                await log(`  ❌ Failed to upload log to issue: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
+              }
             }
           }
         } catch (uploadError) {
