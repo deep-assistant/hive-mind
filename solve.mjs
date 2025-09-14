@@ -65,21 +65,27 @@ const checkMemory = async (minMemoryMB = 256) => {
         await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required, but ${swapFreeMB}MB swap available`, { level: 'warning' });
         await log('   Continuing with swap support (effective memory: ' + effectiveAvailableMB + 'MB)', { level: 'warning' });
       } else {
-        await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
-        await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
-        
-        if (swapTotalMB < 1024) {
-          await log('', { level: 'error' });
-          await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
-          await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
-          await log('   sudo chmod 600 /swapfile', { level: 'error' });
-          await log('   sudo mkswap /swapfile', { level: 'error' });
-          await log('   sudo swapon /swapfile', { level: 'error' });
-          await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
-          await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+        if (argv.dryRun) {
+          await log(`⚠️  Low memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'warning' });
+          await log('   (Continuing in dry-run mode)', { level: 'warning' });
+          return true;
+        } else {
+          await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
+          await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
+          
+          if (swapTotalMB < 1024) {
+            await log('', { level: 'error' });
+            await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
+            await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
+            await log('   sudo chmod 600 /swapfile', { level: 'error' });
+            await log('   sudo mkswap /swapfile', { level: 'error' });
+            await log('   sudo swapon /swapfile', { level: 'error' });
+            await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
+            await log('   After setting up swap, restart the system if needed.', { level: 'error' });
+          }
+          
+          return false;
         }
-        
-        return false;
       }
     }
     
@@ -88,9 +94,66 @@ const checkMemory = async (minMemoryMB = 256) => {
     }
     return true;
   } catch (error) {
-    await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
-    await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
-    return true; // Continue on check failure to avoid blocking execution
+    // Check if we're on macOS
+    if (process.platform === 'darwin') {
+      try {
+        // macOS memory check using vm_stat
+        const { stdout: vmStatOutput } = await $`vm_stat`;
+        const vmStat = vmStatOutput.toString();
+        
+        // Parse page size
+        const pageSizeMatch = vmStat.match(/page size of (\d+) bytes/);
+        const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 4096;
+        
+        // Parse free and inactive pages
+        const freeMatch = vmStat.match(/Pages free:\s+(\d+)/);
+        const inactiveMatch = vmStat.match(/Pages inactive:\s+(\d+)/);
+        
+        const freePages = freeMatch ? parseInt(freeMatch[1]) : 0;
+        const inactivePages = inactiveMatch ? parseInt(inactiveMatch[1]) : 0;
+        
+        // Calculate available memory in MB
+        const availableMB = Math.floor((freePages + inactivePages) * pageSize / (1024 * 1024));
+        
+        // Get swap info
+        const { stdout: swapOutput } = await $`sysctl vm.swapusage`;
+        const swapMatch = swapOutput.toString().match(/free = ([\d.]+)([MG])/);
+        let swapFreeMB = 0;
+        if (swapMatch) {
+          swapFreeMB = swapMatch[2] === 'G' 
+            ? Math.floor(parseFloat(swapMatch[1]) * 1024)
+            : Math.floor(parseFloat(swapMatch[1]));
+        }
+        
+        await log(`🧠 Memory check: ${availableMB}MB available, ${swapFreeMB}MB swap free`);
+        
+        const effectiveAvailableMB = availableMB + swapFreeMB;
+        
+        if (availableMB < minMemoryMB && !argv.dryRun) {
+          await log(`⚠️  Low memory: ${availableMB}MB available, ${minMemoryMB}MB recommended`, { level: 'warning' });
+          await log('   This may cause performance issues.', { level: 'warning' });
+        }
+        
+        if (argv.dryRun) {
+          await log(`   (Continuing in dry-run mode)`);
+        }
+        
+        return true;
+      } catch (macError) {
+        await log(`⚠️  Could not check memory: ${macError.message}`, { level: 'warning' });
+        if (argv.dryRun) {
+          await log(`   (Continuing in dry-run mode)`);
+        }
+        return true;
+      }
+    } else {
+      await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
+      await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
+      if (argv.dryRun) {
+        await log(`   (Continuing in dry-run mode)`);
+      }
+      return true;
+    }
   }
 };
 
@@ -891,6 +954,13 @@ if (!hasValidAuth) {
 const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
 const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
 
+if (argv.verbose) {
+  await log(`📋 URL validation:`, { verbose: true });
+  await log(`   Input URL: ${issueUrl}`, { verbose: true });
+  await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
+  await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
+}
+
 if (!isIssueUrl && !isPrUrl) {
   await log('Error: Please provide a valid GitHub issue or pull request URL', { level: 'error' });
   await log('  Examples:', { level: 'error' });
@@ -951,6 +1021,11 @@ if (argv.autoContinue && isIssueUrl) {
               isContinueMode = true;
               prNumber = pr.number;
               prBranch = pr.headRefName;
+              if (argv.verbose) {
+                await log(`   Continue mode activated: Auto-continue (CLAUDE.md missing)`, { verbose: true });
+                await log(`   PR Number: ${prNumber}`, { verbose: true });
+                await log(`   PR Branch: ${prBranch}`, { verbose: true });
+              }
               break;
             } else if (createdAt < twentyFourHoursAgo) {
               await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
@@ -959,6 +1034,12 @@ if (argv.autoContinue && isIssueUrl) {
               isContinueMode = true;
               prNumber = pr.number;
               prBranch = pr.headRefName;
+              if (argv.verbose) {
+                await log(`   Continue mode activated: Auto-continue (24h+ old PR)`, { verbose: true });
+                await log(`   PR Number: ${prNumber}`, { verbose: true });
+                await log(`   PR Branch: ${prBranch}`, { verbose: true });
+                await log(`   PR Age: ${ageHours} hours`, { verbose: true });
+              }
               break;
             } else {
               await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
@@ -984,6 +1065,11 @@ if (isPrUrl) {
   prNumber = urlNumber;
   
   await log(`🔄 Continue mode: Working with PR #${prNumber}`);
+  if (argv.verbose) {
+    await log(`   Continue mode activated: PR URL provided directly`, { verbose: true });
+    await log(`   PR Number set to: ${prNumber}`, { verbose: true });
+    await log(`   Will fetch PR details and linked issue`, { verbose: true });
+  }
   
   // Get PR details to find the linked issue and branch
   try {
@@ -1399,12 +1485,20 @@ try {
   if (isContinueMode) {
     await log(`${formatAligned('✅', 'Branch checked out:', branchName)}`);
     await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
+    if (argv.verbose) {
+      await log(`   Branch operation: Checkout existing PR branch`, { verbose: true });
+      await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
+    }
   } else {
     await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
     await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
+    if (argv.verbose) {
+      await log(`   Branch operation: Create new branch`, { verbose: true });
+      await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
+    }
   }
 
-  // Initialize PR variables and prompt early
+  // Initialize PR variables early
   let prUrl = null;
   let prNumberForNewPR = null;
   
@@ -1414,27 +1508,8 @@ try {
     // prNumber is already set from earlier when we parsed the PR
   }
   
-  // Build the prompt (different for continue vs regular mode)
-  let prompt;
-  if (isContinueMode) {
-    prompt = `Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}
-Your prepared branch: ${branchName}
-Your prepared working directory: ${tempDir}
-Your prepared Pull Request: ${prUrl}
-Existing pull request's merge state status: ${mergeStateStatus}${argv.fork && forkedRepo ? `
-Your forked repository: ${forkedRepo}
-Original repository (upstream): ${owner}/${repo}` : ''}
-
-Continue.`;
-  } else {
-    prompt = `Issue to solve: ${issueUrl}
-Your prepared branch: ${branchName}
-Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
-Your forked repository: ${forkedRepo}
-Original repository (upstream): ${owner}/${repo}` : ''}
-
-Proceed.`;
-  }
+  // Don't build the prompt yet - we'll build it after we have all the information
+  // This includes PR URL (if created) and comment info (if in continue mode)
   
   if (argv.autoPullRequestCreation && !isContinueMode) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
@@ -1445,8 +1520,15 @@ Proceed.`;
       // Create CLAUDE.md file with the task details
       await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
       
-      // Write the prompt to CLAUDE.md (using the same prompt we'll send to Claude)
-      await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), prompt);
+      // Write initial task info to CLAUDE.md
+      const initialTaskInfo = `Issue to solve: ${issueUrl}
+Your prepared branch: ${branchName}
+Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
+Your forked repository: ${forkedRepo}
+Original repository (upstream): ${owner}/${repo}` : ''}
+
+Proceed.`;
+      await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), initialTaskInfo);
       await log(formatAligned('✅', 'File created:', 'CLAUDE.md'));
       
       // Add and commit the file
@@ -1989,26 +2071,35 @@ ${prBody}`, { verbose: true });
     await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
   }
 
-  // Update prompt with PR URL if it was created (but not for continue mode since we already set it)
-  if (prUrl && !isContinueMode) {
-    prompt = `Issue to solve: ${issueUrl}
-Your prepared branch: ${branchName}
-Your prepared working directory: ${tempDir}
-Your prepared Pull Request: ${prUrl}${argv.fork && forkedRepo ? `
-Your forked repository: ${forkedRepo}
-Original repository (upstream): ${owner}/${repo}` : ''}
-
-Proceed.`;
-  }
+  // Now we have the PR URL if one was created
 
   // Count new comments on PR and issue after last commit
   let newPrComments = 0;
   let newIssueComments = 0;
   let commentInfo = '';
 
+  // Debug logging to understand when comment counting doesn't run
+  if (argv.verbose) {
+    await log(`\n📊 Comment counting conditions:`, { verbose: true });
+    await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
+    await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
+    await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
+    await log(`   Will count comments: ${!!(prNumber && branchName)}`, { verbose: true });
+    if (!prNumber) {
+      await log(`   ⚠️  Skipping: prNumber not set`, { verbose: true });
+    }
+    if (!branchName) {
+      await log(`   ⚠️  Skipping: branchName not set`, { verbose: true });
+    }
+  }
+
   if (prNumber && branchName) {
     try {
       await log(`${formatAligned('💬', 'Counting comments:', 'Checking for new comments since last commit...')}`);
+      if (argv.verbose) {
+        await log(`   PR #${prNumber} on branch: ${branchName}`, { verbose: true });
+        await log(`   Owner/Repo: ${owner}/${repo}`, { verbose: true });
+      }
       
       // Get the last commit timestamp from the PR branch
       let lastCommitResult = await $`git log -1 --format="%aI" origin/${branchName}`;
@@ -2053,6 +2144,11 @@ Proceed.`;
 
         await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
         await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
+        
+        if (argv.verbose) {
+          await log(`   Total new comments: ${newPrComments + newIssueComments}`, { verbose: true });
+          await log(`   Comment lines to add: ${newPrComments > 0 || newIssueComments > 0 ? 'Yes' : 'No (saving tokens)'}`, { verbose: true });
+        }
 
         // Check if --auto-continue-only-on-new-comments is enabled and fail if no new comments
         if (argv.autoContinueOnlyOnNewComments && (isContinueMode || argv.autoContinue)) {
@@ -2069,30 +2165,84 @@ Proceed.`;
         // Build comment info for system prompt
         const commentLines = [];
         
-        // Always show comment counts when in continue or auto-continue mode
-        if (isContinueMode || argv.autoContinue) {
+        // Only add comment lines if counts are > 0 to avoid wasting tokens
+        if (newPrComments > 0) {
           commentLines.push(`New comments on the pull request: ${newPrComments}`);
+        }
+        if (newIssueComments > 0) {
           commentLines.push(`New comments on the issue: ${newIssueComments}`);
-        } else {
-          // Original behavior for non-continue modes: only show if > 0
-          if (newPrComments > 0) {
-            commentLines.push(`New comments on the pull request: ${newPrComments}`);
-          }
-          if (newIssueComments > 0) {
-            commentLines.push(`New comments on the issue: ${newIssueComments}`);
-          }
         }
         
         if (commentLines.length > 0) {
           commentInfo = '\n\n' + commentLines.join('\n') + '\n';
-          // Also add the comment info to the visible prompt for user
-          if (isContinueMode) {
-            prompt = prompt.replace('Continue.', commentLines.join('\n') + '\n\nContinue.');
+          if (argv.verbose) {
+            await log(`   Comment info will be added to prompt:`, { verbose: true });
+            commentLines.forEach(async line => {
+              await log(`     - ${line}`, { verbose: true });
+            });
           }
+        } else if (argv.verbose) {
+          await log(`   No comment info to add (0 new comments, saving tokens)`, { verbose: true });
         }
       }
     } catch (error) {
       await log(`Warning: Could not count new comments: ${error.message}`, { level: 'warning' });
+    }
+  }
+
+  // Now build the final prompt with all collected information
+  const promptLines = [];
+  
+  // Issue or PR reference
+  if (isContinueMode) {
+    promptLines.push(`Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}`);
+  } else {
+    promptLines.push(`Issue to solve: ${issueUrl}`);
+  }
+  
+  // Basic info
+  promptLines.push(`Your prepared branch: ${branchName}`);
+  promptLines.push(`Your prepared working directory: ${tempDir}`);
+  
+  // PR info if available
+  if (prUrl) {
+    promptLines.push(`Your prepared Pull Request: ${prUrl}`);
+  }
+  
+  // Merge state for continue mode
+  if (isContinueMode && mergeStateStatus) {
+    promptLines.push(`Existing pull request's merge state status: ${mergeStateStatus}`);
+  }
+  
+  // Fork info if applicable
+  if (argv.fork && forkedRepo) {
+    promptLines.push(`Your forked repository: ${forkedRepo}`);
+    promptLines.push(`Original repository (upstream): ${owner}/${repo}`);
+  }
+  
+  // Add blank line
+  promptLines.push('');
+  
+  // Add comment info if in continue mode and there are comments
+  if (isContinueMode && commentInfo && commentInfo.trim()) {
+    // Extract just the comment lines without the extra newlines
+    const commentTextLines = commentInfo.trim().split('\n').filter(line => line.trim());
+    commentTextLines.forEach(line => promptLines.push(line));
+    promptLines.push('');
+  }
+  
+  // Final instruction
+  promptLines.push(isContinueMode ? 'Continue.' : 'Proceed.');
+  
+  // Build the final prompt as a const
+  const prompt = promptLines.join('\n');
+  
+  if (argv.verbose) {
+    await log(`\n📝 Final prompt structure:`, { verbose: true });
+    await log(`   Lines: ${promptLines.length}`, { verbose: true });
+    await log(`   Characters: ${prompt.length}`, { verbose: true });
+    if (commentInfo && commentInfo.trim()) {
+      await log(`   Comment info: Included`, { verbose: true });
     }
   }
 
@@ -2248,6 +2398,21 @@ Self review.
 
   // Execute claude command from the cloned repository directory
   await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
+  
+  if (argv.verbose) {
+    // Output the actual model being used
+    const modelName = argv.model === 'opus' ? 'opus' : 'sonnet';
+    await log(`   Model: ${modelName}`, { verbose: true });
+    await log(`   Working directory: ${tempDir}`, { verbose: true });
+    await log(`   Branch: ${branchName}`, { verbose: true });
+    await log(`   Prompt length: ${prompt.length} chars`, { verbose: true });
+    await log(`   System prompt length: ${systemPrompt.length} chars`, { verbose: true });
+    if (commentInfo) {
+      await log(`   Comment info included: Yes (${commentInfo.trim().split('\n').filter(l => l).length} lines)`, { verbose: true });
+    } else {
+      await log(`   Comment info included: No`, { verbose: true });
+    }
+  }
   
   // Take resource snapshot before execution
   const resourcesBefore = await getResourceSnapshot();
