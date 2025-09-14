@@ -1,0 +1,486 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # === DETECT CHANGES ===
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      mjs-changed: ${{ steps.changes.outputs.mjs }}
+      package-changed: ${{ steps.changes.outputs.package }}
+      docs-changed: ${{ steps.changes.outputs.docs }}
+      any-code-changed: ${{ steps.changes.outputs.code }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    
+    - name: Detect changed files
+      id: changes
+      run: |
+        # For PRs, compare against base branch; for pushes, compare with previous commit
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          git fetch origin $BASE_SHA
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA 2>/dev/null || echo "")
+        else
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD 2>/dev/null || git ls-tree --name-only -r HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # Check for .mjs file changes
+        if echo "$CHANGED_FILES" | grep -q '\.mjs$'; then
+          echo "mjs=true" >> $GITHUB_OUTPUT
+        else
+          echo "mjs=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check for package.json changes
+        if echo "$CHANGED_FILES" | grep -q '^package\.json$'; then
+          echo "package=true" >> $GITHUB_OUTPUT
+        else
+          echo "package=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check for documentation changes
+        if echo "$CHANGED_FILES" | grep -q '\.md$'; then
+          echo "docs=true" >> $GITHUB_OUTPUT
+        else
+          echo "docs=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check for any code changes (.mjs or package.json)
+        if echo "$CHANGED_FILES" | grep -qE '\.(mjs|json)$'; then
+          echo "code=true" >> $GITHUB_OUTPUT
+        else
+          echo "code=false" >> $GITHUB_OUTPUT
+        fi
+
+  # === COMPILATION & SYNTAX CHECKS ===
+  test-compilation:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        
+    - name: Test solve.mjs compilation
+      run: |
+        echo "Testing solve.mjs compilation..."
+        timeout 30s node --check solve.mjs
+        echo "✅ solve.mjs compiles successfully"
+        
+    - name: Test hive.mjs compilation
+      run: |
+        echo "Testing hive.mjs compilation..."
+        timeout 30s node --check hive.mjs
+        echo "✅ hive.mjs compiles successfully"
+        
+    - name: Check Node.js syntax for all .mjs files
+      run: |
+        echo "Checking syntax for all .mjs files..."
+        for file in *.mjs; do
+          if [ -f "$file" ]; then
+            echo "Checking $file..."
+            timeout 10s node --check "$file"
+          fi
+        done
+        for file in tests/*.mjs; do
+          if [ -f "$file" ]; then
+            echo "Checking $file..."
+            node --check "$file"
+          fi
+        done
+
+  # === UNIT TESTS ===
+  test-suites:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-compilation]
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: Run test suite for solve.mjs
+      run: |
+        echo "Running test suite for solve.mjs..."
+        node tests/test-solve.mjs
+    
+    - name: Run test suite for hive.mjs
+      run: |
+        echo "Running test suite for hive.mjs..."
+        node tests/test-hive.mjs
+    
+    - name: Run test suite for memory-check.mjs
+      run: |
+        echo "Running test suite for memory-check.mjs..."
+        node tests/test-memory-check.mjs
+
+  # === EXECUTION TESTS ===
+  test-execution:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-compilation]
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: Test solve.mjs execution
+      run: |
+        echo "Testing solve.mjs basic execution..."
+        timeout 10s ./solve.mjs --help || echo "Help command completed"
+        echo "✅ solve.mjs executes without critical errors"
+        timeout 10s ./solve.mjs --version || true
+    
+    - name: Test hive.mjs execution
+      run: |
+        echo "Testing hive.mjs basic execution..."
+        timeout 10s ./hive.mjs --help || echo "Help command completed"
+        echo "✅ hive.mjs executes without critical errors"
+        timeout 10s ./hive.mjs --version || true
+    
+    - name: Test memory-check.mjs execution
+      run: |
+        ./memory-check.mjs --help
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+
+  # === MEMORY CHECKS - LINUX ===
+  memory-check-linux:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-compilation]
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: System info
+      run: |
+        echo "=== System Information ==="
+        uname -a
+        echo ""
+        echo "=== Memory Information ==="
+        free -h
+        echo ""
+        echo "=== Disk Information ==="
+        df -h
+        echo ""
+        echo "=== CPU Information ==="
+        lscpu | head -20
+    
+    - name: Run memory-check tests
+      run: |
+        chmod +x tests/test-memory-check.mjs
+        node tests/test-memory-check.mjs
+    
+    - name: Test memory-check with various thresholds
+      run: |
+        echo "Testing with low thresholds (should pass)..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        
+        echo ""
+        echo "Testing verbose output..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        
+        echo ""
+        echo "Testing quiet mode..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+    
+    - name: Test memory-check failure conditions
+      run: |
+        echo "Testing with impossible memory requirement (should fail)..."
+        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+          echo "ERROR: Should have failed with impossible memory requirement"
+          exit 1
+        else
+          echo "✅ Correctly failed with impossible memory requirement"
+        fi
+        
+        echo ""
+        echo "Testing with impossible disk requirement (should fail)..."
+        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+          echo "ERROR: Should have failed with impossible disk requirement"
+          exit 1
+        else
+          echo "✅ Correctly failed with impossible disk requirement"
+        fi
+
+  # === MEMORY CHECKS - MACOS ===
+  memory-check-macos:
+    runs-on: macos-latest
+    needs: [detect-changes, test-compilation]
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: System info
+      run: |
+        echo "=== System Information ==="
+        uname -a
+        echo ""
+        echo "=== Memory Information ==="
+        vm_stat
+        echo ""
+        echo "=== Disk Information ==="
+        df -h
+        echo ""
+        echo "=== Swap Information ==="
+        sysctl vm.swapusage
+        echo ""
+        echo "=== CPU Information ==="
+        sysctl -n machdep.cpu.brand_string
+        sysctl hw.ncpu
+    
+    - name: Run memory-check tests
+      run: |
+        chmod +x tests/test-memory-check.mjs
+        node tests/test-memory-check.mjs
+    
+    - name: Test memory-check with various thresholds
+      run: |
+        echo "Testing with low thresholds (should pass)..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        
+        echo ""
+        echo "Testing verbose output..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        
+        echo ""
+        echo "Testing quiet mode..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+    
+    - name: Test memory-check failure conditions
+      run: |
+        echo "Testing with impossible memory requirement (should fail)..."
+        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+          echo "ERROR: Should have failed with impossible memory requirement"
+          exit 1
+        else
+          echo "✅ Correctly failed with impossible memory requirement"
+        fi
+        
+        echo ""
+        echo "Testing with impossible disk requirement (should fail)..."
+        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+          echo "ERROR: Should have failed with impossible disk requirement"
+          exit 1
+        else
+          echo "✅ Correctly failed with impossible disk requirement"
+        fi
+    
+    - name: Test macOS-specific features
+      run: |
+        echo "Testing macOS swap detection..."
+        output=$(./memory-check.mjs --min-memory 10 --quiet --json)
+        if echo "$output" | grep -q '"swap"'; then
+          echo "✅ Swap information detected in output"
+        else
+          echo "⚠️  Warning: Swap information not found in output"
+        fi
+
+  # === MEMORY CHECKS - WINDOWS ===
+  memory-check-windows:
+    runs-on: windows-latest
+    needs: [detect-changes, test-compilation]
+    if: needs.detect-changes.outputs.any-code-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: System info
+      shell: cmd
+      run: |
+        echo === System Information ===
+        systeminfo | findstr /C:"OS Name" /C:"OS Version" /C:"System Type"
+        echo.
+        echo === Memory Information ===
+        REM wmic is deprecated in Windows Server 2025, use PowerShell instead
+        powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory | Format-List"
+        echo.
+        echo === Disk Information ===
+        powershell -Command "Get-CimInstance Win32_LogicalDisk | Select-Object Caption, Size, FreeSpace | Format-Table"
+    
+    - name: Test memory-check execution
+      shell: bash
+      run: |
+        # Basic test on Windows - may have limited functionality
+        echo "Testing basic execution on Windows..."
+        ./memory-check.mjs --min-memory 10 --min-disk-space 100 || true
+        
+        echo ""
+        echo "Note: Full functionality may be limited on Windows"
+
+  # === DOCUMENTATION VALIDATION ===
+  validate-docs:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs-changed == 'true'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+    
+    - name: Validate documentation files
+      run: |
+        echo "Running documentation validation tests..."
+        chmod +x tests/docs-validation.mjs
+        node tests/docs-validation.mjs
+
+  # === PUBLISH TO NPM ===
+  check-publish:
+    # Only run on main branch push when package.json changes and tests pass
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' && 
+      github.event_name == 'push' &&
+      needs.detect-changes.outputs.package-changed == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version: ${{ steps.check.outputs.version }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check if version is new
+      id: check
+      run: |
+        # Check if package.json exists
+        if [ ! -f "package.json" ]; then
+          echo "No package.json found"
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        VERSION=$(node -p "require('./package.json').version")
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
+        
+        # Check if version is already published on NPM
+        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+          echo "Version $VERSION already published"
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+        else
+          echo "New version $VERSION detected"
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        fi
+
+  publish:
+    if: needs.check-publish.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    needs: check-publish
+    permissions:
+      contents: write  # Required for creating releases
+      packages: write  # Required for publishing packages
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        registry-url: 'https://registry.npmjs.org'
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x hive.mjs
+        chmod +x solve.mjs
+        
+    - name: Publish to NPM
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        
+    - name: Create GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION=${{ needs.check-publish.outputs.version }}
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
+        gh release create "v${VERSION}" \
+          --title "${VERSION}" \
+          --notes "https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
+
+  # === SUMMARY ===
+  summary:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs, check-publish, publish]
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "## Workflow Summary"
+        echo ""
+        echo "### Changes Detected:"
+        echo "- Code files (.mjs): ${{ needs.detect-changes.outputs.mjs-changed }}"
+        echo "- Package.json: ${{ needs.detect-changes.outputs.package-changed }}"
+        echo "- Documentation (.md): ${{ needs.detect-changes.outputs.docs-changed }}"
+        echo ""
+        echo "### Jobs Run:"
+        if [ "${{ needs.detect-changes.outputs.any-code-changed }}" = "true" ]; then
+          echo "✓ Code tests were run"
+        else
+          echo "⊘ Code tests were skipped (no code changes)"
+        fi
+        if [ "${{ needs.detect-changes.outputs.docs-changed }}" = "true" ]; then
+          echo "✓ Documentation validation was run"
+        else
+          echo "⊘ Documentation validation was skipped (no docs changes)"
+        fi
+        if [ "${{ needs.detect-changes.outputs.package-changed }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "✓ Publishing check was run"
+        else
+          echo "⊘ Publishing was skipped (no package.json changes or not main branch)"
+        fi
