@@ -5,473 +5,64 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
+// Create a silent version of $ that doesn't mirror output to stdout
+const $silent = $({ mirror: false, capture: true });
 
-const yargs = (await use('yargs@latest')).default;
+// Import yargs with specific version for hideBin support
+const yargsModule = await use('yargs@17.7.2');
+const yargs = yargsModule.default || yargsModule;
+const { hideBin } = await use('yargs@17.7.2/helpers');
+
 const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
 
-// Global log file reference
-let logFile = null;
+// Import memory check functions (RAM, swap, disk)
+const memoryCheck = await import('./memory-check.mjs');
 
-// Function to check available disk space
+// Import shared library functions
+const lib = await import('./lib.mjs');
+const { 
+  log, 
+  setLogFile,
+  cleanErrorMessage
+} = lib;
+
+// Import GitHub-related functions
+const githubLib = await import('./github.lib.mjs');
+const {
+  sanitizeLogContent,
+  checkFileInBranch,
+  checkGitHubPermissions
+} = githubLib;
+
+// Import Claude-related functions
+const claudeLib = await import('./claude.lib.mjs');
+const {
+  validateClaudeConnection,
+  handleClaudeRuntimeSwitch
+} = claudeLib;
+
+// Global log file reference (will be passed to lib.mjs)
+
+// Wrapper function for disk space check using imported module
 const checkDiskSpace = async (minSpaceMB = 500) => {
-  try {
-    const { stdout } = await $`df -BM . | tail -1 | awk '{print $4}'`;
-    const availableMB = parseInt(stdout.toString().replace('M', ''));
-    
-    if (availableMB < minSpaceMB) {
-      await log(`❌ Insufficient disk space: ${availableMB}MB available, ${minSpaceMB}MB required`, { level: 'error' });
-      await log('   This may prevent successful pull request creation.', { level: 'error' });
-      await log('   Please free up disk space and try again.', { level: 'error' });
-      return false;
-    }
-    
-    await log(`💾 Disk space check: ${availableMB}MB available (${minSpaceMB}MB required) ✅`);
-    return true;
-  } catch (error) {
-    await log(`⚠️  Could not check disk space: ${error.message}`, { level: 'warning' });
-    await log('   Continuing anyway, but disk space issues may occur.', { level: 'warning' });
-    return true; // Continue on check failure to avoid blocking execution
-  }
+  const result = await memoryCheck.checkDiskSpace(minSpaceMB, { log });
+  return result.success;
 };
 
-// Function to check available memory
+// Wrapper function for memory check using imported module
 const checkMemory = async (minMemoryMB = 256) => {
-  // Check platform first
-  if (process.platform === 'darwin') {
-    // macOS memory check
-    try {
-      // macOS memory check using vm_stat
-      const { stdout: vmStatOutput } = await $`vm_stat`;
-      const vmStat = vmStatOutput.toString();
-      
-      // Parse page size
-      const pageSizeMatch = vmStat.match(/page size of (\d+) bytes/);
-      const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 4096;
-      
-      // Parse free and inactive pages (numbers may have dots at the end)
-      const freeMatch = vmStat.match(/Pages free:\s+([\d.]+)/);
-      const inactiveMatch = vmStat.match(/Pages inactive:\s+([\d.]+)/);
-      
-      const freePages = freeMatch ? parseInt(freeMatch[1].replace(/\./g, '')) : 0;
-      const inactivePages = inactiveMatch ? parseInt(inactiveMatch[1].replace(/\./g, '')) : 0;
-      
-      // Calculate available memory in MB
-      const availableMB = Math.floor((freePages + inactivePages) * pageSize / (1024 * 1024));
-      
-      // Check if swap is enabled
-      const { stdout: swapEnabledOutput } = await $`sysctl vm.swap_enabled`;
-      const swapEnabled = swapEnabledOutput.toString().includes('1');
-      
-      // Get swap info
-      const { stdout: swapOutput } = await $`sysctl vm.swapusage`;
-      const swapInfo = swapOutput.toString();
-      
-      // Parse total and free swap
-      const swapTotalMatch = swapInfo.match(/total = ([\d.]+)([MG])/);
-      const swapFreeMatch = swapInfo.match(/free = ([\d.]+)([MG])/);
-      
-      let swapTotalMB = 0;
-      let swapFreeMB = 0;
-      
-      if (swapTotalMatch) {
-        swapTotalMB = swapTotalMatch[2] === 'G'
-          ? Math.floor(parseFloat(swapTotalMatch[1]) * 1024)
-          : Math.floor(parseFloat(swapTotalMatch[1]));
-      }
-      
-      if (swapFreeMatch) {
-        swapFreeMB = swapFreeMatch[2] === 'G' 
-          ? Math.floor(parseFloat(swapFreeMatch[1]) * 1024)
-          : Math.floor(parseFloat(swapFreeMatch[1]));
-      }
-      
-      // Determine swap status
-      let swapStatus;
-      if (!swapEnabled) {
-        swapStatus = 'DISABLED';
-        swapFreeMB = 0; // Can't use swap if it's disabled
-      } else if (swapTotalMB > 0) {
-        swapStatus = `${swapFreeMB}MB free`;
-      } else {
-        swapStatus = 'enabled (dynamic allocation)';
-        // macOS can dynamically allocate swap, so we can assume some will be available
-        // But we can't count on a specific amount
-      }
-      
-      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapStatus}`);
-      
-      // For effective memory, only count actual allocated swap, not potential
-      const effectiveAvailableMB = availableMB + swapFreeMB;
-      
-      if (availableMB < minMemoryMB) {
-        if (!swapEnabled) {
-          await log(`❌ Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'error' });
-          await log('   Swap is DISABLED - cannot use virtual memory', { level: 'error' });
-          await log('   Enable swap with: sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist', { level: 'error' });
-          return false;
-        } else if (effectiveAvailableMB < minMemoryMB && swapTotalMB > 0) {
-          await log(`❌ Insufficient memory: ${availableMB}MB RAM + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
-          return false;
-        } else {
-          await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'warning' });
-          await log(`   Swap is enabled and can provide additional memory if needed`, { level: 'warning' });
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      await log(`❌ Failed to check memory: ${error.message}`, { level: 'error' });
-      await log('   Memory check is required to prevent system crashes', { level: 'error' });
-      await log('   Please ensure vm_stat and sysctl are available', { level: 'error' });
-      return false;
-    }
-  }
-  
-  // Linux memory check
-  try {
-    // Get memory info from /proc/meminfo
-    const { stdout } = await $`grep -E "MemAvailable|MemFree|SwapFree|SwapTotal" /proc/meminfo`;
-    const memInfo = stdout.toString();
-    
-    // Parse memory values (they're in kB)
-    const availableMatch = memInfo.match(/MemAvailable:\s+(\d+)/);
-    const freeMatch = memInfo.match(/MemFree:\s+(\d+)/);
-    const swapFreeMatch = memInfo.match(/SwapFree:\s+(\d+)/);
-    const swapTotalMatch = memInfo.match(/SwapTotal:\s+(\d+)/);
-    
-    const availableMB = availableMatch ? Math.floor(parseInt(availableMatch[1]) / 1024) : 0;
-    const freeMB = freeMatch ? Math.floor(parseInt(freeMatch[1]) / 1024) : 0;
-    const swapFreeMB = swapFreeMatch ? Math.floor(parseInt(swapFreeMatch[1]) / 1024) : 0;
-    const swapTotalMB = swapTotalMatch ? Math.floor(parseInt(swapTotalMatch[1]) / 1024) : 0;
-    
-    await log(`🧠 Memory check: ${availableMB}MB available, ${freeMB}MB free, ${swapFreeMB}MB swap free`);
-    
-    // Calculate effective available memory (RAM + swap)
-    const effectiveAvailableMB = availableMB + swapFreeMB;
-    
-    if (availableMB < minMemoryMB) {
-      if (effectiveAvailableMB >= minMemoryMB) {
-        await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required, but ${swapFreeMB}MB swap available`, { level: 'warning' });
-        await log('   Continuing with swap support (effective memory: ' + effectiveAvailableMB + 'MB)', { level: 'warning' });
-      } else {
-        await log(`❌ Insufficient memory: ${availableMB}MB available + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
-        await log('   This may cause Claude command to be killed by the system.', { level: 'error' });
-        
-        if (swapTotalMB < 1024) {
-          await log('', { level: 'error' });
-          await log('💡 To increase swap space on Ubuntu 24.04:', { level: 'error' });
-          await log('   sudo fallocate -l 2G /swapfile', { level: 'error' });
-          await log('   sudo chmod 600 /swapfile', { level: 'error' });
-          await log('   sudo mkswap /swapfile', { level: 'error' });
-          await log('   sudo swapon /swapfile', { level: 'error' });
-          await log('   echo \'/swapfile none swap sw 0 0\' | sudo tee -a /etc/fstab', { level: 'error' });
-          await log('   After setting up swap, restart the system if needed.', { level: 'error' });
-        }
-        
-        return false;
-      }
-    }
-    
-    if (availableMB >= minMemoryMB) {
-      await log(`✅ Memory check passed: ${availableMB}MB available (${minMemoryMB}MB required)`);
-    }
-    return true;
-  } catch (error) {
-    // Linux memory check failed
-    await log(`❌ Failed to check memory: ${error.message}`, { level: 'error' });
-    await log('   Memory check is required to prevent OOM killer', { level: 'error' });
-    await log('   Please ensure /proc/meminfo is accessible', { level: 'error' });
-    return false;
-  }
+  const result = await memoryCheck.checkMemory(minMemoryMB, { log });
+  return result.success;
 };
 
-// Function to get system resource snapshot
-const getResourceSnapshot = async () => {
-  try {
-    const memInfo = await $`cat /proc/meminfo | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
-    const loadAvg = await $`cat /proc/loadavg`;
-    const uptime = await $`uptime`;
-    
-    return {
-      timestamp: new Date().toISOString(),
-      memory: memInfo.stdout.toString().trim(),
-      load: loadAvg.stdout.toString().trim(),
-      uptime: uptime.stdout.toString().trim()
-    };
-  } catch (error) {
-    return {
-      timestamp: new Date().toISOString(),
-      error: `Failed to get resource snapshot: ${error.message}`
-    };
-  }
-};
-
-// Helper function to log to both console and file
-const log = async (message, options = {}) => {
-  const { level = 'info', verbose = false } = options;
-  
-  // Skip verbose logs unless --verbose is enabled
-  if (verbose && !global.verboseMode) {
-    return;
-  }
-  
-  // Write to file if log file is set
-  if (logFile) {
-    const logMessage = `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
-    await fs.appendFile(logFile, logMessage + '\n').catch(() => {});
-  }
-  
-  // Write to console based on level
-  switch (level) {
-    case 'error':
-      console.error(message);
-      break;
-    case 'warning':
-    case 'warn':
-      console.warn(message);
-      break;
-    case 'info':
-    default:
-      console.log(message);
-      break;
-  }
-};
-
-// Helper function to mask GitHub tokens in text
-const maskGitHubToken = (token) => {
-  if (!token || token.length < 12) {
-    return token; // Don't mask very short strings
-  }
-  
-  const start = token.substring(0, 5);
-  const end = token.substring(token.length - 5);
-  const middle = '*'.repeat(Math.max(token.length - 10, 3));
-  
-  return start + middle + end;
-};
-
-// Helper function to get GitHub tokens from local config files
-const getGitHubTokensFromFiles = async () => {
-  const tokens = [];
-  
-  try {
-    // Check ~/.config/gh/hosts.yml
-    const hostsFile = path.join(os.homedir(), '.config/gh/hosts.yml');
-    if (await fs.access(hostsFile).then(() => true).catch(() => false)) {
-      const hostsContent = await fs.readFile(hostsFile, 'utf8');
-      
-      // Look for oauth_token and api_token patterns
-      const oauthMatches = hostsContent.match(/oauth_token:\s*([^\s\n]+)/g);
-      if (oauthMatches) {
-        for (const match of oauthMatches) {
-          const token = match.split(':')[1].trim();
-          if (token && !tokens.includes(token)) {
-            tokens.push(token);
-          }
-        }
-      }
-      
-      const apiMatches = hostsContent.match(/api_token:\s*([^\s\n]+)/g);
-      if (apiMatches) {
-        for (const match of apiMatches) {
-          const token = match.split(':')[1].trim();
-          if (token && !tokens.includes(token)) {
-            tokens.push(token);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    // Silently ignore file access errors
-  }
-  
-  return tokens;
-};
-
-// Helper function to get GitHub tokens from gh command output
-const getGitHubTokensFromCommand = async () => {
-  const tokens = [];
-  
-  try {
-    // Run gh auth status to get token info
-    const authResult = await $`gh auth status 2>&1`.catch(() => ({ stdout: '', stderr: '' }));
-    const authOutput = authResult.stdout?.toString() + authResult.stderr?.toString() || '';
-    
-    // Look for token patterns in the output
-    const tokenPatterns = [
-      /(?:token|oauth|api)[:\s]*([a-zA-Z0-9_]{20,})/gi,
-      /gh[pou]_[a-zA-Z0-9_]{20,}/gi
-    ];
-    
-    for (const pattern of tokenPatterns) {
-      const matches = authOutput.match(pattern);
-      if (matches) {
-        for (let match of matches) {
-          // Clean up the match
-          const token = match.replace(/^(?:token|oauth|api)[:\s]*/, '').trim();
-          if (token && token.length >= 20 && !tokens.includes(token)) {
-            tokens.push(token);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    // Silently ignore command errors
-  }
-  
-  return tokens;
-};
-
-// Helper function to sanitize log content by masking GitHub tokens
-const sanitizeLogContent = async (logContent) => {
-  let sanitized = logContent;
-  
-  try {
-    // Get tokens from both sources
-    const fileTokens = await getGitHubTokensFromFiles();
-    const commandTokens = await getGitHubTokensFromCommand();
-    const allTokens = [...new Set([...fileTokens, ...commandTokens])];
-    
-    // Mask each token found
-    for (const token of allTokens) {
-      if (token && token.length >= 12) {
-        const maskedToken = maskGitHubToken(token);
-        // Use global replace to mask all occurrences
-        sanitized = sanitized.split(token).join(maskedToken);
-      }
-    }
-    
-    // Also look for and mask common GitHub token patterns directly in the log
-    const tokenPatterns = [
-      /gh[pou]_[a-zA-Z0-9_]{20,}/g,
-      /(?:^|[\s:=])([a-f0-9]{40})(?=[\s\n]|$)/gm, // 40-char hex tokens (like personal access tokens)
-      /(?:^|[\s:=])([a-zA-Z0-9_]{20,})(?=[\s\n]|$)/gm // General long tokens
-    ];
-    
-    for (const pattern of tokenPatterns) {
-      sanitized = sanitized.replace(pattern, (match, token) => {
-        if (token && token.length >= 20) {
-          return match.replace(token, maskGitHubToken(token));
-        }
-        return match;
-      });
-    }
-    
-    await log(`  🔒 Sanitized ${allTokens.length} detected GitHub tokens in log content`, { verbose: true });
-    
-  } catch (error) {
-    await log(`  ⚠️  Warning: Could not fully sanitize log content: ${error.message}`, { verbose: true });
-  }
-  
-  return sanitized;
-};
-
-// Function to validate Claude CLI connection
-const validateClaudeConnection = async () => {
-  try {
-    await log(`🔍 Validating Claude CLI connection...`);
-    
-    // First try a quick validation approach
-    try {
-      // Check if Claude CLI is installed and get version
-      const versionResult = await $`timeout 10 claude --version`;
-      if (versionResult.code === 0) {
-        const version = versionResult.stdout?.toString().trim();
-        await log(`📦 Claude CLI version: ${version}`);
-      }
-    } catch (versionError) {
-      // Version check failed, but we'll continue with the main validation
-      await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
-    }
-    
-    let result;
-    try {
-      // Primary validation: use printf piping with sonnet model (cheapest)
-      result = await $`printf hi | claude --model sonnet -p`;
-    } catch (pipeError) {
-      // If piping fails, fallback to the timeout approach as last resort
-      await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
-      try {
-        result = await $`timeout 60 claude --model sonnet -p hi`;
-      } catch (timeoutError) {
-        if (timeoutError.code === 124) {
-          await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
-          await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
-          await log(`   💡 Try running 'claude --model sonnet -p hi' manually to verify it works`, { level: 'error' });
-          return false;
-        }
-        // Re-throw if it's not a timeout error
-        throw timeoutError;
-      }
-    }
-    
-    // Check for common error patterns
-    const stdout = result.stdout?.toString() || '';
-    const stderr = result.stderr?.toString() || '';
-    
-    // Check for JSON errors in stdout or stderr
-    const checkForJsonError = (text) => {
-      try {
-        // Look for JSON error patterns
-        if (text.includes('"error"') && text.includes('"type"')) {
-          const jsonMatch = text.match(/\{.*"error".*\}/);
-          if (jsonMatch) {
-            const errorObj = JSON.parse(jsonMatch[0]);
-            return errorObj.error;
-          }
-        }
-      } catch (e) {
-        // Not valid JSON, continue with other checks
-      }
-      return null;
-    };
-    
-    const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
-    
-    // Use exitCode if code is undefined (Bun shell behavior)
-    const exitCode = result.code ?? result.exitCode ?? 0;
-    
-    if (exitCode !== 0) {
-      // Command failed
-      if (jsonError) {
-        await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
-      } else {
-        await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
-        if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
-      }
-      
-      if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
-        await log('   💡 Please run: claude login', { level: 'error' });
-      }
-      
-      return false;
-    }
-    
-    // Check for error patterns in successful response
-    if (jsonError) {
-      await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
-      if (jsonError.type === 'forbidden') {
-        await log('   💡 Please run: claude login', { level: 'error' });
-      }
-      return false;
-    }
-    
-    // Success - Claude responded (LLM responses are probabilistic, so any response is good)
-    await log(`✅ Claude CLI connection validated successfully`);
-    return true;
-    
-  } catch (error) {
-    await log(`❌ Failed to validate Claude CLI connection: ${cleanErrorMessage(error)}`, { level: 'error' });
-    await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
-    return false;
-  }
-};
+// Use getResourceSnapshot from memory-check module
+const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
 // Configure command line arguments - GitHub issue URL as positional argument
-const argv = yargs(process.argv.slice(2))
+const argv = yargs(hideBin(process.argv))
   .usage('Usage: $0 <issue-url> [options]')
   .positional('issue-url', {
     type: 'string',
@@ -591,164 +182,17 @@ if (argv.attachSolutionLogs) {
 // Create permanent log file immediately with timestamp
 const scriptDir = path.dirname(process.argv[1]);
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-logFile = path.join(scriptDir, `solve-${timestamp}.log`);
+const logFile = path.join(scriptDir, `solve-${timestamp}.log`);
+setLogFile(logFile);
 
 // Create the log file immediately
 await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
 await log(`   (All output will be logged here)`);
 
-// Handle Claude runtime switching (experimental feature)
-const handleClaudeRuntimeSwitch = async () => {
-  if (argv['force-claude-bun-run']) {
-    await log(`\n🔧 Switching Claude runtime to bun...`);
-    try {
-      // Check if bun is available
-      try {
-        await $`which bun`;
-        await log(`   ✅ Bun runtime found`);
-      } catch (bunError) {
-        await log(`❌ Bun runtime not found. Please install bun first: https://bun.sh/`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      // Find Claude executable path
-      const claudePathResult = await $`which claude`;
-      const claudePath = claudePathResult.stdout.toString().trim();
-      
-      if (!claudePath) {
-        await log(`❌ Claude executable not found`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      await log(`   Claude path: ${claudePath}`);
-      
-      // Check if file is writable
-      try {
-        await fs.access(claudePath, fs.constants.W_OK);
-      } catch (accessError) {
-        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
-        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      // Read current shebang
-      const firstLine = await $`head -1 "${claudePath}"`;
-      const currentShebang = firstLine.stdout.toString().trim();
-      await log(`   Current shebang: ${currentShebang}`);
-      
-      if (currentShebang.includes('bun')) {
-        await log(`   ✅ Claude is already configured to use bun`);
-        process.exit(0);
-      }
-      
-      // Create backup
-      const backupPath = `${claudePath}.nodejs-backup`;
-      await $`cp "${claudePath}" "${backupPath}"`;
-      await log(`   📦 Backup created: ${backupPath}`);
-      
-      // Read file content and replace shebang
-      const content = await fs.readFile(claudePath, 'utf8');
-      const newContent = content.replace(/^#!.*node.*$/m, '#!/usr/bin/env bun');
-      
-      if (content === newContent) {
-        await log(`⚠️  No Node.js shebang found to replace`, { level: 'warning' });
-        await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
-        process.exit(0);
-      }
-      
-      await fs.writeFile(claudePath, newContent);
-      await log(`   ✅ Claude shebang updated to use bun`);
-      await log(`   🔄 Claude will now run with bun runtime`);
-      
-    } catch (error) {
-      await log(`❌ Failed to switch Claude to bun: ${error.message}`, { level: 'error' });
-      process.exit(1);
-    }
-    
-    // Exit after switching runtime
-    process.exit(0);
-  }
-  
-  if (argv['force-claude-nodejs-run']) {
-    await log(`\n🔧 Restoring Claude runtime to Node.js...`);
-    try {
-      // Check if Node.js is available
-      try {
-        await $`which node`;
-        await log(`   ✅ Node.js runtime found`);
-      } catch (nodeError) {
-        await log(`❌ Node.js runtime not found. Please install Node.js first`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      // Find Claude executable path
-      const claudePathResult = await $`which claude`;
-      const claudePath = claudePathResult.stdout.toString().trim();
-      
-      if (!claudePath) {
-        await log(`❌ Claude executable not found`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      await log(`   Claude path: ${claudePath}`);
-      
-      // Check if file is writable
-      try {
-        await fs.access(claudePath, fs.constants.W_OK);
-      } catch (accessError) {
-        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
-        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
-        process.exit(1);
-      }
-      
-      // Read current shebang
-      const firstLine = await $`head -1 "${claudePath}"`;
-      const currentShebang = firstLine.stdout.toString().trim();
-      await log(`   Current shebang: ${currentShebang}`);
-      
-      if (currentShebang.includes('node') && !currentShebang.includes('bun')) {
-        await log(`   ✅ Claude is already configured to use Node.js`);
-        process.exit(0);
-      }
-      
-      // Check if backup exists
-      const backupPath = `${claudePath}.nodejs-backup`;
-      try {
-        await fs.access(backupPath);
-        // Restore from backup
-        await $`cp "${backupPath}" "${claudePath}"`;
-        await log(`   ✅ Restored Claude from backup: ${backupPath}`);
-      } catch (backupError) {
-        // No backup available, manually update shebang
-        await log(`   📝 No backup found, manually updating shebang...`);
-        const content = await fs.readFile(claudePath, 'utf8');
-        const newContent = content.replace(/^#!.*bun.*$/m, '#!/usr/bin/env node');
-        
-        if (content === newContent) {
-          await log(`⚠️  No bun shebang found to replace`, { level: 'warning' });
-          await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
-          process.exit(0);
-        }
-        
-        await fs.writeFile(claudePath, newContent);
-        await log(`   ✅ Claude shebang updated to use Node.js`);
-      }
-      
-      await log(`   🔄 Claude will now run with Node.js runtime`);
-      
-    } catch (error) {
-      await log(`❌ Failed to restore Claude to Node.js: ${error.message}`, { level: 'error' });
-      process.exit(1);
-    }
-    
-    // Exit after restoring runtime
-    process.exit(0);
-  }
-};
 
 // Execute Claude runtime switching if requested
-await handleClaudeRuntimeSwitch();
+await handleClaudeRuntimeSwitch(argv);
 
 // Validate GitHub URL requirement (unless using runtime switching options)
 if (!issueUrl && !argv['force-claude-bun-run'] && !argv['force-claude-nodejs-run']) {
@@ -884,96 +328,15 @@ const autoContinueWhenLimitResets = async (issueUrl, sessionId, tempDir) => {
     });
     
   } catch (error) {
-    await log(`\n❌ Auto-continue failed: ${error.message}`, { level: 'error' });
+    await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log(`\n🔄 Manual resume command:`);
     await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
     process.exit(1);
   }
 };
 
-// Helper function to check if CLAUDE.md exists in a PR branch
-const checkClaudeMdInBranch = async (owner, repo, branchName) => {
-  try {
-    // Use GitHub CLI to check if CLAUDE.md exists in the branch
-    const result = await $`gh api repos/${owner}/${repo}/contents/CLAUDE.md?ref=${branchName}`;
-    return result.code === 0;
-  } catch (error) {
-    // If file doesn't exist or there's an error, CLAUDE.md doesn't exist
-    return false;
-  }
-};
+// Helper function to check if CLAUDE.md exists in a PR branch - moved to github.lib.mjs as checkFileInBranch
 
-// Helper function to check GitHub permissions and warn about missing scopes
-const checkGitHubPermissions = async () => {
-  try {
-    await log(`\n🔐 Checking GitHub authentication and permissions...`);
-    
-    // Get auth status including token scopes
-    const authStatusResult = await $`gh auth status 2>&1`;
-    const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
-    
-    if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
-      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
-      await log(`   To fix this, run: gh auth login`, { level: 'error' });
-      return false;
-    }
-    
-    await log(`✅ GitHub authentication: OK`);
-    
-    // Parse the auth status output to extract token scopes
-    const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
-    if (!scopeMatch) {
-      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
-      return true; // Continue despite not being able to check scopes
-    }
-    
-    // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
-    const scopeString = scopeMatch[1];
-    const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
-    await log(`📋 Token scopes: ${scopes.join(', ')}`);
-    
-    // Check for important scopes and warn if missing
-    const warnings = [];
-    
-    if (!scopes.includes('workflow')) {
-      warnings.push({
-        scope: 'workflow',
-        issue: 'Cannot push changes to .github/workflows/ directory',
-        solution: 'Run: gh auth refresh -h github.com -s workflow'
-      });
-    }
-    
-    if (!scopes.includes('repo')) {
-      warnings.push({
-        scope: 'repo',
-        issue: 'Limited repository access (may not be able to create PRs or push to private repos)',
-        solution: 'Run: gh auth refresh -h github.com -s repo'
-      });
-    }
-    
-    // Display warnings
-    if (warnings.length > 0) {
-      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
-      
-      for (const warning of warnings) {
-        await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
-        await log(`   Impact: ${warning.issue}`, { level: 'warning' });
-        await log(`   Solution: ${warning.solution}`, { level: 'warning' });
-      }
-      
-      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
-      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
-    } else {
-      await log(`✅ All required permissions: Available`);
-    }
-    
-    return true;
-  } catch (error) {
-    await log(`⚠️  Warning: Could not check GitHub permissions: ${error.message}`, { level: 'warning' });
-    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
-    return true; // Continue despite permission check failure
-  }
-};
 
 // Check GitHub permissions early in the process
 const hasValidAuth = await checkGitHubPermissions();
@@ -1043,7 +406,7 @@ if (argv.autoContinue && isIssueUrl) {
           // Check if PR is open (not closed)
           if (pr.state === 'OPEN') {
             // Check if CLAUDE.md exists in this PR branch
-            const claudeMdExists = await checkClaudeMdInBranch(owner, repo, pr.headRefName);
+            const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
             
             if (!claudeMdExists) {
               await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
@@ -1133,7 +496,7 @@ if (isPrUrl) {
       issueNumber = prNumber;
     }
   } catch (error) {
-    await log(`Error: Failed to process PR: ${error.message}`, { level: 'error' });
+    await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
     process.exit(1);
   }
 } else {
@@ -2217,7 +1580,7 @@ ${prBody}`, { verbose: true });
         }
       }
     } catch (error) {
-      await log(`Warning: Could not count new comments: ${error.message}`, { level: 'warning' });
+      await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
     }
   }
 
@@ -2549,8 +1912,8 @@ Self review.
               // Target doesn't exist, safe to rename
               try {
                 await fs.rename(logFile, sessionLogFile);
-                logFile = sessionLogFile;
-                await log(`📁 Log renamed to: ${logFile}`);
+                setLogFile(sessionLogFile);
+                await log(`📁 Log renamed to: ${sessionLogFile}`);
               } catch (renameErr) {
                 // If rename fails (e.g., cross-device link), try copying
                 if (argv.verbose) {
@@ -2564,8 +1927,8 @@ Self review.
                   // Write to new file
                   await fs.writeFile(sessionLogFile, currentContent);
                   // Update log file reference
-                  logFile = sessionLogFile;
-                  await log(`📁 Log copied to: ${logFile}`);
+                  setLogFile(sessionLogFile);
+                  await log(`📁 Log copied to: ${sessionLogFile}`);
                   
                   // Try to delete old file (non-critical if it fails)
                   try {
@@ -3370,7 +2733,7 @@ ${truncatedContent}
   }
 
 } catch (error) {
-  await log('Error executing command:', error.message);
+  await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
   
   // If --attach-solution-logs is enabled, try to attach failure logs
@@ -3385,7 +2748,7 @@ ${truncatedContent}
           ? logContent.substring(logContent.length - 50000) + '\n\n... (log truncated, showing last 50KB)'
           : logContent;
           
-        const failureComment = `## 🚨 Solution Failed\n\nThe automated solution encountered an error:\n\`\`\`\n${error.message}\n\`\`\`\n\n<details>\n<summary>Click to expand failure log</summary>\n\n\`\`\`\n${truncatedLog}\n\`\`\`\n\n</details>\n\n----\n*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+        const failureComment = `## 🚨 Solution Failed\n\nThe automated solution encountered an error:\n\`\`\`\n${cleanErrorMessage(error)}\n\`\`\`\n\n<details>\n<summary>Click to expand failure log</summary>\n\n\`\`\`\n${truncatedLog}\n\`\`\`\n\n</details>\n\n----\n*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
         
         const tempFailureCommentFile = `/tmp/failure-comment-${Date.now()}.md`;
         await fs.writeFile(tempFailureCommentFile, failureComment);
