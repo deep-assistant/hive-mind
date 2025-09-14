@@ -19,6 +19,11 @@ export const setLogFile = (path) => {
   logFile = path;
 };
 
+// Function to get the current log file path
+export const getLogFile = () => {
+  return logFile;
+};
+
 // Helper function to log to both console and file
 export const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -226,10 +231,50 @@ export const displayFormattedError = async (options) => {
   }
 };
 
+// Helper function to clean up temporary directories
+export const cleanupTempDirectories = async (argv) => {
+  if (!argv || !argv.autoCleanup) {
+    return;
+  }
+  
+  // Dynamic import for command-stream
+  const { $ } = await use('command-stream');
+  
+  try {
+    await log(`\n🧹 Auto-cleanup enabled, removing temporary directories...`);
+    await log(`   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*`, { verbose: true });
+    
+    // Execute cleanup command using command-stream
+    const cleanupCommand = $`sudo rm -rf /tmp/* /var/tmp/*`;
+    
+    let exitCode = 0;
+    for await (const chunk of cleanupCommand.stream()) {
+      if (chunk.type === 'stderr') {
+        const error = chunk.data.toString().trim();
+        if (error && !error.includes('cannot remove')) { // Ignore "cannot remove" warnings for files in use
+          await log(`   [cleanup WARNING] ${error}`, { level: 'warn', verbose: true });
+        }
+      } else if (chunk.type === 'exit') {
+        exitCode = chunk.code;
+      }
+    }
+    
+    if (exitCode === 0) {
+      await log(`   ✅ Temporary directories cleaned successfully`);
+    } else {
+      await log(`   ⚠️  Cleanup completed with warnings (exit code: ${exitCode})`, { level: 'warn' });
+    }
+  } catch (error) {
+    await log(`   ❌ Error during cleanup: ${cleanErrorMessage(error)}`, { level: 'error' });
+    // Don't fail the entire process if cleanup fails
+  }
+};
+
 // Export all functions as default object too
 export default {
   log,
   setLogFile,
+  getLogFile,
   maskToken,
   formatTimestamp,
   sanitizeFileName,
@@ -242,5 +287,6 @@ export default {
   measureTime,
   cleanErrorMessage,
   formatAligned,
-  displayFormattedError
+  displayFormattedError,
+  cleanupTempDirectories
 };

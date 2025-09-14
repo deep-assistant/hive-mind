@@ -17,7 +17,7 @@ const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
-const { log: libLog, setLogFile, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError } = lib;
+const { log, setLogFile, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError, cleanupTempDirectories } = lib;
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
@@ -25,107 +25,15 @@ const { validateClaudeConnection, handleClaudeRuntimeSwitch } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
 const { checkSystem } = memCheck;
 
+// The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
-// Use log from lib.mjs
-const log = libLog;
-
-// Helper function to fetch all issues with pagination and rate limiting
-const fetchAllIssuesWithPagination = async (baseCommand) => {
-  const { execSync } = await import('child_process');
-  
-  try {
-    // First, try without pagination to see if we get more than the default limit
-    await log(`   📊 Fetching issues with improved limits and rate limiting...`, { verbose: true });
-    
-    // Add a 5-second delay before making the API call to respect rate limits
-    await log(`   ⏰ Waiting 5 seconds before API call to respect rate limits...`, { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    const startTime = Date.now();
-    
-    // Use a much higher limit instead of 100, and remove any existing limit from the command
-    const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
-    const improvedCommand = `${commandWithoutLimit} --limit 1000`;
-    
-    await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
-    const output = execSync(improvedCommand, { encoding: 'utf8' });
-    const endTime = Date.now();
-    
-    const issues = JSON.parse(output || '[]');
-    
-    await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
-    
-    // If we got exactly 1000 results, there might be more - log a warning
-    if (issues.length === 1000) {
-      await log(`   ⚠️  Hit the 1000 issue limit - there may be more issues available`, { level: 'warning' });
-      await log(`   💡 Consider filtering by labels or date ranges for repositories with >1000 open issues`, { level: 'info' });
-    }
-    
-    // Add a 5-second delay after the call to be extra safe with rate limits
-    await log(`   ⏰ Adding 5-second delay after API call to respect rate limits...`, { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
-    return issues;
-  } catch (error) {
-    await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    
-    // Fallback to original behavior with 100 limit
-    try {
-      await log(`   🔄 Falling back to default behavior...`, { verbose: true });
-      const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Shorter delay for fallback
-      const output = execSync(fallbackCommand, { encoding: 'utf8' });
-      const issues = JSON.parse(output || '[]');
-      await log(`   ⚠️  Fallback: fetched ${issues.length} issues (limited to 100)`, { level: 'warning' });
-      return issues;
-    } catch (fallbackError) {
-      await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
-      return [];
-    }
-  }
-};
-
-// Helper function to clean up temporary directories
-const cleanupTempDirectories = async () => {
-  if (!argv.autoCleanup) {
-    return;
-  }
-  
-  try {
-    await log(`\n🧹 Auto-cleanup enabled, removing temporary directories...`);
-    await log(`   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*`, { verbose: true });
-    
-    // Execute cleanup command using command-stream
-    const cleanupCommand = $`sudo rm -rf /tmp/* /var/tmp/*`;
-    
-    let exitCode = 0;
-    for await (const chunk of cleanupCommand.stream()) {
-      if (chunk.type === 'stderr') {
-        const error = chunk.data.toString().trim();
-        if (error && !error.includes('cannot remove')) { // Ignore "cannot remove" warnings for files in use
-          await log(`   [cleanup WARNING] ${error}`, { level: 'warn', verbose: true });
-        }
-      } else if (chunk.type === 'exit') {
-        exitCode = chunk.code;
-      }
-    }
-    
-    if (exitCode === 0) {
-      await log(`   ✅ Temporary directories cleaned successfully`);
-    } else {
-      await log(`   ⚠️  Cleanup completed with warnings (exit code: ${exitCode})`, { level: 'warn' });
-    }
-  } catch (error) {
-    await log(`   ❌ Error during cleanup: ${cleanErrorMessage(error)}`, { level: 'error' });
-    // Don't fail the entire process if cleanup fails
-  }
-};
+// The cleanupTempDirectories function has been moved to lib.mjs
 
 // Configure command line arguments
 const argv = yargs(hideBin(process.argv))
@@ -716,7 +624,7 @@ async function monitor() {
       
       // Perform cleanup if enabled and there were successful completions
       if (stats.completed > 0) {
-        await cleanupTempDirectories();
+        await cleanupTempDirectories(argv);
       }
       break;
     }
@@ -770,7 +678,7 @@ async function gracefulShutdown(signal) {
     // Perform cleanup if enabled and there were successful completions
     const finalStats = issueQueue.getStats();
     if (finalStats.completed > 0) {
-      await cleanupTempDirectories();
+      await cleanupTempDirectories(argv);
     }
     
     await log(`   ✅ Shutdown complete`);

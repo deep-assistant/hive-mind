@@ -24,6 +24,7 @@ const lib = await import('./lib.mjs');
 const { 
   log, 
   setLogFile,
+  getLogFile,
   cleanErrorMessage,
   formatAligned
 } = lib;
@@ -199,7 +200,7 @@ setLogFile(logFile);
 
 // Create the log file immediately
 await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
-await log(`📁 Log file: ${logFile}`);
+await log(`📁 Log file: ${getLogFile()}`);
 await log(`   (All output will be logged here)`);
 
 
@@ -1941,14 +1942,14 @@ Self review.
                   }
                 } catch (copyErr) {
                   await log(`⚠️  Could not copy log file: ${copyErr.message}`, { level: 'warning' });
-                  await log(`📁 Keeping log file: ${logFile}`);
+                  await log(`📁 Keeping log file: ${getLogFile()}`);
                 }
               }
             }
           } catch (renameError) {
             // If rename fails, keep original filename
             await log(`⚠️  Could not rename log file: ${renameError.message}`, { level: 'warning' });
-            await log(`📁 Keeping log file: ${logFile}`);
+            await log(`📁 Keeping log file: ${getLogFile()}`);
           }
           await log('');
         }
@@ -2092,7 +2093,7 @@ Self review.
 
   if (commandFailed) {
     await log('\n❌ Command execution failed. Check the log file for details.');
-    await log(`📁 Log file: ${logFile}`);
+    await log(`📁 Log file: ${getLogFile()}`);
     
     // Take resource snapshot after failure
     const resourcesAfter = await getResourceSnapshot();
@@ -2211,7 +2212,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
   if (sessionId) {
     await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${logFile}`);
+    await log(`✅ Complete log file: ${getLogFile()}`);
 
     if (limitReached) {
       await log(`\n⏰ LIMIT REACHED DETECTED!`);
@@ -2240,7 +2241,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     // Don't show log preview, it's too technical
   } else {
     await log(`❌ No session ID extracted`);
-    await log(`📁 Log file available: ${logFile}`);
+    await log(`📁 Log file available: ${getLogFile()}`);
   }
 
   // Now search for newly created pull requests and comments
@@ -2347,7 +2348,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         if (shouldAttachLogs) {
           await log(`\n📎 Uploading solution log to Pull Request...`);
           logUploadSuccess = await attachLogToGitHub({
-            logFile,
+            logFile: getLogFile(),
             targetType: 'pr',
             targetNumber: pr.number,
             owner,
@@ -2401,7 +2402,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       if (shouldAttachLogs) {
         await log(`\n📎 Uploading solution log to issue...`);
         await attachLogToGitHub({
-          logFile,
+          logFile: getLogFile(),
           targetType: 'issue',
           targetNumber: issueNumber,
           owner,
@@ -2430,13 +2431,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     await log('\n📋 No new pull request or comment was created.');
     await log('   The issue may have been resolved differently or required no action.');
     await log(`\n💡 Review the session log for details:`);
-    await log(`   ${logFile}`);
+    await log(`   ${getLogFile()}`);
     process.exit(0);
 
   } catch (searchError) {
     await log('\n⚠️  Could not verify results:', searchError.message);
     await log(`\n💡 Check the log file for details:`);
-    await log(`   ${logFile}`);
+    await log(`   ${getLogFile()}`);
     process.exit(0);
   }
 
@@ -2445,13 +2446,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
   await log(`Stack trace: ${error.stack}`, { verbose: true });
   
   // If --attach-solution-logs is enabled, try to attach failure logs
-  if (shouldAttachLogs && logFile) {
+  if (shouldAttachLogs && getLogFile()) {
     await log('\n📄 Attempting to attach failure logs...');
     
     // Try to attach to existing PR first
     if (global.createdPR && global.createdPR.number) {
       try {
-        const logContent = await fs.readFile(logFile, 'utf8');
+        const logContent = await fs.readFile(getLogFile(), 'utf8');
         const truncatedLog = logContent.length > 50000 
           ? logContent.substring(logContent.length - 50000) + '\n\n... (log truncated, showing last 50KB)'
           : logContent;

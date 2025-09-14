@@ -439,6 +439,69 @@ async function attachRegularComment(options, logComment) {
   }
 }
 
+/**
+ * Helper function to fetch all issues with pagination and rate limiting
+ * @param {string} baseCommand - The base gh command to execute
+ * @returns {Promise<Array>} Array of issues
+ */
+export async function fetchAllIssuesWithPagination(baseCommand) {
+  const { execSync } = await import('child_process');
+  
+  // Import log and cleanErrorMessage from lib.mjs
+  const { log, cleanErrorMessage } = await import('./lib.mjs');
+  
+  try {
+    // First, try without pagination to see if we get more than the default limit
+    await log(`   📊 Fetching issues with improved limits and rate limiting...`, { verbose: true });
+    
+    // Add a 5-second delay before making the API call to respect rate limits
+    await log(`   ⏰ Waiting 5 seconds before API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const startTime = Date.now();
+    
+    // Use a much higher limit instead of 100, and remove any existing limit from the command
+    const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
+    const improvedCommand = `${commandWithoutLimit} --limit 1000`;
+    
+    await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
+    const output = execSync(improvedCommand, { encoding: 'utf8' });
+    const endTime = Date.now();
+    
+    const issues = JSON.parse(output || '[]');
+    
+    await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
+    
+    // If we got exactly 1000 results, there might be more - log a warning
+    if (issues.length === 1000) {
+      await log(`   ⚠️  Hit the 1000 issue limit - there may be more issues available`, { level: 'warning' });
+      await log(`   💡 Consider filtering by labels or date ranges for repositories with >1000 open issues`, { level: 'info' });
+    }
+    
+    // Add a 5-second delay after the call to be extra safe with rate limits
+    await log(`   ⏰ Adding 5-second delay after API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    return issues;
+  } catch (error) {
+    await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    
+    // Fallback to original behavior with 100 limit
+    try {
+      await log(`   🔄 Falling back to default behavior...`, { verbose: true });
+      const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Shorter delay for fallback
+      const output = execSync(fallbackCommand, { encoding: 'utf8' });
+      const issues = JSON.parse(output || '[]');
+      await log(`   ⚠️  Fallback: fetched ${issues.length} issues (limited to 100)`, { level: 'warning' });
+      return issues;
+    } catch (fallbackError) {
+      await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
+      return [];
+    }
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -447,5 +510,6 @@ export default {
   sanitizeLogContent,
   checkFileInBranch,
   checkGitHubPermissions,
-  attachLogToGitHub
+  attachLogToGitHub,
+  fetchAllIssuesWithPagination
 };
