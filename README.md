@@ -1,3 +1,7 @@
+[![npm](https://img.shields.io/npm/v/@deep-assistant/hive-mind.svg)](https://npmjs.com/@deep-assistant/hive-mind)
+[![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://github.com/deep-assistant/hive-mind/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/deep-assistant/hive-mind?style=social)](https://github.com/deep-assistant/hive-mind/stargazers)
+
 # Hive Mind 🧠
 
 [![Open in Gitpod](https://img.shields.io/badge/Gitpod-ready--to--code-f29718?logo=gitpod)](https://gitpod.io/#https://github.com/deep-assistant/hive-mind)
@@ -29,7 +33,7 @@ Minimum system requirements to run `hive.mjs`:
 
 ## 🚀 Quick Start
 
-### Installation
+### Installation on Ubuntu 24.04 server
 ```bash
 curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
 ```
@@ -62,10 +66,10 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 
 | Script | Purpose | Key Features |
 |--------|---------|--------------|
-| `solve.mjs` | GitHub issue solver | Auto fork, branch creation, PR generation, resume sessions, fork support |
-| `hive.mjs` | AI orchestration & monitoring | Multi-repo monitoring, concurrent workers, issue queue management |
-| `review.mjs` | Code review automation | Collaborative AI reviews, automated feedback |
-| `reviewers-hive.mjs` | Review team management | Multi-agent consensus, reviewer assignment |
+| `solve.mjs` (stable) | GitHub issue solver | Auto fork, branch creation, PR generation, resume sessions, fork support |
+| `hive.mjs` (stable) | AI orchestration & monitoring | Multi-repo monitoring, concurrent workers, issue queue management |
+| `review.mjs` (alpha) | Code review automation | Collaborative AI reviews, automated feedback |
+| `reviewers-hive.mjs` (alpha / experimental) | Review team management | Multi-agent consensus, reviewer assignment |
 
 ## 🔧 solve.mjs Options
 ```bash
@@ -118,25 +122,6 @@ graph TD
     C --> D[Task Execution]
     D --> E[Human Feedback Loop]
     E --> B
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-export GITHUB_TOKEN="your_token_here"
-export CLAUDE_API_KEY="your_key_here"
-export HIVE_MODE="collaborative"  # or "autonomous"
-```
-
-### Agent Configuration
-```javascript
-// hive.config.js
-export const agents = {
-  solver: { model: "sonnet", priority: "high" },
-  reviewer: { model: "haiku", priority: "medium" },
-  coordinator: { model: "opus", priority: "critical" }
-};
 ```
 
 ## 📊 Usage Examples
@@ -198,12 +183,6 @@ The system supports bidirectional communication:
 - **Feedback integration** for continuous improvement
 - **Quality assurance** through human oversight
 
-## 📚 Documentation Structure
-
-- [`docs/`](./docs/) - Detailed documentation (auto-generated, <1000 lines per file)
-- [`examples/`](./examples/) - Working code examples with types
-- [`tests/`](./tests/) - Automated test suites
-
 ## 🛡️ File Size Enforcement
 
 All documentation files are automatically checked:
@@ -213,7 +192,7 @@ find docs/ -name "*.md" -exec wc -l {} + | awk '$1 > 1000 {print "ERROR: " $2 " 
 
 ## 📄 License
 
-MIT License - see [LICENSE](./LICENSE)
+Unlicense License - see [LICENSE](./LICENSE)
 
 ## 🤖 Contributing
 
