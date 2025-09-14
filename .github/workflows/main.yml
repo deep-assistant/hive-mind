@@ -16,6 +16,8 @@ jobs:
       docs-changed: ${{ steps.changes.outputs.docs }}
       workflow-changed: ${{ steps.changes.outputs.workflow }}
       any-code-changed: ${{ steps.changes.outputs.code }}
+      new-version: ${{ steps.version.outputs.new }}
+      version: ${{ steps.version.outputs.version }}
     
     steps:
     - uses: actions/checkout@v4
@@ -71,6 +73,29 @@ jobs:
           echo "code=true" >> $GITHUB_OUTPUT
         else
           echo "code=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Check version status
+      id: version
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: |
+        if [ ! -f "package.json" ]; then
+          echo "new=false" >> $GITHUB_OUTPUT
+          echo "No package.json found"
+          exit 0
+        fi
+        
+        VERSION=$(node -p "require('./package.json').version")
+        PACKAGE_NAME=$(node -p "require('./package.json').name")
+        
+        # Check if version is already published on NPM
+        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
+          echo "Version $VERSION already published"
+          echo "new=false" >> $GITHUB_OUTPUT
+        else
+          echo "New version $VERSION detected"
+          echo "new=true" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
         fi
 
   # === COMPILATION & SYNTAX CHECKS ===
@@ -380,44 +405,16 @@ jobs:
         node tests/docs-validation.mjs
 
   # === PUBLISH TO NPM ===
-  check-publish:
-    # Only run on main branch push when package.json or workflow changes and tests pass
+  publish:
+    # Only publish when there's a new version and all tests pass
     if: |
-      always() &&
       github.ref == 'refs/heads/main' && 
       github.event_name == 'push' &&
-      (needs.detect-changes.outputs.package-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true') &&
+      needs.detect-changes.outputs.new-version == 'true' &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Check if version is new
-      run: |
-        # Check if package.json exists
-        if [ ! -f "package.json" ]; then
-          echo "No package.json found"
-          exit 0
-        fi
-        
-        VERSION=$(node -p "require('./package.json').version")
-        PACKAGE_NAME=$(node -p "require('./package.json').name")
-        
-        # Check if version is already published on NPM
-        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-          echo "✓ Version $VERSION already published"
-        else
-          echo "✓ New version $VERSION detected - will be published"
-        fi
-
-  publish:
-    if: needs.check-publish.result == 'success'
-    runs-on: ubuntu-latest
-    needs: check-publish
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
@@ -425,48 +422,28 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Check if should publish
-      id: should-publish
-      run: |
-        VERSION=$(node -p "require('./package.json').version")
-        PACKAGE_NAME=$(node -p "require('./package.json').name")
-        
-        # Double-check if version is already published
-        if npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null; then
-          echo "Version $VERSION already published - skipping"
-          echo "skip=true" >> $GITHUB_OUTPUT
-        else
-          echo "Version $VERSION will be published"
-          echo "skip=false" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        fi
     
     - name: Setup Node.js
-      if: steps.should-publish.outputs.skip != 'true'
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
         registry-url: 'https://registry.npmjs.org'
         
     - name: Make scripts executable
-      if: steps.should-publish.outputs.skip != 'true'
       run: |
         chmod +x hive.mjs
         chmod +x solve.mjs
         
     - name: Publish to NPM
-      if: steps.should-publish.outputs.skip != 'true'
       run: npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         
     - name: Create GitHub Release
-      if: steps.should-publish.outputs.skip != 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        VERSION=${{ steps.should-publish.outputs.version }}
+        VERSION=${{ needs.detect-changes.outputs.version }}
         PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
           --title "${VERSION}" \
@@ -476,7 +453,7 @@ jobs:
   summary:
     if: always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs, check-publish, publish]
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs, publish]
     
     steps:
     - name: Summary
@@ -503,11 +480,8 @@ jobs:
         else
           echo "⊘ Documentation validation was skipped (no docs changes)"
         fi
-        if ([ "${{ needs.detect-changes.outputs.package-changed }}" = "true" ] || [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ]) && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          echo "✓ Publishing check was run"
-          if [ "${{ needs.detect-changes.outputs.workflow-changed }}" = "true" ] && [ "${{ needs.detect-changes.outputs.package-changed }}" != "true" ]; then
-            echo "  (triggered by workflow changes)"
-          fi
+        if [ "${{ needs.detect-changes.outputs.new-version }}" = "true" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          echo "✓ Publishing will run for new version ${{ needs.detect-changes.outputs.version }}"
         else
-          echo "⊘ Publishing was skipped (no package.json/workflow changes or not main branch)"
+          echo "⊘ Publishing was skipped (no new version or not main branch)"
         fi
