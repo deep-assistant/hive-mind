@@ -39,6 +39,98 @@ const checkDiskSpace = async (minSpaceMB = 500) => {
 
 // Function to check available memory
 const checkMemory = async (minMemoryMB = 256) => {
+  // Check platform first
+  if (process.platform === 'darwin') {
+    // macOS memory check
+    try {
+      // macOS memory check using vm_stat
+      const { stdout: vmStatOutput } = await $`vm_stat`;
+      const vmStat = vmStatOutput.toString();
+      
+      // Parse page size
+      const pageSizeMatch = vmStat.match(/page size of (\d+) bytes/);
+      const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 4096;
+      
+      // Parse free and inactive pages (numbers may have dots at the end)
+      const freeMatch = vmStat.match(/Pages free:\s+([\d.]+)/);
+      const inactiveMatch = vmStat.match(/Pages inactive:\s+([\d.]+)/);
+      
+      const freePages = freeMatch ? parseInt(freeMatch[1].replace(/\./g, '')) : 0;
+      const inactivePages = inactiveMatch ? parseInt(inactiveMatch[1].replace(/\./g, '')) : 0;
+      
+      // Calculate available memory in MB
+      const availableMB = Math.floor((freePages + inactivePages) * pageSize / (1024 * 1024));
+      
+      // Check if swap is enabled
+      const { stdout: swapEnabledOutput } = await $`sysctl vm.swap_enabled`;
+      const swapEnabled = swapEnabledOutput.toString().includes('1');
+      
+      // Get swap info
+      const { stdout: swapOutput } = await $`sysctl vm.swapusage`;
+      const swapInfo = swapOutput.toString();
+      
+      // Parse total and free swap
+      const swapTotalMatch = swapInfo.match(/total = ([\d.]+)([MG])/);
+      const swapFreeMatch = swapInfo.match(/free = ([\d.]+)([MG])/);
+      
+      let swapTotalMB = 0;
+      let swapFreeMB = 0;
+      
+      if (swapTotalMatch) {
+        swapTotalMB = swapTotalMatch[2] === 'G'
+          ? Math.floor(parseFloat(swapTotalMatch[1]) * 1024)
+          : Math.floor(parseFloat(swapTotalMatch[1]));
+      }
+      
+      if (swapFreeMatch) {
+        swapFreeMB = swapFreeMatch[2] === 'G' 
+          ? Math.floor(parseFloat(swapFreeMatch[1]) * 1024)
+          : Math.floor(parseFloat(swapFreeMatch[1]));
+      }
+      
+      // Determine swap status
+      let swapStatus;
+      if (!swapEnabled) {
+        swapStatus = 'DISABLED';
+        swapFreeMB = 0; // Can't use swap if it's disabled
+      } else if (swapTotalMB > 0) {
+        swapStatus = `${swapFreeMB}MB free`;
+      } else {
+        swapStatus = 'enabled (dynamic allocation)';
+        // macOS can dynamically allocate swap, so we can assume some will be available
+        // But we can't count on a specific amount
+      }
+      
+      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapStatus}`);
+      
+      // For effective memory, only count actual allocated swap, not potential
+      const effectiveAvailableMB = availableMB + swapFreeMB;
+      
+      if (availableMB < minMemoryMB) {
+        if (!swapEnabled) {
+          await log(`❌ Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'error' });
+          await log('   Swap is DISABLED - cannot use virtual memory', { level: 'error' });
+          await log('   Enable swap with: sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist', { level: 'error' });
+          return false;
+        } else if (effectiveAvailableMB < minMemoryMB && swapTotalMB > 0) {
+          await log(`❌ Insufficient memory: ${availableMB}MB RAM + ${swapFreeMB}MB swap = ${effectiveAvailableMB}MB total, ${minMemoryMB}MB required`, { level: 'error' });
+          return false;
+        } else {
+          await log(`⚠️  Low RAM: ${availableMB}MB available, ${minMemoryMB}MB required`, { level: 'warning' });
+          await log(`   Swap is enabled and can provide additional memory if needed`, { level: 'warning' });
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      await log(`❌ Failed to check memory: ${error.message}`, { level: 'error' });
+      await log('   Memory check is required to prevent system crashes', { level: 'error' });
+      await log('   Please ensure vm_stat and sysctl are available', { level: 'error' });
+      return false;
+    }
+  }
+  
+  // Linux memory check
   try {
     // Get memory info from /proc/meminfo
     const { stdout } = await $`grep -E "MemAvailable|MemFree|SwapFree|SwapTotal" /proc/meminfo`;
@@ -88,56 +180,11 @@ const checkMemory = async (minMemoryMB = 256) => {
     }
     return true;
   } catch (error) {
-    // Check if we're on macOS
-    if (process.platform === 'darwin') {
-      try {
-        // macOS memory check using vm_stat
-        const { stdout: vmStatOutput } = await $`vm_stat`;
-        const vmStat = vmStatOutput.toString();
-        
-        // Parse page size
-        const pageSizeMatch = vmStat.match(/page size of (\d+) bytes/);
-        const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 4096;
-        
-        // Parse free and inactive pages
-        const freeMatch = vmStat.match(/Pages free:\s+(\d+)/);
-        const inactiveMatch = vmStat.match(/Pages inactive:\s+(\d+)/);
-        
-        const freePages = freeMatch ? parseInt(freeMatch[1]) : 0;
-        const inactivePages = inactiveMatch ? parseInt(inactiveMatch[1]) : 0;
-        
-        // Calculate available memory in MB
-        const availableMB = Math.floor((freePages + inactivePages) * pageSize / (1024 * 1024));
-        
-        // Get swap info
-        const { stdout: swapOutput } = await $`sysctl vm.swapusage`;
-        const swapMatch = swapOutput.toString().match(/free = ([\d.]+)([MG])/);
-        let swapFreeMB = 0;
-        if (swapMatch) {
-          swapFreeMB = swapMatch[2] === 'G' 
-            ? Math.floor(parseFloat(swapMatch[1]) * 1024)
-            : Math.floor(parseFloat(swapMatch[1]));
-        }
-        
-        await log(`🧠 Memory check: ${availableMB}MB available, ${swapFreeMB}MB swap free`);
-        
-        const effectiveAvailableMB = availableMB + swapFreeMB;
-        
-        if (availableMB < minMemoryMB) {
-          await log(`⚠️  Low memory: ${availableMB}MB available, ${minMemoryMB}MB recommended`, { level: 'warning' });
-          await log('   This may cause performance issues.', { level: 'warning' });
-        }
-        
-        return true;
-      } catch (macError) {
-        await log(`⚠️  Could not check memory: ${macError.message}`, { level: 'warning' });
-        return true;
-      }
-    } else {
-      await log(`⚠️  Could not check memory: ${error.message}`, { level: 'warning' });
-      await log('   Continuing anyway, but memory issues may occur.', { level: 'warning' });
-      return true;
-    }
+    // Linux memory check failed
+    await log(`❌ Failed to check memory: ${error.message}`, { level: 'error' });
+    await log('   Memory check is required to prevent OOM killer', { level: 'error' });
+    await log('   Please ensure /proc/meminfo is accessible', { level: 'error' });
+    return false;
   }
 };
 
