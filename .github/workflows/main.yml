@@ -414,12 +414,7 @@ jobs:
   # === PUBLISH TO NPM ===
   publish:
     # Only publish when there's a new version and all tests pass
-    if: |
-      github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' &&
-      needs.detect-changes.outputs.new-version == 'true' &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled')
+    if: needs.detect-changes.outputs.new-version == 'true'
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, memory-check-windows, validate-docs]
     permissions:
