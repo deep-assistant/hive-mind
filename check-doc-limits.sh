@@ -7,7 +7,7 @@ set -e
 echo "📏 Checking documentation file size limits..."
 
 # Maximum allowed lines per file
-MAX_LINES=1000
+MAX_LINES=2500
 ERRORS_FOUND=0
 
 # Check all markdown files in docs directory

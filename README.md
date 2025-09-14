@@ -175,13 +175,13 @@ Find resume commands in logs:
 grep -E '\(cd /tmp/gh-issue-solver-[0-9]+ && claude --resume [0-9a-f-]{36}\)' hive-*.log
 ```
 
-## 🤝 Human-AI Collaboration
+## 🔧 Configuration
 
-The system supports bidirectional communication:
-- **Requirements gathering** from humans
-- **Expert consultation** on complex decisions  
-- **Feedback integration** for continuous improvement
-- **Quality assurance** through human oversight
+Authentication is handled through:
+- `gh auth login` - GitHub CLI authentication
+- `claude-profiles` - Claude authentication profile migration to server
+
+No environment variable configuration is currently supported.
 
 ## 🛡️ File Size Enforcement
 
