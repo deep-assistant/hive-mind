@@ -28,7 +28,8 @@ jobs:
       id: changes
       run: |
         # For PRs, compare against base branch; for pushes, compare with previous commit
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
+        EVENT_NAME="${{ github.event_name }}"
+        if [ "$EVENT_NAME" = "pull_request" ]; then
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           git fetch origin $BASE_SHA
@@ -77,8 +78,14 @@ jobs:
     
     - name: Check version status
       id: version
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
+        # Only check for new versions on main branch pushes
+        if [ "${{ github.ref }}" != "refs/heads/main" ] || [ "${{ github.event_name }}" != "push" ]; then
+          echo "Not a main branch push - skipping version check"
+          echo "new=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
         if [ ! -f "package.json" ]; then
           echo "new=false" >> $GITHUB_OUTPUT
           echo "No package.json found"
