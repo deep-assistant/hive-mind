@@ -125,7 +125,6 @@ const argv = yargs(hideBin(process.argv))
   })
   .help('h')
   .alias('h', 'help')
-  .strict()
   .argv;
 
 const githubUrl = argv['github-url'];
@@ -338,28 +337,50 @@ async function worker(workerId) {
           await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
-          // Execute solve.mjs using command-stream
+          // Execute solve.mjs using execSync to avoid command-stream quoting issues
           await log(`   🚀 Executing solve.mjs for ${issueUrl}...`);
           
           const startTime = Date.now();
           const forkFlag = argv.fork ? ' --fork' : '';
-          const solveCommand = $`./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
           
-          // Stream output and capture result
+          // Use execSync to avoid command-stream's automatic quote addition
+          const { execSync } = await import('child_process');
+          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
+          
           let exitCode = 0;
-          for await (const chunk of solveCommand.stream()) {
-            if (chunk.type === 'stdout') {
-              const output = chunk.data.toString().trim();
-              if (output) {
-                await log(`   [solve.mjs] ${output}`, { verbose: true });
+          try {
+            const output = execSync(command, { 
+              encoding: 'utf8',
+              stdio: 'pipe',
+              maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
+            });
+            
+            // Log the output if verbose mode is enabled
+            if (output && argv.verbose) {
+              const lines = output.trim().split('\n');
+              for (const line of lines) {
+                if (line.trim()) {
+                  await log(`   [solve.mjs] ${line}`, { verbose: true });
+                }
               }
-            } else if (chunk.type === 'stderr') {
-              const error = chunk.data.toString().trim();
-              if (error) {
-                await log(`   [solve.mjs ERROR] ${error}`, { level: 'error', verbose: true });
+            }
+          } catch (error) {
+            exitCode = error.status || 1;
+            if (error.stdout && argv.verbose) {
+              const lines = error.stdout.toString().trim().split('\n');
+              for (const line of lines) {
+                if (line.trim()) {
+                  await log(`   [solve.mjs] ${line}`, { verbose: true });
+                }
               }
-            } else if (chunk.type === 'exit') {
-              exitCode = chunk.code;
+            }
+            if (error.stderr) {
+              const errorLines = error.stderr.toString().trim().split('\n');
+              for (const line of errorLines) {
+                if (line.trim()) {
+                  await log(`   [solve.mjs ERROR] ${line}`, { level: 'error', verbose: true });
+                }
+              }
             }
           }
           
