@@ -349,6 +349,9 @@ async function worker(workerId) {
           const { execSync } = await import('child_process');
           const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
           
+          // Log the actual command being executed so users can investigate/reproduce
+          await log(`   📋 Command: ${command}`);
+          
           let exitCode = 0;
           try {
             const output = execSync(command, { 
