@@ -33,6 +33,14 @@ const { checkSystem } = memCheck;
 
 // The cleanupTempDirectories function has been moved to lib.mjs
 
+// Check for help flag early - simple approach without yargs duplication
+const rawArgs = process.argv.slice(2);
+if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+  // Let yargs handle help display naturally by just parsing and exiting
+  // This avoids duplicating the entire yargs configuration
+  process.env.HELP_REQUESTED = 'true';
+}
+
 // Configure command line arguments
 const argv = yargs(hideBin(process.argv))
   .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
@@ -126,6 +134,11 @@ const argv = yargs(hideBin(process.argv))
   .help('h')
   .alias('h', 'help')
   .argv;
+
+// Exit immediately if help was requested - this prevents any further execution
+if (process.env.HELP_REQUESTED === 'true') {
+  process.exit(0);
+}
 
 const githubUrl = argv['github-url'];
 
