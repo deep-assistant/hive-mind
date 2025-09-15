@@ -202,7 +202,9 @@ await log(`   🎯 Focus: ${argv.focus}`);
 if (argv.autoApprove) {
   await log(`   ✅ Auto-approve: Enabled`);
 }
-await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
+if (!argv.once) {
+  await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
+}
 await log(`   ${argv.once ? '🚀 Mode: Single run' : '♾️  Mode: Continuous monitoring'}`);
 if (argv.maxPrs > 0) {
   await log(`   🔢 Max PRs: ${argv.maxPrs}`);
