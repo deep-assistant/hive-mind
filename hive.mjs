@@ -352,55 +352,66 @@ async function worker(workerId) {
           await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
-          // Execute solve.mjs using execSync to avoid command-stream quoting issues
+          // Execute solve.mjs using spawn to enable real-time streaming while avoiding command-stream quoting issues
           await log(`   🚀 Executing solve.mjs for ${issueUrl}...`);
           
           const startTime = Date.now();
           const forkFlag = argv.fork ? ' --fork' : '';
           
-          // Use execSync to avoid command-stream's automatic quote addition
-          const { execSync } = await import('child_process');
-          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
+          // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
+          const { spawn } = await import('child_process');
+          
+          // Build arguments array to avoid shell parsing issues
+          const args = [issueUrl, '--model', argv.model];
+          if (argv.fork) {
+            args.push('--fork');
+          }
           
           // Log the actual command being executed so users can investigate/reproduce
+          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
           await log(`   📋 Command: ${command}`);
           
           let exitCode = 0;
-          try {
-            const output = execSync(command, { 
-              encoding: 'utf8',
-              stdio: 'pipe',
-              maxBuffer: 10 * 1024 * 1024 // 10MB buffer for large outputs
+          
+          // Create promise to handle async spawn process
+          await new Promise((resolve, reject) => {
+            const child = spawn('./solve.mjs', args, {
+              stdio: ['pipe', 'pipe', 'pipe']
             });
             
-            // Log the output if verbose mode is enabled
-            if (output && argv.verbose) {
-              const lines = output.trim().split('\n');
+            // Handle stdout data - stream output in real-time
+            child.stdout.on('data', (data) => {
+              const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  await log(`   [solve.mjs] ${line}`, { verbose: true });
+                  log(`   [solve.mjs] ${line}`, { verbose: true }).catch(() => {});
                 }
               }
-            }
-          } catch (error) {
-            exitCode = error.status || 1;
-            if (error.stdout && argv.verbose) {
-              const lines = error.stdout.toString().trim().split('\n');
+            });
+            
+            // Handle stderr data - stream errors in real-time
+            child.stderr.on('data', (data) => {
+              const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  await log(`   [solve.mjs] ${line}`, { verbose: true });
+                  log(`   [solve.mjs ERROR] ${line}`, { level: 'error', verbose: true }).catch(() => {});
                 }
               }
-            }
-            if (error.stderr) {
-              const errorLines = error.stderr.toString().trim().split('\n');
-              for (const line of errorLines) {
-                if (line.trim()) {
-                  await log(`   [solve.mjs ERROR] ${line}`, { level: 'error', verbose: true });
-                }
-              }
-            }
-          }
+            });
+            
+            // Handle process completion
+            child.on('close', (code) => {
+              exitCode = code || 0;
+              resolve();
+            });
+            
+            // Handle process errors
+            child.on('error', (error) => {
+              exitCode = 1;
+              log(`   [solve.mjs ERROR] Process error: ${error.message}`, { level: 'error', verbose: true }).catch(() => {});
+              resolve();
+            });
+          });
           
           const duration = Math.round((Date.now() - startTime) / 1000);
           
