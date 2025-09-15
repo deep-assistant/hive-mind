@@ -228,7 +228,9 @@ await log(`   🤖 Model: ${argv.model}`);
 if (argv.fork) {
   await log(`   🍴 Fork: ENABLED (will fork repos if no write access)`);
 }
-await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
+if (!argv.once) {
+  await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
+}
 await log(`   ${argv.once ? '🚀 Mode: Single run' : '♾️  Mode: Continuous monitoring'}`);
 if (argv.maxIssues > 0) {
   await log(`   🔢 Max Issues: ${argv.maxIssues}`);
