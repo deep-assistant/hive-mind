@@ -5,59 +5,109 @@ echo "[TEST] Testing swap file creation function..."
 
 # --- Function: create swap file ---
 create_swap_file() {
-  echo "[*] Setting up 2GB swap file..."
+  echo "[*] Setting up 2GB total swap space..."
   
-  # Check if swap file already exists
-  if [ -f /swapfile ]; then
-    echo "[*] Swap file already exists, checking if it's active..."
-    if swapon --show | grep -q /swapfile; then
-      echo "[*] Swap file is already active."
-      return 0
+  local target_total_mb=2048  # 2GB target
+  local current_total_mb=0
+  
+  # Function to get file size in MB
+  get_file_size_mb() {
+    local file="$1"
+    if [ -f "$file" ]; then
+      local size_bytes=$(stat -c%s "$file" 2>/dev/null || echo "0")
+      echo $((size_bytes / 1024 / 1024))
     else
-      echo "[*] Swap file exists but not active, activating it..."
-      sudo swapon /swapfile
-      return 0
+      echo "0"
     fi
+  }
+  
+  # Check existing swap files and calculate total
+  echo "[*] Checking existing swap configuration..."
+  for i in "" 1 2 3 4 5; do
+    local swapfile="/swapfile$i"
+    if [ -f "$swapfile" ]; then
+      local size_mb=$(get_file_size_mb "$swapfile")
+      current_total_mb=$((current_total_mb + size_mb))
+      echo "[*] Found $swapfile: ${size_mb}MB"
+      
+      # Activate if not already active
+      if ! swapon --show | grep -q "$swapfile"; then
+        echo "[*] Activating $swapfile..."
+        sudo swapon "$swapfile" || true
+      fi
+    fi
+  done
+  
+  echo "[*] Current total swap: ${current_total_mb}MB, Target: ${target_total_mb}MB"
+  
+  # If we already have enough swap, we're done
+  if [ "$current_total_mb" -ge "$target_total_mb" ]; then
+    echo "[*] Already have sufficient swap space (${current_total_mb}MB >= ${target_total_mb}MB)"
+    return 0
   fi
   
-  # Check available disk space (need at least 3GB free for 2GB swap + safety margin)
-  available_space_kb=$(df / | awk 'NR==2 {print $4}')
-  required_space_kb=$((3 * 1024 * 1024))  # 3GB in KB
+  # Calculate how much additional swap we need
+  local needed_mb=$((target_total_mb - current_total_mb))
+  echo "[*] Need to create ${needed_mb}MB additional swap space..."
   
-  if [ "$available_space_kb" -lt "$required_space_kb" ]; then
-    echo "[!] Warning: Insufficient disk space for 2GB swap file. Available: $(($available_space_kb/1024/1024))GB, Required: 3GB"
+  # Check available disk space (need extra margin for safety)
+  local available_space_kb=$(df / | awk 'NR==2 {print $4}')
+  local needed_space_kb=$((needed_mb * 1024 + 1024 * 1024))  # needed + 1GB safety margin
+  
+  if [ "$available_space_kb" -lt "$needed_space_kb" ]; then
+    echo "[!] Warning: Insufficient disk space for additional swap. Available: $(($available_space_kb/1024/1024))GB, Needed: $(($needed_space_kb/1024/1024))GB"
     return 1
   fi
   
-  # Create 2GB swap file
-  echo "[*] Creating 2GB swap file at /swapfile..."
+  # Find next available swap file name
+  local new_swapfile=""
+  for i in "" 1 2 3 4 5; do
+    local candidate="/swapfile$i"
+    if [ ! -f "$candidate" ]; then
+      new_swapfile="$candidate"
+      break
+    fi
+  done
+  
+  if [ -z "$new_swapfile" ]; then
+    echo "[!] Error: Cannot find available swap file name (checked /swapfile through /swapfile5)"
+    return 1
+  fi
+  
+  # Create additional swap file
+  echo "[*] Creating ${needed_mb}MB swap file at $new_swapfile..."
   if command -v fallocate >/dev/null 2>&1; then
-    sudo fallocate -l 2G /swapfile
+    sudo fallocate -l "${needed_mb}M" "$new_swapfile"
   else
     # Fallback to dd if fallocate is not available
-    sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
+    sudo dd if=/dev/zero of="$new_swapfile" bs=1M count="$needed_mb" status=progress
   fi
   
   # Set proper permissions
-  sudo chmod 600 /swapfile
+  sudo chmod 600 "$new_swapfile"
   
   # Format as swap
-  sudo mkswap /swapfile
+  sudo mkswap "$new_swapfile"
   
   # Enable swap file
-  sudo swapon /swapfile
+  sudo swapon "$new_swapfile"
   
   # Make it persistent by adding to /etc/fstab if not already there
-  if ! grep -q "/swapfile" /etc/fstab; then
-    echo "[*] Adding swap file to /etc/fstab for persistence..."
-    sudo cp /etc/fstab /etc/fstab.backup
-    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  if ! grep -q "$new_swapfile" /etc/fstab; then
+    echo "[*] Adding $new_swapfile to /etc/fstab for persistence..."
+    # Ensure we have a backup of fstab
+    if [ ! -f /etc/fstab.backup ]; then
+      sudo cp /etc/fstab /etc/fstab.backup
+    fi
+    echo "$new_swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
   fi
   
-  # Verify swap is active
-  if swapon --show | grep -q /swapfile; then
-    echo "[*] Swap file successfully created and activated."
+  # Verify swap is active and show final status
+  if swapon --show | grep -q "$new_swapfile"; then
+    echo "[*] Swap file $new_swapfile successfully created and activated."
+    echo "[*] Final swap configuration:"
     swapon --show
+    echo "[*] Total swap space: $((current_total_mb + needed_mb))MB"
   else
     echo "[!] Error: Swap file creation failed."
     return 1
