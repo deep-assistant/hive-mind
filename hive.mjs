@@ -33,103 +33,12 @@ const { checkSystem } = memCheck;
 
 // The cleanupTempDirectories function has been moved to lib.mjs
 
-// Check for help flag early to prevent any execution
+// Check for help flag early - simple approach without yargs duplication
 const rawArgs = process.argv.slice(2);
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit immediately
-  yargs(hideBin(process.argv))
-    .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
-      yargs.positional('github-url', {
-        type: 'string',
-        description: 'GitHub organization, repository, or user URL to monitor',
-        demandOption: true
-      });
-    })
-    .usage('Usage: $0 <github-url> [options]')
-    .option('monitor-tag', {
-      type: 'string',
-      description: 'GitHub label to monitor for issues',
-      default: 'help wanted',
-      alias: 't'
-    })
-    .option('all-issues', {
-      type: 'boolean',
-      description: 'Process all open issues regardless of labels',
-      default: false,
-      alias: 'a'
-    })
-    .option('skip-issues-with-prs', {
-      type: 'boolean',
-      description: 'Skip issues that already have open pull requests',
-      default: false,
-      alias: 's'
-    })
-    .option('concurrency', {
-      type: 'number',
-      description: 'Number of concurrent solve.mjs instances',
-      default: 2,
-      alias: 'c'
-    })
-    .option('pull-requests-per-issue', {
-      type: 'number',
-      description: 'Number of pull requests to generate per issue',
-      default: 1,
-      alias: 'p'
-    })
-    .option('model', {
-      type: 'string',
-      description: 'Model to use for solve.mjs (opus or sonnet)',
-      alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet']
-    })
-    .option('interval', {
-      type: 'number',
-      description: 'Polling interval in seconds',
-      default: 300, // 5 minutes
-      alias: 'i'
-    })
-    .option('max-issues', {
-      type: 'number',
-      description: 'Maximum number of issues to process (0 = unlimited)',
-      default: 0
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      description: 'List issues that would be processed without actually processing them',
-      default: false
-    })
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Enable verbose logging',
-      alias: 'v',
-      default: false
-    })
-    .option('once', {
-      type: 'boolean',
-      description: 'Run once and exit instead of continuous monitoring',
-      default: false
-    })
-    .option('min-disk-space', {
-      type: 'number',
-      description: 'Minimum required disk space in MB (default: 500)',
-      default: 500
-    })
-    .option('auto-cleanup', {
-      type: 'boolean',
-      description: 'Automatically clean temporary directories (/tmp/* /var/tmp/*) when finished successfully',
-      default: false
-    })
-    .option('fork', {
-      type: 'boolean',
-      description: 'Fork the repository if you don\'t have write access',
-      alias: 'f',
-      default: false
-    })
-    .help('h')
-    .alias('h', 'help')
-    .showHelp();
-  process.exit(0);
+  // Let yargs handle help display naturally by just parsing and exiting
+  // This avoids duplicating the entire yargs configuration
+  process.env.HELP_REQUESTED = 'true';
 }
 
 // Configure command line arguments
@@ -225,6 +134,11 @@ const argv = yargs(hideBin(process.argv))
   .help('h')
   .alias('h', 'help')
   .argv;
+
+// Exit immediately if help was requested - this prevents any further execution
+if (process.env.HELP_REQUESTED === 'true') {
+  process.exit(0);
+}
 
 const githubUrl = argv['github-url'];
 
