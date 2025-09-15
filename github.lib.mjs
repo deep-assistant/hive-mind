@@ -301,7 +301,7 @@ ${logContent}
         const tempLogFile = `/tmp/solution-log-${targetType}-${Date.now()}.txt`;
         await fs.writeFile(tempLogFile, logContent);
 
-        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for ${targetType} #${targetNumber}" --filename "solution-log.txt"`;
+        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-log.txt"`;
 
         await fs.unlink(tempLogFile).catch(() => {});
 
