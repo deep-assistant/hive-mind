@@ -131,7 +131,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo };
       }
       
-      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
+      await log(`🧠 Memory check: ${availableMB}MB available (${minMemoryMB}MB required), swap: ${swapInfo} ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo };
       
     } catch (error) {
@@ -162,7 +162,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo };
       }
       
-      await log(`🧠 Memory check: ${availableMB}MB available, page file: ${swapInfo}`);
+      await log(`🧠 Memory check: ${availableMB}MB available (${minMemoryMB}MB required), page file: ${swapInfo} ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo };
       
     } catch (error) {
@@ -221,7 +221,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo };
       }
       
-      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
+      await log(`🧠 Memory check: ${availableMB}MB available (${minMemoryMB}MB required), swap: ${swapInfo} ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo };
       
     } catch (error) {
