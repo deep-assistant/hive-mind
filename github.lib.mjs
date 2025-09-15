@@ -234,6 +234,8 @@ export const checkGitHubPermissions = async () => {
  * @param {Function} options.log - Logging function
  * @param {Function} options.sanitizeLogContent - Function to sanitize log content
  * @param {boolean} [options.verbose=false] - Enable verbose logging
+ * @param {string} [options.errorMessage] - Error message to include in comment (for failure logs)
+ * @param {string} [options.customTitle] - Custom title for the comment (defaults to "🤖 Solution Log")
  * @returns {Promise<boolean>} - True if upload succeeded
  */
 export async function attachLogToGitHub(options) {
@@ -247,7 +249,9 @@ export async function attachLogToGitHub(options) {
     $,
     log,
     sanitizeLogContent,
-    verbose = false
+    verbose = false,
+    errorMessage,
+    customTitle = '🤖 Solution Log'
   } = options;
 
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
@@ -272,7 +276,30 @@ export async function attachLogToGitHub(options) {
     const logContent = await sanitizeLogContent(rawLogContent);
 
     // Create formatted comment
-    const logComment = `## 🤖 Solution Log
+    let logComment;
+    if (errorMessage) {
+      // Failure log format
+      logComment = `## 🚨 Solution Failed
+
+The automated solution encountered an error:
+\`\`\`
+${errorMessage}
+\`\`\`
+
+<details>
+<summary>Click to expand failure log (${Math.round(logStats.size / 1024)}KB)</summary>
+
+\`\`\`
+${logContent}
+\`\`\`
+
+</details>
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+    } else {
+      // Success log format
+      logComment = `## ${customTitle}
 
 This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
 
@@ -287,6 +314,7 @@ ${logContent}
 
 ---
 *Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+    }
 
     // Check GitHub comment size limit
     const GITHUB_COMMENT_LIMIT = 65536;
@@ -309,7 +337,24 @@ ${logContent}
           const gistUrl = gistResult.stdout.toString().trim();
 
           // Create comment with gist link
-          const gistComment = `## 🤖 Solution Log
+          let gistComment;
+          if (errorMessage) {
+            // Failure log gist format
+            gistComment = `## 🚨 Solution Failed
+
+The automated solution encountered an error:
+\`\`\`
+${errorMessage}
+\`\`\`
+
+📎 **Failure log uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
+🔗 [View complete failure log](${gistUrl})
+
+---
+*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+          } else {
+            // Success log gist format
+            gistComment = `## ${customTitle}
 
 This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
 
@@ -318,6 +363,7 @@ This log file contains the complete execution trace of the AI ${targetType === '
 
 ---
 *Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+          }
 
           const tempGistCommentFile = `/tmp/log-gist-comment-${targetType}-${Date.now()}.md`;
           await fs.writeFile(tempGistCommentFile, gistComment);

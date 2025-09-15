@@ -2459,23 +2459,22 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     // Try to attach to existing PR first
     if (global.createdPR && global.createdPR.number) {
       try {
-        const logContent = await fs.readFile(getLogFile(), 'utf8');
-        const truncatedLog = logContent.length > 50000 
-          ? logContent.substring(logContent.length - 50000) + '\n\n... (log truncated, showing last 50KB)'
-          : logContent;
-          
-        const failureComment = `## 🚨 Solution Failed\n\nThe automated solution encountered an error:\n\`\`\`\n${cleanErrorMessage(error)}\n\`\`\`\n\n<details>\n<summary>Click to expand failure log</summary>\n\n\`\`\`\n${truncatedLog}\n\`\`\`\n\n</details>\n\n----\n*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+        const logUploadSuccess = await attachLogToGitHub({
+          logFile: getLogFile(),
+          targetType: 'pr',
+          targetNumber: global.createdPR.number,
+          owner,
+          repo,
+          $,
+          log,
+          sanitizeLogContent,
+          verbose: argv.verbose,
+          errorMessage: cleanErrorMessage(error)
+        });
         
-        const tempFailureCommentFile = `/tmp/failure-comment-${Date.now()}.md`;
-        await fs.writeFile(tempFailureCommentFile, failureComment);
-        
-        const commentResult = await $({ quiet: true })`gh pr comment ${global.createdPR.number} --body-file "${tempFailureCommentFile}"`;
-        
-        if (commentResult.code === 0) {
+        if (logUploadSuccess) {
           await log('📎 Failure log attached to Pull Request');
         }
-        
-        await fs.unlink(tempFailureCommentFile).catch(() => {});
       } catch (attachError) {
         await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
       }
