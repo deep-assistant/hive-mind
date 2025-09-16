@@ -88,6 +88,16 @@ RUN echo 'export PATH="/home/hive/.bun/bin:/home/hive/.n/bin:/home/hive/.cargo/b
     && echo 'export N_PREFIX="/home/hive/.n"' >> /home/hive/.bashrc \
     && chown hive:hive /home/hive/.bashrc
 
+# Create git config file for hive user
+RUN echo "[user]" > /home/hive/.gitconfig \
+    && echo "  name = Hive-Mind Bot" >> /home/hive/.gitconfig \
+    && echo "  email = hive@localhost" >> /home/hive/.gitconfig \
+    && echo "[init]" >> /home/hive/.gitconfig \
+    && echo "  defaultBranch = main" >> /home/hive/.gitconfig \
+    && echo "[safe]" >> /home/hive/.gitconfig \
+    && echo "  directory = *" >> /home/hive/.gitconfig \
+    && chown hive:hive /home/hive/.gitconfig
+
 # Switch back to hive user for runtime
 USER hive
 
