@@ -709,15 +709,20 @@ try {
                 await log(`${formatAligned('✅', 'Default branch synced:', `with upstream/${upstreamDefaultBranch}`)}`);
 
                 // Step 3: Push the updated default branch to fork to keep it in sync
+                await log(`${formatAligned('🔄', 'Pushing to fork:', `${upstreamDefaultBranch} branch`)}`);
                 const pushResult = await $({ cwd: tempDir })`git push origin ${upstreamDefaultBranch}`;
                 if (pushResult.code === 0) {
                   await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
                 } else {
-                  await log(`${formatAligned('⚠️', 'Warning:', 'Failed to push updated default branch to fork')}`);
-                  // Show more detailed error information
+                  // Fork sync failed - exit immediately as per maintainer feedback
+                  await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
                   if (pushResult.stderr) {
-                    await log(`${formatAligned('', 'Push error:', pushResult.stderr.toString().trim())}`);
+                    const errorMsg = pushResult.stderr.toString().trim();
+                    await log(`${formatAligned('', 'Push error:', errorMsg)}`);
                   }
+                  await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
+                  await log(`${formatAligned('', 'Action:', 'Exiting to prevent accumulating failures')}`);
+                  process.exit(1);
                 }
               } else {
                 await log(`${formatAligned('⚠️', 'Warning:', 'Failed to sync default branch with upstream')}`);
