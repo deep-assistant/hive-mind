@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  hive-mind:
+    build:
+      context: ..
+      dockerfile: coolify/Dockerfile
+    image: hive-mind:production
+    container_name: hive-mind-prod
+
+    # Environment variables for the application
+    environment:
+      # GitHub Configuration
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION:-}
+      - GH_TOKEN=${GITHUB_TOKEN}  # Some tools expect GH_TOKEN
+
+      # Claude/AI Configuration
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-${CLAUDE_API_KEY}}
+
+      # Application Settings
+      - NODE_ENV=${NODE_ENV:-production}
+      - MONITOR_TAG=${MONITOR_TAG:-help wanted}
+      - CONCURRENCY=${CONCURRENCY:-2}
+      - INTERVAL=${INTERVAL:-300}
+      - MODEL=${MODEL:-sonnet}
+      - ALL_ISSUES=${ALL_ISSUES:-false}
+      - SKIP_ISSUES_WITH_PRS=${SKIP_ISSUES_WITH_PRS:-false}
+      - FORK=${FORK:-true}
+      - MAX_ISSUES=${MAX_ISSUES:-0}
+      - PULL_REQUESTS_PER_ISSUE=${PULL_REQUESTS_PER_ISSUE:-1}
+      - ATTACH_LOGS=${ATTACH_LOGS:-false}
+      - VERBOSE=${VERBOSE:-false}
+
+      # Coolify/Container Settings
+      - PORT=${PORT:-3000}
+      - TZ=${TZ:-UTC}
+
+    # Command override - pass the GitHub URL and any additional args
+    command: ${GITHUB_URL:-} ${HIVE_ARGS:-}
+
+    # Volumes for persistent data
+    volumes:
+      # Output directory for generated files
+      - ./output:/app/output
+      # Logs directory
+      - ./logs:/app/claude-logs
+      # Sessions directory
+      - ./sessions:/app/claude-sessions
+
+      # Claude Code persistent storage - IMPORTANT for Max plan users
+      - ./claude-config:/home/hive/.claude
+      - ./config:/home/hive/.config
+
+      # GitHub CLI config persistence
+      - ./gh-config:/home/hive/.config/gh
+
+      # Git config (if needed)
+      - ./git-config:/home/hive/.gitconfig:ro
+
+    # Resource limits (adjust based on your server)
+    deploy:
+      resources:
+        limits:
+          cpus: '${CPU_LIMIT:-2}'
+          memory: ${MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: '${CPU_RESERVATION:-0.5}'
+          memory: ${MEMORY_RESERVATION:-1G}
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    # Network mode - using bridge for isolation
+    network_mode: bridge
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "hive.mjs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Optional: Add a network if you need to connect to other services
+networks:
+  default:
+    driver: bridge
