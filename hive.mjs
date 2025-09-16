@@ -23,7 +23,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -136,6 +136,28 @@ const argv = yargs(hideBin(process.argv))
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
     default: false
   })
+  .option('project-number', {
+    type: 'number',
+    description: 'GitHub Project number to monitor',
+    alias: 'pn'
+  })
+  .option('project-owner', {
+    type: 'string',
+    description: 'GitHub Project owner (organization or user)',
+    alias: 'po'
+  })
+  .option('project-status', {
+    type: 'string',
+    description: 'Project status column to monitor (e.g., "Ready", "To Do")',
+    alias: 'ps',
+    default: 'Ready'
+  })
+  .option('project-mode', {
+    type: 'boolean',
+    description: 'Enable project-based monitoring instead of label-based',
+    alias: 'pm',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .argv;
@@ -187,6 +209,26 @@ if (!githubUrl) {
   process.exit(1);
 }
 
+// Validate project mode arguments
+if (argv.projectMode) {
+  if (!argv.projectNumber) {
+    await log(`❌ Project mode requires --project-number`, { level: 'error' });
+    await log(`   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER`, { level: 'error' });
+    process.exit(1);
+  }
+
+  if (!argv.projectOwner) {
+    await log(`❌ Project mode requires --project-owner`, { level: 'error' });
+    await log(`   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER`, { level: 'error' });
+    process.exit(1);
+  }
+
+  if (typeof argv.projectNumber !== 'number' || argv.projectNumber <= 0) {
+    await log(`❌ Project number must be a positive integer`, { level: 'error' });
+    process.exit(1);
+  }
+}
+
 // Helper function to check GitHub permissions - moved to github.lib.mjs
 
 // Check GitHub permissions early in the process
@@ -232,7 +274,10 @@ if (!repo) {
 
 await log(`🎯 Monitoring Configuration:`);
 await log(`   📍 Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
-if (argv.allIssues) {
+if (argv.projectMode) {
+  await log(`   📋 Mode: PROJECT #${argv.projectNumber} (owner: ${argv.projectOwner})`);
+  await log(`   📌 Status: "${argv.projectStatus}"`);
+} else if (argv.allIssues) {
   await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
 } else {
   await log(`   🏷️  Tag: "${argv.monitorTag}"`);
@@ -494,16 +539,26 @@ async function hasOpenPullRequests(issueUrl) {
 
 // Function to fetch issues from GitHub
 async function fetchIssues() {
-  if (argv.allIssues) {
+  if (argv.projectMode) {
+    await log(`\n🔍 Fetching issues from GitHub Project #${argv.projectNumber} (status: "${argv.projectStatus}")...`);
+  } else if (argv.allIssues) {
     await log(`\n🔍 Fetching ALL open issues...`);
   } else {
     await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
   }
-  
+
   try {
     let issues = [];
-    
-    if (argv.allIssues) {
+
+    if (argv.projectMode) {
+      // Use GitHub Projects v2 mode
+      if (!argv.projectNumber || !argv.projectOwner) {
+        throw new Error('Project mode requires --project-number and --project-owner');
+      }
+
+      issues = await fetchProjectIssues(argv.projectNumber, argv.projectOwner, argv.projectStatus);
+
+    } else if (argv.allIssues) {
       // Fetch all open issues without label filter using pagination
       let searchCmd;
       if (scope === 'repository') {
@@ -571,15 +626,19 @@ async function fetchIssues() {
     }
     
     if (issues.length === 0) {
-      if (argv.allIssues) {
+      if (argv.projectMode) {
+        await log(`   ℹ️  No issues found in project with status "${argv.projectStatus}"`);
+      } else if (argv.allIssues) {
         await log(`   ℹ️  No open issues found`);
       } else {
         await log(`   ℹ️  No issues found with label "${argv.monitorTag}"`);
       }
       return [];
     }
-    
-    if (argv.allIssues) {
+
+    if (argv.projectMode) {
+      await log(`   📋 Found ${issues.length} issue(s) with status "${argv.projectStatus}"`);
+    } else if (argv.allIssues) {
       await log(`   📋 Found ${issues.length} open issue(s)`);
     } else {
       await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
