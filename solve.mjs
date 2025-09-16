@@ -1499,6 +1499,7 @@ ${prBody}`, { verbose: true });
   let newPrComments = 0;
   let newIssueComments = 0;
   let commentInfo = '';
+  let feedbackLines = [];
 
   // Debug logging to understand when comment counting doesn't run
   if (argv.verbose) {
@@ -1585,7 +1586,7 @@ ${prBody}`, { verbose: true });
         }
 
         // Build comprehensive feedback info for system prompt
-        const feedbackLines = [];
+        feedbackLines = []; // Reset for this execution
         let feedbackDetected = false;
         const feedbackSources = [];
 
@@ -1805,11 +1806,10 @@ ${prBody}`, { verbose: true });
   // Add blank line
   promptLines.push('');
   
-  // Add comment info if in continue mode and there are comments
-  if (isContinueMode && commentInfo && commentInfo.trim()) {
-    // Extract just the comment lines without the extra newlines
-    const commentTextLines = commentInfo.trim().split('\n').filter(line => line.trim());
-    commentTextLines.forEach(line => promptLines.push(line));
+  // Add feedback info if in continue mode and there are feedback items
+  if (isContinueMode && feedbackLines && feedbackLines.length > 0) {
+    // Add each feedback line directly
+    feedbackLines.forEach(line => promptLines.push(line));
     promptLines.push('');
   }
   
@@ -1823,12 +1823,12 @@ ${prBody}`, { verbose: true });
     await log(`\n📝 Final prompt structure:`, { verbose: true });
     await log(`   Lines: ${promptLines.length}`, { verbose: true });
     await log(`   Characters: ${prompt.length}`, { verbose: true });
-    if (commentInfo && commentInfo.trim()) {
-      await log(`   Comment info: Included`, { verbose: true });
+    if (feedbackLines && feedbackLines.length > 0) {
+      await log(`   Feedback info: Included`, { verbose: true });
     }
   }
 
-  const systemPrompt = `You are AI issue solver.${commentInfo}
+  const systemPrompt = `You are AI issue solver.${feedbackLines && feedbackLines.length > 0 ? '\n\n' + feedbackLines.join('\n') + '\n' : ''}
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
@@ -1989,10 +1989,10 @@ Self review.
     await log(`   Branch: ${branchName}`, { verbose: true });
     await log(`   Prompt length: ${prompt.length} chars`, { verbose: true });
     await log(`   System prompt length: ${systemPrompt.length} chars`, { verbose: true });
-    if (commentInfo) {
-      await log(`   Comment info included: Yes (${commentInfo.trim().split('\n').filter(l => l).length} lines)`, { verbose: true });
+    if (feedbackLines && feedbackLines.length > 0) {
+      await log(`   Feedback info included: Yes (${feedbackLines.length} lines)`, { verbose: true });
     } else {
-      await log(`   Comment info included: No`, { verbose: true });
+      await log(`   Feedback info included: No`, { verbose: true });
     }
   }
   
