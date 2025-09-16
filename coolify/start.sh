@@ -26,8 +26,25 @@ export PATH="/home/hive/.bun/bin:/home/hive/.n/bin:/home/hive/.cargo/bin:$PATH"
 # Check if we have auth and URL
 if gh auth status >/dev/null 2>&1 && [ -n "$GITHUB_URL" ]; then
   echo "✓ GitHub authenticated"
+
+  # Try to start hive-mind, but catch failures
   echo "✓ Starting hive-mind to monitor: $GITHUB_URL"
-  exec node hive.mjs "$GITHUB_URL"
+  node hive.mjs "$GITHUB_URL"
+  EXIT_CODE=$?
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "⚠ Hive-mind failed to start (exit code: $EXIT_CODE)"
+    echo ""
+    echo "Common issues:"
+    echo "  - Claude CLI not authenticated: Run 'claude' or 'code' to authenticate"
+    echo "  - Missing API key: Set CLAUDE_API_KEY environment variable"
+    echo ""
+    echo "Container running. Access terminal to configure."
+    echo "Keeping container alive..."
+    # Keep container running without consuming CPU
+    tail -f /dev/null
+  fi
 else
   echo ""
   if ! gh auth status >/dev/null 2>&1; then
