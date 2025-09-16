@@ -130,6 +130,11 @@ const argv = yargs(hideBin(process.argv))
     description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
     default: false
   })
+  .option('continue-only-on-feedback', {
+    type: 'boolean',
+    description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
+    default: false
+  })
   .option('min-disk-space', {
     type: 'number',
     description: 'Minimum required disk space in MB (default: 500)',
@@ -222,6 +227,18 @@ if (!issueUrl) {
   await log(`❌ GitHub issue URL is required`, { level: 'error' });
   await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
   process.exit(1);
+}
+
+// Validate --continue-only-on-feedback option requirements
+if (argv.continueOnlyOnFeedback) {
+  if (!isPrUrl && !(isIssueUrl && argv.autoContinue)) {
+    await log(`❌ --continue-only-on-feedback option requirements not met`, { level: 'error' });
+    await log(`   This option works only with:`, { level: 'error' });
+    await log(`   • Pull request URL, OR`, { level: 'error' });
+    await log(`   • Issue URL with --auto-continue option`, { level: 'error' });
+    await log(`   Current: ${isPrUrl ? 'PR URL' : 'Issue URL'} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
+    process.exit(1);
+  }
 }
 
 // Check disk space before proceeding
@@ -1567,27 +1584,218 @@ ${prBody}`, { verbose: true });
           }
         }
 
-        // Build comment info for system prompt
-        const commentLines = [];
-        
-        // Only add comment lines if counts are > 0 to avoid wasting tokens
+        // Enhanced feedback detection for --continue-only-on-feedback option
+        if (argv.continueOnlyOnFeedback && (isContinueMode || argv.autoContinue)) {
+          await log(`${formatAligned('🔍', 'Feedback detection:', 'Checking for any feedback since last commit...')}`);
+
+          let feedbackDetected = false;
+          const feedbackSources = [];
+
+          // 1. Check for new comments (excluding our own log comments)
+          let filteredPrComments = 0;
+          let filteredIssueComments = 0;
+
+          // Filter out comments that contain logs from solve.mjs
+          const logPatterns = [
+            /📊.*Log file|solution.*log/i,
+            /🔗.*Link:|💻.*Session:/i,
+            /Generated with.*solve\.mjs/i,
+            /Session ID:|Log file available:/i
+          ];
+
+          if (allPrComments.length > 0) {
+            const filteredComments = allPrComments.filter(comment =>
+              new Date(comment.created_at) > lastCommitTime &&
+              !logPatterns.some(pattern => pattern.test(comment.body || ''))
+            );
+            filteredPrComments = filteredComments.length;
+          }
+
+          if (issueNumber) {
+            const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+            if (issueCommentsResult.code === 0) {
+              const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
+              const filteredComments = issueComments.filter(comment =>
+                new Date(comment.created_at) > lastCommitTime &&
+                !logPatterns.some(pattern => pattern.test(comment.body || ''))
+              );
+              filteredIssueComments = filteredComments.length;
+            }
+          }
+
+          if (filteredPrComments > 0 || filteredIssueComments > 0) {
+            feedbackDetected = true;
+            feedbackSources.push(`New comments (${filteredPrComments + filteredIssueComments} filtered)`);
+          }
+
+          // 2. Check for edited PR or issue description
+          try {
+            // Check PR description edit time
+            const prDetailsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}`;
+            if (prDetailsResult.code === 0) {
+              const prDetails = JSON.parse(prDetailsResult.stdout.toString());
+              const prUpdatedAt = new Date(prDetails.updated_at);
+              if (prUpdatedAt > lastCommitTime) {
+                feedbackDetected = true;
+                feedbackSources.push('PR description edited');
+              }
+            }
+
+            // Check issue description edit time if we have an issue
+            if (issueNumber) {
+              const issueDetailsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}`;
+              if (issueDetailsResult.code === 0) {
+                const issueDetails = JSON.parse(issueDetailsResult.stdout.toString());
+                const issueUpdatedAt = new Date(issueDetails.updated_at);
+                if (issueUpdatedAt > lastCommitTime) {
+                  feedbackDetected = true;
+                  feedbackSources.push('Issue description edited');
+                }
+              }
+            }
+          } catch (error) {
+            await log(`Warning: Could not check description edit times: ${cleanErrorMessage(error)}`, { level: 'warning' });
+          }
+
+          // 3. Check for new commits on default branch
+          try {
+            const defaultBranchResult = await $`gh api repos/${owner}/${repo}`;
+            if (defaultBranchResult.code === 0) {
+              const repoData = JSON.parse(defaultBranchResult.stdout.toString());
+              const defaultBranch = repoData.default_branch;
+
+              const commitsResult = await $`gh api repos/${owner}/${repo}/commits --field sha=${defaultBranch} --field since=${lastCommitTime.toISOString()}`;
+              if (commitsResult.code === 0) {
+                const commits = JSON.parse(commitsResult.stdout.toString());
+                if (commits.length > 0) {
+                  feedbackDetected = true;
+                  feedbackSources.push(`New commits on ${defaultBranch} (${commits.length})`);
+                }
+              }
+            }
+          } catch (error) {
+            await log(`Warning: Could not check default branch commits: ${cleanErrorMessage(error)}`, { level: 'warning' });
+          }
+
+          // 4. Check merge status (dirty indicates conflicts)
+          if (mergeStateStatus === 'DIRTY') {
+            feedbackDetected = true;
+            feedbackSources.push('Merge status dirty');
+          }
+
+          // 5. Check for failed PR checks
+          try {
+            const checksResult = await $`gh api repos/${owner}/${repo}/commits/$(gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '.head.sha')/check-runs`;
+            if (checksResult.code === 0) {
+              const checksData = JSON.parse(checksResult.stdout.toString());
+              const failedChecks = checksData.check_runs?.filter(check =>
+                check.conclusion === 'failure' && new Date(check.completed_at) > lastCommitTime
+              ) || [];
+
+              if (failedChecks.length > 0) {
+                feedbackDetected = true;
+                feedbackSources.push(`Failed PR checks (${failedChecks.length})`);
+              }
+            }
+          } catch (error) {
+            await log(`Warning: Could not check PR status checks: ${cleanErrorMessage(error)}`, { level: 'warning' });
+          }
+
+          // Report feedback detection results
+          if (feedbackDetected) {
+            await log(`✅ continue-only-on-feedback: Feedback detected, continuing...`);
+            await log(formatAligned('📋', 'Feedback sources:', feedbackSources.join(', '), 2));
+          } else {
+            await log(`❌ continue-only-on-feedback: No feedback detected since last commit`);
+            await log(`   This option requires any of the following to proceed:`);
+            await log(`   • New comments (excluding solve.mjs logs)`);
+            await log(`   • Edited issue/PR descriptions`);
+            await log(`   • New commits on default branch`);
+            await log(`   • Merge status dirty`);
+            await log(`   • Failed pull request checks`);
+            process.exit(1);
+          }
+        }
+
+        // Build comprehensive feedback info for system prompt
+        const feedbackLines = [];
+
+        // Add comment info if counts are > 0 to avoid wasting tokens
         if (newPrComments > 0) {
-          commentLines.push(`New comments on the pull request: ${newPrComments}`);
+          feedbackLines.push(`New comments on the pull request: ${newPrComments}`);
         }
         if (newIssueComments > 0) {
-          commentLines.push(`New comments on the issue: ${newIssueComments}`);
+          feedbackLines.push(`New comments on the issue: ${newIssueComments}`);
         }
-        
-        if (commentLines.length > 0) {
-          commentInfo = '\n\n' + commentLines.join('\n') + '\n';
+
+        // Add other feedback information for all continue modes (not just when option is enabled)
+        if (isContinueMode || argv.autoContinue) {
+          try {
+            // Check for edited descriptions
+            const prDetailsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}`;
+            if (prDetailsResult.code === 0) {
+              const prDetails = JSON.parse(prDetailsResult.stdout.toString());
+              const prUpdatedAt = new Date(prDetails.updated_at);
+              if (prUpdatedAt > lastCommitTime) {
+                feedbackLines.push(`Pull request description was edited after last commit`);
+              }
+            }
+
+            if (issueNumber) {
+              const issueDetailsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}`;
+              if (issueDetailsResult.code === 0) {
+                const issueDetails = JSON.parse(issueDetailsResult.stdout.toString());
+                const issueUpdatedAt = new Date(issueDetails.updated_at);
+                if (issueUpdatedAt > lastCommitTime) {
+                  feedbackLines.push(`Issue description was edited after last commit`);
+                }
+              }
+            }
+
+            // Check for new commits on default branch
+            const defaultBranchResult = await $`gh api repos/${owner}/${repo}`;
+            if (defaultBranchResult.code === 0) {
+              const repoData = JSON.parse(defaultBranchResult.stdout.toString());
+              const defaultBranch = repoData.default_branch;
+
+              const commitsResult = await $`gh api repos/${owner}/${repo}/commits --field sha=${defaultBranch} --field since=${lastCommitTime.toISOString()}`;
+              if (commitsResult.code === 0) {
+                const commits = JSON.parse(commitsResult.stdout.toString());
+                if (commits.length > 0) {
+                  feedbackLines.push(`New commits on ${defaultBranch} branch: ${commits.length}`);
+                }
+              }
+            }
+
+            // Check for failed PR checks
+            const checksResult = await $`gh api repos/${owner}/${repo}/commits/$(gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '.head.sha')/check-runs`;
+            if (checksResult.code === 0) {
+              const checksData = JSON.parse(checksResult.stdout.toString());
+              const failedChecks = checksData.check_runs?.filter(check =>
+                check.conclusion === 'failure' && new Date(check.completed_at) > lastCommitTime
+              ) || [];
+
+              if (failedChecks.length > 0) {
+                feedbackLines.push(`Failed pull request checks: ${failedChecks.length}`);
+              }
+            }
+          } catch (error) {
+            if (argv.verbose) {
+              await log(`Warning: Could not gather extended feedback info: ${cleanErrorMessage(error)}`, { level: 'warning' });
+            }
+          }
+        }
+
+        if (feedbackLines.length > 0) {
+          commentInfo = '\n\n' + feedbackLines.join('\n') + '\n';
           if (argv.verbose) {
-            await log(`   Comment info will be added to prompt:`, { verbose: true });
-            commentLines.forEach(async line => {
+            await log(`   Feedback info will be added to prompt:`, { verbose: true });
+            feedbackLines.forEach(async line => {
               await log(`     - ${line}`, { verbose: true });
             });
           }
         } else if (argv.verbose) {
-          await log(`   No comment info to add (0 new comments, saving tokens)`, { verbose: true });
+          await log(`   No feedback info to add (0 new items, saving tokens)`, { verbose: true });
         }
       }
     } catch (error) {
