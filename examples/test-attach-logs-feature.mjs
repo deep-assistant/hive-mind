@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// Comprehensive test of the --attach-solution-logs feature
-console.log('🧪 Testing --attach-solution-logs feature implementation...\n');
+// Comprehensive test of the --attach-logs feature
+console.log('🧪 Testing --attach-logs feature implementation...\n');
 
 import { readFileSync } from 'fs';
 import { execSync } from 'child_process';
@@ -11,10 +11,16 @@ console.log('1. Testing command line option...');
 try {
   const helpOutput = execSync('node solve.mjs --help 2>&1', { encoding: 'utf8', cwd: '..' });
   
-  if (helpOutput.includes('--attach-solution-logs')) {
-    console.log('   ✅ Option exists in help text');
+  if (helpOutput.includes('--attach-logs')) {
+    console.log('   ✅ --attach-logs option exists in help text');
   } else {
-    console.log('   ❌ Option missing from help text');
+    console.log('   ❌ --attach-logs option not found in help text');
+  }
+
+  if (!helpOutput.includes('--attach-solution-logs')) {
+    console.log('   ✅ --attach-solution-logs successfully removed from help text');
+  } else {
+    console.log('   ❌ --attach-solution-logs still found in help text (should be removed)');
   }
   
   if (helpOutput.includes('⚠️ WARNING: May expose sensitive data')) {
@@ -126,7 +132,7 @@ console.log('\n🧪 Feature implementation test complete!\n');
 
 // Summary
 console.log('📋 SUMMARY:');
-console.log('   • New --attach-solution-logs option added');
+console.log('   • --attach-logs option available (--attach-solution-logs removed)');
 console.log('   • Default disabled for security');
 console.log('   • Strong security warnings with countdown');
 console.log('   • Uploads logs to both PRs and issue comments');

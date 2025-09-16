@@ -108,11 +108,10 @@ const argv = yargs(hideBin(process.argv))
     alias: 'f',
     default: false
   })
-  .option('attach-solution-logs', {
+  .option('attach-logs', {
     type: 'boolean',
     description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-    default: false,
-    alias: 'attach-logs'
+    default: false
   })
   .option('auto-continue', {
     type: 'boolean',
@@ -170,18 +169,15 @@ if (needsUrlValidation) {
 
 // Debug logging for attach-logs option
 if (argv.verbose) {
-  await log(`Debug: argv.attachSolutionLogs = ${argv.attachSolutionLogs}`, { verbose: true });
-  await log(`Debug: argv["attach-solution-logs"] = ${argv["attach-solution-logs"]}`, { verbose: true });
   await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
   await log(`Debug: argv["attach-logs"] = ${argv["attach-logs"]}`, { verbose: true });
 }
 
-// Show security warning for attach-solution-logs option
-// Check both the main option and alias due to yargs behavior
-const shouldAttachLogs = argv.attachSolutionLogs || argv.attachLogs || argv['attach-logs'] || argv['attach-solution-logs'];
+// Show security warning for attach-logs option
+const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 if (shouldAttachLogs) {
   await log('');
-  await log('⚠️  SECURITY WARNING: --attach-solution-logs is ENABLED', { level: 'warning' });
+  await log('⚠️  SECURITY WARNING: --attach-logs is ENABLED', { level: 'warning' });
   await log('');
   await log('   This option will upload the complete solution log file to the Pull Request.');
   await log('   The log may contain sensitive information such as:');
@@ -326,7 +322,7 @@ const autoContinueWhenLimitResets = async (issueUrl, sessionId) => {
     if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
     if (argv.verbose) resumeArgs.push('--verbose');
     if (argv.fork) resumeArgs.push('--fork');
-    if (shouldAttachLogs) resumeArgs.push('--attach-solution-logs');
+    if (shouldAttachLogs) resumeArgs.push('--attach-logs');
     
     await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
     
@@ -2157,7 +2153,7 @@ Self review.
       }
     }
     
-    // If --attach-solution-logs is enabled, ensure we attach failure logs
+    // If --attach-logs is enabled, ensure we attach failure logs
     if (shouldAttachLogs && sessionId) {
       await log('\n📄 Attempting to attach failure logs to PR/Issue...');
       // The attach logs logic will handle this in the catch block below
@@ -2491,7 +2487,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
   
-  // If --attach-solution-logs is enabled, try to attach failure logs
+  // If --attach-logs is enabled, try to attach failure logs
   if (shouldAttachLogs && getLogFile()) {
     await log('\n📄 Attempting to attach failure logs...');
     

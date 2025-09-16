@@ -26,7 +26,7 @@ ${shortLogContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
 
   console.log(`Test 1 - Short log:`);
   console.log(`  Comment length: ${shortLogComment.length} chars`);
@@ -49,7 +49,7 @@ ${longLogContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
 
   console.log(`Test 2 - Long log:`);
   console.log(`  Comment length: ${longLogComment.length} chars`);
@@ -73,7 +73,7 @@ ${edgeLogContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
 
   console.log(`Test 3 - Edge case:`);
   console.log(`  Comment length: ${edgeLogComment.length} chars`);

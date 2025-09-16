@@ -53,10 +53,10 @@ try {
     console.log('   ❌ --attach-logs alias not found in help text');
   }
   
-  if (helpOutput.includes('attach-solution-logs')) {
-    console.log('   ✅ --attach-solution-logs option found in help text');
+  if (!helpOutput.includes('attach-solution-logs')) {
+    console.log('   ✅ --attach-solution-logs option successfully removed from help text');
   } else {
-    console.log('   ❌ --attach-solution-logs option not found in help text');
+    console.log('   ❌ --attach-solution-logs option still found in help text (should be removed)');
   }
 } catch (error) {
   console.log('   ⚠️  Could not test help output:', error.message);
@@ -104,6 +104,6 @@ console.log('\n🧪 Token masking test complete!');
 
 console.log('\n📋 SUMMARY:');
 console.log('   • Token masking function preserves 5 chars from start/end');
-console.log('   • --attach-logs alias added for --attach-solution-logs');
+console.log('   • --attach-logs option available (--attach-solution-logs removed)');
 console.log('   • GitHub tokens in logs are automatically masked');
 console.log('   • Multiple token patterns supported (ghp_, gho_, ghu_, hex tokens)');

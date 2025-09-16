@@ -82,7 +82,7 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
   --dry-run, -n         Prepare only, don't execute          [default: false]
   --only-prepare-command  Only prepare and print claude command [default: false]
   --auto-pull-request-creation  Create draft PR before Claude [default: false]
-  --attach-solution-logs  Attach logs to PR (⚠️ sensitive)   [default: false]
+  --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
 ```
 
 ## 🔧 hive.mjs Options  
@@ -135,7 +135,7 @@ graph TD
 ./solve.mjs https://github.com/owner/repo/pull/456 --verbose
 
 # Solve with detailed logging and solution attachment
-./solve.mjs https://github.com/owner/repo/issues/123 --verbose --attach-solution-logs
+./solve.mjs https://github.com/owner/repo/issues/123 --verbose --attach-logs
 
 # Dry run to see what would happen
 ./solve.mjs https://github.com/owner/repo/issues/123 --dry-run
