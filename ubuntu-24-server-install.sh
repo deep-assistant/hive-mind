@@ -221,7 +221,7 @@ fi
 
 # --- Global bun packages ---
 echo "[*] Installing global bun packages..."
-bun install -g @anthropic-ai/claude-code @deep-assistant/claude-profiles opencode-ai || true
+bun install -g @anthropic-ai/claude-code @deep-assistant/claude-profiles @deep-assistant/hive-mind
 
 # --- Git setup with GitHub identity ---
 echo "[*] Configuring Git with GitHub identity..."
