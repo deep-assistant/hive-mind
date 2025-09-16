@@ -145,6 +145,17 @@ runTest('hive.mjs no runtime switching', () => {
   }
 });
 
+// Test 13: Check --attach-logs flag is available
+runTest('hive.mjs --attach-logs flag', () => {
+  const output = execCommand(`${hivePath} --help 2>&1`);
+  if (!output.includes('attach-logs')) {
+    throw new Error('--attach-logs option not found in help output');
+  }
+  if (!output.includes('Upload the solution log file')) {
+    throw new Error('--attach-logs description not found in help output');
+  }
+});
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`Test Results for hive.mjs:`);
