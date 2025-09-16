@@ -92,21 +92,59 @@ ENV CONCURRENCY=2
 ENV INTERVAL=300
 ENV MODEL=sonnet
 
-# Health check - check if the main process is running
+# Health check - check if container is running (either hive.mjs or waiting)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD pgrep -f "hive.mjs" > /dev/null || exit 1
+    CMD pgrep -f "hive.mjs\|tail" > /dev/null || exit 1
 
-# Create a startup script to handle the GitHub URL
+# Create a startup script that keeps container running for configuration
 RUN echo '#!/bin/sh\n\
+\n\
+echo "========================================"\n\
+echo "Hive-Mind Container Starting..."\n\
+echo "========================================"\n\
+\n\
+# Try to configure GitHub authentication if token is provided\n\
+if [ -n "$GITHUB_TOKEN" ]; then\n\
+  echo "Configuring GitHub CLI with provided token..."\n\
+  echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null || true\n\
+  export GH_TOKEN="$GITHUB_TOKEN"\n\
+elif [ -n "$GH_TOKEN" ]; then\n\
+  echo "Using GH_TOKEN for GitHub CLI..."\n\
+  echo "$GH_TOKEN" | gh auth login --with-token 2>/dev/null || true\n\
+fi\n\
+\n\
+# Check authentication status\n\
+echo ""\n\
+echo "GitHub CLI Status:"\n\
+gh auth status 2>&1 || echo "Not authenticated yet"\n\
+echo ""\n\
+\n\
+# Check for GitHub URL and start monitoring if set\n\
 if [ -z "$GITHUB_URL" ]; then\n\
-  echo "ERROR: GITHUB_URL environment variable is required"\n\
-  echo "Please set GITHUB_URL to the repository or organization to monitor"\n\
-  echo "Example: GITHUB_URL=https://github.com/facebook/react"\n\
+  echo "========================================"\n\
+  echo "WAITING FOR CONFIGURATION"\n\
+  echo "========================================"\n\
   echo ""\n\
-  echo "Waiting for GITHUB_URL to be set..."\n\
-  sleep infinity\n\
+  echo "GITHUB_URL is not set. Container is running but not monitoring."\n\
+  echo ""\n\
+  echo "To configure:"\n\
+  echo "1. Set GITHUB_URL environment variable in Coolify"\n\
+  echo "2. Set GITHUB_TOKEN environment variable in Coolify"\n\
+  echo "3. Restart the container"\n\
+  echo ""\n\
+  echo "OR access the terminal and run:"\n\
+  echo "  gh auth login"\n\
+  echo "  export GITHUB_URL=https://github.com/org/repo"\n\
+  echo "  node hive.mjs \$GITHUB_URL"\n\
+  echo ""\n\
+  echo "Container will stay running for terminal access..."\n\
+  # Keep container alive for terminal access\n\
+  tail -f /dev/null\n\
 else\n\
   echo "Starting hive-mind to monitor: $GITHUB_URL"\n\
+  # Export GH_TOKEN for gh CLI to use\n\
+  export GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}"\n\
+  # Start monitoring\n\
   exec node hive.mjs "$GITHUB_URL"\n\
 fi' > /app/start.sh && chmod +x /app/start.sh
 
