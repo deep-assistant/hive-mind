@@ -713,50 +713,16 @@ try {
                 const pushResult = await $({ cwd: tempDir })`git push origin ${upstreamDefaultBranch}`;
                 if (pushResult.code === 0) {
                   await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
-
-                  // Verify the push actually synchronized the fork
-                  await log(`${formatAligned('🔍', 'Verifying sync:', 'Checking fork status')}`);
-                  const verifyResult = await $({ cwd: tempDir })`git log --oneline -1`;
-                  if (verifyResult.code === 0) {
-                    const latestCommit = verifyResult.stdout.toString().trim().substring(0, 50);
-                    await log(`${formatAligned('✅', 'Sync verified:', `Latest: ${latestCommit}`)}`);
-                  }
                 } else {
-                  await log(`${formatAligned('⚠️', 'Push failed:', 'Attempting force push for out-of-sync fork')}`);
-
-                  // Show the original error for debugging
+                  // Fork sync failed - exit immediately as per maintainer feedback
+                  await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
                   if (pushResult.stderr) {
                     const errorMsg = pushResult.stderr.toString().trim();
-                    await log(`${formatAligned('', 'Original error:', errorMsg)}`);
-
-                    // Check if it's a non-fast-forward error (common when fork is behind)
-                    if (errorMsg.includes('non-fast-forward') || errorMsg.includes('rejected') || errorMsg.includes('would clobber')) {
-                      await log(`${formatAligned('🔄', 'Force pushing:', 'Fork is behind upstream, using force push')}`);
-
-                      // Use --force-with-lease for safer force push
-                      const forcePushResult = await $({ cwd: tempDir })`git push --force-with-lease origin ${upstreamDefaultBranch}`;
-                      if (forcePushResult.code === 0) {
-                        await log(`${formatAligned('✅', 'Fork synchronized:', 'Force push successful')}`);
-
-                        // Verify the force push actually synchronized the fork
-                        await log(`${formatAligned('🔍', 'Verifying sync:', 'Checking fork after force push')}`);
-                        const verifyResult = await $({ cwd: tempDir })`git log --oneline -1`;
-                        if (verifyResult.code === 0) {
-                          const latestCommit = verifyResult.stdout.toString().trim().substring(0, 50);
-                          await log(`${formatAligned('✅', 'Sync verified:', `Latest: ${latestCommit}`)}`);
-                        }
-                      } else {
-                        await log(`${formatAligned('❌', 'Force push failed:', 'Unable to sync fork')}`);
-                        if (forcePushResult.stderr) {
-                          await log(`${formatAligned('', 'Force push error:', forcePushResult.stderr.toString().trim())}`);
-                        }
-                      }
-                    } else {
-                      await log(`${formatAligned('❌', 'Push failed:', 'Non-recoverable error, fork not synced')}`);
-                    }
-                  } else {
-                    await log(`${formatAligned('❌', 'Push failed:', 'Unknown error, fork not synced')}`);
+                    await log(`${formatAligned('', 'Push error:', errorMsg)}`);
                   }
+                  await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
+                  await log(`${formatAligned('', 'Action:', 'Exiting to prevent accumulating failures')}`);
+                  process.exit(1);
                 }
               } else {
                 await log(`${formatAligned('⚠️', 'Warning:', 'Failed to sync default branch with upstream')}`);
