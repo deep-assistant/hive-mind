@@ -206,8 +206,15 @@ fi
 # --- Rust ---
 if [ ! -d "$HOME/.cargo" ]; then
   echo "[*] Installing Rust..."
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  \. "$HOME/.cargo/env"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  if [ -f "$HOME/.cargo/env" ]; then
+    \. "$HOME/.cargo/env"
+    echo "[*] Rust installed successfully."
+  else
+    echo "[!] Warning: Rust installation may have failed or been cancelled. Skipping Rust environment setup."
+  fi
+else
+  echo "[*] Rust already installed."
 fi
 
 export NVM_DIR="$HOME/.nvm"
