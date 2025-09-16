@@ -92,71 +92,40 @@ ENV CONCURRENCY=2
 ENV INTERVAL=300
 ENV MODEL=sonnet
 
-# Health check - check if container is running (either hive.mjs or waiting)
+# Health check - check if container is running (either hive.mjs or bash)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD pgrep -f "hive.mjs\|tail" > /dev/null || exit 1
+    CMD pgrep -f "hive.mjs\|bash" > /dev/null || exit 1
 
-# Create a startup script that keeps container running for configuration
-RUN echo '#!/bin/sh\n\
-\n\
+# Create a simple startup script
+RUN echo '#!/bin/bash\n\
 echo "========================================"\n\
-echo "Hive-Mind Container Starting..."\n\
+echo "Hive-Mind Container"\n\
 echo "========================================"\n\
 \n\
-# Try to configure GitHub authentication if token is provided\n\
-# Note: We do NOT use set -e to avoid exiting on auth failures\n\
+# Set token if provided\n\
 if [ -n "$GITHUB_TOKEN" ]; then\n\
-  echo "Attempting to configure GitHub CLI with provided token..."\n\
-  if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then\n\
-    echo "GitHub CLI authentication successful"\n\
-    export GH_TOKEN="$GITHUB_TOKEN"\n\
-  else\n\
-    echo "GitHub CLI authentication failed - token may be invalid"\n\
-    echo "You can configure it manually via terminal: gh auth login"\n\
-  fi\n\
+  export GH_TOKEN="$GITHUB_TOKEN"\n\
 elif [ -n "$GH_TOKEN" ]; then\n\
-  echo "Attempting to use GH_TOKEN for GitHub CLI..."\n\
-  if echo "$GH_TOKEN" | gh auth login --with-token 2>/dev/null; then\n\
-    echo "GitHub CLI authentication successful"\n\
-  else\n\
-    echo "GitHub CLI authentication failed - token may be invalid"\n\
-    echo "You can configure it manually via terminal: gh auth login"\n\
-  fi\n\
+  export GITHUB_TOKEN="$GH_TOKEN"\n\
 fi\n\
 \n\
-# Check authentication status\n\
-echo ""\n\
-echo "GitHub CLI Status:"\n\
-gh auth status 2>&1 || echo "Not authenticated yet"\n\
-echo ""\n\
-\n\
-# Check for GitHub URL and start monitoring if set\n\
-if [ -z "$GITHUB_URL" ]; then\n\
-  echo "========================================"\n\
-  echo "WAITING FOR CONFIGURATION"\n\
-  echo "========================================"\n\
-  echo ""\n\
-  echo "GITHUB_URL is not set. Container is running but not monitoring."\n\
-  echo ""\n\
-  echo "To configure:"\n\
-  echo "1. Set GITHUB_URL environment variable in Coolify"\n\
-  echo "2. Set GITHUB_TOKEN environment variable in Coolify"\n\
-  echo "3. Restart the container"\n\
-  echo ""\n\
-  echo "OR access the terminal and run:"\n\
-  echo "  gh auth login"\n\
-  echo "  export GITHUB_URL=https://github.com/org/repo"\n\
-  echo "  node hive.mjs \$GITHUB_URL"\n\
-  echo ""\n\
-  echo "Container will stay running for terminal access..."\n\
-  # Keep container alive for terminal access\n\
-  tail -f /dev/null\n\
-else\n\
-  echo "Starting hive-mind to monitor: $GITHUB_URL"\n\
-  # Export GH_TOKEN for gh CLI to use\n\
-  export GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}"\n\
-  # Start monitoring\n\
+# Check if we have auth and URL\n\
+if gh auth status >/dev/null 2>&1 && [ -n "$GITHUB_URL" ]; then\n\
+  echo "✓ GitHub authenticated"\n\
+  echo "✓ Starting hive-mind to monitor: $GITHUB_URL"\n\
   exec node hive.mjs "$GITHUB_URL"\n\
+else\n\
+  echo ""\n\
+  if ! gh auth status >/dev/null 2>&1; then\n\
+    echo "⚠ GitHub not authenticated. Run: gh auth login"\n\
+  fi\n\
+  if [ -z "$GITHUB_URL" ]; then\n\
+    echo "⚠ GITHUB_URL not set. Set it in Coolify environment variables"\n\
+  fi\n\
+  echo ""\n\
+  echo "Container running. Access terminal to configure."\n\
+  # Just keep container running with bash\n\
+  exec /bin/bash\n\
 fi' > /app/start.sh && chmod +x /app/start.sh
 
 # Default command - run the startup script
