@@ -79,7 +79,8 @@ RUN chmod +x *.mjs || true
 
 # Create necessary directories
 RUN mkdir -p /app/claude-logs /app/claude-sessions /app/output \
-    && chown -R hive:hive /app
+    && mkdir -p /home/hive/.claude/plugins /home/hive/.config \
+    && chown -R hive:hive /app /home/hive/.claude /home/hive/.config
 
 # Switch back to hive user for runtime
 USER hive
