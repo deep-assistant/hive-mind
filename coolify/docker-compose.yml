@@ -3,7 +3,7 @@ version: '3.8'
 services:
   hive-mind:
     build:
-      context: ..
+      context: ../
       dockerfile: coolify/Dockerfile
     image: hive-mind:production
     container_name: hive-mind-prod

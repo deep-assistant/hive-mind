@@ -69,8 +69,8 @@ WORKDIR /app
 # Switch back to root to copy files and set permissions
 USER root
 
-# Copy application files
-COPY --chown=hive:hive .. .
+# Copy application files from repo root (build context)
+COPY --chown=hive:hive . .
 
 # Ensure scripts are executable
 RUN chmod +x *.mjs || true
