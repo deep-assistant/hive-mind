@@ -48,7 +48,9 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV BUN_INSTALL="/home/hive/.bun"
 ENV PATH="${BUN_INSTALL}/bin:${PATH}"
 
-# Install Node.js via n (simpler than nvm for Docker)
+# Install Node.js via n with proper prefix for user installation
+ENV N_PREFIX=/home/hive/.n
+ENV PATH="${N_PREFIX}/bin:${PATH}"
 RUN curl -L https://raw.githubusercontent.com/tj/n/master/bin/n -o n \
     && bash n lts \
     && rm n
