@@ -92,9 +92,9 @@ ENV CONCURRENCY=2
 ENV INTERVAL=300
 ENV MODEL=sonnet
 
-# Health check - check if container is running (either hive.mjs or bash)
+# Health check - check if container is running (either hive.mjs or tail)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD pgrep -f "hive.mjs\|bash" > /dev/null || exit 1
+    CMD pgrep -f "hive.mjs\|tail" > /dev/null || exit 1
 
 # Create a simple startup script
 RUN echo '#!/bin/bash\n\
@@ -124,8 +124,9 @@ else\n\
   fi\n\
   echo ""\n\
   echo "Container running. Access terminal to configure."\n\
-  # Just keep container running with bash\n\
-  exec /bin/bash\n\
+  echo "Keeping container alive..."\n\
+  # Keep container running without consuming CPU\n\
+  tail -f /dev/null\n\
 fi' > /app/start.sh && chmod +x /app/start.sh
 
 # Default command - run the startup script
