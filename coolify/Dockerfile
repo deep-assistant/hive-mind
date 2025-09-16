@@ -97,38 +97,10 @@ ENV MODEL=sonnet
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD pgrep -f "hive.mjs\|tail" > /dev/null || exit 1
 
-# Create a simple startup script
-RUN echo '#!/bin/bash\n\
-echo "========================================"\n\
-echo "Hive-Mind Container"\n\
-echo "========================================"\n\
-\n\
-# Set token if provided\n\
-if [ -n "$GITHUB_TOKEN" ]; then\n\
-  export GH_TOKEN="$GITHUB_TOKEN"\n\
-elif [ -n "$GH_TOKEN" ]; then\n\
-  export GITHUB_TOKEN="$GH_TOKEN"\n\
-fi\n\
-\n\
-# Check if we have auth and URL\n\
-if gh auth status >/dev/null 2>&1 && [ -n "$GITHUB_URL" ]; then\n\
-  echo "✓ GitHub authenticated"\n\
-  echo "✓ Starting hive-mind to monitor: $GITHUB_URL"\n\
-  exec node hive.mjs "$GITHUB_URL"\n\
-else\n\
-  echo ""\n\
-  if ! gh auth status >/dev/null 2>&1; then\n\
-    echo "⚠ GitHub not authenticated. Run: gh auth login"\n\
-  fi\n\
-  if [ -z "$GITHUB_URL" ]; then\n\
-    echo "⚠ GITHUB_URL not set. Set it in Coolify environment variables"\n\
-  fi\n\
-  echo ""\n\
-  echo "Container running. Access terminal to configure."\n\
-  echo "Keeping container alive..."\n\
-  # Keep container running without consuming CPU\n\
-  tail -f /dev/null\n\
-fi' > /app/start.sh && chmod +x /app/start.sh
+# Create startup script with proper permissions handling
+USER root
+COPY --chown=root:root coolify/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # Default command - run the startup script
 ENTRYPOINT ["/app/start.sh"]
