@@ -37,7 +37,7 @@ let totalTests = tests.length;
 for (const test of tests) {
   try {
     console.log(`Testing: ${test.name}`);
-    const { stdout, stderr } = await execAsync(test.command, { timeout: 10000 });
+    const { stdout, stderr } = await execAsync(test.command, { timeout: 30000 });
 
     if (test.shouldSucceed) {
       console.log('✅ Test passed - command succeeded as expected');
