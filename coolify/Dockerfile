@@ -82,6 +82,12 @@ RUN mkdir -p /app/claude-logs /app/claude-sessions /app/output \
     && mkdir -p /home/hive/.claude/plugins /home/hive/.config \
     && chown -R hive:hive /app /home/hive/.claude /home/hive/.config
 
+# Create bash profile for hive user to set PATH
+RUN echo 'export PATH="/home/hive/.bun/bin:/home/hive/.n/bin:/home/hive/.cargo/bin:$PATH"' > /home/hive/.bashrc \
+    && echo 'export BUN_INSTALL="/home/hive/.bun"' >> /home/hive/.bashrc \
+    && echo 'export N_PREFIX="/home/hive/.n"' >> /home/hive/.bashrc \
+    && chown hive:hive /home/hive/.bashrc
+
 # Switch back to hive user for runtime
 USER hive
 
