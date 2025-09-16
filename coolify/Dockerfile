@@ -96,6 +96,19 @@ ENV MODEL=sonnet
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD pgrep -f "hive.mjs" > /dev/null || exit 1
 
-# Default command - run hive.mjs with passed arguments
-ENTRYPOINT ["node"]
-CMD ["hive.mjs"]
+# Create a startup script to handle the GitHub URL
+RUN echo '#!/bin/sh\n\
+if [ -z "$GITHUB_URL" ]; then\n\
+  echo "ERROR: GITHUB_URL environment variable is required"\n\
+  echo "Please set GITHUB_URL to the repository or organization to monitor"\n\
+  echo "Example: GITHUB_URL=https://github.com/facebook/react"\n\
+  echo ""\n\
+  echo "Waiting for GITHUB_URL to be set..."\n\
+  sleep infinity\n\
+else\n\
+  echo "Starting hive-mind to monitor: $GITHUB_URL"\n\
+  exec node hive.mjs "$GITHUB_URL"\n\
+fi' > /app/start.sh && chmod +x /app/start.sh
+
+# Default command - run the startup script
+ENTRYPOINT ["/app/start.sh"]
