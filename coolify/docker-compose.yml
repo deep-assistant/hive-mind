@@ -13,29 +13,29 @@ services:
       # GitHub Configuration
       - GITHUB_TOKEN
       - GITHUB_ORGANIZATION
-      - GH_TOKEN=${GITHUB_TOKEN}
+      - GH_TOKEN
 
       # Claude/AI Configuration
       - CLAUDE_API_KEY
       - ANTHROPIC_API_KEY
 
-      # Application Settings (with defaults)
+      # Application Settings
       - NODE_ENV=production
-      - MONITOR_TAG=${MONITOR_TAG}
-      - CONCURRENCY=${CONCURRENCY}
-      - INTERVAL=${INTERVAL}
-      - MODEL=${MODEL}
-      - ALL_ISSUES=${ALL_ISSUES}
-      - SKIP_ISSUES_WITH_PRS=${SKIP_ISSUES_WITH_PRS}
-      - FORK=${FORK}
-      - MAX_ISSUES=${MAX_ISSUES}
-      - PULL_REQUESTS_PER_ISSUE=${PULL_REQUESTS_PER_ISSUE}
-      - ATTACH_LOGS=${ATTACH_LOGS}
-      - VERBOSE=${VERBOSE}
+      - MONITOR_TAG
+      - CONCURRENCY
+      - INTERVAL
+      - MODEL
+      - ALL_ISSUES
+      - SKIP_ISSUES_WITH_PRS
+      - FORK
+      - MAX_ISSUES
+      - PULL_REQUESTS_PER_ISSUE
+      - ATTACH_LOGS
+      - VERBOSE
 
       # Coolify/Container Settings
-      - PORT=${PORT}
-      - TZ=${TZ}
+      - PORT
+      - TZ
 
     # Command override - pass the GitHub URL and any additional args
     # Removed variable substitution to avoid Coolify parsing issues
