@@ -39,6 +39,10 @@
     "solve.mjs",
     "task.mjs",
     "review.mjs",
+    "lib.mjs",
+    "claude.lib.mjs",
+    "github.lib.mjs",
+    "memory-check.mjs",
     "*.md"
   ]
 }
