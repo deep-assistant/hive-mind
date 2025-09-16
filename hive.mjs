@@ -131,6 +131,11 @@ const argv = yargs(hideBin(process.argv))
     alias: 'f',
     default: false
   })
+  .option('attach-logs', {
+    type: 'boolean',
+    description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .argv;
@@ -349,7 +354,8 @@ async function worker(workerId) {
       try {
         if (argv.dryRun) {
           const forkFlag = argv.fork ? ' --fork' : '';
-          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`);
+          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}${attachLogsFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
           // Execute solve.mjs using spawn to enable real-time streaming while avoiding command-stream quoting issues
@@ -357,6 +363,7 @@ async function worker(workerId) {
           
           const startTime = Date.now();
           const forkFlag = argv.fork ? ' --fork' : '';
+          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
           
           // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
           const { spawn } = await import('child_process');
@@ -366,9 +373,12 @@ async function worker(workerId) {
           if (argv.fork) {
             args.push('--fork');
           }
+          if (argv.attachLogs) {
+            args.push('--attach-logs');
+          }
           
           // Log the actual command being executed so users can investigate/reproduce
-          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}`;
+          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}${attachLogsFlag}`;
           await log(`   📋 Command: ${command}`);
           
           let exitCode = 0;
