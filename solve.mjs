@@ -660,6 +660,45 @@ try {
       const fetchResult = await $({ cwd: tempDir })`git fetch upstream`;
       if (fetchResult.code === 0) {
         await log(`${formatAligned('✅', 'Upstream fetched:', 'Successfully')}`);
+
+        // Sync the default branch with upstream to avoid merge conflicts
+        await log(`${formatAligned('🔄', 'Syncing default branch...', '')}`);
+
+        // First, ensure we're on the default branch
+        const currentBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
+        if (currentBranchResult.code === 0) {
+          const currentBranch = currentBranchResult.stdout.toString().trim();
+
+          // Get the default branch name from the original repository using GitHub API
+          const repoInfoResult = await $`gh api repos/${owner}/${repo} --jq .default_branch`;
+          if (repoInfoResult.code === 0) {
+            const upstreamDefaultBranch = repoInfoResult.stdout.toString().trim();
+
+            // If we're on the default branch, sync it with upstream
+            if (currentBranch === upstreamDefaultBranch) {
+              const syncResult = await $({ cwd: tempDir })`git reset --hard upstream/${upstreamDefaultBranch}`;
+              if (syncResult.code === 0) {
+                await log(`${formatAligned('✅', 'Default branch synced:', `with upstream/${upstreamDefaultBranch}`)}`);
+
+                // Push the updated default branch to fork to keep it in sync
+                const pushResult = await $({ cwd: tempDir })`git push origin ${upstreamDefaultBranch}`;
+                if (pushResult.code === 0) {
+                  await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
+                } else {
+                  await log(`${formatAligned('⚠️', 'Warning:', 'Failed to push updated default branch to fork')}`);
+                }
+              } else {
+                await log(`${formatAligned('⚠️', 'Warning:', 'Failed to sync default branch with upstream')}`);
+              }
+            } else {
+              await log(`${formatAligned('ℹ️', 'Info:', `Not on default branch (${upstreamDefaultBranch}), skipping sync`)}`);
+            }
+          } else {
+            await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine upstream default branch')}`);
+          }
+        } else {
+          await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine current branch')}`);
+        }
       }
     }
   }
