@@ -57,9 +57,6 @@ services:
       # GitHub CLI config persistence
       - ./gh-config:/home/hive/.config/gh
 
-      # Git config (if needed)
-      - ./git-config:/home/hive/.gitconfig:ro
-
     # Resource limits (adjust based on your server)
     deploy:
       resources:
