@@ -661,13 +661,30 @@ try {
   // If using fork, set up upstream remote
   if (forkedRepo && upstreamRemote) {
     await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
-    const upstreamResult = await $({ cwd: tempDir })`git remote add upstream https://github.com/${upstreamRemote}.git`;
-    
-    if (upstreamResult.code !== 0) {
-      await log(`${formatAligned('⚠️', 'Warning:', 'Failed to add upstream remote')}`);
+
+    // Check if upstream remote already exists
+    const checkUpstreamResult = await $({ cwd: tempDir })`git remote get-url upstream 2>/dev/null`;
+    let upstreamExists = checkUpstreamResult.code === 0;
+
+    if (upstreamExists) {
+      await log(`${formatAligned('ℹ️', 'Upstream exists:', 'Using existing upstream remote')}`);
     } else {
-      await log(`${formatAligned('✅', 'Upstream set:', upstreamRemote)}`);
-      
+      // Add upstream remote since it doesn't exist
+      const upstreamResult = await $({ cwd: tempDir })`git remote add upstream https://github.com/${upstreamRemote}.git`;
+
+      if (upstreamResult.code === 0) {
+        await log(`${formatAligned('✅', 'Upstream set:', upstreamRemote)}`);
+        upstreamExists = true;
+      } else {
+        await log(`${formatAligned('⚠️', 'Warning:', 'Failed to add upstream remote')}`);
+        if (upstreamResult.stderr) {
+          await log(`${formatAligned('', 'Error details:', upstreamResult.stderr.toString().trim())}`);
+        }
+      }
+    }
+
+    // Proceed with fork sync if upstream remote is available
+    if (upstreamExists) {
       // Fetch upstream
       await log(`${formatAligned('🔄', 'Fetching upstream...', '')}`);
       const fetchResult = await $({ cwd: tempDir })`git fetch upstream`;
@@ -747,7 +764,14 @@ try {
         } else {
           await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine current branch')}`);
         }
+      } else {
+        await log(`${formatAligned('⚠️', 'Warning:', 'Failed to fetch upstream')}`);
+        if (fetchResult.stderr) {
+          await log(`${formatAligned('', 'Fetch error:', fetchResult.stderr.toString().trim())}`);
+        }
       }
+    } else {
+      await log(`${formatAligned('⚠️', 'Warning:', 'Cannot sync fork - upstream remote not available')}`);
     }
   }
 
