@@ -296,7 +296,7 @@ ${logContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
     } else {
       // Success log format
       logComment = `## ${customTitle}
@@ -313,7 +313,7 @@ ${logContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
     }
 
     // Check GitHub comment size limit
@@ -351,7 +351,7 @@ ${errorMessage}
 🔗 [View complete failure log](${gistUrl})
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
           } else {
             // Success log gist format
             gistComment = `## ${customTitle}
@@ -362,7 +362,7 @@ This log file contains the complete execution trace of the AI ${targetType === '
 🔗 [View complete solution log](${gistUrl})
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
           }
 
           const tempGistCommentFile = `/tmp/log-gist-comment-${targetType}-${Date.now()}.md`;
@@ -436,7 +436,7 @@ ${truncatedContent}
 </details>
 
 ---
-*Log automatically attached by solve.mjs with --attach-solution-logs option*`;
+*Log automatically attached by solve.mjs with --attach-logs option*`;
 
   const tempFile = `/tmp/log-truncated-comment-${targetType}-${Date.now()}.md`;
   await fs.writeFile(tempFile, truncatedComment);

@@ -19,7 +19,7 @@ console.log('  GitHub File Upload Limit: 25 MB');
 console.log('  Solution: Use GitHub Gists for large logs\n');
 
 console.log('🚀 Usage:');
-console.log('  When running solve.mjs with --attach-solution-logs, large logs are automatically handled:');
+console.log('  When running solve.mjs with --attach-logs, large logs are automatically handled:');
 console.log('  • Small logs: Embedded directly in comments');
 console.log('  • Large logs: Uploaded as Gists with comment links');
 console.log('  • Failed uploads: Graceful fallback to truncated comments\n');
