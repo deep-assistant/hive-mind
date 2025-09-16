@@ -104,13 +104,24 @@ echo "Hive-Mind Container Starting..."\n\
 echo "========================================"\n\
 \n\
 # Try to configure GitHub authentication if token is provided\n\
+# Note: We do NOT use set -e to avoid exiting on auth failures\n\
 if [ -n "$GITHUB_TOKEN" ]; then\n\
-  echo "Configuring GitHub CLI with provided token..."\n\
-  echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null || true\n\
-  export GH_TOKEN="$GITHUB_TOKEN"\n\
+  echo "Attempting to configure GitHub CLI with provided token..."\n\
+  if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then\n\
+    echo "GitHub CLI authentication successful"\n\
+    export GH_TOKEN="$GITHUB_TOKEN"\n\
+  else\n\
+    echo "GitHub CLI authentication failed - token may be invalid"\n\
+    echo "You can configure it manually via terminal: gh auth login"\n\
+  fi\n\
 elif [ -n "$GH_TOKEN" ]; then\n\
-  echo "Using GH_TOKEN for GitHub CLI..."\n\
-  echo "$GH_TOKEN" | gh auth login --with-token 2>/dev/null || true\n\
+  echo "Attempting to use GH_TOKEN for GitHub CLI..."\n\
+  if echo "$GH_TOKEN" | gh auth login --with-token 2>/dev/null; then\n\
+    echo "GitHub CLI authentication successful"\n\
+  else\n\
+    echo "GitHub CLI authentication failed - token may be invalid"\n\
+    echo "You can configure it manually via terminal: gh auth login"\n\
+  fi\n\
 fi\n\
 \n\
 # Check authentication status\n\
