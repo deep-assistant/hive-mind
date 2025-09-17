@@ -595,21 +595,39 @@ try {
       // Need to create fork
       await log(`${formatAligned('🔄', 'Creating fork...', '')}`);
       const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false`;
-      
+
+      // Check if fork creation failed or if fork already exists
       if (forkResult.code !== 0) {
         await log(`${formatAligned('❌', 'Error:', 'Failed to create fork')}`);
         await log(forkResult.stderr ? forkResult.stderr.toString() : 'Unknown error');
         process.exit(1);
       }
-      
-      await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
+
+      // Check if the output indicates the fork already exists (from parallel worker)
+      const forkOutput = forkResult.stderr ? forkResult.stderr.toString() : '';
+      if (forkOutput.includes('already exists')) {
+        // Fork was created by another worker - treat as if fork already existed
+        await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created by another worker')}`);
+        await log(`${formatAligned('✅', 'Using existing fork:', `${currentUser}/${repo}`)}`);
+
+        // Double-check that the fork actually exists now
+        const reCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+        if (reCheckResult.code !== 0) {
+          await log(`${formatAligned('❌', 'Error:', 'Fork reported as existing but not found')}`);
+          await log(`${formatAligned('', 'Suggestion:', 'Try running the command again - the fork may need a moment to become available')}`);
+          process.exit(1);
+        }
+      } else {
+        await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
+
+        // Wait a moment for fork to be ready
+        await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be ready...')}`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
       repoToClone = `${currentUser}/${repo}`;
       forkedRepo = `${currentUser}/${repo}`;
       upstreamRemote = `${owner}/${repo}`;
-      
-      // Wait a moment for fork to be ready
-      await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be ready...')}`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
   
