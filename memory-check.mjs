@@ -313,9 +313,9 @@ export const getResourceSnapshot = async () => {
       };
     } else {
       // Linux resource snapshot
-      const memInfo = await $silent`cat /proc/meminfo 2>/dev/null | grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree"`;
-      const loadAvg = await $silent`cat /proc/loadavg 2>/dev/null`;
-      const uptime = await $silent`uptime 2>/dev/null`;
+      const memInfo = await $silent`grep -E "MemTotal|MemAvailable|MemFree|SwapTotal|SwapFree" /proc/meminfo 2>/dev/null`;
+      const loadAvg = await $silent`cat /proc/loadavg`;
+      const uptime = await $silent`uptime`;
       
       return {
         timestamp: new Date().toISOString(),
