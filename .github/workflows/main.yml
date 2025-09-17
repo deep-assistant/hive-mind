@@ -186,6 +186,13 @@ jobs:
         echo "Running feedback lines regression test..."
         node tests/test-feedback-lines-simple.mjs
 
+    - name: Run feedback lines integration test (Issue #168)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "Running feedback lines integration test with real repository..."
+        node tests/test-feedback-lines-integration.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
