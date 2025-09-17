@@ -34,17 +34,14 @@ const { checkSystem } = memCheck;
 // The cleanupTempDirectories function has been moved to lib.mjs
 
 // Detect if running as global command vs local script
-// When installed globally (via npm/bun), process.argv[1] will point to global install location
-// When run locally (./hive.mjs), process.argv[1] will point to local file
-const isGlobalInstall = process.argv[1] && (
-  process.argv[1].includes('/.bun/bin/') ||
-  process.argv[1].includes('/.npm/bin/') ||
-  process.argv[1].includes('/node_modules/.bin/') ||
-  process.argv[1].includes('/node_modules/@deep-assistant/hive-mind/')
-);
+// Simple detection: check if the command name ends with .mjs
+// - Global command: 'hive' -> use 'solve'
+// - Local script: 'hive.mjs' or './hive.mjs' -> use './solve.mjs'
+const commandName = process.argv[1] ? process.argv[1].split('/').pop() : '';
+const isLocalScript = commandName.endsWith('.mjs');
 
 // Determine which solve command to use based on execution context
-const solveCommand = isGlobalInstall ? 'solve' : './solve.mjs';
+const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
 
 // Check for help flag early - simple approach without yargs duplication
 const rawArgs = process.argv.slice(2);
