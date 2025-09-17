@@ -45,15 +45,15 @@ runTest('solve.mjs exists', () => {
   }
 });
 
-// Test 2: Check usage output (solve.mjs doesn't have standard --help)
-runTest('solve.mjs usage', () => {
+// Test 2: Check usage output when no arguments provided
+runTest('solve.mjs usage without args', () => {
   const output = execCommand(`${solvePath} 2>&1`);
-  
+
   // Check that it shows usage information
   if (!output.includes('Usage:') && !output.includes('usage:')) {
     throw new Error('No usage information shown');
   }
-  
+
   if (!output.includes('github') || !output.includes('issue')) {
     throw new Error('Usage should mention GitHub issues');
   }
@@ -68,7 +68,43 @@ runTest('solve.mjs --version', () => {
   }
 });
 
-// Test 4: Check that it requires a GitHub URL
+// Test 4: Check --help functionality (Issue #162)
+runTest('solve.mjs --help', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+
+  // Should show help without errors
+  if (!output.includes('Usage: solve.mjs <issue-url> [options]')) {
+    throw new Error('--help should show proper usage information');
+  }
+
+  if (!output.includes('The GitHub issue URL to solve')) {
+    throw new Error('--help should show positional argument description');
+  }
+
+  if (!output.includes('--model') || !output.includes('--verbose')) {
+    throw new Error('--help should show option descriptions');
+  }
+});
+
+// Test 5: Check -h functionality (Issue #162)
+runTest('solve.mjs -h', () => {
+  const output = execCommand(`${solvePath} -h 2>&1`);
+
+  // Should show help without errors
+  if (!output.includes('Usage: solve.mjs <issue-url> [options]')) {
+    throw new Error('-h should show proper usage information');
+  }
+
+  if (!output.includes('The GitHub issue URL to solve')) {
+    throw new Error('-h should show positional argument description');
+  }
+
+  if (!output.includes('--model') || !output.includes('--verbose')) {
+    throw new Error('-h should show option descriptions');
+  }
+});
+
+// Test 6: Check that it requires a GitHub URL
 runTest('solve.mjs requires GitHub URL', () => {
   const output = execCommand(`${solvePath} 2>&1`);
   if (!output.toLowerCase().includes('github') && !output.toLowerCase().includes('url')) {
@@ -76,7 +112,7 @@ runTest('solve.mjs requires GitHub URL', () => {
   }
 });
 
-// Test 5: Check that it validates URL format
+// Test 7: Check that it validates URL format
 runTest('solve.mjs validates URL format', () => {
   const output = execCommand(`${solvePath} not-a-url 2>&1`);
   if (!output.toLowerCase().includes('invalid') && !output.toLowerCase().includes('url')) {
@@ -84,7 +120,7 @@ runTest('solve.mjs validates URL format', () => {
   }
 });
 
-// Test 6: Skip model options test (no standard help)
+// Test 8: Skip model options test (no standard help)
 runTest('solve.mjs basic validation', () => {
   // Just verify the script can be executed
   const output = execCommand(`${solvePath} 2>&1`);
@@ -93,7 +129,7 @@ runTest('solve.mjs basic validation', () => {
   }
 });
 
-// Test 7: Node.js syntax check
+// Test 9: Node.js syntax check
 runTest('solve.mjs syntax check', () => {
   const output = execCommand(`node -c ${solvePath} 2>&1`);
   // If there's a syntax error, node -c will output it
@@ -102,7 +138,7 @@ runTest('solve.mjs syntax check', () => {
   }
 });
 
-// Test 8: Check imports work (basic module loading)
+// Test 10: Check imports work (basic module loading)
 runTest('solve.mjs module imports', () => {
   // This will fail if there are import errors
   const output = execCommand(`${solvePath} --version 2>&1`);
@@ -111,7 +147,7 @@ runTest('solve.mjs module imports', () => {
   }
 });
 
-// Test 9: Check that runtime switching options have been removed
+// Test 11: Check that runtime switching options have been removed
 runTest('solve.mjs no runtime switching', () => {
   const output = execCommand(`${solvePath} 2>&1`);
   
@@ -121,7 +157,7 @@ runTest('solve.mjs no runtime switching', () => {
   }
 });
 
-// Test 10: Validate that script loads without errors
+// Test 12: Validate that script loads without errors
 runTest('solve.mjs loads successfully', () => {
   // Just verify no critical errors on load
   const output = execCommand(`${solvePath} --version 2>&1`);
