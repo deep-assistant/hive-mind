@@ -1661,10 +1661,13 @@ ${prBody}`, { verbose: true });
 
         await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
         await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
-        
+
         if (argv.verbose) {
           await log(`   Total new comments: ${newPrComments + newIssueComments}`, { verbose: true });
           await log(`   Comment lines to add: ${newPrComments > 0 || newIssueComments > 0 ? 'Yes' : 'No (saving tokens)'}`, { verbose: true });
+          await log(`   PR review comments fetched: ${prReviewComments.length}`, { verbose: true });
+          await log(`   PR conversation comments fetched: ${prConversationComments.length}`, { verbose: true });
+          await log(`   Total PR comments checked: ${allPrComments.length}`, { verbose: true });
         }
 
         // Check if --auto-continue-only-on-new-comments is enabled and fail if no new comments
@@ -1864,6 +1867,13 @@ ${prBody}`, { verbose: true });
       }
     } catch (error) {
       await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
+    }
+  } else {
+    await log(formatAligned('⚠️', 'Skipping comment count:', prNumber ? 'branchName not set' : 'prNumber not set', 2));
+    if (argv.verbose) {
+      await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
+      await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
+      await log(`   This means no new comment detection will run`, { verbose: true });
     }
   }
 
