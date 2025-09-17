@@ -89,18 +89,18 @@ You can specify the GitHub repository or organization to monitor in two ways:
 
 ### Optional Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable | Default       | Description |
+|----------|---------------|-------------|
 | `MONITOR_TAG` | `help wanted` | GitHub label to monitor |
-| `ALL_ISSUES` | `false` | Process all open issues |
-| `CONCURRENCY` | `2` | Concurrent solve processes |
-| `INTERVAL` | `300` | Polling interval (seconds) |
-| `MODEL` | `sonnet` | AI model (opus/sonnet) |
-| `FORK` | `true` | Work in fork instead of branch |
-| `MAX_ISSUES` | `0` | Max issues to process (0=unlimited) |
-| `VERBOSE` | `false` | Enable verbose logging |
-| `CPU_LIMIT` | `2` | CPU core limit |
-| `MEMORY_LIMIT` | `4G` | Memory limit |
+| `ALL_ISSUES` | `false`       | Process all open issues |
+| `CONCURRENCY` | `2`           | Concurrent solve processes |
+| `INTERVAL` | `300`         | Polling interval (seconds) |
+| `MODEL` | `sonnet`      | AI model (opus/sonnet) |
+| `FORK` | `false`       | Work in fork instead of branch |
+| `MAX_ISSUES` | `0`           | Max issues to process (0=unlimited) |
+| `VERBOSE` | `false`       | Enable verbose logging |
+| `CPU_LIMIT` | `2`           | CPU core limit |
+| `MEMORY_LIMIT` | `4G`          | Memory limit |
 
 ## Setting Up Credentials
 
