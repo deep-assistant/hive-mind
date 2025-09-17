@@ -401,6 +401,7 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let mergeStateStatus;
+let isForkPR = false;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
@@ -492,7 +493,7 @@ if (isPrUrl) {
   
   // Get PR details to find the linked issue and branch
   try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus`;
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,headRepositoryOwner`;
     
     if (prResult.code !== 0) {
       await log('Error: Failed to get PR details', { level: 'error' });
@@ -503,7 +504,10 @@ if (isPrUrl) {
     const prData = JSON.parse(prResult.stdout.toString());
     prBranch = prData.headRefName;
     mergeStateStatus = prData.mergeStateStatus;
-    
+
+    // Check if this is a fork PR
+    isForkPR = prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner;
+
     await log(`📝 PR branch: ${prBranch}`);
     
     // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
@@ -886,11 +890,25 @@ try {
       await log(`     • PR branch doesn't exist on remote`);
       await log(`     • Network connectivity issues`);
       await log(`     • Permission denied to fetch branches`);
+      if (isForkPR) {
+        await log(`     • This is a forked PR - branch is in the fork, not the main repo`);
+      }
       await log(``);
       await log(`  🔧 How to fix:`);
-      await log(`     1. Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
-      await log(`     2. Check remote branches: cd ${tempDir} && git branch -r`);
-      await log(`     3. Try fetching manually: cd ${tempDir} && git fetch origin`);
+      if (isForkPR) {
+        await log(`     1. Use --fork option (RECOMMENDED for forked PRs):`);
+        await log(`        ./solve.mjs "${issueUrl}" --fork`);
+        await log(`        This will create a fork and work from there.`);
+        await log(``);
+        await log(`     2. Alternative diagnostic steps:`);
+        await log(`        • Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
+        await log(`        • Check remote branches: cd ${tempDir} && git branch -r`);
+        await log(`        • Try fetching manually: cd ${tempDir} && git fetch origin`);
+      } else {
+        await log(`     1. Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
+        await log(`     2. Check remote branches: cd ${tempDir} && git branch -r`);
+        await log(`     3. Try fetching manually: cd ${tempDir} && git fetch origin`);
+      }
     } else {
       await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
       await log(``);
