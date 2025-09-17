@@ -140,3 +140,18 @@ vite.config.ts.timestamp-*
 
 # macOS
 .DS_Store
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+*.iws
+*.ipr
+.nb-gradle/
+.gradle/

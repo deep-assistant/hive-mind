@@ -11,8 +11,11 @@ const fs = (await use('fs')).promises;
 const os = (await use('os')).default;
 const path = (await use('path')).default;
 
+// Use command-stream for consistent $ behavior
+const { $ } = await use('command-stream');
+
 // Import log and maskToken from general lib
-import { log, maskToken } from './lib.mjs';
+import { log, maskToken, cleanErrorMessage } from './lib.mjs';
 
 // Helper function to mask GitHub tokens (alias for backward compatibility)
 export const maskGitHubToken = maskToken;
@@ -546,6 +549,97 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
   }
 }
 
+// Function to fetch issues from GitHub Projects v2
+export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
+  try {
+    await log(`🔍 Fetching issues from GitHub Project #${projectNumber} (owner: ${owner}, status: ${statusFilter})`);
+
+    // Check for project scope in GitHub CLI authentication
+    try {
+      const authStatus = await $`gh auth status --show-token`.quiet();
+      if (!authStatus.stdout.includes('project')) {
+        throw new Error('Missing project scope. Run: gh auth refresh -s project');
+      }
+    } catch (error) {
+      throw new Error('GitHub CLI authentication failed. Please run: gh auth login');
+    }
+
+    // Add delay to respect rate limits
+    await log(`   ⏰ Waiting 2 seconds before API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const startTime = Date.now();
+
+    // Fetch all project items
+    await log(`   🔎 Executing: gh project item-list ${projectNumber} --owner ${owner} --format json --limit 100`, { verbose: true });
+    const result = await $`gh project item-list ${projectNumber} --owner ${owner} --format json --limit 100`.quiet();
+    const endTime = Date.now();
+
+    const projectData = JSON.parse(result.stdout || '{"items": []}');
+    const allItems = projectData.items || [];
+
+    await log(`   📊 Found ${allItems.length} total project items in ${Math.round((endTime - startTime) / 1000)}s`);
+
+    // Filter by status and item type (only Issues)
+    const filteredIssues = allItems.filter(item => {
+      // Check if it's an Issue (not PR, Discussion, etc.)
+      if (item.content?.type !== 'Issue') {
+        return false;
+      }
+
+      // Check status field - look for Status field in fieldValueByName
+      const statusField = item.fieldValueByName?.Status;
+      if (!statusField) {
+        // If no status field, skip this item
+        return false;
+      }
+
+      // Match against configured status value
+      return statusField.name === statusFilter;
+    });
+
+    // Extract issue information
+    const issues = filteredIssues.map(item => ({
+      url: item.content.url,
+      title: item.content.title,
+      number: item.content.number,
+      repository: item.content.repository,
+      labels: item.content.labels || [],
+      state: item.content.state || 'open'
+    }));
+
+    await log(`   ✅ Found ${issues.length} issues with status "${statusFilter}"`);
+
+    if (issues.length > 0) {
+      await log(`   📋 Issues found:`, { verbose: true });
+      for (const issue of issues) {
+        await log(`      • #${issue.number}: ${issue.title}`, { verbose: true });
+      }
+    }
+
+    // Add delay after API call
+    await log(`   ⏰ Adding 2-second delay after API call to respect rate limits...`, { verbose: true });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    return issues;
+
+  } catch (error) {
+    await log(`   ❌ Failed to fetch project issues: ${cleanErrorMessage(error)}`, { level: 'error' });
+
+    // Provide helpful error messages for common issues
+    if (error.message.includes('project scope')) {
+      await log(`   💡 To fix this, run: gh auth refresh -s project`, { level: 'info' });
+    } else if (error.message.includes('authentication')) {
+      await log(`   💡 To fix this, run: gh auth login`, { level: 'info' });
+    } else if (error.message.includes('not found') || error.message.includes('404')) {
+      await log(`   💡 Check that the project number and owner are correct`, { level: 'info' });
+      await log(`   💡 Make sure you have access to the project`, { level: 'info' });
+    }
+
+    return [];
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -555,5 +649,6 @@ export default {
   checkFileInBranch,
   checkGitHubPermissions,
   attachLogToGitHub,
-  fetchAllIssuesWithPagination
+  fetchAllIssuesWithPagination,
+  fetchProjectIssues
 };
