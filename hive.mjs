@@ -409,7 +409,7 @@ async function worker(workerId) {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [${solveCommand}] ${line}`, { verbose: true }).catch(() => {});
+                  log(`   [${solveCommand} worker-${workerId}] ${line}`, { verbose: true }).catch(() => {});
                 }
               }
             });
@@ -419,7 +419,7 @@ async function worker(workerId) {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [${solveCommand} ERROR] ${line}`, { level: 'error', verbose: true }).catch(() => {});
+                  log(`   [${solveCommand} worker-${workerId} ERROR] ${line}`, { level: 'error', verbose: true }).catch(() => {});
                 }
               }
             });
@@ -433,7 +433,7 @@ async function worker(workerId) {
             // Handle process errors
             child.on('error', (error) => {
               exitCode = 1;
-              log(`   [${solveCommand} ERROR] Process error: ${error.message}`, { level: 'error', verbose: true }).catch(() => {});
+              log(`   [${solveCommand} worker-${workerId} ERROR] Process error: ${error.message}`, { level: 'error', verbose: true }).catch(() => {});
               resolve();
             });
           });
