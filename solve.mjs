@@ -1922,7 +1922,7 @@ ${prBody}`, { verbose: true });
     }
   }
 
-  const systemPrompt = `You are AI issue solver.${feedbackLines && feedbackLines.length > 0 ? '\n\n' + feedbackLines.join('\n') + '\n' : ''}
+  const systemPrompt = `You are AI issue solver.
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
