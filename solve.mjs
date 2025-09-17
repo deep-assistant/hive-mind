@@ -44,6 +44,16 @@ const {
   validateClaudeConnection
 } = claudeLib;
 
+// Import YouTrack-related functions
+const youTrackLib = await import('./youtrack.lib.mjs');
+const {
+  parseYouTrackIssueId,
+  getYouTrackIssue,
+  updateYouTrackIssueStage,
+  addYouTrackComment,
+  createYouTrackConfigFromEnv
+} = youTrackLib;
+
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
 // Global log file reference (will be passed to lib.mjs)
@@ -140,6 +150,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Minimum required disk space in MB (default: 500)',
       default: 500
     })
+    .option('target-branch', {
+      type: 'string',
+      description: 'Target branch for pull requests (defaults to repository default branch)',
+      alias: 'tb'
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -164,6 +179,7 @@ global.verboseMode = argv.verbose;
 // These will be used throughout the script - no duplicate matching!
 let isIssueUrl = null;
 let isPrUrl = null;
+let isYouTrackUrl = null;
 
 // Only validate if we have a URL
 const needsUrlValidation = issueUrl;
@@ -172,14 +188,26 @@ if (needsUrlValidation) {
   // Do the regex matching ONCE - these results will be used everywhere
   isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
   isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
-  
+
+  // Check for YouTrack issue format (youtrack://PROJECT-123)
+  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z][A-Z0-9]*-\d+)$/i);
+
+  // Also check if it's a direct YouTrack issue ID
+  const directYouTrackId = parseYouTrackIssueId(issueUrl);
+  if (directYouTrackId && !isYouTrackUrl) {
+    // Convert direct ID to youtrack:// format
+    isYouTrackUrl = [issueUrl, directYouTrackId];
+  }
+
   // Fail fast if URL is invalid
-  if (!isIssueUrl && !isPrUrl) {
-    console.error('Error: Invalid GitHub URL format');
-    console.error('  Please provide a valid GitHub issue or pull request URL');
+  if (!isIssueUrl && !isPrUrl && !isYouTrackUrl) {
+    console.error('Error: Invalid GitHub or YouTrack URL format');
+    console.error('  Please provide a valid GitHub issue, pull request URL, or YouTrack issue ID');
     console.error('  Examples:');
-    console.error('    https://github.com/owner/repo/issues/123 (issue)');
-    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    console.error('    https://github.com/owner/repo/issues/123 (GitHub issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (GitHub pull request)');
+    console.error('    youtrack://PROJECT-123 (YouTrack issue)');
+    console.error('    PROJECT-123 (YouTrack issue ID)');
     process.exit(1);
   }
 }
@@ -232,19 +260,48 @@ await log(`   (All output will be logged here)`);
 
 // Validate GitHub URL requirement
 if (!issueUrl) {
-  await log(`❌ GitHub issue URL is required`, { level: 'error' });
-  await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
+  await log(`❌ GitHub issue URL or YouTrack issue ID is required`, { level: 'error' });
+  await log(`   Usage: solve <github-issue-url|youtrack-issue-id> [options]`, { level: 'error' });
   process.exit(1);
+}
+
+// YouTrack configuration setup for YouTrack issues
+let youTrackConfig = null;
+let youTrackIssueId = null;
+if (isYouTrackUrl) {
+  // Extract YouTrack issue ID
+  youTrackIssueId = isYouTrackUrl[1] || parseYouTrackIssueId(issueUrl);
+
+  if (!youTrackIssueId) {
+    await log(`❌ Unable to parse YouTrack issue ID from: ${issueUrl}`, { level: 'error' });
+    process.exit(1);
+  }
+
+  // Create YouTrack config from environment variables
+  youTrackConfig = createYouTrackConfigFromEnv();
+
+  if (!youTrackConfig) {
+    await log(`❌ YouTrack mode requires environment variables to be set`, { level: 'error' });
+    await log(`   Required: YOUTRACK_URL, YOUTRACK_API_KEY, YOUTRACK_PROJECT_CODE, YOUTRACK_STAGE`, { level: 'error' });
+    await log(`   Example: YOUTRACK_URL=https://mycompany.youtrack.cloud`, { level: 'error' });
+    process.exit(1);
+  }
+
+  await log(`🎯 YouTrack Mode Detected`);
+  await log(`   Issue ID: ${youTrackIssueId}`);
+  await log(`   YouTrack URL: ${youTrackConfig.url}`);
+  await log(`   Project: ${youTrackConfig.projectCode}`);
 }
 
 // Validate --continue-only-on-feedback option requirements
 if (argv.continueOnlyOnFeedback) {
-  if (!isPrUrl && !(isIssueUrl && argv.autoContinue)) {
+  if (!isPrUrl && !(isIssueUrl && argv.autoContinue) && !isYouTrackUrl) {
     await log(`❌ --continue-only-on-feedback option requirements not met`, { level: 'error' });
     await log(`   This option works only with:`, { level: 'error' });
     await log(`   • Pull request URL, OR`, { level: 'error' });
-    await log(`   • Issue URL with --auto-continue option`, { level: 'error' });
-    await log(`   Current: ${isPrUrl ? 'PR URL' : 'Issue URL'} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
+    await log(`   • Issue URL with --auto-continue option, OR`, { level: 'error' });
+    await log(`   • YouTrack issue ID`, { level: 'error' });
+    await log(`   Current: ${isPrUrl ? 'PR URL' : (isYouTrackUrl ? 'YouTrack URL' : 'Issue URL')} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
     process.exit(1);
   }
 }
@@ -844,6 +901,14 @@ try {
     await log(``);
     process.exit(1);
   }
+
+  // Determine target branch (use custom target branch if specified, otherwise default branch)
+  const targetBranch = argv.targetBranch || process.env.TARGET_BRANCH || defaultBranch;
+  if (argv.targetBranch || process.env.TARGET_BRANCH) {
+    await log(`🎯 Using custom target branch: ${targetBranch}`);
+  } else {
+    await log(`🎯 Using repository default branch: ${targetBranch}`);
+  }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
 
   // Ensure we're on a clean default branch
@@ -1085,7 +1150,20 @@ try {
       await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
       
       // Write initial task info to CLAUDE.md
-      const initialTaskInfo = `Issue to solve: ${issueUrl}
+      let issueInfo = issueUrl;
+      if (isYouTrackUrl && youTrackIssueId) {
+        // Fetch YouTrack issue details for the prompt
+        const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
+        if (youTrackIssue) {
+          issueInfo = `${youTrackIssue.url} (YouTrack: ${youTrackIssueId})
+Title: ${youTrackIssue.summary}
+Description: ${youTrackIssue.description}
+Reporter: ${youTrackIssue.reporter}
+Stage: ${youTrackIssue.stage}`;
+        }
+      }
+
+      const initialTaskInfo = `Issue to solve: ${issueInfo}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
@@ -1400,11 +1478,11 @@ ${prBody}`, { verbose: true });
               const forkUser = forkedRepo.split('/')[0];
               await log(`      Fork user: ${forkUser}`, { verbose: true });
               await log(`      Creating PR from fork to upstream`, { verbose: true });
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
               await log(`      Creating PR within same repository`, { verbose: true });
               // IMPORTANT: Add --repo flag to ensure PR is created in the right repository
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName} --repo ${owner}/${repo}`;
             }
             // Only add assignee if user has permissions
             if (currentUser && canAssign) {
@@ -1530,6 +1608,41 @@ ${prBody}`, { verbose: true });
               }
               
               // CLAUDE.md will be removed after Claude command completes
+
+              // YouTrack integration: Update issue stage and add comment
+              if (isYouTrackUrl && youTrackConfig && youTrackIssueId) {
+                await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
+
+                // Add comment with PR link
+                const prComment = `🤖 **Automated PR Created**
+
+A pull request has been automatically created for this issue:
+- **PR #${prNumber}**: ${prUrl}
+- **Target Branch**: ${targetBranch}
+- **Repository**: ${owner}/${repo}
+
+The PR is currently in draft mode and will be updated as the solution progresses.
+
+*This comment was automatically generated by hive-mind.*`;
+
+                const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
+                if (commentAdded) {
+                  await log(`✅ Added comment to YouTrack issue`);
+                } else {
+                  await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
+                }
+
+                // Update issue stage if nextStage is configured
+                if (youTrackConfig.nextStage) {
+                  const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
+                  if (stageUpdated) {
+                    await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
+                  } else {
+                    await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
+                  }
+                }
+              }
+
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
@@ -1950,7 +2063,21 @@ ${prBody}`, { verbose: true });
   if (isContinueMode) {
     promptLines.push(`Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}`);
   } else {
-    promptLines.push(`Issue to solve: ${issueUrl}`);
+    if (isYouTrackUrl && youTrackIssueId) {
+      // For YouTrack issues, include the YouTrack URL and ID
+      const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
+      if (youTrackIssue) {
+        promptLines.push(`Issue to solve: ${youTrackIssue.url} (YouTrack: ${youTrackIssueId})`);
+        promptLines.push(`Title: ${youTrackIssue.summary}`);
+        promptLines.push(`Description: ${youTrackIssue.description}`);
+        promptLines.push(`Reporter: ${youTrackIssue.reporter}`);
+        promptLines.push(`Stage: ${youTrackIssue.stage}`);
+      } else {
+        promptLines.push(`Issue to solve: YouTrack issue ${youTrackIssueId}`);
+      }
+    } else {
+      promptLines.push(`Issue to solve: ${issueUrl}`);
+    }
   }
   
   // Basic info
