@@ -1383,21 +1383,39 @@ ${prBody}`, { verbose: true });
             
             // Build command with optional assignee and handle forks
             let command;
+
+            // Debug logging for PR creation
+            await log(`   🔍 PR Creation Debug Info:`, { verbose: true });
+            await log(`      Fork mode: ${argv.fork}`, { verbose: true });
+            await log(`      Forked repo: ${forkedRepo || 'none'}`, { verbose: true });
+            await log(`      Owner: ${owner}`, { verbose: true });
+            await log(`      Repo: ${repo}`, { verbose: true });
+            await log(`      Current user: ${currentUser}`, { verbose: true });
+            await log(`      Can assign: ${canAssign}`, { verbose: true });
+            await log(`      Default branch: ${defaultBranch}`, { verbose: true });
+            await log(`      Head branch: ${branchName}`, { verbose: true });
+
             if (argv.fork && forkedRepo) {
               // For forks, specify the full head reference
               const forkUser = forkedRepo.split('/')[0];
+              await log(`      Fork user: ${forkUser}`, { verbose: true });
+              await log(`      Creating PR from fork to upstream`, { verbose: true });
               command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+              await log(`      Creating PR within same repository`, { verbose: true });
+              // IMPORTANT: Add --repo flag to ensure PR is created in the right repository
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName} --repo ${owner}/${repo}`;
             }
             // Only add assignee if user has permissions
             if (currentUser && canAssign) {
+              await log(`      Adding assignee: ${currentUser}`, { verbose: true });
               command += ` --assignee ${currentUser}`;
+            } else {
+              await log(`      Skipping assignee (no permissions or no user)`, { verbose: true });
             }
-            
-            if (argv.verbose) {
-              await log(`   Command: ${command}`, { verbose: true });
-            }
+
+            // Always show the full command for debugging
+            await log(`   📋 Full PR command: ${command}`);
             
             const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
             
