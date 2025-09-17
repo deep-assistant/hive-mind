@@ -68,7 +68,43 @@ runTest('hive.mjs --version', () => {
   }
 });
 
-// Test 4: Check that it requires a GitHub URL
+// Test 4: Check --help functionality
+runTest('hive.mjs --help', () => {
+  const output = execCommand(`${hivePath} --help 2>&1`);
+
+  // Should show help
+  if (!output.includes('Usage: hive.mjs <github-url> [options]')) {
+    throw new Error('--help should show proper usage information');
+  }
+
+  if (!output.includes('GitHub organization, repository, or user URL to monitor')) {
+    throw new Error('--help should show positional argument description');
+  }
+
+  if (!output.includes('--monitor-tag') || !output.includes('--model')) {
+    throw new Error('--help should show option descriptions');
+  }
+});
+
+// Test 5: Check -h functionality
+runTest('hive.mjs -h', () => {
+  const output = execCommand(`${hivePath} -h 2>&1`);
+
+  // Should show help
+  if (!output.includes('Usage: hive.mjs <github-url> [options]')) {
+    throw new Error('-h should show proper usage information');
+  }
+
+  if (!output.includes('GitHub organization, repository, or user URL to monitor')) {
+    throw new Error('-h should show positional argument description');
+  }
+
+  if (!output.includes('--monitor-tag') || !output.includes('--model')) {
+    throw new Error('-h should show option descriptions');
+  }
+});
+
+// Test 6: Check that it requires a GitHub URL
 runTest('hive.mjs requires GitHub URL', () => {
   const output = execCommand(`${hivePath} 2>&1`);
   if (!output.toLowerCase().includes('github') && !output.toLowerCase().includes('url')) {
@@ -76,7 +112,7 @@ runTest('hive.mjs requires GitHub URL', () => {
   }
 });
 
-// Test 5: Check that it validates URL format
+// Test 7: Check that it validates URL format
 runTest('hive.mjs validates URL format', () => {
   const output = execCommand(`${hivePath} not-a-url 2>&1`);
   if (!output.toLowerCase().includes('invalid') && !output.toLowerCase().includes('url')) {
@@ -84,7 +120,7 @@ runTest('hive.mjs validates URL format', () => {
   }
 });
 
-// Test 6: Basic validation
+// Test 8: Basic validation
 runTest('hive.mjs basic validation', () => {
   const output = execCommand(`${hivePath} 2>&1`);
   if (!output) {
@@ -92,7 +128,7 @@ runTest('hive.mjs basic validation', () => {
   }
 });
 
-// Test 7: Node.js syntax check
+// Test 9: Node.js syntax check
 runTest('hive.mjs syntax check', () => {
   const output = execCommand(`node -c ${hivePath} 2>&1`);
   // If there's a syntax error, node -c will output it
@@ -101,7 +137,7 @@ runTest('hive.mjs syntax check', () => {
   }
 });
 
-// Test 8: Check imports work (basic module loading)
+// Test 10: Check imports work (basic module loading)
 runTest('hive.mjs module imports', () => {
   // This will fail if there are import errors
   const output = execCommand(`${hivePath} --version 2>&1`);
@@ -110,7 +146,7 @@ runTest('hive.mjs module imports', () => {
   }
 });
 
-// Test 9: Skip monitoring options test
+// Test 11: Skip monitoring options test
 runTest('hive.mjs loads', () => {
   // Just verify it loads
   const output = execCommand(`${hivePath} --version 2>&1`);

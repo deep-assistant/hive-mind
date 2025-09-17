@@ -63,85 +63,97 @@ const checkMemory = async (minMemoryMB = 256) => {
 // Use getResourceSnapshot from memory-check module
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
+// Function to create yargs configuration - avoids duplication
+const createYargsConfig = (yargsInstance) => {
+  return yargsInstance
+    .usage('Usage: $0 <issue-url> [options]')
+    .positional('issue-url', {
+      type: 'string',
+      description: 'The GitHub issue URL to solve'
+    })
+    .option('resume', {
+      type: 'string',
+      description: 'Resume from a previous session ID (when limit was reached)',
+      alias: 'r'
+    })
+    .option('only-prepare-command', {
+      type: 'boolean',
+      description: 'Only prepare and print the claude command without executing it',
+    })
+    .option('dry-run', {
+      type: 'boolean',
+      description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
+      alias: 'n'
+    })
+    .option('model', {
+      type: 'string',
+      description: 'Model to use (opus or sonnet)',
+      alias: 'm',
+      default: 'sonnet',
+      choices: ['opus', 'sonnet']
+    })
+    .option('auto-pull-request-creation', {
+      type: 'boolean',
+      description: 'Automatically create a draft pull request before running Claude',
+      default: true
+    })
+    .option('verbose', {
+      type: 'boolean',
+      description: 'Enable verbose logging for debugging',
+      alias: 'v',
+      default: false
+    })
+    .option('fork', {
+      type: 'boolean',
+      description: 'Fork the repository if you don\'t have write access',
+      alias: 'f',
+      default: false
+    })
+    .option('attach-logs', {
+      type: 'boolean',
+      description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+      default: false
+    })
+    .option('auto-continue', {
+      type: 'boolean',
+      description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
+      default: false
+    })
+    .option('auto-continue-limit', {
+      type: 'boolean',
+      description: 'Automatically continue when Claude limit resets (waits until reset time)',
+      default: false,
+      alias: 'c'
+    })
+    .option('auto-continue-only-on-new-comments', {
+      type: 'boolean',
+      description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
+      default: false
+    })
+    .option('continue-only-on-feedback', {
+      type: 'boolean',
+      description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
+      default: false
+    })
+    .option('min-disk-space', {
+      type: 'number',
+      description: 'Minimum required disk space in MB (default: 500)',
+      default: 500
+    })
+    .help('h')
+    .alias('h', 'help');
+};
+
+// Check for help flag before processing other arguments
+const rawArgs = hideBin(process.argv);
+if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+  // Show help and exit
+  createYargsConfig(yargs(rawArgs)).showHelp();
+  process.exit(0);
+}
+
 // Configure command line arguments - GitHub issue URL as positional argument
-const argv = yargs(hideBin(process.argv))
-  .usage('Usage: $0 <issue-url> [options]')
-  .positional('issue-url', {
-    type: 'string',
-    description: 'The GitHub issue URL to solve'
-  })
-  .option('resume', {
-    type: 'string',
-    description: 'Resume from a previous session ID (when limit was reached)',
-    alias: 'r'
-  })
-  .option('only-prepare-command', {
-    type: 'boolean',
-    description: 'Only prepare and print the claude command without executing it',
-  })
-  .option('dry-run', {
-    type: 'boolean',
-    description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
-    alias: 'n'
-  })
-  .option('model', {
-    type: 'string',
-    description: 'Model to use (opus or sonnet)',
-    alias: 'm',
-    default: 'sonnet',
-    choices: ['opus', 'sonnet']
-  })
-  .option('auto-pull-request-creation', {
-    type: 'boolean',
-    description: 'Automatically create a draft pull request before running Claude',
-    default: true
-  })
-  .option('verbose', {
-    type: 'boolean',
-    description: 'Enable verbose logging for debugging',
-    alias: 'v',
-    default: false
-  })
-  .option('fork', {
-    type: 'boolean',
-    description: 'Fork the repository if you don\'t have write access',
-    alias: 'f',
-    default: false
-  })
-  .option('attach-logs', {
-    type: 'boolean',
-    description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-    default: false
-  })
-  .option('auto-continue', {
-    type: 'boolean',
-    description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
-    default: false
-  })
-  .option('auto-continue-limit', {
-    type: 'boolean',
-    description: 'Automatically continue when Claude limit resets (waits until reset time)',
-    default: false,
-    alias: 'c'
-  })
-  .option('auto-continue-only-on-new-comments', {
-    type: 'boolean',
-    description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
-    default: false
-  })
-  .option('continue-only-on-feedback', {
-    type: 'boolean',
-    description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
-    default: false
-  })
-  .option('min-disk-space', {
-    type: 'number',
-    description: 'Minimum required disk space in MB (default: 500)',
-    default: 500
-  })
-  .help('h')
-  .alias('h', 'help')
-  .argv;
+const argv = createYargsConfig(yargs(rawArgs)).argv;
 
 const issueUrl = argv._[0];
 
