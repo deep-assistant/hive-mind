@@ -33,6 +33,16 @@ const { checkSystem } = memCheck;
 
 // The cleanupTempDirectories function has been moved to lib.mjs
 
+// Detect if running as global command vs local script
+// Simple detection: check if the command name ends with .mjs
+// - Global command: 'hive' -> use 'solve'
+// - Local script: 'hive.mjs' or './hive.mjs' -> use './solve.mjs'
+const commandName = process.argv[1] ? process.argv[1].split('/').pop() : '';
+const isLocalScript = commandName.endsWith('.mjs');
+
+// Determine which solve command to use based on execution context
+const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
+
 // Check for help flag early - simple approach without yargs duplication
 const rawArgs = process.argv.slice(2);
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
@@ -71,7 +81,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('concurrency', {
     type: 'number',
-    description: 'Number of concurrent solve.mjs instances',
+    description: 'Number of concurrent solve instances',
     default: 2,
     alias: 'c'
   })
@@ -83,7 +93,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('model', {
     type: 'string',
-    description: 'Model to use for solve.mjs (opus or sonnet)',
+    description: 'Model to use for solve (opus or sonnet)',
     alias: 'm',
     default: 'sonnet',
     choices: ['opus', 'sonnet']
@@ -356,11 +366,11 @@ async function worker(workerId) {
           const forkFlag = argv.fork ? ' --fork' : '';
           const verboseFlag = argv.verbose ? ' --verbose' : '';
           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
-          await log(`   🧪 [DRY RUN] Would execute: ./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`);
+          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
-          // Execute solve.mjs using spawn to enable real-time streaming while avoiding command-stream quoting issues
-          await log(`   🚀 Executing solve.mjs for ${issueUrl}...`);
+          // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
+          await log(`   🚀 Executing ${solveCommand} for ${issueUrl}...`);
           
           const startTime = Date.now();
           const forkFlag = argv.fork ? ' --fork' : '';
@@ -383,14 +393,14 @@ async function worker(workerId) {
           }
 
           // Log the actual command being executed so users can investigate/reproduce
-          const command = `./solve.mjs "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`;
+          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`;
           await log(`   📋 Command: ${command}`);
-          
+
           let exitCode = 0;
-          
+
           // Create promise to handle async spawn process
           await new Promise((resolve, reject) => {
-            const child = spawn('./solve.mjs', args, {
+            const child = spawn(solveCommand, args, {
               stdio: ['pipe', 'pipe', 'pipe']
             });
             
@@ -399,17 +409,17 @@ async function worker(workerId) {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [solve.mjs] ${line}`, { verbose: true }).catch(() => {});
+                  log(`   [${solveCommand}] ${line}`, { verbose: true }).catch(() => {});
                 }
               }
             });
-            
+
             // Handle stderr data - stream errors in real-time
             child.stderr.on('data', (data) => {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [solve.mjs ERROR] ${line}`, { level: 'error', verbose: true }).catch(() => {});
+                  log(`   [${solveCommand} ERROR] ${line}`, { level: 'error', verbose: true }).catch(() => {});
                 }
               }
             });
@@ -423,7 +433,7 @@ async function worker(workerId) {
             // Handle process errors
             child.on('error', (error) => {
               exitCode = 1;
-              log(`   [solve.mjs ERROR] Process error: ${error.message}`, { level: 'error', verbose: true }).catch(() => {});
+              log(`   [${solveCommand} ERROR] Process error: ${error.message}`, { level: 'error', verbose: true }).catch(() => {});
               resolve();
             });
           });
@@ -433,7 +443,7 @@ async function worker(workerId) {
           if (exitCode === 0) {
             await log(`   ✅ Worker ${workerId} completed ${issueUrl} (${duration}s)`);
           } else {
-            throw new Error(`solve.mjs exited with code ${exitCode}`);
+            throw new Error(`${solveCommand} exited with code ${exitCode}`);
           }
         }
         
