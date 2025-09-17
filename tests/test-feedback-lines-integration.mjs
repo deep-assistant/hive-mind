@@ -55,6 +55,11 @@ function $(command, options = {}) {
   }
 }
 
+// Get GitHub username from environment or default
+function getGitHubUsername() {
+  return process.env.TEST_GITHUB_USERNAME || 'konard';
+}
+
 // Generate unique repository name
 function generateTestRepoName() {
   const uuid = crypto.randomUUID().slice(0, 8);
@@ -64,7 +69,15 @@ function generateTestRepoName() {
 // Create test repository with issue and comments
 async function createTestRepository() {
   testRepo = generateTestRepoName();
+  const username = getGitHubUsername();
   console.log(`📦 Creating test repository: ${testRepo}`);
+
+  // Setup authentication if custom token is provided
+  if (process.env.TEST_GITHUB_USER_TOKEN) {
+    console.log('   🔑 Using custom GitHub token for authentication');
+    // Set the GITHUB_TOKEN environment variable for gh CLI
+    process.env.GITHUB_TOKEN = process.env.TEST_GITHUB_USER_TOKEN;
+  }
 
   // Get current user
   const userResult = $('gh auth status', { silent: true });
@@ -78,7 +91,7 @@ async function createTestRepository() {
     throw new Error(`Failed to create repository: ${createResult.stderr}`);
   }
 
-  console.log(`   ✅ Repository created: https://github.com/konard/${testRepo}`);
+  console.log(`   ✅ Repository created: https://github.com/${username}/${testRepo}`);
 
   // Initialize local repository
   const tempDir = `/tmp/${testRepo}-init`;
@@ -91,7 +104,7 @@ async function createTestRepository() {
   $('echo "# Test Repository\\n\\nThis is a test repository for feedback lines testing." > README.md');
   $('git add README.md');
   $('git commit -m "Initial commit"');
-  $(`git remote add origin https://github.com/konard/${testRepo}.git`);
+  $(`git remote add origin https://github.com/${username}/${testRepo}.git`);
   $('git branch -M main');
   $('git push -u origin main');
 
@@ -156,7 +169,7 @@ async function createTestRepository() {
   return {
     repoName: testRepo,
     prNumber: prNumber,
-    prUrl: `https://github.com/konard/${testRepo}/pull/${prNumber}`,
+    prUrl: `https://github.com/${username}/${testRepo}/pull/${prNumber}`,
     tempDir: tempDir
   };
 }
@@ -214,8 +227,9 @@ function cleanup() {
   console.log('\\n🧹 Cleaning up test resources...');
 
   if (testRepo) {
+    const username = getGitHubUsername();
     try {
-      const deleteResult = $(`gh repo delete konard/${testRepo} --yes`, { silent: true });
+      const deleteResult = $(`gh repo delete ${username}/${testRepo} --yes`, { silent: true });
       if (deleteResult.code === 0) {
         console.log('   ✅ Test repository deleted');
       } else {
