@@ -26,7 +26,8 @@ const {
  */
 export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
   try {
-    // Search for issues with the YouTrack ID in the title
+    // Search for both open and closed issues with the YouTrack ID in the title
+    // This prevents creating duplicates even if an issue was closed
     const searchResult = await $`gh api search/issues --jq '.items' -X GET -f q="repo:${owner}/${repo} \"${youTrackId}\" in:title is:issue"`;
 
     if (searchResult.code !== 0) {
@@ -36,13 +37,19 @@ export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
     const issues = JSON.parse(searchResult.stdout.toString().trim() || '[]');
 
     // Find exact match (YouTrack ID should be in brackets or at start)
-    for (const issue of issues) {
-      if (issue.title.includes(`[${youTrackId}]`) || issue.title.startsWith(`${youTrackId}:`)) {
-        return issue;
-      }
-    }
+    // Return the first matching issue (prefer open issues)
+    const openIssue = issues.find(issue =>
+      issue.state === 'open' && (issue.title.includes(`[${youTrackId}]`) || issue.title.startsWith(`${youTrackId}:`))
+    );
 
-    return null;
+    if (openIssue) return openIssue;
+
+    // If no open issue, check for closed issues to prevent duplicates
+    const closedIssue = issues.find(issue =>
+      issue.state === 'closed' && (issue.title.includes(`[${youTrackId}]`) || issue.title.startsWith(`${youTrackId}:`))
+    );
+
+    return closedIssue || null;
   } catch (error) {
     return null;
   }
@@ -86,7 +93,13 @@ ${youTrackIssue.description || 'No description provided.'}
   const existingIssue = await findGitHubIssueForYouTrack(youTrackId, owner, repo, $);
 
   if (existingIssue) {
-    // Update existing issue if title or body changed
+    // If issue is closed, skip it (don't recreate or update)
+    if (existingIssue.state === 'closed') {
+      await log(`   ⏭️ Skipping ${youTrackId} - GitHub issue #${existingIssue.number} is closed`);
+      return existingIssue;
+    }
+
+    // Update existing open issue if title or body changed
     const needsUpdate = existingIssue.title !== ghTitle || existingIssue.body !== ghBody;
 
     if (needsUpdate) {
