@@ -1378,7 +1378,8 @@ Self review.
     getResourceSnapshot,
     forkedRepo,
     feedbackLines,
-    claudePath
+    claudePath,
+    $
   });
 
   const { success, sessionId, limitReached, messageCount, toolUseCount } = claudeResult;

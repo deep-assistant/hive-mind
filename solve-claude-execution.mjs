@@ -3,8 +3,6 @@
  * Handles the actual execution of Claude commands and processing of output
  */
 
-import { $ } from 'command-stream';
-
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -19,7 +17,8 @@ export const executeClaudeCommand = async (params) => {
     getResourceSnapshot,
     forkedRepo,
     feedbackLines,
-    claudePath
+    claudePath,
+    $
   } = params;
 
   // Execute claude command from the cloned repository directory
