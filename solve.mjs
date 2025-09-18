@@ -2898,6 +2898,34 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
           });
         }
         
+        // YouTrack integration: Update issue stage and add comment
+        console.debug(`YouTrack update check: isYouTrackUrl=${isYouTrackUrl}, hasConfig=${!!youTrackConfig}, youTrackIssueId=${youTrackIssueId}`);
+        console.debug(`YouTrack config details: url=${youTrackConfig?.url}, projectCode=${youTrackConfig?.projectCode}, nextStage=${youTrackConfig?.nextStage}`);
+        console.debug(`PR details: prNumber=${pr.number}, prUrl=${pr.url}`);
+
+        if (isYouTrackUrl && youTrackConfig && youTrackIssueId) {
+          await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
+
+          // Add comment about PR
+          const prComment = `Pull Request created: ${pr.url}\n\nPlease review the proposed solution.`;
+          const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
+          if (commentAdded) {
+            await log(`✅ Added comment to YouTrack issue`);
+          } else {
+            await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
+          }
+
+          // Update issue stage if nextStage is configured
+          if (youTrackConfig.nextStage) {
+            const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
+            if (stageUpdated) {
+              await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
+            } else {
+              await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
+            }
+          }
+        }
+
         await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
         await log(`📍 URL: ${pr.url}`);
         if (shouldAttachLogs && logUploadSuccess) {
