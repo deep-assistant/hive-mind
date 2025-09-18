@@ -803,15 +803,21 @@ Issue: ${issueUrl}`;
             }
           }
           
-          // Get issue title for PR title
-          await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
-          const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
+          // Get issue title for PR title (skip for YouTrack issues)
           let issueTitle = `Fix issue #${issueNumber}`;
-          if (issueTitleResult.code === 0) {
-            issueTitle = issueTitleResult.stdout.toString().trim();
-            await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+          if (!isYouTrackUrl) {
+            await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
+            const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
+            if (issueTitleResult.code === 0) {
+              issueTitle = issueTitleResult.stdout.toString().trim();
+              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+            } else {
+              await log(`   Warning: Could not get issue title, using default`, { verbose: true });
+            }
           } else {
-            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
+            // For YouTrack issues, use the YouTrack ID in title
+            issueTitle = `Fix YouTrack issue ${youTrackIssueId}`;
+            await log(`   Using YouTrack issue ID for title: "${issueTitle}"`, { verbose: true });
           }
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
@@ -950,8 +956,10 @@ ${prBody}`, { verbose: true });
                 // CLAUDE.md will be removed after Claude command completes
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
-                await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
-                try {
+                // Skip linking for YouTrack issues (they don't exist in GitHub)
+                if (!isYouTrackUrl) {
+                  await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
+                  try {
                   // First, get the node IDs for both the issue and the PR
                   const issueNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { issue(number: ${issueNumber}) { id } } }' --jq .data.repository.issue.id`;
                   
@@ -1020,6 +1028,7 @@ ${prBody}`, { verbose: true });
                   await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
                   await log(`   Please check manually at: ${prUrl}`, { level: 'warning' });
                 }
+                } // Close the if (!isYouTrackUrl) block
               } else {
                 await log(formatAligned('✅', 'PR created:', 'Successfully'));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
@@ -1313,8 +1322,10 @@ Self review.
 
   let referenceTime;
   try {
-    // Get the issue's last update time
-    const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
+    // Skip GitHub issue API calls for YouTrack issues
+    if (!isYouTrackUrl) {
+      // Get the issue's last update time
+      const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
     
     if (issueResult.code !== 0) {
       throw new Error(`Failed to get issue details: ${issueResult.stderr ? issueResult.stderr.toString() : 'Unknown error'}`);
@@ -1365,6 +1376,11 @@ Self review.
     }
 
     await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())}`);
+    } else {
+      // For YouTrack issues, just use current time as reference
+      referenceTime = new Date();
+      await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())} (YouTrack issue)`);
+    }
   } catch (timestampError) {
     await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
     await log(`  Error: ${timestampError.message}`);
