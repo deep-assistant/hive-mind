@@ -33,7 +33,11 @@ if (earlyArgs.length === 0) {
 
 // Handle invalid URL format early (basic check)
 const firstArg = earlyArgs[0];
-if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !firstArg.match(/^youtrack:\/\//) && !firstArg.match(/^[A-Z0-9][A-Z0-9]*-\d+$/i)) {
+// Import YouTrack format checker for early validation
+const youTrackFormatChecker = await import('./solve.youtrack.lib.mjs');
+const { isYouTrackFormat } = youTrackFormatChecker;
+
+if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !isYouTrackFormat(firstArg)) {
   console.error(`Error: Invalid GitHub or YouTrack URL format: ${firstArg}`);
   console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
   console.error('Or YouTrack format: youtrack://PROJECT-123 or PROJECT-123');
@@ -90,15 +94,13 @@ const {
   validateClaudeConnection
 } = claudeLib;
 
-// Import YouTrack-related functions
-const youTrackLib = await import('./youtrack.lib.mjs');
+// Import YouTrack integration functions
+const youTrackIntegration = await import('./solve.youtrack.lib.mjs');
 const {
-  parseYouTrackIssueId,
-  getYouTrackIssue,
-  updateYouTrackIssueStage,
-  addYouTrackComment,
-  createYouTrackConfigFromEnv
-} = youTrackLib;
+  validateYouTrackUrl,
+  updateYouTrackIssue,
+  isYouTrackFormat
+} = youTrackIntegration;
 
 // Import validation functions
 const validation = await import('./solve.validation.lib.mjs');
@@ -155,9 +157,6 @@ const {
 } = feedback;
 
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
-
-// Global log file reference (will be passed to lib.mjs)
-
 // Use getResourceSnapshot from memory-check module
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
@@ -184,19 +183,11 @@ if (issueUrl) {
     isIssueUrl = urlValidation.isIssueUrl;
     isPrUrl = urlValidation.isPrUrl;
   } else {
-    // Check for YouTrack URLs
-    // Check for YouTrack issue format (youtrack://PROJECT-123 or youtrack://2-123)
-    isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9][A-Z0-9]*-\d+)$/i);
-
-    // Also check if it's a direct YouTrack issue ID
-    if (!isYouTrackUrl) {
-      youTrackIssueId = parseYouTrackIssueId(issueUrl);
-      if (youTrackIssueId) {
-        isYouTrackUrl = [issueUrl, youTrackIssueId];
-      }
-    } else {
-      youTrackIssueId = isYouTrackUrl[1];
-    }
+    // Check for YouTrack URLs using validation module
+    const youTrackValidation = await validateYouTrackUrl(issueUrl);
+    isYouTrackUrl = youTrackValidation.isYouTrackUrl;
+    youTrackIssueId = youTrackValidation.youTrackIssueId;
+    youTrackConfig = youTrackValidation.youTrackConfig;
 
     // Fail fast if URL is invalid
     if (!isYouTrackUrl) {
@@ -207,15 +198,6 @@ if (issueUrl) {
       console.error('    https://github.com/owner/repo/pull/456 (GitHub pull request)');
       console.error('    youtrack://PROJECT-123 (YouTrack issue)');
       console.error('    PROJECT-123 (YouTrack issue ID)');
-      process.exit(1);
-    }
-
-    // If YouTrack URL detected, set up YouTrack configuration
-    youTrackConfig = createYouTrackConfigFromEnv();
-    if (!youTrackConfig) {
-      console.error('Error: YouTrack URL detected but YouTrack configuration not found');
-      console.error('  Required environment variables: YOUTRACK_URL, YOUTRACK_API_KEY');
-      console.error('  Optional: YOUTRACK_NEXT_STAGE (stage to move issue to after PR creation)');
       process.exit(1);
     }
   }
@@ -1492,26 +1474,7 @@ Self review.
 
   // YouTrack integration: Update issue stage and add comment
   if (isYouTrackUrl && youTrackConfig && youTrackIssueId && prUrl) {
-    await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
-
-    // Add comment about PR
-    const prComment = `Pull Request created: ${prUrl}\n\nPlease review the proposed solution.`;
-    const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
-    if (commentAdded) {
-      await log(`✅ Added comment to YouTrack issue`);
-    } else {
-      await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
-    }
-
-    // Update issue stage if nextStage is configured
-    if (youTrackConfig.nextStage) {
-      const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
-      if (stageUpdated) {
-        await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
-      } else {
-        await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
-      }
-    }
+    await updateYouTrackIssue(youTrackIssueId, youTrackConfig, prUrl, log);
   }
 
   // Search for newly created pull requests and comments
