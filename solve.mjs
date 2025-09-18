@@ -239,7 +239,45 @@ if (argv.verbose) {
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
 // Parse URL components using validation module
-const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
+let owner, repo, urlNumber;
+
+if (isYouTrackUrl) {
+  // For YouTrack URLs, we need to get repository info from GITHUB_URL env var
+  const githubUrl = process.env.GITHUB_URL;
+  urlNumber = youTrackIssueId;
+
+  if (!githubUrl) {
+    console.error('Error: YouTrack integration requires GitHub repository configuration');
+    console.error('  Please set environment variable:');
+    console.error('    GITHUB_URL=https://github.com/owner/repo');
+    console.error('');
+    console.error('  Example:');
+    console.error('    export GITHUB_URL=https://github.com/myorg/myproject');
+    console.error('    ./solve.mjs "youtrack://PAG-123"');
+    process.exit(1);
+  }
+
+  // Parse the GITHUB_URL to extract owner and repo
+  const githubUrlMatch = githubUrl.match(/github\.com\/([^\/]+)\/([^\/\?#]+)/);
+  if (githubUrlMatch) {
+    owner = githubUrlMatch[1];
+    repo = githubUrlMatch[2].replace(/\.git$/, ''); // Remove .git if present
+  } else {
+    console.error('Error: Invalid GITHUB_URL format');
+    console.error(`  Provided: ${githubUrl}`);
+    console.error('  Expected: https://github.com/owner/repo');
+    process.exit(1);
+  }
+
+  await log(`🔗 YouTrack issue: ${youTrackIssueId}`);
+  await log(`📂 Target repository: ${owner}/${repo}`);
+} else {
+  // For GitHub URLs, parse normally
+  const urlComponents = parseUrlComponents(issueUrl);
+  owner = urlComponents.owner;
+  repo = urlComponents.repo;
+  urlNumber = urlComponents.urlNumber;
+}
 
 // Determine mode and get issue details
 let issueNumber;
