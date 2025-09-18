@@ -59,8 +59,8 @@ export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
  * @returns {Object} Created or updated GitHub issue
  */
 export async function syncYouTrackIssueToGitHub(youTrackIssue, owner, repo, youTrackConfig, $, log) {
-  const youTrackId = youTrackIssue.idReadable;
-  const youTrackUrl = `${youTrackConfig.url}/issue/${youTrackId}`;
+  const youTrackId = youTrackIssue.id;
+  const youTrackUrl = youTrackIssue.url || `${youTrackConfig.url}/issue/${youTrackId}`;
 
   // Format title with YouTrack ID for automatic linking
   // Format: "[PROJECT-123] Original Title" or "PROJECT-123: Original Title"
@@ -78,7 +78,9 @@ export async function syncYouTrackIssueToGitHub(youTrackIssue, owner, repo, youT
 ${youTrackIssue.description || 'No description provided.'}
 
 ---
-*This issue is automatically synchronized from YouTrack. Any commits or PRs that reference \`${youTrackId}\` will be automatically linked in YouTrack.*`;
+*This issue is automatically synchronized from YouTrack. Any commits or PRs that reference \`${youTrackId}\` will be automatically linked in YouTrack.*
+
+**Note:** To process this issue, ensure the 'help wanted' label exists in your repository.`;
 
   // Check if issue already exists
   const existingIssue = await findGitHubIssueForYouTrack(youTrackId, owner, repo, $);
@@ -101,11 +103,16 @@ ${youTrackIssue.description || 'No description provided.'}
       await log(`   ✓ Issue #${existingIssue.number} already up to date for ${youTrackId}`);
     }
 
-    // Ensure help-wanted label is applied
-    const hasLabel = existingIssue.labels?.some(l => l.name === 'help-wanted');
+    // Ensure help wanted label is applied
+    const hasLabel = existingIssue.labels?.some(l => l.name === 'help wanted');
     if (!hasLabel) {
-      await $`gh issue edit ${existingIssue.number} --repo ${owner}/${repo} --add-label "help-wanted"`;
-      await log(`   🏷️ Added help-wanted label to #${existingIssue.number}`);
+      try {
+        await $`gh issue edit ${existingIssue.number} --repo ${owner}/${repo} --add-label "help wanted"`;
+        await log(`   🏷️ Added 'help wanted' label to #${existingIssue.number}`);
+      } catch (labelError) {
+        // Silently skip if label doesn't exist
+        await log(`   ⚠️ Could not add 'help wanted' label (may not exist in repo)`, { verbose: true });
+      }
     }
 
     return existingIssue;
@@ -114,7 +121,7 @@ ${youTrackIssue.description || 'No description provided.'}
     await log(`   ➕ Creating GitHub issue for ${youTrackId}...`);
 
     try {
-      const createResult = await $`gh issue create --repo ${owner}/${repo} --title "${ghTitle}" --body "${ghBody}" --label "help-wanted"`;
+      const createResult = await $`gh issue create --repo ${owner}/${repo} --title "${ghTitle}" --body "${ghBody}" --label "help wanted"`;
 
       if (createResult.code === 0) {
         const issueUrl = createResult.stdout.toString().trim();
@@ -172,7 +179,7 @@ export async function syncYouTrackToGitHub(youTrackConfig, owner, repo, $, log) 
     if (ghIssue) {
       githubIssues.push({
         ...ghIssue,
-        youtrackId: ytIssue.idReadable,
+        youtrackId: ytIssue.id,
         youtrackUrl: `${youTrackConfig.url}/issue/${ytIssue.idReadable}`
       });
     }
