@@ -75,6 +75,15 @@ const {
   cleanupTempDirectory
 } = repository;
 
+// Import results processing functions
+const results = await import('./solve-results.mjs');
+const {
+  cleanupClaudeFile,
+  showSessionSummary,
+  verifyResults,
+  handleExecutionError
+} = results;
+
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
 // Global log file reference (will be passed to lib.mjs)
@@ -2000,82 +2009,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
   } catch (gitError) {
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
   }
-  
   // Remove CLAUDE.md now that Claude command has finished
-  // We need to commit and push the deletion so it's reflected in the PR
-  try {
-    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-    
-    // Commit the deletion
-    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
-    if (deleteCommitResult.code === 0) {
-      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-      
-      // Push the deletion
-      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-      if (pushDeleteResult.code === 0) {
-        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-      } else {
-        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-      }
-    } else {
-      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-    }
-  } catch (e) {
-    // File might not exist or already removed, that's fine
-    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-  }
+  await cleanupClaudeFile(tempDir, branchName);
 
   // Show summary of session and log file
-  await log('\n=== Session Summary ===');
+  await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir);
 
-  if (sessionId) {
-    await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${getLogFile()}`);
-
-    if (limitReached) {
-      await log(`\n⏰ LIMIT REACHED DETECTED!`);
-      
-      if (argv.autoContinueLimit && global.limitResetTime) {
-        await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
-        await autoContinueWhenLimitResets(issueUrl, sessionId);
-      } else {
-        await log(`\n🔄 To resume when limit resets, use:\n`);
-        await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-        
-        if (global.limitResetTime) {
-          await log(`\n💡 Or enable auto-continue-limit to wait until ${global.limitResetTime}:\n`);
-          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
-        }
-        
-        await log(`\n   This will continue from where it left off with full context.\n`);
-      }
-    } else {
-      // Show command to resume session in interactive mode
-      await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
-      await log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
-      await log(``);
-    }
-
-    // Don't show log preview, it's too technical
-  } else {
-    await log(`❌ No session ID extracted`);
-    await log(`📁 Log file available: ${getLogFile()}`);
-  }
-
-  // Now search for newly created pull requests and comments
-  await log('\n🔍 Searching for created pull requests or comments...');
-
-  try {
-    // Get the current user's GitHub username
-    const userResult = await $`gh api user --jq .login`;
-    
-    if (userResult.code !== 0) {
-      throw new Error(`Failed to get current user: ${userResult.stderr ? userResult.stderr.toString() : 'Unknown error'}`);
-    }
-    
-    const currentUser = userResult.stdout.toString().trim();
+  // Search for newly created pull requests and comments
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
     if (!currentUser) {
       throw new Error('Unable to determine current GitHub user');
     }
