@@ -229,8 +229,8 @@ export async function getYouTrackIssue(issueId, config) {
 
     await log(`🔍 Fetching YouTrack issue details: ${issueId}`);
 
-    // Fetch issue with detailed fields
-    const endpoint = `/issues/${issueId}?fields=id,summary,description,created,updated,reporter(login,fullName),assignee(login,fullName),customFields(name,value(name))`;
+    // Fetch issue with detailed fields including idReadable
+    const endpoint = `/issues/${issueId}?fields=id,idReadable,summary,description,created,updated,reporter(login,fullName),assignee(login,fullName),customFields(name,value(name))`;
 
     const issue = await makeYouTrackRequest(endpoint, config);
 
@@ -251,6 +251,7 @@ export async function getYouTrackIssue(issueId, config) {
     // Transform to our standard format
     const transformedIssue = {
       id: issue.id,
+      idReadable: issue.idReadable || issue.id, // User-friendly ID like PAG-55
       summary: issue.summary || 'No title',
       description: issue.description || '',
       stage: currentStage,

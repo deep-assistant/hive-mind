@@ -1183,7 +1183,9 @@ try {
         // Fetch YouTrack issue details for the prompt
         const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
         if (youTrackIssue) {
-          issueInfo = `${youTrackIssue.url} (YouTrack: ${youTrackIssueId})
+          // Use readable ID (like PAG-55) if available
+          const displayId = youTrackIssue.idReadable || youTrackIssueId;
+          issueInfo = `${youTrackIssue.url} (YouTrack: ${displayId})
 Title: ${youTrackIssue.summary}
 Description: ${youTrackIssue.description}
 Reporter: ${youTrackIssue.reporter}
@@ -1406,8 +1408,11 @@ Issue: ${issueUrl}`;
 
             if (youTrackIssue) {
               issueTitle = youTrackIssue.summary;
-              issueRef = `${youTrackIssueId}: ${youTrackIssue.summary}`;
+              // Use readable ID (like PAG-55) if available, otherwise fall back to internal ID
+              const displayId = youTrackIssue.idReadable || youTrackIssueId;
+              issueRef = `${displayId}: ${youTrackIssue.summary}`;
               await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+              await log(`   Issue ID: ${displayId}`, { verbose: true });
             } else {
               issueTitle = `Fix YouTrack issue ${youTrackIssueId}`;
               issueRef = youTrackIssueId;
