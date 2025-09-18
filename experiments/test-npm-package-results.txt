@@ -1,0 +1,32 @@
+Testing NPM package file inclusion (Issue #195)...
+
+Created temp directory: /tmp/hive-mind-test-Z5VKvv
+
+Test 1: Installing @deep-assistant/hive-mind@latest...
+
+added 1 package in 3s
+✅ Package installed successfully
+
+Test 2: Running hive --version...
+✅ Hive version: 0.4.0
+
+Test 3: Running solve --version...
+✅ Solve version: 0.4.0
+
+Test 4: Testing hive --help (which should work without issues)...
+✅ Hive help command works
+
+Test 5: Verifying package contents...
+✅ Package is properly installed globally
+
+Test 6: Testing module imports from solve...
+✅ Module structure verified
+
+NaN
+
+🎉 All tests passed! Issue #195 is resolved.
+
+The NPM package v0.4.0 includes all necessary files for solve.mjs to work correctly when called from hive.mjs
+
+Cleaning up...
+Cleanup complete
