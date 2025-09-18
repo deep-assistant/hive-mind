@@ -239,10 +239,12 @@ export async function getYouTrackIssue(issueId, config) {
       return null;
     }
 
-    // Find the State/Stage custom field
+    // Find the State/Stage custom field (check both possible names)
     let currentStage = 'Unknown';
     if (issue.customFields && Array.isArray(issue.customFields)) {
-      const stateField = issue.customFields.find(field => field.name === 'State');
+      const stateField = issue.customFields.find(field =>
+        field.name === 'State' || field.name === 'Stage'
+      );
       if (stateField && stateField.value && stateField.value.name) {
         currentStage = stateField.value.name;
       }
@@ -284,13 +286,13 @@ export async function updateYouTrackIssueStage(issueId, newStage, config) {
 
     await log(`🔄 Updating YouTrack issue ${issueId} stage to "${newStage}"`);
 
-    // Update the State custom field
+    // Update the Stage custom field (note: might be 'Stage' or 'State' depending on setup)
     const endpoint = `/issues/${issueId}`;
     const updateData = {
       customFields: [
         {
-          $type: 'StateMachineCustomField',
-          name: 'State',
+          $type: 'StateIssueCustomField',
+          name: 'Stage',
           value: {
             $type: 'StateBundleElement',
             name: newStage
