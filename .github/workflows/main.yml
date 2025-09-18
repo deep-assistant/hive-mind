@@ -226,6 +226,53 @@ jobs:
           fi
         done
 
+  # === FILE LINE LIMIT CHECK ===
+  check-file-line-limits:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mjs-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check .mjs file line limits
+      run: |
+        echo "Checking that all .mjs files are under 1500 lines..."
+
+        # Create a temporary file to track failures
+        FAILURES_FILE=$(mktemp)
+
+        # Check all .mjs files in the repository
+        find . -name "*.mjs" -type f | while read -r file; do
+          line_count=$(wc -l < "$file")
+          echo "📄 $file: $line_count lines"
+
+          if [ $line_count -gt 1500 ]; then
+            echo "❌ ERROR: $file has $line_count lines, which exceeds the 1500 line limit!"
+            echo "::error file=$file::File has $line_count lines (limit: 1500)"
+            echo "$file" >> "$FAILURES_FILE"
+          else
+            echo "✅ $file is within the 1500 line limit"
+          fi
+        done
+
+        # Check if any failures occurred
+        if [ -s "$FAILURES_FILE" ]; then
+          echo ""
+          echo "❌ The following .mjs files exceed the 1500 line limit:"
+          cat "$FAILURES_FILE"
+          echo ""
+          echo "Please reorganize the code to split large files into smaller modules."
+          echo "Each .mjs file should have no more than 1500 lines of code."
+          rm -f "$FAILURES_FILE"
+          exit 1
+        else
+          echo ""
+          echo "✅ All .mjs files are within the 1500 line limit!"
+          rm -f "$FAILURES_FILE"
+        fi
+
   # === UNIT TESTS ===
   test-suites:
     runs-on: ubuntu-latest

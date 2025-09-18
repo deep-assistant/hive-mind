@@ -3,8 +3,9 @@
 
 // Check if use is already defined (when imported from solve.mjs)
 // If not, fetch it (when running standalone)
-if (typeof use === 'undefined') {
+if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+const use = globalThis.use;
 }
 
 const fs = (await use('fs')).promises;
