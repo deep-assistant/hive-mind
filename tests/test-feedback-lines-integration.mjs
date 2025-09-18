@@ -12,6 +12,11 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('🧪 Integration Test: Feedback Lines with Real Repository');
 console.log('=======================================================\n');
@@ -101,6 +106,9 @@ async function createTestRepository() {
   process.chdir(tempDir);
 
   $('git init');
+  // Configure git user for commits (required in CI environment)
+  $('git config user.email "test@example.com"');
+  $('git config user.name "Test User"');
   $('echo "# Test Repository\\n\\nThis is a test repository for feedback lines testing." > README.md');
   $('git add README.md');
   $('git commit -m "Initial commit"');
@@ -179,7 +187,8 @@ function testSolveFeedbackLines(prUrl) {
   console.log(`🔍 Testing solve.mjs with PR: ${prUrl}`);
 
   // Run solve.mjs with --dry-run and --verbose to see the prompt
-  const solveResult = $(`node /tmp/gh-issue-solver-1758087962613/solve.mjs "${prUrl}" --dry-run --verbose 2>&1`, { silent: true });
+  const solvePath = path.join(__dirname, '..', 'solve.mjs');
+  const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose 2>&1`, { silent: true });
 
   if (solveResult.code !== 0) {
     console.log('   ⚠️  solve.mjs had issues (expected for --dry-run)');
@@ -260,6 +269,7 @@ function cleanup() {
 // Main test execution
 async function runIntegrationTest() {
   let repoData = null;
+  let testError = null;
 
   try {
     // Step 1: Create test repository with comments
@@ -293,6 +303,7 @@ async function runIntegrationTest() {
 
   } catch (error) {
     console.error(`❌ Integration test failed: ${error.message}`);
+    testError = error;
   } finally {
     cleanup();
   }
@@ -300,6 +311,20 @@ async function runIntegrationTest() {
   // Final results
   console.log('\\n📊 Integration Test Results:');
   console.log(`   Passed: ${testsPassed}/${testsTotal}`);
+
+  // Check for test error first - if we couldn't even set up, we failed
+  if (testError) {
+    console.log('   ❌ Integration test setup failed');
+    console.log(`   Error: ${testError.message}`);
+    return false;
+  }
+
+  // Check if any tests actually ran
+  if (testsTotal === 0) {
+    console.log('   ❌ No tests were executed');
+    console.log('   🔍 Check the test setup for errors');
+    return false;
+  }
 
   if (testsPassed === testsTotal) {
     console.log('   🎉 ALL INTEGRATION TESTS PASSED!');
@@ -309,7 +334,7 @@ async function runIntegrationTest() {
     console.log('   🔍 Check the output logs for detailed analysis');
   }
 
-  return testsPassed === testsTotal;
+  return testsPassed === testsTotal && testsTotal > 0;
 }
 
 // Run the integration test
