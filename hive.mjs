@@ -25,6 +25,21 @@ const { validateClaudeConnection } = claudeLib;
 const githubLib = await import('./github.lib.mjs');
 const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError } = githubLib;
 
+// Import YouTrack-related functions
+const youTrackLib = await import('./youtrack.lib.mjs');
+const {
+  validateYouTrackConfig,
+  testYouTrackConnection,
+  createYouTrackConfigFromEnv
+} = youTrackLib;
+
+// Import YouTrack sync functions
+const youTrackSync = await import('./youtrack-sync.mjs');
+const {
+  syncYouTrackToGitHub,
+  formatIssuesForHive
+} = youTrackSync;
+
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
 const { checkSystem } = memCheck;
@@ -138,7 +153,7 @@ const createYargsConfig = (yargsInstance) => {
     .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
       yargs.positional('github-url', {
         type: 'string',
-        description: 'GitHub organization, repository, or user URL to monitor',
+        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)',
         demandOption: true
       });
     })
@@ -250,6 +265,24 @@ const createYargsConfig = (yargsInstance) => {
       alias: 'pm',
       default: false
     })
+    .option('youtrack-mode', {
+      type: 'boolean',
+      description: 'Enable YouTrack mode instead of GitHub issues',
+      default: false
+    })
+    .option('youtrack-stage', {
+      type: 'string',
+      description: 'Override YouTrack stage to monitor (overrides YOUTRACK_STAGE env var)'
+    })
+    .option('youtrack-project', {
+      type: 'string',
+      description: 'Override YouTrack project code (overrides YOUTRACK_PROJECT_CODE env var)'
+    })
+    .option('target-branch', {
+      type: 'string',
+      description: 'Target branch for pull requests (defaults to repository default branch)',
+      alias: 'tb'
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -336,6 +369,43 @@ if (!hasValidAuth) {
   process.exit(1);
 }
 
+// YouTrack configuration and validation
+let youTrackConfig = null;
+if (argv.youtrackMode) {
+  // Create YouTrack config from environment variables and CLI overrides
+  youTrackConfig = createYouTrackConfigFromEnv();
+
+  if (!youTrackConfig) {
+    await log(`❌ YouTrack mode requires environment variables to be set`, { level: 'error' });
+    await log(`   Required: YOUTRACK_URL, YOUTRACK_API_KEY, YOUTRACK_PROJECT_CODE, YOUTRACK_STAGE`, { level: 'error' });
+    await log(`   Example: YOUTRACK_URL=https://mycompany.youtrack.cloud`, { level: 'error' });
+    process.exit(1);
+  }
+
+  // Apply CLI overrides
+  if (argv.youtrackStage) {
+    youTrackConfig.stage = argv.youtrackStage;
+  }
+  if (argv.youtrackProject) {
+    youTrackConfig.projectCode = argv.youtrackProject;
+  }
+
+  // Validate configuration
+  try {
+    validateYouTrackConfig(youTrackConfig);
+  } catch (error) {
+    await log(`❌ YouTrack configuration error: ${error.message}`, { level: 'error' });
+    process.exit(1);
+  }
+
+  // Test YouTrack connection
+  const youTrackConnected = await testYouTrackConnection(youTrackConfig);
+  if (!youTrackConnected) {
+    await log(`\n❌ Cannot proceed without valid YouTrack connection`, { level: 'error' });
+    process.exit(1);
+  }
+}
+
 // Parse GitHub URL to determine organization, repository, or user
 let scope = 'repository';
 let owner = null;
@@ -371,14 +441,21 @@ if (!repo) {
 }
 
 await log(`🎯 Monitoring Configuration:`);
-await log(`   📍 Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
-if (argv.projectMode) {
-  await log(`   📋 Mode: PROJECT #${argv.projectNumber} (owner: ${argv.projectOwner})`);
-  await log(`   📌 Status: "${argv.projectStatus}"`);
-} else if (argv.allIssues) {
-  await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
+if (argv.youtrackMode) {
+  await log(`   📍 Source: YouTrack - ${youTrackConfig.url}`);
+  await log(`   📋 Project: ${youTrackConfig.projectCode}`);
+  await log(`   📌 Stage: "${youTrackConfig.stage}"`);
+  await log(`   📍 GitHub Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
 } else {
-  await log(`   🏷️  Tag: "${argv.monitorTag}"`);
+  await log(`   📍 Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
+  if (argv.projectMode) {
+    await log(`   📋 Mode: PROJECT #${argv.projectNumber} (owner: ${argv.projectOwner})`);
+    await log(`   📌 Status: "${argv.projectStatus}"`);
+  } else if (argv.allIssues) {
+    await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
+  } else {
+    await log(`   🏷️  Tag: "${argv.monitorTag}"`);
+  }
 }
 if (argv.skipIssuesWithPrs) {
   await log(`   🚫 Skipping: Issues with open PRs`);
@@ -388,6 +465,9 @@ await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
 await log(`   🤖 Model: ${argv.model}`);
 if (argv.fork) {
   await log(`   🍴 Fork: ENABLED (will fork repos if no write access)`);
+}
+if (argv.targetBranch) {
+  await log(`   🎯 Target Branch: ${argv.targetBranch}`);
 }
 if (!argv.once) {
   await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
@@ -499,7 +579,8 @@ async function worker(workerId) {
           const forkFlag = argv.fork ? ' --fork' : '';
           const verboseFlag = argv.verbose ? ' --verbose' : '';
           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
-          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`);
+          const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
+          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
           // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
@@ -509,6 +590,7 @@ async function worker(workerId) {
           const forkFlag = argv.fork ? ' --fork' : '';
           const verboseFlag = argv.verbose ? ' --verbose' : '';
           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+          const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
 
           // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
           const { spawn } = await import('child_process');
@@ -524,9 +606,12 @@ async function worker(workerId) {
           if (argv.attachLogs) {
             args.push('--attach-logs');
           }
+          if (argv.targetBranch) {
+            args.push('--target-branch', argv.targetBranch);
+          }
 
           // Log the actual command being executed so users can investigate/reproduce
-          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`;
+          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}`;
           await log(`   📋 Command: ${command}`);
 
           let exitCode = 0;
@@ -637,7 +722,9 @@ async function hasOpenPullRequests(issueUrl) {
 
 // Function to fetch issues from GitHub
 async function fetchIssues() {
-  if (argv.projectMode) {
+  if (argv.youtrackMode) {
+    await log(`\n🔍 Fetching issues from YouTrack project ${youTrackConfig.projectCode} (stage: "${youTrackConfig.stage}")...`);
+  } else if (argv.projectMode) {
     await log(`\n🔍 Fetching issues from GitHub Project #${argv.projectNumber} (status: "${argv.projectStatus}")...`);
   } else if (argv.allIssues) {
     await log(`\n🔍 Fetching ALL open issues...`);
@@ -648,7 +735,22 @@ async function fetchIssues() {
   try {
     let issues = [];
 
-    if (argv.projectMode) {
+    if (argv.youtrackMode) {
+      // Sync YouTrack issues to GitHub
+      if (!owner || !repo) {
+        throw new Error('YouTrack mode requires a specific repository URL (not organization/user)');
+      }
+
+      const githubIssues = await syncYouTrackToGitHub(youTrackConfig, owner, repo, $, log);
+
+      // Convert to format expected by hive
+      issues = formatIssuesForHive(githubIssues).map(issue => ({
+        url: issue.html_url,
+        title: issue.title,
+        number: issue.number
+      }));
+
+    } else if (argv.projectMode) {
       // Use GitHub Projects v2 mode
       if (!argv.projectNumber || !argv.projectOwner) {
         throw new Error('Project mode requires --project-number and --project-owner');
@@ -753,7 +855,9 @@ async function fetchIssues() {
     }
     
     if (issues.length === 0) {
-      if (argv.projectMode) {
+      if (argv.youtrackMode) {
+        await log(`   ℹ️  No issues found in YouTrack with stage "${youTrackConfig.stage}"`);
+      } else if (argv.projectMode) {
         await log(`   ℹ️  No issues found in project with status "${argv.projectStatus}"`);
       } else if (argv.allIssues) {
         await log(`   ℹ️  No open issues found`);
@@ -763,7 +867,9 @@ async function fetchIssues() {
       return [];
     }
 
-    if (argv.projectMode) {
+    if (argv.youtrackMode) {
+      await log(`   📋 Found ${issues.length} YouTrack issue(s) with stage "${youTrackConfig.stage}"`);
+    } else if (argv.projectMode) {
       await log(`   📋 Found ${issues.length} issue(s) with status "${argv.projectStatus}"`);
     } else if (argv.allIssues) {
       await log(`   📋 Found ${issues.length} open issue(s)`);

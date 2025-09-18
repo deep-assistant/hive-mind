@@ -22,7 +22,8 @@ const lib = await import('./lib.mjs');
 const {
   log,
   getLogFile,
-  formatAligned
+  formatAligned,
+  cleanErrorMessage
 } = lib;
 
 // Import GitHub-related functions
@@ -33,7 +34,7 @@ const {
 } = githubLib;
 
 // Import auto-continue functions
-const autoContinue = await import('./solve-auto-continue.mjs');
+const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const {
   autoContinueWhenLimitResets
 } = autoContinue;
