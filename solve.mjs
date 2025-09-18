@@ -33,14 +33,9 @@ if (earlyArgs.length === 0) {
 
 // Handle invalid URL format early (basic check)
 const firstArg = earlyArgs[0];
-// Import YouTrack format checker for early validation
-const youTrackFormatChecker = await import('./solve.youtrack.lib.mjs');
-const { isYouTrackFormat: isYouTrackFormatEarly } = youTrackFormatChecker;
-
-if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !isYouTrackFormatEarly(firstArg)) {
-  console.error(`Error: Invalid GitHub or YouTrack URL format: ${firstArg}`);
+if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/')) {
+  console.error(`Error: Invalid GitHub URL format: ${firstArg}`);
   console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
-  console.error('Or YouTrack format: youtrack://PROJECT-123 or PROJECT-123');
   process.exit(1);
 }
 
@@ -94,13 +89,6 @@ const {
   validateClaudeConnection
 } = claudeLib;
 
-// Import YouTrack integration functions
-const youTrackIntegration = await import('./solve.youtrack.lib.mjs');
-const {
-  validateYouTrackUrl,
-  updateYouTrackIssue,
-  isYouTrackFormat
-} = youTrackIntegration;
 
 // Import validation functions
 const validation = await import('./solve.validation.lib.mjs');
@@ -168,12 +156,9 @@ const issueUrl = argv._[0];
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
-// Validate GitHub URL and YouTrack URL formats
+// Validate GitHub URL format
 let isIssueUrl = null;
 let isPrUrl = null;
-let isYouTrackUrl = null;
-let youTrackIssueId = null;
-let youTrackConfig = null;
 
 // Only validate if we have a URL
 if (issueUrl) {
@@ -183,23 +168,13 @@ if (issueUrl) {
     isIssueUrl = urlValidation.isIssueUrl;
     isPrUrl = urlValidation.isPrUrl;
   } else {
-    // Check for YouTrack URLs using validation module
-    const youTrackValidation = await validateYouTrackUrl(issueUrl);
-    isYouTrackUrl = youTrackValidation.isYouTrackUrl;
-    youTrackIssueId = youTrackValidation.youTrackIssueId;
-    youTrackConfig = youTrackValidation.youTrackConfig;
-
     // Fail fast if URL is invalid
-    if (!isYouTrackUrl) {
-      console.error('Error: Invalid GitHub or YouTrack URL format');
-      console.error('  Please provide a valid GitHub issue, pull request URL, or YouTrack issue ID');
-      console.error('  Examples:');
-      console.error('    https://github.com/owner/repo/issues/123 (GitHub issue)');
-      console.error('    https://github.com/owner/repo/pull/456 (GitHub pull request)');
-      console.error('    youtrack://PROJECT-123 (YouTrack issue)');
-      console.error('    PROJECT-123 (YouTrack issue ID)');
-      process.exit(1);
-    }
+    console.error('Error: Invalid GitHub URL format');
+    console.error('  Please provide a valid GitHub issue or pull request URL');
+    console.error('  Examples:');
+    console.error('    https://github.com/owner/repo/issues/123 (issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    process.exit(1);
   }
 }
 
@@ -239,45 +214,10 @@ if (argv.verbose) {
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
 // Parse URL components using validation module
-let owner, repo, urlNumber;
-
-if (isYouTrackUrl) {
-  // For YouTrack URLs, we need to get repository info from GITHUB_URL env var
-  const githubUrl = process.env.GITHUB_URL;
-  urlNumber = youTrackIssueId;
-
-  if (!githubUrl) {
-    console.error('Error: YouTrack integration requires GitHub repository configuration');
-    console.error('  Please set environment variable:');
-    console.error('    GITHUB_URL=https://github.com/owner/repo');
-    console.error('');
-    console.error('  Example:');
-    console.error('    export GITHUB_URL=https://github.com/myorg/myproject');
-    console.error('    ./solve.mjs "youtrack://PAG-123"');
-    process.exit(1);
-  }
-
-  // Parse the GITHUB_URL to extract owner and repo
-  const githubUrlMatch = githubUrl.match(/github\.com\/([^\/]+)\/([^\/\?#]+)/);
-  if (githubUrlMatch) {
-    owner = githubUrlMatch[1];
-    repo = githubUrlMatch[2].replace(/\.git$/, ''); // Remove .git if present
-  } else {
-    console.error('Error: Invalid GITHUB_URL format');
-    console.error(`  Provided: ${githubUrl}`);
-    console.error('  Expected: https://github.com/owner/repo');
-    process.exit(1);
-  }
-
-  await log(`🔗 YouTrack issue: ${youTrackIssueId}`);
-  await log(`📂 Target repository: ${owner}/${repo}`);
-} else {
-  // For GitHub URLs, parse normally
-  const urlComponents = parseUrlComponents(issueUrl);
-  owner = urlComponents.owner;
-  repo = urlComponents.repo;
-  urlNumber = urlComponents.urlNumber;
-}
+const urlComponents = parseUrlComponents(issueUrl);
+const owner = urlComponents.owner;
+const repo = urlComponents.repo;
+const urlNumber = urlComponents.urlNumber;
 
 // Determine mode and get issue details
 let issueNumber;
@@ -803,21 +743,15 @@ Issue: ${issueUrl}`;
             }
           }
           
-          // Get issue title for PR title (skip for YouTrack issues)
+          // Get issue title for PR title
+          await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
+          const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
           let issueTitle = `Fix issue #${issueNumber}`;
-          if (!isYouTrackUrl) {
-            await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
-            const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
-            if (issueTitleResult.code === 0) {
-              issueTitle = issueTitleResult.stdout.toString().trim();
-              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
-            } else {
-              await log(`   Warning: Could not get issue title, using default`, { verbose: true });
-            }
+          if (issueTitleResult.code === 0) {
+            issueTitle = issueTitleResult.stdout.toString().trim();
+            await log(`   Issue title: "${issueTitle}"`, { verbose: true });
           } else {
-            // For YouTrack issues, use the YouTrack ID in title
-            issueTitle = `Fix YouTrack issue ${youTrackIssueId}`;
-            await log(`   Using YouTrack issue ID for title: "${issueTitle}"`, { verbose: true });
+            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
           }
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
@@ -956,10 +890,8 @@ ${prBody}`, { verbose: true });
                 // CLAUDE.md will be removed after Claude command completes
                 
                 // Link the issue to the PR in GitHub's Development section using GraphQL API
-                // Skip linking for YouTrack issues (they don't exist in GitHub)
-                if (!isYouTrackUrl) {
-                  await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
-                  try {
+                await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
+                try {
                   // First, get the node IDs for both the issue and the PR
                   const issueNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { issue(number: ${issueNumber}) { id } } }' --jq .data.repository.issue.id`;
                   
@@ -1028,7 +960,6 @@ ${prBody}`, { verbose: true });
                   await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
                   await log(`   Please check manually at: ${prUrl}`, { level: 'warning' });
                 }
-                } // Close the if (!isYouTrackUrl) block
               } else {
                 await log(formatAligned('✅', 'PR created:', 'Successfully'));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
@@ -1322,15 +1253,13 @@ Self review.
 
   let referenceTime;
   try {
-    // Skip GitHub issue API calls for YouTrack issues
-    if (!isYouTrackUrl) {
-      // Get the issue's last update time
-      const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
-    
+    // Get the issue's last update time
+    const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
+
     if (issueResult.code !== 0) {
       throw new Error(`Failed to get issue details: ${issueResult.stderr ? issueResult.stderr.toString() : 'Unknown error'}`);
     }
-    
+
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
     await log(formatAligned('📝', 'Issue updated:', issueUpdatedAt.toISOString(), 2));
 
@@ -1376,11 +1305,6 @@ Self review.
     }
 
     await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())}`);
-    } else {
-      // For YouTrack issues, just use current time as reference
-      referenceTime = new Date();
-      await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())} (YouTrack issue)`);
-    }
   } catch (timestampError) {
     await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
     await log(`  Error: ${timestampError.message}`);
@@ -1420,11 +1344,6 @@ Self review.
 
   // Show summary of session and log file
   await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir);
-
-  // YouTrack integration: Update issue stage and add comment
-  if (isYouTrackUrl && youTrackConfig && youTrackIssueId && prUrl) {
-    await updateYouTrackIssue(youTrackIssueId, youTrackConfig, prUrl, log);
-  }
 
   // Search for newly created pull requests and comments
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);

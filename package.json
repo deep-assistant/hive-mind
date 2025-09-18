@@ -50,6 +50,8 @@
     "lib.mjs",
     "claude.lib.mjs",
     "github.lib.mjs",
+    "youtrack.lib.mjs",
+    "youtrack-sync.mjs",
     "memory-check.mjs",
     "*.md"
   ]

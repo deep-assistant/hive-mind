@@ -30,10 +30,15 @@ const youTrackLib = await import('./youtrack.lib.mjs');
 const {
   validateYouTrackConfig,
   testYouTrackConnection,
-  fetchYouTrackIssues,
-  createYouTrackConfigFromEnv,
-  convertYouTrackIssueForGitHub
+  createYouTrackConfigFromEnv
 } = youTrackLib;
+
+// Import YouTrack sync functions
+const youTrackSync = await import('./youtrack-sync.mjs');
+const {
+  syncYouTrackToGitHub,
+  formatIssuesForHive
+} = youTrackSync;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -731,19 +736,19 @@ async function fetchIssues() {
     let issues = [];
 
     if (argv.youtrackMode) {
-      // Fetch issues from YouTrack
-      const youTrackIssues = await fetchYouTrackIssues(youTrackConfig);
+      // Sync YouTrack issues to GitHub
+      if (!owner || !repo) {
+        throw new Error('YouTrack mode requires a specific repository URL (not organization/user)');
+      }
 
-      // Convert YouTrack issues to GitHub-compatible format
-      const githubRepoUrl = `https://github.com/${owner}${repo ? `/${repo}` : ''}`;
-      issues = youTrackIssues.map(ytIssue => {
-        const converted = convertYouTrackIssueForGitHub(ytIssue, githubRepoUrl);
-        return {
-          url: converted.url,
-          title: converted.title,
-          number: converted.number
-        };
-      });
+      const githubIssues = await syncYouTrackToGitHub(youTrackConfig, owner, repo, $, log);
+
+      // Convert to format expected by hive
+      issues = formatIssuesForHive(githubIssues).map(issue => ({
+        url: issue.html_url,
+        title: issue.title,
+        number: issue.number
+      }));
 
     } else if (argv.projectMode) {
       // Use GitHub Projects v2 mode
