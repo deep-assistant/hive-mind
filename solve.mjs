@@ -288,131 +288,23 @@ let isForkPR = false;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
-if (argv.autoContinue && isIssueUrl) {
-  issueNumber = urlNumber;
-  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
-  
-  try {
-    // Get all PRs linked to this issue
-    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
-    
-    if (prListResult.code === 0) {
-      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
-      
-      if (prs.length > 0) {
-        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
-        
-        // Find PRs that are older than 24 hours
-        const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        
-        for (const pr of prs) {
-          const createdAt = new Date(pr.createdAt);
-          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
-          
-          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
-          
-          // Check if PR is open (not closed)
-          if (pr.state === 'OPEN') {
-            // Check if CLAUDE.md exists in this PR branch
-            const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
-            
-            if (!claudeMdExists) {
-              await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
-              
-              // Switch to continue mode immediately (don't wait 24 hours if CLAUDE.md is missing)
-              isContinueMode = true;
-              prNumber = pr.number;
-              prBranch = pr.headRefName;
-              if (argv.verbose) {
-                await log(`   Continue mode activated: Auto-continue (CLAUDE.md missing)`, { verbose: true });
-                await log(`   PR Number: ${prNumber}`, { verbose: true });
-                await log(`   PR Branch: ${prBranch}`, { verbose: true });
-              }
-              break;
-            } else if (createdAt < twentyFourHoursAgo) {
-              await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
-              
-              // Switch to continue mode
-              isContinueMode = true;
-              prNumber = pr.number;
-              prBranch = pr.headRefName;
-              if (argv.verbose) {
-                await log(`   Continue mode activated: Auto-continue (24h+ old PR)`, { verbose: true });
-                await log(`   PR Number: ${prNumber}`, { verbose: true });
-                await log(`   PR Branch: ${prBranch}`, { verbose: true });
-                await log(`   PR Age: ${ageHours} hours`, { verbose: true });
-              }
-              break;
-            } else {
-              await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
-            }
-          }
-        }
-        
-        if (!isContinueMode) {
-          await log(`⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual`);
-        }
-      } else {
-        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
-      }
-    }
-  } catch (prSearchError) {
-    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
-    await log(`   Continuing with normal flow...`);
-  }
-}
+const autoContinueResult = await checkExistingPRsForAutoContinue(argv, isIssueUrl, owner, repo, urlNumber);
+isContinueMode = autoContinueResult.isContinueMode;
+prNumber = autoContinueResult.prNumber;
+prBranch = autoContinueResult.prBranch;
+issueNumber = autoContinueResult.issueNumber || issueNumber;
 
-if (isPrUrl) {
-  isContinueMode = true;
-  prNumber = urlNumber;
-  
-  await log(`🔄 Continue mode: Working with PR #${prNumber}`);
-  if (argv.verbose) {
-    await log(`   Continue mode activated: PR URL provided directly`, { verbose: true });
-    await log(`   PR Number set to: ${prNumber}`, { verbose: true });
-    await log(`   Will fetch PR details and linked issue`, { verbose: true });
-  }
-  
-  // Get PR details to find the linked issue and branch
-  try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,headRepositoryOwner`;
-    
-    if (prResult.code !== 0) {
-      await log('Error: Failed to get PR details', { level: 'error' });
-      await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-      process.exit(1);
-    }
-    
-    const prData = JSON.parse(prResult.stdout.toString());
-    prBranch = prData.headRefName;
-    mergeStateStatus = prData.mergeStateStatus;
-
-    // Check if this is a fork PR
-    isForkPR = prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner;
-
-    await log(`📝 PR branch: ${prBranch}`);
-    
-    // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
-    const prBody = prData.body || '';
-    const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
-    
-    if (issueMatch) {
-      issueNumber = issueMatch[1];
-      await log(`🔗 Found linked issue #${issueNumber}`);
-    } else {
-      // If no linked issue found, we can still continue but warn
-      await log('⚠️  Warning: No linked issue found in PR body', { level: 'warning' });
-      await log('   The PR should contain "Fixes #123" or similar to link an issue', { level: 'warning' });
-      // Set issueNumber to PR number as fallback
-      issueNumber = prNumber;
-    }
-  } catch (error) {
-    await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
-    process.exit(1);
-  }
-} else {
-  // Traditional issue mode
+// Process PR mode if working with a PR URL
+const prModeResult = await processPRMode(isPrUrl, urlNumber, owner, repo, argv);
+if (prModeResult.isContinueMode) {
+  isContinueMode = prModeResult.isContinueMode;
+  prNumber = prModeResult.prNumber;
+  prBranch = prModeResult.prBranch;
+  issueNumber = prModeResult.issueNumber;
+  mergeStateStatus = prModeResult.mergeStateStatus;
+  isForkPR = prModeResult.isForkPR;
+} else if (!isContinueMode) {
+  // Traditional issue mode (not from auto-continue or PR mode)
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
