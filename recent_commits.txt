@@ -1,0 +1,20 @@
+37bf2e8 Initial commit with task details for issue #195
+4cf39b5 Merge pull request #190 from deep-assistant/issue-183-fe6ea7cc
+755233b 'Auto-commit changes made by Claude
+f07bf42 Enhance flow.md with comprehensive data flow documentation
+b44ffee Merge pull request #189 from deep-assistant/issue-184-5f675129
+8352d75 'Auto-commit changes made by Claude
+790f6bf Merge main branch and resolve version conflict - keeping v0.4.0 for reorganization changes
+3add679 'Auto-commit changes made by Claude
+2868e6a Update version to 0.4.0 for significant reorganization changes
+593327a Merge pull request #187 from deep-assistant/issue-185-ed3ffc40
+86bd1c7 'Auto-commit changes made by Claude
+2e8d215 Restore accidentally deleted test files
+3c6a916 Rename solve-*.mjs to solve.*.lib.mjs format
+981e505 Fix test failures for solve.mjs argument parsing and module loading
+5565127 Fix module dependencies: pass $ as parameter instead of importing
+38b3b71 Fix syntax error: replace forEach with for-of loop to support await
+2f4f0af Extract Claude execution and feedback detection into separate modules
+f986ec8 Extract results processing functions to solve-results.mjs
+f209d1a Extract repository management functions to solve-repository.mjs
+92185ba Resolve merge conflicts - keep modular approach

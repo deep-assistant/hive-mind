@@ -1,0 +1,27 @@
+commit 3c6a916f724703a37f54d59ff1a56e2f3d175784
+Author: konard <drakonard@gmail.com>
+Date:   Thu Sep 18 12:47:07 2025 +0300
+
+    Rename solve-*.mjs to solve.*.lib.mjs format
+    
+    - Renamed all solve-*.mjs files to solve.*.lib.mjs format as requested
+    - Updated all imports in solve.mjs to use new file names
+    - Added solve.*.lib.mjs to package.json files list for npm inclusion
+    - All files remain under 1500 lines (solve.mjs is 1474 lines)
+    - All modules compile successfully
+    
+    🤖 Generated with [Claude Code](https://claude.ai/code)
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+ package.json                                             |  1 +
+ solve-auto-continue.mjs => solve.auto-continue.lib.mjs   |  0
+ ...laude-execution.mjs => solve.claude-execution.lib.mjs |  0
+ solve-config.mjs => solve.config.lib.mjs                 |  0
+ solve-execution.mjs => solve.execution.lib.mjs           |  0
+ solve-feedback.mjs => solve.feedback.lib.mjs             |  0
+ solve.mjs                                                | 16 ++++++++--------
+ solve-repository.mjs => solve.repository.lib.mjs         |  0
+ solve-results.mjs => solve.results.lib.mjs               |  0
+ solve-validation.mjs => solve.validation.lib.mjs         |  0
+ 10 files changed, 9 insertions(+), 8 deletions(-)

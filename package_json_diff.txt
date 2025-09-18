@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index b8dd9cc..d9cd470 100644
+--- a/package.json
++++ b/package.json
+@@ -37,6 +37,7 @@
+   "files": [
+     "hive.mjs",
+     "solve.mjs",
++    "solve.*.lib.mjs",
+     "task.mjs",
+     "review.mjs",
+     "lib.mjs",

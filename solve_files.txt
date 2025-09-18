@@ -1,0 +1,10 @@
+-rw-rw-r-- 1 hive hive  9834 Sep 18 19:10 solve.auto-continue.lib.mjs
+-rw-rw-r-- 1 hive hive 11302 Sep 18 19:10 solve.claude-execution.lib.mjs
+-rw-rw-r-- 1 hive hive  3495 Sep 18 19:10 solve.config.lib.mjs
+-rw-rw-r-- 1 hive hive  8890 Sep 18 19:10 solve.execution.lib.mjs
+-rw-rw-r-- 1 hive hive 14431 Sep 18 19:10 solve.feedback.lib.mjs
+-rwxrwxr-x 1 hive hive 68937 Sep 18 19:10 solve.mjs
+-rw-rw-r-- 1 hive hive 14956 Sep 18 19:10 solve.repository.lib.mjs
+-rw-rw-r-- 1 hive hive 13032 Sep 18 19:10 solve.results.lib.mjs
+-rw-rw-r-- 1 hive hive  7581 Sep 18 19:10 solve.validation.lib.mjs
+-rwxrwxr-x 1 hive hive 16246 Sep 18 19:10 solve-with-opencode.mjs

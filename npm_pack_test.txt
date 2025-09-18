@@ -1,0 +1,37 @@
+npm notice
+npm notice 📦  @deep-assistant/hive-mind@0.4.0
+npm notice Tarball Contents
+npm notice 189B CLAUDE.md
+npm notice 3.7kB DOCKER.md
+npm notice 1.2kB LICENSE
+npm notice 6.0kB RATE_LIMIT_ANALYSIS.md
+npm notice 7.7kB README.md
+npm notice 10.2kB claude.lib.mjs
+npm notice 14.9kB flow.md
+npm notice 25.5kB github.lib.mjs
+npm notice 34.3kB hive.mjs
+npm notice 8.3kB lib.mjs
+npm notice 17.2kB memory-check.mjs
+npm notice 1.1kB package.json
+npm notice 19.4kB review.mjs
+npm notice 9.8kB solve.auto-continue.lib.mjs
+npm notice 11.3kB solve.claude-execution.lib.mjs
+npm notice 3.5kB solve.config.lib.mjs
+npm notice 8.9kB solve.execution.lib.mjs
+npm notice 14.4kB solve.feedback.lib.mjs
+npm notice 68.9kB solve.mjs
+npm notice 15.0kB solve.repository.lib.mjs
+npm notice 13.0kB solve.results.lib.mjs
+npm notice 7.6kB solve.validation.lib.mjs
+npm notice 8.3kB task.mjs
+npm notice Tarball Details
+npm notice name: @deep-assistant/hive-mind
+npm notice version: 0.4.0
+npm notice filename: deep-assistant-hive-mind-0.4.0.tgz
+npm notice package size: 76.2 kB
+npm notice unpacked size: 310.3 kB
+npm notice shasum: 708d44c037bb809a75a97bbf87d5ff808ef9f42f
+npm notice integrity: sha512-dDLaV1peMPYRk[...]F1AS/xrSp1qJA==
+npm notice total files: 23
+npm notice
+deep-assistant-hive-mind-0.4.0.tgz
