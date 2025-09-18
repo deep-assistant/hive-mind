@@ -371,14 +371,15 @@ export function parseYouTrackIssueId(input) {
     return null;
   }
 
-  // Pattern to match YouTrack issue IDs (PROJECT-123 format)
+  // Pattern to match YouTrack issue IDs (PROJECT-123 or 2-123 format)
+  // Some YouTrack instances use numeric project codes
   const patterns = [
-    // Direct ID format
-    /^([A-Z][A-Z0-9]*-\d+)$/i,
+    // Direct ID format (allows numeric or alphanumeric project codes)
+    /^([A-Z0-9][A-Z0-9]*-\d+)$/i,
     // URL format: https://company.youtrack.cloud/issue/PROJECT-123
-    /\/issue\/([A-Z][A-Z0-9]*-\d+)/i,
+    /\/issue\/([A-Z0-9][A-Z0-9]*-\d+)/i,
     // Text containing issue ID
-    /\b([A-Z][A-Z0-9]*-\d+)\b/i
+    /\b([A-Z0-9][A-Z0-9]*-\d+)\b/i
   ];
 
   for (const pattern of patterns) {

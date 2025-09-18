@@ -189,8 +189,9 @@ if (needsUrlValidation) {
   isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
   isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
 
-  // Check for YouTrack issue format (youtrack://PROJECT-123)
-  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z][A-Z0-9]*-\d+)$/i);
+  // Check for YouTrack issue format (youtrack://PROJECT-123 or youtrack://2-123)
+  // Some YouTrack instances use numeric project codes
+  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9][A-Z0-9]*-\d+)$/i);
 
   // Also check if it's a direct YouTrack issue ID
   const directYouTrackId = parseYouTrackIssueId(issueUrl);
@@ -258,7 +259,7 @@ await log(`📁 Log file: ${getLogFile()}`);
 await log(`   (All output will be logged here)`);
 
 
-// Validate GitHub URL requirement
+// Validate issue URL requirement
 if (!issueUrl) {
   await log(`❌ GitHub issue URL or YouTrack issue ID is required`, { level: 'error' });
   await log(`   Usage: solve <github-issue-url|youtrack-issue-id> [options]`, { level: 'error' });
@@ -1368,14 +1369,36 @@ Issue: ${issueUrl}`;
           }
           
           // Get issue title for PR title
-          await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
-          const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
-          let issueTitle = `Fix issue #${issueNumber}`;
-          if (issueTitleResult.code === 0) {
-            issueTitle = issueTitleResult.stdout.toString().trim();
-            await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+          let issueTitle;
+          let issueRef;
+
+          if (isYouTrackUrl && youTrackIssueId) {
+            // For YouTrack issues, fetch from YouTrack
+            await log(formatAligned('📋', 'Getting issue:', 'Title from YouTrack...'), { verbose: true });
+            const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
+
+            if (youTrackIssue) {
+              issueTitle = youTrackIssue.summary;
+              issueRef = `${youTrackIssueId}: ${youTrackIssue.summary}`;
+              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+            } else {
+              issueTitle = `Fix YouTrack issue ${youTrackIssueId}`;
+              issueRef = youTrackIssueId;
+              await log(`   Warning: Could not get YouTrack issue details, using default`, { verbose: true });
+            }
           } else {
-            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
+            // For GitHub issues
+            await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
+            const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
+            issueTitle = `Fix issue #${issueNumber}`;
+            if (issueTitleResult.code === 0) {
+              issueTitle = issueTitleResult.stdout.toString().trim();
+              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
+            } else {
+              await log(`   Warning: Could not get issue title, using default`, { verbose: true });
+            }
+            // Use full repository reference for cross-repo PRs (forks)
+            issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
           }
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
@@ -1419,10 +1442,9 @@ Issue: ${issueUrl}`;
           
           // Create draft pull request
           await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
-          
-          // Use full repository reference for cross-repo PRs (forks)
-          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
-          
+
+          // issueRef is already defined above when getting the title
+
           const prBody = `## 🤖 AI-Powered Solution
 
 This pull request is being automatically generated to solve issue ${issueRef}.
