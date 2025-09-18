@@ -76,13 +76,9 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Resume from a previous session ID (when limit was reached)',
       alias: 'r'
     })
-    .option('only-prepare-command', {
-      type: 'boolean',
-      description: 'Only prepare and print the claude command without executing it',
-    })
     .option('dry-run', {
       type: 'boolean',
-      description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
+      description: 'Prepare everything but do not execute Claude',
       alias: 'n'
     })
     .option('model', {
@@ -2186,8 +2182,8 @@ Self review.
   await log(`   ${fullCommand}`);
   await log('');
 
-  // If only preparing command or dry-run, exit here
-  if (argv.onlyPrepareCommand || argv.dryRun) {
+  // If dry-run, exit here
+  if (argv.dryRun) {
     await log(formatAligned('✅', 'Preparation:', 'Complete'));
     await log(formatAligned('📂', 'Repository at:', tempDir));
     await log(formatAligned('🌿', 'Branch ready:', branchName));
