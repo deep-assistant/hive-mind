@@ -487,6 +487,31 @@ async function attachRegularComment(options, logComment) {
 }
 
 /**
+ * Detects if an error is due to GitHub API rate limiting
+ * @param {Error|string} error - The error to check
+ * @returns {boolean} True if the error indicates rate limiting
+ */
+export function isRateLimitError(error) {
+  const errorMessage = (error.message || error.toString()).toLowerCase();
+
+  // Common rate limit error patterns
+  const rateLimitPatterns = [
+    'rate limit',
+    'secondary rate limit',
+    'exceeded.*limit',
+    'too many requests',
+    'abuse detection',
+    'wait a few minutes',
+    'http 403.*rate',
+    'api rate limit exceeded'
+  ];
+
+  return rateLimitPatterns.some(pattern => {
+    return new RegExp(pattern).test(errorMessage);
+  });
+}
+
+/**
  * Helper function to fetch all issues with pagination and rate limiting
  * @param {string} baseCommand - The base gh command to execute
  * @returns {Promise<Array>} Array of issues
@@ -507,9 +532,11 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     
     const startTime = Date.now();
     
-    // Use a much higher limit instead of 100, and remove any existing limit from the command
+    // Use appropriate page sizes: 100 for search API (more restrictive), 1000 for regular listing
     const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
-    const improvedCommand = `${commandWithoutLimit} --limit 1000`;
+    const isSearchCommand = commandWithoutLimit.includes('gh search');
+    const maxPageSize = isSearchCommand ? 100 : 1000;
+    const improvedCommand = `${commandWithoutLimit} --limit ${maxPageSize}`;
     
     await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
     const output = execSync(improvedCommand, { encoding: 'utf8' });
@@ -519,10 +546,12 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     
     await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
     
-    // If we got exactly 1000 results, there might be more - log a warning
-    if (issues.length === 1000) {
-      await log(`   ⚠️  Hit the 1000 issue limit - there may be more issues available`, { level: 'warning' });
-      await log(`   💡 Consider filtering by labels or date ranges for repositories with >1000 open issues`, { level: 'info' });
+    // If we got exactly the max page size, there might be more - log a warning
+    if (issues.length === maxPageSize) {
+      await log(`   ⚠️  Hit the ${maxPageSize} issue limit - there may be more issues available`, { level: 'warning' });
+      if (maxPageSize >= 1000) {
+        await log(`   💡 Consider filtering by labels or date ranges for repositories with >${maxPageSize} open issues`, { level: 'info' });
+      }
     }
     
     // Add a 5-second delay after the call to be extra safe with rate limits
@@ -650,5 +679,6 @@ export default {
   checkGitHubPermissions,
   attachLogToGitHub,
   fetchAllIssuesWithPagination,
-  fetchProjectIssues
+  fetchProjectIssues,
+  isRateLimitError
 };

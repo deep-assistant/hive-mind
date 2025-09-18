@@ -57,13 +57,9 @@ const argv = yargs(process.argv.slice(2))
     description: 'Resume from a previous session ID (when limit was reached)',
     alias: 'r'
   })
-  .option('only-prepare-command', {
-    type: 'boolean',
-    description: 'Only prepare and print the claude command without executing it',
-  })
   .option('dry-run', {
     type: 'boolean',
-    description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
+    description: 'Prepare everything but do not execute Claude',
     alias: 'n'
   })
   .option('model', {
@@ -327,8 +323,8 @@ Review this pull request thoroughly.`;
   await log(`   ${fullCommand}`);
   await log('');
 
-  // If only preparing command or dry-run, exit here
-  if (argv.onlyPrepareCommand || argv.dryRun) {
+  // If dry-run, exit here
+  if (argv.dryRun) {
     await log(`✅ Command preparation complete`);
     await log(`📂 Repository cloned to: ${tempDir}`);
     await log(`🔀 PR branch checked out: ${prDetails.headRefName}`);
