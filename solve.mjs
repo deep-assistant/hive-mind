@@ -6,10 +6,9 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
 
-// Import yargs with specific version for hideBin support
-const yargsModule = await use('yargs@17.7.2');
-const yargs = yargsModule.default || yargsModule;
-const { hideBin } = await use('yargs@17.7.2/helpers');
+// Import CLI configuration module
+const config = await import('./solve-config.mjs');
+const { parseArguments, createYargsConfig, yargs, hideBin } = config;
 
 const os = (await use('os')).default;
 const path = (await use('path')).default;
@@ -44,105 +43,34 @@ const {
   validateClaudeConnection
 } = claudeLib;
 
+// Import validation functions
+const validation = await import('./solve-validation.mjs');
+const {
+  validateGitHubUrl,
+  showAttachLogsWarning,
+  initializeLogFile,
+  validateUrlRequirement,
+  validateContinueOnlyOnFeedback,
+  performSystemChecks,
+  parseUrlComponents,
+  parseResetTime,
+  calculateWaitTime
+} = validation;
+
+// Import auto-continue functions
+const autoContinue = await import('./solve-auto-continue.mjs');
+const {
+  autoContinueWhenLimitResets,
+  checkExistingPRsForAutoContinue,
+  processPRMode
+} = autoContinue;
+
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
 // Global log file reference (will be passed to lib.mjs)
 
-// Wrapper function for disk space check using imported module
-const checkDiskSpace = async (minSpaceMB = 500) => {
-  const result = await memoryCheck.checkDiskSpace(minSpaceMB, { log });
-  return result.success;
-};
-
-// Wrapper function for memory check using imported module
-const checkMemory = async (minMemoryMB = 256) => {
-  const result = await memoryCheck.checkMemory(minMemoryMB, { log });
-  return result.success;
-};
-
 // Use getResourceSnapshot from memory-check module
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
-
-// Function to create yargs configuration - avoids duplication
-const createYargsConfig = (yargsInstance) => {
-  return yargsInstance
-    .usage('Usage: $0 <issue-url> [options]')
-    .positional('issue-url', {
-      type: 'string',
-      description: 'The GitHub issue URL to solve'
-    })
-    .option('resume', {
-      type: 'string',
-      description: 'Resume from a previous session ID (when limit was reached)',
-      alias: 'r'
-    })
-    .option('only-prepare-command', {
-      type: 'boolean',
-      description: 'Only prepare and print the claude command without executing it',
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
-      alias: 'n'
-    })
-    .option('model', {
-      type: 'string',
-      description: 'Model to use (opus or sonnet)',
-      alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet']
-    })
-    .option('auto-pull-request-creation', {
-      type: 'boolean',
-      description: 'Automatically create a draft pull request before running Claude',
-      default: true
-    })
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Enable verbose logging for debugging',
-      alias: 'v',
-      default: false
-    })
-    .option('fork', {
-      type: 'boolean',
-      description: 'Fork the repository if you don\'t have write access',
-      alias: 'f',
-      default: false
-    })
-    .option('attach-logs', {
-      type: 'boolean',
-      description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-      default: false
-    })
-    .option('auto-continue', {
-      type: 'boolean',
-      description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
-      default: false
-    })
-    .option('auto-continue-limit', {
-      type: 'boolean',
-      description: 'Automatically continue when Claude limit resets (waits until reset time)',
-      default: false,
-      alias: 'c'
-    })
-    .option('auto-continue-only-on-new-comments', {
-      type: 'boolean',
-      description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
-      default: false
-    })
-    .option('continue-only-on-feedback', {
-      type: 'boolean',
-      description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
-      default: false
-    })
-    .option('min-disk-space', {
-      type: 'number',
-      description: 'Minimum required disk space in MB (default: 500)',
-      default: 500
-    })
-    .help('h')
-    .alias('h', 'help');
-};
 
 // Check for help flag before processing other arguments
 const rawArgs = hideBin(process.argv);
@@ -152,37 +80,20 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   process.exit(0);
 }
 
-// Configure command line arguments - GitHub issue URL as positional argument
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Parse command line arguments using the config module
+const argv = parseArguments();
 
 const issueUrl = argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
-// Validate GitHub issue or pull request URL format ONCE AND FOR ALL
-// These will be used throughout the script - no duplicate matching!
-let isIssueUrl = null;
-let isPrUrl = null;
-
-// Only validate if we have a URL
-const needsUrlValidation = issueUrl;
-
-if (needsUrlValidation) {
-  // Do the regex matching ONCE - these results will be used everywhere
-  isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
-  isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
-  
-  // Fail fast if URL is invalid
-  if (!isIssueUrl && !isPrUrl) {
-    console.error('Error: Invalid GitHub URL format');
-    console.error('  Please provide a valid GitHub issue or pull request URL');
-    console.error('  Examples:');
-    console.error('    https://github.com/owner/repo/issues/123 (issue)');
-    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
-    process.exit(1);
-  }
+// Validate GitHub URL using validation module
+const urlValidation = validateGitHubUrl(issueUrl);
+if (issueUrl && !urlValidation.isValid) {
+  process.exit(1);
 }
+const { isIssueUrl, isPrUrl } = urlValidation;
 
 // Debug logging for attach-logs option
 if (argv.verbose) {
@@ -190,209 +101,26 @@ if (argv.verbose) {
   await log(`Debug: argv["attach-logs"] = ${argv["attach-logs"]}`, { verbose: true });
 }
 
-// Show security warning for attach-logs option
+// Show security warning and initialize log file using validation module
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
-if (shouldAttachLogs) {
-  await log('');
-  await log('⚠️  SECURITY WARNING: --attach-logs is ENABLED', { level: 'warning' });
-  await log('');
-  await log('   This option will upload the complete solution log file to the Pull Request.');
-  await log('   The log may contain sensitive information such as:');
-  await log('   • API keys, tokens, or secrets');
-  await log('   • File paths and directory structures');
-  await log('   • Command outputs and error messages');
-  await log('   • Internal system information');
-  await log('');
-  await log('   ⚠️  DO NOT use this option with public repositories or if the log');
-  await log('       might contain sensitive data that should not be shared publicly.');
-  await log('');
-  await log('   Continuing in 5 seconds... (Press Ctrl+C to abort)');
-  await log('');
-  
-  // Give user time to abort if they realize this might be dangerous
-  for (let i = 5; i > 0; i--) {
-    process.stdout.write(`\r   Countdown: ${i} seconds remaining...`);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  process.stdout.write('\r   Proceeding with log attachment enabled.                    \n');
-  await log('');
-}
+await showAttachLogsWarning(shouldAttachLogs);
+const logFile = await initializeLogFile();
 
-// Create permanent log file immediately with timestamp
-const scriptDir = path.dirname(process.argv[1]);
-const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const logFile = path.join(scriptDir, `solve-${timestamp}.log`);
-setLogFile(logFile);
-
-// Create the log file immediately
-await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
-await log(`📁 Log file: ${getLogFile()}`);
-await log(`   (All output will be logged here)`);
-
-
-// Validate GitHub URL requirement
-if (!issueUrl) {
-  await log(`❌ GitHub issue URL is required`, { level: 'error' });
-  await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
+// Validate GitHub URL requirement and options using validation module
+if (!(await validateUrlRequirement(issueUrl))) {
   process.exit(1);
 }
 
-// Validate --continue-only-on-feedback option requirements
-if (argv.continueOnlyOnFeedback) {
-  if (!isPrUrl && !(isIssueUrl && argv.autoContinue)) {
-    await log(`❌ --continue-only-on-feedback option requirements not met`, { level: 'error' });
-    await log(`   This option works only with:`, { level: 'error' });
-    await log(`   • Pull request URL, OR`, { level: 'error' });
-    await log(`   • Issue URL with --auto-continue option`, { level: 'error' });
-    await log(`   Current: ${isPrUrl ? 'PR URL' : 'Issue URL'} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
-    process.exit(1);
-  }
-}
-
-// Check disk space before proceeding
-const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
-if (!hasEnoughSpace) {
+if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
   process.exit(1);
 }
 
-// Check memory before proceeding (early check to prevent Claude kills)
-const hasEnoughMemory = await checkMemory(256);
-if (!hasEnoughMemory) {
+// Perform all system checks using validation module
+if (!(await performSystemChecks(argv.minDiskSpace || 500))) {
   process.exit(1);
 }
 
-// Validate Claude CLI connection before proceeding
-const isClaudeConnected = await validateClaudeConnection();
-if (!isClaudeConnected) {
-  await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
-  process.exit(1);
-}
-
-// Helper function to parse time string and calculate wait time
-const parseResetTime = (timeStr) => {
-  // Parse time format like "5:30am" or "11:45pm"
-  const match = timeStr.match(/(\d{1,2}):(\d{2})([ap]m)/i);
-  if (!match) {
-    throw new Error(`Invalid time format: ${timeStr}`);
-  }
-  
-  const [, hourStr, minuteStr, ampm] = match;
-  let hour = parseInt(hourStr);
-  const minute = parseInt(minuteStr);
-  
-  // Convert to 24-hour format
-  if (ampm.toLowerCase() === 'pm' && hour !== 12) {
-    hour += 12;
-  } else if (ampm.toLowerCase() === 'am' && hour === 12) {
-    hour = 0;
-  }
-  
-  return { hour, minute };
-};
-
-// Calculate milliseconds until the next occurrence of the specified time
-const calculateWaitTime = (resetTime) => {
-  const { hour, minute } = parseResetTime(resetTime);
-  
-  const now = new Date();
-  const today = new Date(now);
-  today.setHours(hour, minute, 0, 0);
-  
-  // If the time has already passed today, schedule for tomorrow
-  if (today <= now) {
-    today.setDate(today.getDate() + 1);
-  }
-  
-  return today.getTime() - now.getTime();
-};
-
-// Auto-continue function that waits until limit resets
-const autoContinueWhenLimitResets = async (issueUrl, sessionId) => {
-  try {
-    const resetTime = global.limitResetTime;
-    const waitMs = calculateWaitTime(resetTime);
-    
-    await log(`\n⏰ Waiting until ${resetTime} for limit to reset...`);
-    await log(`   Wait time: ${Math.round(waitMs / (1000 * 60))} minutes`);
-    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
-    
-    // Show countdown every 30 minutes for long waits, every minute for short waits
-    const countdownInterval = waitMs > 30 * 60 * 1000 ? 30 * 60 * 1000 : 60 * 1000;
-    let remainingMs = waitMs;
-    
-    const countdownTimer = setInterval(async () => {
-      remainingMs -= countdownInterval;
-      if (remainingMs > 0) {
-        const remainingMinutes = Math.round(remainingMs / (1000 * 60));
-        await log(`⏳ ${remainingMinutes} minutes remaining until ${resetTime}`);
-      }
-    }, countdownInterval);
-    
-    // Wait until reset time
-    await new Promise(resolve => setTimeout(resolve, waitMs));
-    clearInterval(countdownTimer);
-    
-    await log(`\n✅ Limit reset time reached! Resuming session...`);
-    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
-    
-    // Recursively call the solve script with --resume
-    // We need to reconstruct the command with appropriate flags
-    const childProcess = await import('child_process');
-    
-    // Build the resume command
-    const resumeArgs = [
-      process.argv[1], // solve.mjs path
-      issueUrl,
-      '--resume', sessionId,
-      '--auto-continue-limit' // Keep auto-continue-limit enabled
-    ];
-    
-    // Preserve other flags from original invocation
-    if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
-    if (argv.verbose) resumeArgs.push('--verbose');
-    if (argv.fork) resumeArgs.push('--fork');
-    if (shouldAttachLogs) resumeArgs.push('--attach-logs');
-    
-    await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
-    
-    // Execute the resume command
-    const child = childProcess.spawn('node', resumeArgs, {
-      stdio: 'inherit',
-      cwd: process.cwd()
-    });
-    
-    child.on('close', (code) => {
-      process.exit(code);
-    });
-    
-  } catch (error) {
-    await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    await log(`\n🔄 Manual resume command:`);
-    await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-    process.exit(1);
-  }
-};
-
-// Helper function to check if CLAUDE.md exists in a PR branch - moved to github.lib.mjs as checkFileInBranch
-
-
-// Check GitHub permissions early in the process
-const hasValidAuth = await checkGitHubPermissions();
-if (!hasValidAuth) {
-  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
-  process.exit(1);
-}
-
-// NO DUPLICATE VALIDATION! URL was already validated at the beginning.
-// If we have a URL but no validation results, that means the early validation
-// logic has a bug or was bypassed incorrectly.
-if (issueUrl && isIssueUrl === null && isPrUrl === null) {
-  // This should never happen - it means our early validation was skipped incorrectly
-  await log('Internal error: URL validation was not performed correctly', { level: 'error' });
-  await log('This is a bug in the script logic', { level: 'error' });
-  process.exit(1);
-}
-
+// URL validation debug logging
 if (argv.verbose) {
   await log(`📋 URL validation:`, { verbose: true });
   await log(`   Input URL: ${issueUrl}`, { verbose: true });
@@ -402,11 +130,8 @@ if (argv.verbose) {
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
-// Extract repository and number from URL
-const urlParts = issueUrl.split('/');
-const owner = urlParts[3];
-const repo = urlParts[4];
-const urlNumber = urlParts[6]; // Could be issue or PR number
+// Parse URL components using validation module
+const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 
 // Determine mode and get issue details
 let issueNumber;
