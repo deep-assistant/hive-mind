@@ -1,14 +1,60 @@
 #!/usr/bin/env node
 
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+
+// Handle version early
+if (earlyArgs.includes('--version')) {
+  // Quick version output without loading modules
+  console.log('0.3.1');
+  process.exit(0);
+}
+
+// Handle help early
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Load minimal modules needed for help
+  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+  globalThis.use = use;
+  const config = await import('./solve-config.mjs');
+  const { initializeConfig, createYargsConfig } = config;
+  const { yargs, hideBin } = await initializeConfig(use);
+  const rawArgs = hideBin(process.argv);
+  createYargsConfig(yargs(rawArgs)).showHelp();
+  process.exit(0);
+}
+
+// Handle no arguments early
+if (earlyArgs.length === 0) {
+  console.error('Usage: solve.mjs <issue-url> [options]');
+  console.error('\nError: Missing required github issue or pull request URL');
+  console.error('\nRun "solve.mjs --help" for more information');
+  process.exit(1);
+}
+
+// Handle invalid URL format early (basic check)
+const firstArg = earlyArgs[0];
+if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/')) {
+  console.error(`Error: Invalid GitHub URL format: ${firstArg}`);
+  console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
+  process.exit(1);
+}
+
+// Now load all modules for normal operation
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+
+// Set use globally so imported modules can access it
+globalThis.use = use;
 
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
 
 // Import CLI configuration module
 const config = await import('./solve-config.mjs');
-const { parseArguments, createYargsConfig, yargs, hideBin } = config;
+const { initializeConfig, parseArguments, createYargsConfig } = config;
+
+// Initialize yargs and hideBin using the shared 'use' function
+const { yargs, hideBin } = await initializeConfig(use);
 
 const os = (await use('os')).default;
 const path = (await use('path')).default;
@@ -104,23 +150,15 @@ const {
 // Use getResourceSnapshot from memory-check module
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
-// Check for help flag before processing other arguments
-const rawArgs = hideBin(process.argv);
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit
-  createYargsConfig(yargs(rawArgs)).showHelp();
-  process.exit(0);
-}
-
 // Parse command line arguments using the config module
-const argv = parseArguments();
+const argv = await parseArguments(yargs, hideBin);
 
 const issueUrl = argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
-// Validate GitHub URL using validation module
+// Validate GitHub URL using validation module (more thorough check)
 const urlValidation = validateGitHubUrl(issueUrl);
 if (issueUrl && !urlValidation.isValid) {
   process.exit(1);

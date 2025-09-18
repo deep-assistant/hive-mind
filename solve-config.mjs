@@ -1,20 +1,23 @@
-#!/usr/bin/env node
-
 // CLI configuration module for solve command
 // Extracted from solve.mjs to keep files under 1500 lines
 
-// Use use-m to dynamically import modules for cross-runtime compatibility
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+// This module expects 'use' to be passed in from the parent module
+// to avoid duplicate use-m initialization issues
 
-// Import yargs with specific version for hideBin support
-const yargsModule = await use('yargs@17.7.2');
-const yargs = yargsModule.default || yargsModule;
-const { hideBin } = await use('yargs@17.7.2/helpers');
+// Export an initialization function that accepts 'use'
+export const initializeConfig = async (use) => {
+  // Import yargs with specific version for hideBin support
+  const yargsModule = await use('yargs@17.7.2');
+  const yargs = yargsModule.default || yargsModule;
+  const { hideBin } = await use('yargs@17.7.2/helpers');
+
+  return { yargs, hideBin };
+};
 
 // Function to create yargs configuration - avoids duplication
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
-    .usage('Usage: $0 <issue-url> [options]')
+    .usage('Usage: solve.mjs <issue-url> [options]')
     .positional('issue-url', {
       type: 'string',
       description: 'The GitHub issue URL to solve'
@@ -92,11 +95,8 @@ export const createYargsConfig = (yargsInstance) => {
     .alias('h', 'help');
 };
 
-// Parse command line arguments
-export const parseArguments = () => {
+// Parse command line arguments - now needs yargs and hideBin passed in
+export const parseArguments = async (yargs, hideBin) => {
   const rawArgs = hideBin(process.argv);
-  return createYargsConfig(yargs(rawArgs)).argv;
+  return await createYargsConfig(yargs(rawArgs)).argv;
 };
-
-// Export yargs utilities for use in main script
-export { yargs, hideBin };

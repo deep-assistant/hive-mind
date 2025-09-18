@@ -4,7 +4,12 @@
 // Extracted from solve.mjs to keep files under 1500 lines
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+// Check if use is already defined globally (when imported from solve.mjs)
+// If not, fetch it (when running standalone)
+if (typeof globalThis.use === 'undefined') {
+  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+}
+const use = globalThis.use;
 
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
