@@ -22,7 +22,8 @@ const lib = await import('./lib.mjs');
 const {
   log,
   getLogFile,
-  formatAligned
+  formatAligned,
+  cleanErrorMessage
 } = lib;
 
 // Import GitHub-related functions

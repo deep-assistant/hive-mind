@@ -30,7 +30,7 @@ export async function validateYouTrackUrl(issueUrl) {
   }
 
   // Check for YouTrack issue format (youtrack://PROJECT-123 or youtrack://2-123)
-  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9][A-Z0-9]*-\d+)$/i);
+  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9]+-\d+)$/i);
 
   // Also check if it's a direct YouTrack issue ID
   if (!isYouTrackUrl) {
@@ -106,7 +106,7 @@ export function isYouTrackFormat(url) {
   if (url.match(/^youtrack:\/\//)) return true;
 
   // Check for direct issue ID format (PROJECT-123 or 2-123)
-  if (url.match(/^[A-Z0-9][A-Z0-9]*-\d+$/i)) return true;
+  if (url.match(/^[A-Z0-9]+-\d+$/i)) return true;
 
   return false;
 }
