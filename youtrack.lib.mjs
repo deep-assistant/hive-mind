@@ -178,8 +178,8 @@ export async function fetchYouTrackIssues(config) {
     // YouTrack query syntax: project: {PROJECT} State: {STAGE}
     const query = `project: {${config.projectCode}} State: {${config.stage}}`;
 
-    // Fetch issues with detailed fields
-    const endpoint = `/issues?query=${encodeURIComponent(query)}&fields=id,summary,description,created,updated,reporter(login,fullName),assignee(login,fullName),customFields(name,value(name))`;
+    // Fetch issues with detailed fields including idReadable
+    const endpoint = `/issues?query=${encodeURIComponent(query)}&fields=id,idReadable,summary,description,created,updated,reporter(login,fullName),assignee(login,fullName),customFields(name,value(name))`;
 
     const response = await makeYouTrackRequest(endpoint, config);
 
@@ -190,11 +190,11 @@ export async function fetchYouTrackIssues(config) {
 
     // Transform YouTrack issues to our standard format
     const issues = response.map(issue => ({
-      id: issue.id,
+      id: issue.idReadable || issue.id,  // Use readable ID (PAG-45) if available
       summary: issue.summary || 'No title',
       description: issue.description || '',
       stage: config.stage, // Current stage (what we filtered by)
-      url: `${config.url}/issue/${issue.id}`,
+      url: `${config.url}/issue/${issue.idReadable || issue.id}`,
       reporter: issue.reporter ? (issue.reporter.fullName || issue.reporter.login) : 'Unknown',
       assignee: issue.assignee ? (issue.assignee.fullName || issue.assignee.login) : null,
       created: issue.created ? new Date(issue.created) : new Date(),
@@ -252,12 +252,12 @@ export async function getYouTrackIssue(issueId, config) {
 
     // Transform to our standard format
     const transformedIssue = {
-      id: issue.id,
+      id: issue.idReadable || issue.id,  // Use readable ID (PAG-45) as primary ID
       idReadable: issue.idReadable || issue.id, // User-friendly ID like PAG-55
       summary: issue.summary || 'No title',
       description: issue.description || '',
       stage: currentStage,
-      url: `${config.url}/issue/${issue.id}`,
+      url: `${config.url}/issue/${issue.idReadable || issue.id}`,
       reporter: issue.reporter ? (issue.reporter.fullName || issue.reporter.login) : 'Unknown',
       assignee: issue.assignee ? (issue.assignee.fullName || issue.assignee.login) : null,
       created: issue.created ? new Date(issue.created) : new Date(),
