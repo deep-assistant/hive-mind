@@ -1,6 +1,6 @@
 {
   "name": "@deep-assistant/hive-mind",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "AI-powered issue solver and hive mind for collaborative problem solving",
   "main": "hive.mjs",
   "type": "module",
@@ -37,7 +37,14 @@
   "files": [
     "hive.mjs",
     "solve.mjs",
-    "solve.*.lib.mjs",
+    "solve.auto-continue.lib.mjs",
+    "solve.claude-execution.lib.mjs",
+    "solve.config.lib.mjs",
+    "solve.execution.lib.mjs",
+    "solve.feedback.lib.mjs",
+    "solve.repository.lib.mjs",
+    "solve.results.lib.mjs",
+    "solve.validation.lib.mjs",
     "task.mjs",
     "review.mjs",
     "lib.mjs",
