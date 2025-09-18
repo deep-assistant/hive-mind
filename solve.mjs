@@ -35,9 +35,9 @@ if (earlyArgs.length === 0) {
 const firstArg = earlyArgs[0];
 // Import YouTrack format checker for early validation
 const youTrackFormatChecker = await import('./solve.youtrack.lib.mjs');
-const { isYouTrackFormat } = youTrackFormatChecker;
+const { isYouTrackFormat: isYouTrackFormatEarly } = youTrackFormatChecker;
 
-if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !isYouTrackFormat(firstArg)) {
+if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !isYouTrackFormatEarly(firstArg)) {
   console.error(`Error: Invalid GitHub or YouTrack URL format: ${firstArg}`);
   console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
   console.error('Or YouTrack format: youtrack://PROJECT-123 or PROJECT-123');
