@@ -47,8 +47,13 @@ export async function validateYouTrackUrl(issueUrl) {
     youTrackConfig = createYouTrackConfigFromEnv();
     if (!youTrackConfig) {
       console.error('Error: YouTrack URL detected but YouTrack configuration not found');
-      console.error('  Required environment variables: YOUTRACK_URL, YOUTRACK_API_KEY');
-      console.error('  Optional: YOUTRACK_NEXT_STAGE (stage to move issue to after PR creation)');
+      console.error('  Required environment variables:');
+      console.error('    YOUTRACK_URL - Your YouTrack instance URL');
+      console.error('    YOUTRACK_API_KEY - Your YouTrack API token');
+      console.error('    YOUTRACK_PROJECT_CODE - Project code (e.g., PAG)');
+      console.error('    YOUTRACK_STAGE - Current stage field value');
+      console.error('  Optional:');
+      console.error('    YOUTRACK_NEXT_STAGE - Stage to move issue to after PR creation');
       process.exit(1);
     }
   }

@@ -59,13 +59,8 @@ export const validateGitHubUrl = (issueUrl) => {
   const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
   const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
 
-  // Fail fast if URL is invalid
+  // Return validation result (don't print error here - let the caller decide)
   if (!isIssueUrl && !isPrUrl) {
-    console.error('Error: Invalid GitHub URL format');
-    console.error('  Please provide a valid GitHub issue or pull request URL');
-    console.error('  Examples:');
-    console.error('    https://github.com/owner/repo/issues/123 (issue)');
-    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
