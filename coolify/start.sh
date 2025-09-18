@@ -52,9 +52,45 @@ export PATH="/home/hive/.bun/bin:/home/hive/.n/bin:/home/hive/.cargo/bin:$PATH"
 if gh auth status >/dev/null 2>&1 && [ -n "$GITHUB_URL" ]; then
   echo "✓ GitHub authenticated"
 
+  # Build hive-mind command with all environment variables as CLI options
+  HIVE_CMD="node hive.mjs \"$GITHUB_URL\""
+
+  # Add options based on environment variables
+  [ -n "$MONITOR_TAG" ] && HIVE_CMD="$HIVE_CMD --monitor-tag \"$MONITOR_TAG\""
+  [ "$ALL_ISSUES" = "true" ] && HIVE_CMD="$HIVE_CMD --all-issues"
+  [ "$SKIP_ISSUES_WITH_PRS" = "true" ] && HIVE_CMD="$HIVE_CMD --skip-issues-with-prs"
+  [ -n "$CONCURRENCY" ] && HIVE_CMD="$HIVE_CMD --concurrency $CONCURRENCY"
+  [ -n "$PULL_REQUESTS_PER_ISSUE" ] && HIVE_CMD="$HIVE_CMD --pull-requests-per-issue $PULL_REQUESTS_PER_ISSUE"
+  [ -n "$MODEL" ] && HIVE_CMD="$HIVE_CMD --model $MODEL"
+  [ -n "$INTERVAL" ] && HIVE_CMD="$HIVE_CMD --interval $INTERVAL"
+  [ -n "$MAX_ISSUES" ] && HIVE_CMD="$HIVE_CMD --max-issues $MAX_ISSUES"
+  [ "$DRY_RUN" = "true" ] && HIVE_CMD="$HIVE_CMD --dry-run"
+  [ "$VERBOSE" = "true" ] && HIVE_CMD="$HIVE_CMD --verbose"
+  [ "$ONCE" = "true" ] && HIVE_CMD="$HIVE_CMD --once"
+  [ -n "$MIN_DISK_SPACE" ] && HIVE_CMD="$HIVE_CMD --min-disk-space $MIN_DISK_SPACE"
+  [ "$AUTO_CLEANUP" = "true" ] && HIVE_CMD="$HIVE_CMD --auto-cleanup"
+  [ "$FORK" = "true" ] && HIVE_CMD="$HIVE_CMD --fork"
+  [ "$ATTACH_LOGS" = "true" ] && HIVE_CMD="$HIVE_CMD --attach-logs"
+  [ -n "$PROJECT_NUMBER" ] && HIVE_CMD="$HIVE_CMD --project-number $PROJECT_NUMBER"
+  [ -n "$PROJECT_OWNER" ] && HIVE_CMD="$HIVE_CMD --project-owner \"$PROJECT_OWNER\""
+  [ -n "$PROJECT_STATUS" ] && HIVE_CMD="$HIVE_CMD --project-status \"$PROJECT_STATUS\""
+  [ "$PROJECT_MODE" = "true" ] && HIVE_CMD="$HIVE_CMD --project-mode"
+
+  # YouTrack integration options
+  [ "$YOUTRACK_MODE" = "true" ] && HIVE_CMD="$HIVE_CMD --youtrack-mode"
+  [ -n "$YOUTRACK_PROJECT_CODE" ] && HIVE_CMD="$HIVE_CMD --youtrack-project \"$YOUTRACK_PROJECT_CODE\""
+  [ -n "$YOUTRACK_STAGE" ] && HIVE_CMD="$HIVE_CMD --youtrack-stage \"$YOUTRACK_STAGE\""
+
+  # Target branch for PRs
+  [ -n "$TARGET_BRANCH" ] && HIVE_CMD="$HIVE_CMD --target-branch \"$TARGET_BRANCH\""
+
+  # Add any additional arguments from HIVE_ARGS
+  [ -n "$HIVE_ARGS" ] && HIVE_CMD="$HIVE_CMD $HIVE_ARGS"
+
   # Try to start hive-mind, but catch failures
   echo "✓ Starting hive-mind to monitor: $GITHUB_URL"
-  node hive.mjs "$GITHUB_URL"
+  echo "  Command: $HIVE_CMD"
+  eval $HIVE_CMD
   EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
