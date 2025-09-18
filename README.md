@@ -102,8 +102,6 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
   --min-disk-space      Minimum disk space in MB             [default: 500]
   --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
   --fork, -f            Fork repos if no write access       [default: false]
-  --force-claude-bun-run     Switch Claude to bun runtime    [default: false]
-  --force-claude-nodejs-run  Restore Claude to Node.js       [default: false]
 ```
 
 ## 🏗️ Architecture
