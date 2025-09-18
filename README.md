@@ -80,7 +80,6 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
-  --only-prepare-command  Only prepare and print claude command [default: false]
   --auto-pull-request-creation  Create draft PR before Claude [default: false]
   --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
 ```
