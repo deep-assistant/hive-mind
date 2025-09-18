@@ -243,9 +243,9 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
       if (statusOutput) {
         await log('📝 Found uncommitted changes');
         await log('Changes:', { verbose: true });
-        statusOutput.split('\n').forEach(line => {
+        for (const line of statusOutput.split('\n')) {
           await log(`   ${line}`, { verbose: true });
-        });
+        }
 
         // Auto-commit the changes
         await log('💾 Committing changes automatically...');
