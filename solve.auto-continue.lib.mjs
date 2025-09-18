@@ -28,7 +28,7 @@ const {
 } = githubLib;
 
 // Import validation functions for time parsing
-const validation = await import('./solve-validation.mjs');
+const validation = await import('./solve.validation.lib.mjs');
 const {
   calculateWaitTime
 } = validation;
