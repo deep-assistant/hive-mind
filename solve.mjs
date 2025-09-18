@@ -1,15 +1,61 @@
 #!/usr/bin/env node
 
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+
+// Handle version early
+if (earlyArgs.includes('--version')) {
+  // Quick version output without loading modules
+  console.log('0.3.1');
+  process.exit(0);
+}
+
+// Handle help early
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Load minimal modules needed for help
+  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+  globalThis.use = use;
+  const config = await import('./solve.config.lib.mjs');
+  const { initializeConfig, createYargsConfig } = config;
+  const { yargs, hideBin } = await initializeConfig(use);
+  const rawArgs = hideBin(process.argv);
+  createYargsConfig(yargs(rawArgs)).showHelp();
+  process.exit(0);
+}
+
+// Handle no arguments early
+if (earlyArgs.length === 0) {
+  console.error('Usage: solve.mjs <issue-url> [options]');
+  console.error('\nError: Missing required github issue or pull request URL');
+  console.error('\nRun "solve.mjs --help" for more information');
+  process.exit(1);
+}
+
+// Handle invalid URL format early (basic check)
+const firstArg = earlyArgs[0];
+if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/') && !firstArg.match(/^youtrack:\/\//) && !firstArg.match(/^[A-Z0-9][A-Z0-9]*-\d+$/i)) {
+  console.error(`Error: Invalid GitHub or YouTrack URL format: ${firstArg}`);
+  console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
+  console.error('Or YouTrack format: youtrack://PROJECT-123 or PROJECT-123');
+  process.exit(1);
+}
+
+// Now load all modules for normal operation
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+
+// Set use globally so imported modules can access it
+globalThis.use = use;
 
 // Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
 
-// Import yargs with specific version for hideBin support
-const yargsModule = await use('yargs@17.7.2');
-const yargs = yargsModule.default || yargsModule;
-const { hideBin } = await use('yargs@17.7.2/helpers');
+// Import CLI configuration module
+const config = await import('./solve.config.lib.mjs');
+const { initializeConfig, parseArguments, createYargsConfig } = config;
+
+// Initialize yargs and hideBin using the shared 'use' function
+const { yargs, hideBin } = await initializeConfig(use);
 
 const os = (await use('os')).default;
 const path = (await use('path')).default;
@@ -54,162 +100,124 @@ const {
   createYouTrackConfigFromEnv
 } = youTrackLib;
 
+// Import validation functions
+const validation = await import('./solve.validation.lib.mjs');
+const {
+  validateGitHubUrl,
+  showAttachLogsWarning,
+  initializeLogFile,
+  validateUrlRequirement,
+  validateContinueOnlyOnFeedback,
+  performSystemChecks,
+  parseUrlComponents,
+  parseResetTime,
+  calculateWaitTime
+} = validation;
+
+// Import auto-continue functions
+const autoContinue = await import('./solve.auto-continue.lib.mjs');
+const {
+  autoContinueWhenLimitResets,
+  checkExistingPRsForAutoContinue,
+  processPRMode
+} = autoContinue;
+
+// Import repository management functions
+const repository = await import('./solve.repository.lib.mjs');
+const {
+  setupTempDirectory,
+  setupRepository,
+  cloneRepository,
+  setupUpstreamAndSync,
+  cleanupTempDirectory
+} = repository;
+
+// Import results processing functions
+const results = await import('./solve.results.lib.mjs');
+const {
+  cleanupClaudeFile,
+  showSessionSummary,
+  verifyResults,
+  handleExecutionError
+} = results;
+
+// Import Claude execution functions
+const claudeExecution = await import('./solve.claude-execution.lib.mjs');
+const {
+  executeClaudeCommand,
+  checkForUncommittedChanges
+} = claudeExecution;
+
+// Import feedback detection functions
+const feedback = await import('./solve.feedback.lib.mjs');
+const {
+  detectAndCountFeedback
+} = feedback;
+
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
 // Global log file reference (will be passed to lib.mjs)
 
-// Wrapper function for disk space check using imported module
-const checkDiskSpace = async (minSpaceMB = 500) => {
-  const result = await memoryCheck.checkDiskSpace(minSpaceMB, { log });
-  return result.success;
-};
-
-// Wrapper function for memory check using imported module
-const checkMemory = async (minMemoryMB = 256) => {
-  const result = await memoryCheck.checkMemory(minMemoryMB, { log });
-  return result.success;
-};
-
 // Use getResourceSnapshot from memory-check module
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
-// Function to create yargs configuration - avoids duplication
-const createYargsConfig = (yargsInstance) => {
-  return yargsInstance
-    .usage('Usage: $0 <issue-url> [options]')
-    .positional('issue-url', {
-      type: 'string',
-      description: 'The GitHub issue URL to solve'
-    })
-    .option('resume', {
-      type: 'string',
-      description: 'Resume from a previous session ID (when limit was reached)',
-      alias: 'r'
-    })
-    .option('only-prepare-command', {
-      type: 'boolean',
-      description: 'Only prepare and print the claude command without executing it',
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
-      alias: 'n'
-    })
-    .option('model', {
-      type: 'string',
-      description: 'Model to use (opus or sonnet)',
-      alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet']
-    })
-    .option('auto-pull-request-creation', {
-      type: 'boolean',
-      description: 'Automatically create a draft pull request before running Claude',
-      default: true
-    })
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Enable verbose logging for debugging',
-      alias: 'v',
-      default: false
-    })
-    .option('fork', {
-      type: 'boolean',
-      description: 'Fork the repository if you don\'t have write access',
-      alias: 'f',
-      default: false
-    })
-    .option('attach-logs', {
-      type: 'boolean',
-      description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-      default: false
-    })
-    .option('auto-continue', {
-      type: 'boolean',
-      description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
-      default: false
-    })
-    .option('auto-continue-limit', {
-      type: 'boolean',
-      description: 'Automatically continue when Claude limit resets (waits until reset time)',
-      default: false,
-      alias: 'c'
-    })
-    .option('auto-continue-only-on-new-comments', {
-      type: 'boolean',
-      description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
-      default: false
-    })
-    .option('continue-only-on-feedback', {
-      type: 'boolean',
-      description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
-      default: false
-    })
-    .option('min-disk-space', {
-      type: 'number',
-      description: 'Minimum required disk space in MB (default: 500)',
-      default: 500
-    })
-    .option('target-branch', {
-      type: 'string',
-      description: 'Target branch for pull requests (defaults to repository default branch)',
-      alias: 'tb'
-    })
-    .help('h')
-    .alias('h', 'help');
-};
-
-// Check for help flag before processing other arguments
-const rawArgs = hideBin(process.argv);
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit
-  createYargsConfig(yargs(rawArgs)).showHelp();
-  process.exit(0);
-}
-
-// Configure command line arguments - GitHub issue URL as positional argument
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Parse command line arguments using the config module
+const argv = await parseArguments(yargs, hideBin);
 
 const issueUrl = argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
-// Validate GitHub issue or pull request URL format ONCE AND FOR ALL
-// These will be used throughout the script - no duplicate matching!
+// Validate GitHub URL and YouTrack URL formats
 let isIssueUrl = null;
 let isPrUrl = null;
 let isYouTrackUrl = null;
+let youTrackIssueId = null;
+let youTrackConfig = null;
 
 // Only validate if we have a URL
-const needsUrlValidation = issueUrl;
+if (issueUrl) {
+  // Check for GitHub URLs first
+  const urlValidation = validateGitHubUrl(issueUrl);
+  if (urlValidation.isValid) {
+    isIssueUrl = urlValidation.isIssueUrl;
+    isPrUrl = urlValidation.isPrUrl;
+  } else {
+    // Check for YouTrack URLs
+    // Check for YouTrack issue format (youtrack://PROJECT-123 or youtrack://2-123)
+    isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9][A-Z0-9]*-\d+)$/i);
 
-if (needsUrlValidation) {
-  // Do the regex matching ONCE - these results will be used everywhere
-  isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
-  isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
+    // Also check if it's a direct YouTrack issue ID
+    if (!isYouTrackUrl) {
+      youTrackIssueId = parseYouTrackIssueId(issueUrl);
+      if (youTrackIssueId) {
+        isYouTrackUrl = [issueUrl, youTrackIssueId];
+      }
+    } else {
+      youTrackIssueId = isYouTrackUrl[1];
+    }
 
-  // Check for YouTrack issue format (youtrack://PROJECT-123 or youtrack://2-123)
-  // Some YouTrack instances use numeric project codes
-  isYouTrackUrl = issueUrl.match(/^youtrack:\/\/([A-Z0-9][A-Z0-9]*-\d+)$/i);
+    // Fail fast if URL is invalid
+    if (!isYouTrackUrl) {
+      console.error('Error: Invalid GitHub or YouTrack URL format');
+      console.error('  Please provide a valid GitHub issue, pull request URL, or YouTrack issue ID');
+      console.error('  Examples:');
+      console.error('    https://github.com/owner/repo/issues/123 (GitHub issue)');
+      console.error('    https://github.com/owner/repo/pull/456 (GitHub pull request)');
+      console.error('    youtrack://PROJECT-123 (YouTrack issue)');
+      console.error('    PROJECT-123 (YouTrack issue ID)');
+      process.exit(1);
+    }
 
-  // Also check if it's a direct YouTrack issue ID
-  const directYouTrackId = parseYouTrackIssueId(issueUrl);
-  if (directYouTrackId && !isYouTrackUrl) {
-    // Convert direct ID to youtrack:// format
-    isYouTrackUrl = [issueUrl, directYouTrackId];
-  }
-
-  // Fail fast if URL is invalid
-  if (!isIssueUrl && !isPrUrl && !isYouTrackUrl) {
-    console.error('Error: Invalid GitHub or YouTrack URL format');
-    console.error('  Please provide a valid GitHub issue, pull request URL, or YouTrack issue ID');
-    console.error('  Examples:');
-    console.error('    https://github.com/owner/repo/issues/123 (GitHub issue)');
-    console.error('    https://github.com/owner/repo/pull/456 (GitHub pull request)');
-    console.error('    youtrack://PROJECT-123 (YouTrack issue)');
-    console.error('    PROJECT-123 (YouTrack issue ID)');
-    process.exit(1);
+    // If YouTrack URL detected, set up YouTrack configuration
+    youTrackConfig = createYouTrackConfigFromEnv();
+    if (!youTrackConfig) {
+      console.error('Error: YouTrack URL detected but YouTrack configuration not found');
+      console.error('  Required environment variables: YOUTRACK_URL, YOUTRACK_API_KEY');
+      console.error('  Optional: YOUTRACK_NEXT_STAGE (stage to move issue to after PR creation)');
+      process.exit(1);
+    }
   }
 }
 
@@ -219,272 +227,37 @@ if (argv.verbose) {
   await log(`Debug: argv["attach-logs"] = ${argv["attach-logs"]}`, { verbose: true });
 }
 
-// Show security warning for attach-logs option
+// Show security warning and initialize log file using validation module
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
-if (shouldAttachLogs) {
-  await log('');
-  await log('⚠️  SECURITY WARNING: --attach-logs is ENABLED', { level: 'warning' });
-  await log('');
-  await log('   This option will upload the complete solution log file to the Pull Request.');
-  await log('   The log may contain sensitive information such as:');
-  await log('   • API keys, tokens, or secrets');
-  await log('   • File paths and directory structures');
-  await log('   • Command outputs and error messages');
-  await log('   • Internal system information');
-  await log('');
-  await log('   ⚠️  DO NOT use this option with public repositories or if the log');
-  await log('       might contain sensitive data that should not be shared publicly.');
-  await log('');
-  await log('   Continuing in 5 seconds... (Press Ctrl+C to abort)');
-  await log('');
-  
-  // Give user time to abort if they realize this might be dangerous
-  for (let i = 5; i > 0; i--) {
-    process.stdout.write(`\r   Countdown: ${i} seconds remaining...`);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  process.stdout.write('\r   Proceeding with log attachment enabled.                    \n');
-  await log('');
-}
+await showAttachLogsWarning(shouldAttachLogs);
+const logFile = await initializeLogFile();
 
-// Create permanent log file immediately with timestamp
-const scriptDir = path.dirname(process.argv[1]);
-const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const logFile = path.join(scriptDir, `solve-${timestamp}.log`);
-setLogFile(logFile);
-
-// Create the log file immediately
-await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
-await log(`📁 Log file: ${getLogFile()}`);
-await log(`   (All output will be logged here)`);
-
-
-// Validate issue URL requirement
-if (!issueUrl) {
-  await log(`❌ GitHub issue URL or YouTrack issue ID is required`, { level: 'error' });
-  await log(`   Usage: solve <github-issue-url|youtrack-issue-id> [options]`, { level: 'error' });
+// Validate GitHub URL requirement and options using validation module
+if (!(await validateUrlRequirement(issueUrl))) {
   process.exit(1);
 }
 
-// YouTrack configuration setup for YouTrack issues
-let youTrackConfig = null;
-let youTrackIssueId = null;
-if (isYouTrackUrl) {
-  // Extract YouTrack issue ID
-  youTrackIssueId = isYouTrackUrl[1] || parseYouTrackIssueId(issueUrl);
-
-  if (!youTrackIssueId) {
-    await log(`❌ Unable to parse YouTrack issue ID from: ${issueUrl}`, { level: 'error' });
-    process.exit(1);
-  }
-
-  // Create YouTrack config from environment variables
-  youTrackConfig = createYouTrackConfigFromEnv();
-
-  if (!youTrackConfig) {
-    await log(`❌ YouTrack mode requires environment variables to be set`, { level: 'error' });
-    await log(`   Required: YOUTRACK_URL, YOUTRACK_API_KEY, YOUTRACK_PROJECT_CODE, YOUTRACK_STAGE`, { level: 'error' });
-    await log(`   Example: YOUTRACK_URL=https://mycompany.youtrack.cloud`, { level: 'error' });
-    process.exit(1);
-  }
-
-  await log(`🎯 YouTrack Mode Detected`);
-  await log(`   Issue ID: ${youTrackIssueId}`);
-  await log(`   YouTrack URL: ${youTrackConfig.url}`);
-  await log(`   Project: ${youTrackConfig.projectCode}`);
-}
-
-// Validate --continue-only-on-feedback option requirements
-if (argv.continueOnlyOnFeedback) {
-  if (!isPrUrl && !(isIssueUrl && argv.autoContinue) && !isYouTrackUrl) {
-    await log(`❌ --continue-only-on-feedback option requirements not met`, { level: 'error' });
-    await log(`   This option works only with:`, { level: 'error' });
-    await log(`   • Pull request URL, OR`, { level: 'error' });
-    await log(`   • Issue URL with --auto-continue option, OR`, { level: 'error' });
-    await log(`   • YouTrack issue ID`, { level: 'error' });
-    await log(`   Current: ${isPrUrl ? 'PR URL' : (isYouTrackUrl ? 'YouTrack URL' : 'Issue URL')} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
-    process.exit(1);
-  }
-}
-
-// Check disk space before proceeding
-const hasEnoughSpace = await checkDiskSpace(argv.minDiskSpace || 500);
-if (!hasEnoughSpace) {
+if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
   process.exit(1);
 }
 
-// Check memory before proceeding (early check to prevent Claude kills)
-const hasEnoughMemory = await checkMemory(256);
-if (!hasEnoughMemory) {
+// Perform all system checks using validation module
+if (!(await performSystemChecks(argv.minDiskSpace || 500))) {
   process.exit(1);
 }
 
-// Validate Claude CLI connection before proceeding
-const isClaudeConnected = await validateClaudeConnection();
-if (!isClaudeConnected) {
-  await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
-  process.exit(1);
-}
-
-// Helper function to parse time string and calculate wait time
-const parseResetTime = (timeStr) => {
-  // Parse time format like "5:30am" or "11:45pm"
-  const match = timeStr.match(/(\d{1,2}):(\d{2})([ap]m)/i);
-  if (!match) {
-    throw new Error(`Invalid time format: ${timeStr}`);
-  }
-  
-  const [, hourStr, minuteStr, ampm] = match;
-  let hour = parseInt(hourStr);
-  const minute = parseInt(minuteStr);
-  
-  // Convert to 24-hour format
-  if (ampm.toLowerCase() === 'pm' && hour !== 12) {
-    hour += 12;
-  } else if (ampm.toLowerCase() === 'am' && hour === 12) {
-    hour = 0;
-  }
-  
-  return { hour, minute };
-};
-
-// Calculate milliseconds until the next occurrence of the specified time
-const calculateWaitTime = (resetTime) => {
-  const { hour, minute } = parseResetTime(resetTime);
-  
-  const now = new Date();
-  const today = new Date(now);
-  today.setHours(hour, minute, 0, 0);
-  
-  // If the time has already passed today, schedule for tomorrow
-  if (today <= now) {
-    today.setDate(today.getDate() + 1);
-  }
-  
-  return today.getTime() - now.getTime();
-};
-
-// Auto-continue function that waits until limit resets
-const autoContinueWhenLimitResets = async (issueUrl, sessionId) => {
-  try {
-    const resetTime = global.limitResetTime;
-    const waitMs = calculateWaitTime(resetTime);
-    
-    await log(`\n⏰ Waiting until ${resetTime} for limit to reset...`);
-    await log(`   Wait time: ${Math.round(waitMs / (1000 * 60))} minutes`);
-    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
-    
-    // Show countdown every 30 minutes for long waits, every minute for short waits
-    const countdownInterval = waitMs > 30 * 60 * 1000 ? 30 * 60 * 1000 : 60 * 1000;
-    let remainingMs = waitMs;
-    
-    const countdownTimer = setInterval(async () => {
-      remainingMs -= countdownInterval;
-      if (remainingMs > 0) {
-        const remainingMinutes = Math.round(remainingMs / (1000 * 60));
-        await log(`⏳ ${remainingMinutes} minutes remaining until ${resetTime}`);
-      }
-    }, countdownInterval);
-    
-    // Wait until reset time
-    await new Promise(resolve => setTimeout(resolve, waitMs));
-    clearInterval(countdownTimer);
-    
-    await log(`\n✅ Limit reset time reached! Resuming session...`);
-    await log(`   Current time: ${new Date().toLocaleTimeString()}`);
-    
-    // Recursively call the solve script with --resume
-    // We need to reconstruct the command with appropriate flags
-    const childProcess = await import('child_process');
-    
-    // Build the resume command
-    const resumeArgs = [
-      process.argv[1], // solve.mjs path
-      issueUrl,
-      '--resume', sessionId,
-      '--auto-continue-limit' // Keep auto-continue-limit enabled
-    ];
-    
-    // Preserve other flags from original invocation
-    if (argv.model !== 'sonnet') resumeArgs.push('--model', argv.model);
-    if (argv.verbose) resumeArgs.push('--verbose');
-    if (argv.fork) resumeArgs.push('--fork');
-    if (shouldAttachLogs) resumeArgs.push('--attach-logs');
-    
-    await log(`\n🔄 Executing: ${resumeArgs.join(' ')}`);
-    
-    // Execute the resume command
-    const child = childProcess.spawn('node', resumeArgs, {
-      stdio: 'inherit',
-      cwd: process.cwd()
-    });
-    
-    child.on('close', (code) => {
-      process.exit(code);
-    });
-    
-  } catch (error) {
-    await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    await log(`\n🔄 Manual resume command:`);
-    await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-    process.exit(1);
-  }
-};
-
-// Helper function to check if CLAUDE.md exists in a PR branch - moved to github.lib.mjs as checkFileInBranch
-
-
-// Check GitHub permissions early in the process
-const hasValidAuth = await checkGitHubPermissions();
-if (!hasValidAuth) {
-  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
-  process.exit(1);
-}
-
-// NO DUPLICATE VALIDATION! URL was already validated at the beginning.
-// If we have a URL but no validation results, that means the early validation
-// logic has a bug or was bypassed incorrectly.
-if (issueUrl && isIssueUrl === null && isPrUrl === null && isYouTrackUrl === null) {
-  // This should never happen - it means our early validation was skipped incorrectly
-  await log('Internal error: URL validation was not performed correctly', { level: 'error' });
-  await log('This is a bug in the script logic', { level: 'error' });
-  process.exit(1);
-}
-
+// URL validation debug logging
 if (argv.verbose) {
   await log(`📋 URL validation:`, { verbose: true });
   await log(`   Input URL: ${issueUrl}`, { verbose: true });
   await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
   await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
-  await log(`   Is YouTrack URL: ${!!isYouTrackUrl}`, { verbose: true });
 }
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
-// Extract repository and number from URL (for GitHub URLs)
-// For YouTrack, we'll get repo info from environment or arguments
-let owner, repo, urlNumber;
-
-if (isYouTrackUrl) {
-  // For YouTrack issues, get GitHub repo from GITHUB_URL or environment
-  const githubUrl = process.env.GITHUB_URL;
-  if (githubUrl) {
-    const githubParts = githubUrl.split('/');
-    owner = githubParts[3];
-    repo = githubParts[4];
-  } else {
-    // Fallback to environment variables
-    owner = process.env.GITHUB_ORGANIZATION || process.env.GITHUB_OWNER || 'alanef';
-    repo = process.env.GITHUB_REPO || 'hive-mind';
-  }
-  urlNumber = null; // Not applicable for YouTrack
-} else {
-  // For GitHub URLs, extract from URL
-  const urlParts = issueUrl.split('/');
-  owner = urlParts[3];
-  repo = urlParts[4];
-  urlNumber = urlParts[6]; // Could be issue or PR number
-}
+// Parse URL components using validation module
+const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 
 // Determine mode and get issue details
 let issueNumber;
@@ -620,279 +393,21 @@ if (isPrUrl) {
   }
 } else {
   // Traditional issue mode
-  if (isYouTrackUrl) {
-    // For YouTrack, we don't have a GitHub issue number
-    // We'll use a placeholder or generate one for branch naming
-    issueNumber = youTrackIssueId ? youTrackIssueId.replace('-', '') : 'youtrack';
-    await log(`📝 YouTrack mode: Working with ${youTrackIssueId}`);
-  } else {
-    issueNumber = urlNumber;
-    await log(`📝 Issue mode: Working with issue #${issueNumber}`);
-  }
+  issueNumber = urlNumber;
+  await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
 
 // Create or find temporary directory for cloning the repository
-let tempDir;
-let isResuming = argv.resume;
-
-if (isResuming) {
-  // When resuming, try to find existing directory or create a new one
-  const scriptDir = path.dirname(process.argv[1]);
-  const sessionLogPattern = path.join(scriptDir, `${argv.resume}.log`);
-
-  try {
-    // Check if session log exists to verify session is valid
-    await fs.access(sessionLogPattern);
-    await log(`🔄 Resuming session ${argv.resume} (session log found)`);
-
-    // For resumed sessions, create new temp directory since old one may be cleaned up
-    tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    await log(`Creating new temporary directory for resumed session: ${tempDir}`);
-  } catch (err) {
-    await log(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
-    tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
-    await fs.mkdir(tempDir, { recursive: true });
-    await log(`Creating temporary directory for resumed session: ${tempDir}`);
-  }
-} else {
-  tempDir = path.join(os.tmpdir(), `gh-issue-solver-${Date.now()}`);
-  await fs.mkdir(tempDir, { recursive: true });
-  await log(`\nCreating temporary directory: ${tempDir}`);
-}
+const { tempDir, isResuming } = await setupTempDirectory(argv);
 
 try {
-  // Determine if we need to fork the repository
-  let repoToClone = `${owner}/${repo}`;
-  let forkedRepo = null;
-  let upstreamRemote = null;
-  
-  if (argv.fork) {
-    await log(`\n${formatAligned('🍴', 'Fork mode:', 'ENABLED')}`);
-    await log(`${formatAligned('', 'Checking fork status...', '')}\n`);
-    
-    // Get current user
-    const userResult = await $`gh api user --jq .login`;
-    if (userResult.code !== 0) {
-      await log(`${formatAligned('❌', 'Error:', 'Failed to get current user')}`);
-      process.exit(1);
-    }
-    const currentUser = userResult.stdout.toString().trim();
-    
-    // Check if fork already exists
-    const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
-    
-    if (forkCheckResult.code === 0) {
-      // Fork exists
-      await log(`${formatAligned('✅', 'Fork exists:', `${currentUser}/${repo}`)}`);
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
-      upstreamRemote = `${owner}/${repo}`;
-    } else {
-      // Need to create fork
-      await log(`${formatAligned('🔄', 'Creating fork...', '')}`);
-      const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false`;
+  // Set up repository and handle forking
+  const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo);
 
-      // Check if fork creation failed or if fork already exists
-      if (forkResult.code !== 0) {
-        await log(`${formatAligned('❌', 'Error:', 'Failed to create fork')}`);
-        await log(forkResult.stderr ? forkResult.stderr.toString() : 'Unknown error');
-        process.exit(1);
-      }
-
-      // Check if the output indicates the fork already exists (from parallel worker)
-      const forkOutput = forkResult.stderr ? forkResult.stderr.toString() : '';
-      if (forkOutput.includes('already exists')) {
-        // Fork was created by another worker - treat as if fork already existed
-        await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created by another worker')}`);
-        await log(`${formatAligned('✅', 'Using existing fork:', `${currentUser}/${repo}`)}`);
-
-        // Double-check that the fork actually exists now
-        const reCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
-        if (reCheckResult.code !== 0) {
-          await log(`${formatAligned('❌', 'Error:', 'Fork reported as existing but not found')}`);
-          await log(`${formatAligned('', 'Suggestion:', 'Try running the command again - the fork may need a moment to become available')}`);
-          process.exit(1);
-        }
-      } else {
-        await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
-
-        // Wait a moment for fork to be ready
-        await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be ready...')}`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
-      upstreamRemote = `${owner}/${repo}`;
-    }
-  }
-  
-  // Clone the repository (or fork) using gh tool with authentication
-  await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}`);
-  
-  // Use 2>&1 to capture all output and filter "Cloning into" message
-  const cloneResult = await $`gh repo clone ${repoToClone} ${tempDir} 2>&1`;
-  
-  // Verify clone was successful
-  if (cloneResult.code !== 0) {
-    const errorOutput = (cloneResult.stderr || cloneResult.stdout || 'Unknown error').toString().trim();
-    await log(``);
-    await log(`${formatAligned('❌', 'CLONE FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
-    await log(`     Failed to clone repository ${repoToClone}`);
-    await log(``);
-    await log(`  📦 Error details:`);
-    for (const line of errorOutput.split('\n')) {
-      if (line.trim()) await log(`     ${line}`);
-    }
-    await log(``);
-    await log(`  💡 Common causes:`);
-    await log(`     • Repository doesn't exist or is private`);
-    await log(`     • No GitHub authentication`);
-    await log(`     • Network connectivity issues`);
-    if (argv.fork) {
-      await log(`     • Fork not ready yet (try again in a moment)`);
-    }
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Check authentication: gh auth status`);
-    await log(`     2. Login if needed: gh auth login`);
-    await log(`     3. Verify access: gh repo view ${owner}/${repo}`);
-    if (argv.fork) {
-      await log(`     4. Check fork: gh repo view ${repoToClone}`);
-    }
-    await log(``);
-    process.exit(1);
-  }
-
-  await log(`${formatAligned('✅', 'Cloned to:', tempDir)}`);
-  
-  // Verify and fix remote configuration
-  const remoteCheckResult = await $({ cwd: tempDir })`git remote -v 2>&1`;
-  if (!remoteCheckResult.stdout || !remoteCheckResult.stdout.toString().includes('origin')) {
-    await log(`   Setting up git remote...`, { verbose: true });
-    // Add origin remote manually
-    await $({ cwd: tempDir })`git remote add origin https://github.com/${repoToClone}.git 2>&1`;
-  }
-  
-  // If using fork, set up upstream remote
-  if (forkedRepo && upstreamRemote) {
-    await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
-
-    // Check if upstream remote already exists
-    const checkUpstreamResult = await $({ cwd: tempDir })`git remote get-url upstream 2>/dev/null`;
-    let upstreamExists = checkUpstreamResult.code === 0;
-
-    if (upstreamExists) {
-      await log(`${formatAligned('ℹ️', 'Upstream exists:', 'Using existing upstream remote')}`);
-    } else {
-      // Add upstream remote since it doesn't exist
-      const upstreamResult = await $({ cwd: tempDir })`git remote add upstream https://github.com/${upstreamRemote}.git`;
-
-      if (upstreamResult.code === 0) {
-        await log(`${formatAligned('✅', 'Upstream set:', upstreamRemote)}`);
-        upstreamExists = true;
-      } else {
-        await log(`${formatAligned('⚠️', 'Warning:', 'Failed to add upstream remote')}`);
-        if (upstreamResult.stderr) {
-          await log(`${formatAligned('', 'Error details:', upstreamResult.stderr.toString().trim())}`);
-        }
-      }
-    }
-
-    // Proceed with fork sync if upstream remote is available
-    if (upstreamExists) {
-      // Fetch upstream
-      await log(`${formatAligned('🔄', 'Fetching upstream...', '')}`);
-      const fetchResult = await $({ cwd: tempDir })`git fetch upstream`;
-      if (fetchResult.code === 0) {
-        await log(`${formatAligned('✅', 'Upstream fetched:', 'Successfully')}`);
-
-        // Sync the default branch with upstream to avoid merge conflicts
-        await log(`${formatAligned('🔄', 'Syncing default branch...', '')}`);
-
-        // Get current branch so we can return to it after sync
-        const currentBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
-        if (currentBranchResult.code === 0) {
-          const currentBranch = currentBranchResult.stdout.toString().trim();
-
-          // Get the default branch name from the original repository using GitHub API
-          const repoInfoResult = await $`gh api repos/${owner}/${repo} --jq .default_branch`;
-          if (repoInfoResult.code === 0) {
-            const upstreamDefaultBranch = repoInfoResult.stdout.toString().trim();
-            await log(`${formatAligned('ℹ️', 'Default branch:', upstreamDefaultBranch)}`);
-
-            // Always sync the default branch, regardless of current branch
-            // This ensures fork is up-to-date even if we're working on a different branch
-
-            // Step 1: Switch to default branch if not already on it
-            let syncSuccessful = true;
-            if (currentBranch !== upstreamDefaultBranch) {
-              await log(`${formatAligned('🔄', 'Switching to:', `${upstreamDefaultBranch} branch`)}`);
-              const checkoutResult = await $({ cwd: tempDir })`git checkout ${upstreamDefaultBranch}`;
-              if (checkoutResult.code !== 0) {
-                await log(`${formatAligned('⚠️', 'Warning:', `Failed to checkout ${upstreamDefaultBranch}`)}`);
-                syncSuccessful = false; // Cannot proceed with sync
-              }
-            }
-
-            // Step 2: Sync default branch with upstream (only if checkout was successful)
-            if (syncSuccessful) {
-              const syncResult = await $({ cwd: tempDir })`git reset --hard upstream/${upstreamDefaultBranch}`;
-              if (syncResult.code === 0) {
-                await log(`${formatAligned('✅', 'Default branch synced:', `with upstream/${upstreamDefaultBranch}`)}`);
-
-                // Step 3: Push the updated default branch to fork to keep it in sync
-                await log(`${formatAligned('🔄', 'Pushing to fork:', `${upstreamDefaultBranch} branch`)}`);
-                const pushResult = await $({ cwd: tempDir })`git push origin ${upstreamDefaultBranch}`;
-                if (pushResult.code === 0) {
-                  await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
-                } else {
-                  // Fork sync failed - exit immediately as per maintainer feedback
-                  await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
-                  if (pushResult.stderr) {
-                    const errorMsg = pushResult.stderr.toString().trim();
-                    await log(`${formatAligned('', 'Push error:', errorMsg)}`);
-                  }
-                  await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
-                  await log(`${formatAligned('', 'Action:', 'Exiting to prevent accumulating failures')}`);
-                  process.exit(1);
-                }
-              } else {
-                await log(`${formatAligned('⚠️', 'Warning:', 'Failed to sync default branch with upstream')}`);
-                if (syncResult.stderr) {
-                  await log(`${formatAligned('', 'Sync error:', syncResult.stderr.toString().trim())}`);
-                }
-              }
-
-              // Step 4: Return to original branch if we switched
-              if (currentBranch !== upstreamDefaultBranch) {
-                await log(`${formatAligned('🔄', 'Returning to:', `${currentBranch} branch`)}`);
-                const returnResult = await $({ cwd: tempDir })`git checkout ${currentBranch}`;
-                if (returnResult.code !== 0) {
-                  await log(`${formatAligned('⚠️', 'Warning:', `Failed to return to ${currentBranch}`)}`);
-                  // This is not critical - we can continue with the default branch
-                }
-              }
-            }
-          } else {
-            await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine upstream default branch')}`);
-          }
-        } else {
-          await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine current branch')}`);
-        }
-      } else {
-        await log(`${formatAligned('⚠️', 'Warning:', 'Failed to fetch upstream')}`);
-        if (fetchResult.stderr) {
-          await log(`${formatAligned('', 'Fetch error:', fetchResult.stderr.toString().trim())}`);
-        }
-      }
-    } else {
-      await log(`${formatAligned('⚠️', 'Warning:', 'Cannot sync fork - upstream remote not available')}`);
-    }
-  }
+  // Clone repository and set up remotes
+  await cloneRepository(repoToClone, tempDir, argv, owner, repo);
+  // Set up upstream remote and sync fork if needed
+  await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
 
   // Set up git authentication using gh
   const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
@@ -928,14 +443,6 @@ try {
     await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
     await log(``);
     process.exit(1);
-  }
-
-  // Determine target branch (use custom target branch if specified, otherwise default branch)
-  const targetBranch = argv.targetBranch || process.env.TARGET_BRANCH || defaultBranch;
-  if (argv.targetBranch || process.env.TARGET_BRANCH) {
-    await log(`🎯 Using custom target branch: ${targetBranch}`);
-  } else {
-    await log(`🎯 Using repository default branch: ${targetBranch}`);
   }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
 
@@ -1178,22 +685,7 @@ try {
       await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
       
       // Write initial task info to CLAUDE.md
-      let issueInfo = issueUrl;
-      if (isYouTrackUrl && youTrackIssueId) {
-        // Fetch YouTrack issue details for the prompt
-        const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
-        if (youTrackIssue) {
-          // Use readable ID (like PAG-55) if available
-          const displayId = youTrackIssue.idReadable || youTrackIssueId;
-          issueInfo = `${youTrackIssue.url} (YouTrack: ${displayId})
-Title: ${youTrackIssue.summary}
-Description: ${youTrackIssue.description}
-Reporter: ${youTrackIssue.reporter}
-Stage: ${youTrackIssue.stage}`;
-        }
-      }
-
-      const initialTaskInfo = `Issue to solve: ${issueInfo}
+      const initialTaskInfo = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
@@ -1398,39 +890,14 @@ Issue: ${issueUrl}`;
           }
           
           // Get issue title for PR title
-          let issueTitle;
-          let issueRef;
-
-          if (isYouTrackUrl && youTrackIssueId) {
-            // For YouTrack issues, fetch from YouTrack
-            await log(formatAligned('📋', 'Getting issue:', 'Title from YouTrack...'), { verbose: true });
-            const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
-
-            if (youTrackIssue) {
-              issueTitle = youTrackIssue.summary;
-              // Use readable ID (like PAG-55) if available, otherwise fall back to internal ID
-              const displayId = youTrackIssue.idReadable || youTrackIssueId;
-              issueRef = `${displayId}: ${youTrackIssue.summary}`;
-              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
-              await log(`   Issue ID: ${displayId}`, { verbose: true });
-            } else {
-              issueTitle = `Fix YouTrack issue ${youTrackIssueId}`;
-              issueRef = youTrackIssueId;
-              await log(`   Warning: Could not get YouTrack issue details, using default`, { verbose: true });
-            }
+          await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
+          const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
+          let issueTitle = `Fix issue #${issueNumber}`;
+          if (issueTitleResult.code === 0) {
+            issueTitle = issueTitleResult.stdout.toString().trim();
+            await log(`   Issue title: "${issueTitle}"`, { verbose: true });
           } else {
-            // For GitHub issues
-            await log(formatAligned('📋', 'Getting issue:', 'Title from GitHub...'), { verbose: true });
-            const issueTitleResult = await $({ silent: true })`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .title 2>&1`;
-            issueTitle = `Fix issue #${issueNumber}`;
-            if (issueTitleResult.code === 0) {
-              issueTitle = issueTitleResult.stdout.toString().trim();
-              await log(`   Issue title: "${issueTitle}"`, { verbose: true });
-            } else {
-              await log(`   Warning: Could not get issue title, using default`, { verbose: true });
-            }
-            // Use full repository reference for cross-repo PRs (forks)
-            issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
+            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
           }
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
@@ -1474,9 +941,10 @@ Issue: ${issueUrl}`;
           
           // Create draft pull request
           await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
-
-          // issueRef is already defined above when getting the title
-
+          
+          // Use full repository reference for cross-repo PRs (forks)
+          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
+          
           const prBody = `## 🤖 AI-Powered Solution
 
 This pull request is being automatically generated to solve issue ${issueRef}.
@@ -1515,39 +983,21 @@ ${prBody}`, { verbose: true });
             
             // Build command with optional assignee and handle forks
             let command;
-
-            // Debug logging for PR creation
-            await log(`   🔍 PR Creation Debug Info:`, { verbose: true });
-            await log(`      Fork mode: ${argv.fork}`, { verbose: true });
-            await log(`      Forked repo: ${forkedRepo || 'none'}`, { verbose: true });
-            await log(`      Owner: ${owner}`, { verbose: true });
-            await log(`      Repo: ${repo}`, { verbose: true });
-            await log(`      Current user: ${currentUser}`, { verbose: true });
-            await log(`      Can assign: ${canAssign}`, { verbose: true });
-            await log(`      Default branch: ${defaultBranch}`, { verbose: true });
-            await log(`      Head branch: ${branchName}`, { verbose: true });
-
             if (argv.fork && forkedRepo) {
               // For forks, specify the full head reference
               const forkUser = forkedRepo.split('/')[0];
-              await log(`      Fork user: ${forkUser}`, { verbose: true });
-              await log(`      Creating PR from fork to upstream`, { verbose: true });
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
-              await log(`      Creating PR within same repository`, { verbose: true });
-              // IMPORTANT: Add --repo flag to ensure PR is created in the right repository
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
             }
             // Only add assignee if user has permissions
             if (currentUser && canAssign) {
-              await log(`      Adding assignee: ${currentUser}`, { verbose: true });
               command += ` --assignee ${currentUser}`;
-            } else {
-              await log(`      Skipping assignee (no permissions or no user)`, { verbose: true });
             }
-
-            // Always show the full command for debugging
-            await log(`   📋 Full PR command: ${command}`);
+            
+            if (argv.verbose) {
+              await log(`   Command: ${command}`, { verbose: true });
+            }
             
             const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
             
@@ -1662,44 +1112,6 @@ ${prBody}`, { verbose: true });
               }
               
               // CLAUDE.md will be removed after Claude command completes
-
-              // YouTrack integration: Update issue stage and add comment
-              console.debug(`YouTrack update check: isYouTrackUrl=${isYouTrackUrl}, hasConfig=${!!youTrackConfig}, youTrackIssueId=${youTrackIssueId}`);
-              console.debug(`YouTrack config details: url=${youTrackConfig?.url}, projectCode=${youTrackConfig?.projectCode}, nextStage=${youTrackConfig?.nextStage}`);
-              console.debug(`PR details: prNumber=${prNumber}, prUrl=${prUrl}, targetBranch=${targetBranch}`);
-              if (isYouTrackUrl && youTrackConfig && youTrackIssueId) {
-                await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
-
-                // Add comment with PR link
-                const prComment = `🤖 **Automated PR Created**
-
-A pull request has been automatically created for this issue:
-- **PR #${prNumber}**: ${prUrl}
-- **Target Branch**: ${targetBranch}
-- **Repository**: ${owner}/${repo}
-
-The PR is currently in draft mode and will be updated as the solution progresses.
-
-*This comment was automatically generated by hive-mind.*`;
-
-                const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
-                if (commentAdded) {
-                  await log(`✅ Added comment to YouTrack issue`);
-                } else {
-                  await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
-                }
-
-                // Update issue stage if nextStage is configured
-                if (youTrackConfig.nextStage) {
-                  const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
-                  if (stageUpdated) {
-                    await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
-                  } else {
-                    await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
-                  }
-                }
-              }
-
             } else {
               await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
             }
@@ -1825,293 +1237,21 @@ The PR is currently in draft mode and will be updated as the solution progresses
 
   // Now we have the PR URL if one was created
 
-  // Count new comments on PR and issue after last commit
-  let newPrComments = 0;
-  let newIssueComments = 0;
-  let commentInfo = '';
-  let feedbackLines = [];
-
-  // Debug logging to understand when comment counting doesn't run
-  if (argv.verbose) {
-    await log(`\n📊 Comment counting conditions:`, { verbose: true });
-    await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
-    await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
-    await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
-    await log(`   Will count comments: ${!!(prNumber && branchName)}`, { verbose: true });
-    if (!prNumber) {
-      await log(`   ⚠️  Skipping: prNumber not set`, { verbose: true });
-    }
-    if (!branchName) {
-      await log(`   ⚠️  Skipping: branchName not set`, { verbose: true });
-    }
-  }
-
-  if (prNumber && branchName) {
-    try {
-      await log(`${formatAligned('💬', 'Counting comments:', 'Checking for new comments since last commit...')}`);
-      if (argv.verbose) {
-        await log(`   PR #${prNumber} on branch: ${branchName}`, { verbose: true });
-        await log(`   Owner/Repo: ${owner}/${repo}`, { verbose: true });
-      }
-      
-      // Get the last commit timestamp from the PR branch
-      let lastCommitResult = await $`git log -1 --format="%aI" origin/${branchName}`;
-      if (lastCommitResult.code !== 0) {
-        // Fallback to local branch if remote doesn't exist
-        lastCommitResult = await $`git log -1 --format="%aI" ${branchName}`;
-      }
-      if (lastCommitResult.code === 0) {
-        const lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
-        await log(formatAligned('📅', 'Last commit time:', lastCommitTime.toISOString(), 2));
-
-        // Count new PR comments after last commit (both code review comments and conversation comments)
-        let prReviewComments = [];
-        let prConversationComments = [];
-        
-        // Get PR code review comments
-        const prReviewCommentsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/comments`;
-        if (prReviewCommentsResult.code === 0) {
-          prReviewComments = JSON.parse(prReviewCommentsResult.stdout.toString());
-        }
-        
-        // Get PR conversation comments (PR is also an issue)
-        const prConversationCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${prNumber}/comments`;
-        if (prConversationCommentsResult.code === 0) {
-          prConversationComments = JSON.parse(prConversationCommentsResult.stdout.toString());
-        }
-        
-        // Combine and count all PR comments after last commit
-        const allPrComments = [...prReviewComments, ...prConversationComments];
-        newPrComments = allPrComments.filter(comment => 
-          new Date(comment.created_at) > lastCommitTime
-        ).length;
-
-        // Count new issue comments after last commit
-        const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-        if (issueCommentsResult.code === 0) {
-          const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
-          newIssueComments = issueComments.filter(comment => 
-            new Date(comment.created_at) > lastCommitTime
-          ).length;
-        }
-
-        await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
-        await log(formatAligned('💬', 'New issue comments:', newIssueComments.toString(), 2));
-
-        if (argv.verbose) {
-          await log(`   Total new comments: ${newPrComments + newIssueComments}`, { verbose: true });
-          await log(`   Comment lines to add: ${newPrComments > 0 || newIssueComments > 0 ? 'Yes' : 'No (saving tokens)'}`, { verbose: true });
-          await log(`   PR review comments fetched: ${prReviewComments.length}`, { verbose: true });
-          await log(`   PR conversation comments fetched: ${prConversationComments.length}`, { verbose: true });
-          await log(`   Total PR comments checked: ${allPrComments.length}`, { verbose: true });
-        }
-
-        // Check if --auto-continue-only-on-new-comments is enabled and fail if no new comments
-        if (argv.autoContinueOnlyOnNewComments && (isContinueMode || argv.autoContinue)) {
-          const totalNewComments = newPrComments + newIssueComments;
-          if (totalNewComments === 0) {
-            await log(`❌ auto-continue-only-on-new-comments: No new comments found since last commit`);
-            await log(`   This option requires new comments to proceed with auto-continue or continue mode.`);
-            process.exit(1);
-          } else {
-            await log(`✅ auto-continue-only-on-new-comments: Found ${totalNewComments} new comments, continuing...`);
-          }
-        }
-
-        // Build comprehensive feedback info for system prompt
-        feedbackLines = []; // Reset for this execution
-        let feedbackDetected = false;
-        const feedbackSources = [];
-
-        // Add comment info if counts are > 0 to avoid wasting tokens
-        if (newPrComments > 0) {
-          feedbackLines.push(`New comments on the pull request: ${newPrComments}`);
-        }
-        if (newIssueComments > 0) {
-          feedbackLines.push(`New comments on the issue: ${newIssueComments}`);
-        }
-
-        // Enhanced feedback detection for all continue modes
-        if (isContinueMode || argv.autoContinue) {
-          if (argv.continueOnlyOnFeedback) {
-            await log(`${formatAligned('🔍', 'Feedback detection:', 'Checking for any feedback since last commit...')}`);
-          }
-
-          // 1. Check for new comments (excluding our own log comments) - enhanced filtering
-          let filteredPrComments = 0;
-          let filteredIssueComments = 0;
-
-          // Filter out comments that contain logs from solve.mjs
-          const logPatterns = [
-            /📊.*Log file|solution.*log/i,
-            /🔗.*Link:|💻.*Session:/i,
-            /Generated with.*solve\.mjs/i,
-            /Session ID:|Log file available:/i
-          ];
-
-          if (allPrComments.length > 0) {
-            const filteredComments = allPrComments.filter(comment =>
-              new Date(comment.created_at) > lastCommitTime &&
-              !logPatterns.some(pattern => pattern.test(comment.body || ''))
-            );
-            filteredPrComments = filteredComments.length;
-          }
-
-          if (issueNumber) {
-            try {
-              const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-              if (issueCommentsResult.code === 0) {
-                const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
-                const filteredComments = issueComments.filter(comment =>
-                  new Date(comment.created_at) > lastCommitTime &&
-                  !logPatterns.some(pattern => pattern.test(comment.body || ''))
-                );
-                filteredIssueComments = filteredComments.length;
-              }
-            } catch (error) {
-              if (argv.verbose) {
-                await log(`Warning: Could not check issue comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
-              }
-            }
-          }
-
-          // Add filtered comment info if different from original counts
-          const totalFilteredComments = filteredPrComments + filteredIssueComments;
-          const totalNewComments = newPrComments + newIssueComments;
-          if (totalFilteredComments > 0 && totalFilteredComments !== totalNewComments) {
-            feedbackLines.push(`New non-log comments: ${totalFilteredComments} (${totalNewComments} total)`);
-            feedbackDetected = true;
-            feedbackSources.push(`New comments (${totalFilteredComments} filtered)`);
-          } else if (totalNewComments > 0) {
-            feedbackDetected = true;
-            feedbackSources.push(`New comments (${totalNewComments})`);
-          }
-
-          // 2. Check for edited descriptions
-          try {
-            // Check PR description edit time
-            const prDetailsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}`;
-            if (prDetailsResult.code === 0) {
-              const prDetails = JSON.parse(prDetailsResult.stdout.toString());
-              const prUpdatedAt = new Date(prDetails.updated_at);
-              if (prUpdatedAt > lastCommitTime) {
-                feedbackLines.push(`Pull request description was edited after last commit`);
-                feedbackDetected = true;
-                feedbackSources.push('PR description edited');
-              }
-            }
-
-            // Check issue description edit time if we have an issue
-            if (issueNumber) {
-              const issueDetailsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}`;
-              if (issueDetailsResult.code === 0) {
-                const issueDetails = JSON.parse(issueDetailsResult.stdout.toString());
-                const issueUpdatedAt = new Date(issueDetails.updated_at);
-                if (issueUpdatedAt > lastCommitTime) {
-                  feedbackLines.push(`Issue description was edited after last commit`);
-                  feedbackDetected = true;
-                  feedbackSources.push('Issue description edited');
-                }
-              }
-            }
-          } catch (error) {
-            if (argv.verbose) {
-              await log(`Warning: Could not check description edit times: ${cleanErrorMessage(error)}`, { level: 'warning' });
-            }
-          }
-
-          // 3. Check for new commits on default branch
-          try {
-            const defaultBranchResult = await $`gh api repos/${owner}/${repo}`;
-            if (defaultBranchResult.code === 0) {
-              const repoData = JSON.parse(defaultBranchResult.stdout.toString());
-              const defaultBranch = repoData.default_branch;
-
-              const commitsResult = await $`gh api repos/${owner}/${repo}/commits --field sha=${defaultBranch} --field since=${lastCommitTime.toISOString()}`;
-              if (commitsResult.code === 0) {
-                const commits = JSON.parse(commitsResult.stdout.toString());
-                if (commits.length > 0) {
-                  feedbackLines.push(`New commits on ${defaultBranch} branch: ${commits.length}`);
-                  feedbackDetected = true;
-                  feedbackSources.push(`New commits on ${defaultBranch} (${commits.length})`);
-                }
-              }
-            }
-          } catch (error) {
-            if (argv.verbose) {
-              await log(`Warning: Could not check default branch commits: ${cleanErrorMessage(error)}`, { level: 'warning' });
-            }
-          }
-
-          // 4. Check merge status (dirty indicates conflicts)
-          if (mergeStateStatus === 'DIRTY') {
-            feedbackLines.push(`Merge status is dirty (conflicts detected)`);
-            feedbackDetected = true;
-            feedbackSources.push('Merge status dirty');
-          }
-
-          // 5. Check for failed PR checks
-          try {
-            const checksResult = await $`gh api repos/${owner}/${repo}/commits/$(gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '.head.sha')/check-runs`;
-            if (checksResult.code === 0) {
-              const checksData = JSON.parse(checksResult.stdout.toString());
-              const failedChecks = checksData.check_runs?.filter(check =>
-                check.conclusion === 'failure' && new Date(check.completed_at) > lastCommitTime
-              ) || [];
-
-              if (failedChecks.length > 0) {
-                feedbackLines.push(`Failed pull request checks: ${failedChecks.length}`);
-                feedbackDetected = true;
-                feedbackSources.push(`Failed PR checks (${failedChecks.length})`);
-              }
-            }
-          } catch (error) {
-            if (argv.verbose) {
-              await log(`Warning: Could not check PR status checks: ${cleanErrorMessage(error)}`, { level: 'warning' });
-            }
-          }
-
-          // Handle --continue-only-on-feedback option
-          if (argv.continueOnlyOnFeedback) {
-            if (feedbackDetected) {
-              await log(`✅ continue-only-on-feedback: Feedback detected, continuing...`);
-              await log(formatAligned('📋', 'Feedback sources:', feedbackSources.join(', '), 2));
-            } else {
-              await log(`❌ continue-only-on-feedback: No feedback detected since last commit`);
-              await log(`   This option requires any of the following to proceed:`);
-              await log(`   • New comments (excluding solve.mjs logs)`);
-              await log(`   • Edited issue/PR descriptions`);
-              await log(`   • New commits on default branch`);
-              await log(`   • Merge status dirty`);
-              await log(`   • Failed pull request checks`);
-              process.exit(1);
-            }
-          }
-        }
-
-        if (feedbackLines.length > 0) {
-          commentInfo = '\n\n' + feedbackLines.join('\n') + '\n';
-          if (argv.verbose) {
-            await log(`   Feedback info will be added to prompt:`, { verbose: true });
-            feedbackLines.forEach(async line => {
-              await log(`     - ${line}`, { verbose: true });
-            });
-          }
-        } else if (argv.verbose) {
-          await log(`   No feedback info to add (0 new items, saving tokens)`, { verbose: true });
-        }
-      }
-    } catch (error) {
-      await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
-    }
-  } else {
-    await log(formatAligned('⚠️', 'Skipping comment count:', prNumber ? 'branchName not set' : 'prNumber not set', 2));
-    if (argv.verbose) {
-      await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
-      await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
-      await log(`   This means no new comment detection will run`, { verbose: true });
-    }
-  }
+  // Count new comments and detect feedback
+  const { newPrComments, newIssueComments, commentInfo, feedbackLines } = await detectAndCountFeedback({
+    prNumber,
+    branchName,
+    owner,
+    repo,
+    issueNumber,
+    isContinueMode,
+    argv,
+    mergeStateStatus,
+    log,
+    formatAligned,
+    cleanErrorMessage,
+    $
+  });
 
   // Now build the final prompt with all collected information
   const promptLines = [];
@@ -2120,21 +1260,7 @@ The PR is currently in draft mode and will be updated as the solution progresses
   if (isContinueMode) {
     promptLines.push(`Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}`);
   } else {
-    if (isYouTrackUrl && youTrackIssueId) {
-      // For YouTrack issues, include the YouTrack URL and ID
-      const youTrackIssue = await getYouTrackIssue(youTrackIssueId, youTrackConfig);
-      if (youTrackIssue) {
-        promptLines.push(`Issue to solve: ${youTrackIssue.url} (YouTrack: ${youTrackIssueId})`);
-        promptLines.push(`Title: ${youTrackIssue.summary}`);
-        promptLines.push(`Description: ${youTrackIssue.description}`);
-        promptLines.push(`Reporter: ${youTrackIssue.reporter}`);
-        promptLines.push(`Stage: ${youTrackIssue.stage}`);
-      } else {
-        promptLines.push(`Issue to solve: YouTrack issue ${youTrackIssueId}`);
-      }
-    } else {
-      promptLines.push(`Issue to solve: ${issueUrl}`);
-    }
+    promptLines.push(`Issue to solve: ${issueUrl}`);
   }
   
   // Basic info
@@ -2332,730 +1458,80 @@ Self review.
     await log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
   }
 
-  // Execute claude command from the cloned repository directory
-  await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
-  
-  if (argv.verbose) {
-    // Output the actual model being used
-    const modelName = argv.model === 'opus' ? 'opus' : 'sonnet';
-    await log(`   Model: ${modelName}`, { verbose: true });
-    await log(`   Working directory: ${tempDir}`, { verbose: true });
-    await log(`   Branch: ${branchName}`, { verbose: true });
-    await log(`   Prompt length: ${prompt.length} chars`, { verbose: true });
-    await log(`   System prompt length: ${systemPrompt.length} chars`, { verbose: true });
-    if (feedbackLines && feedbackLines.length > 0) {
-      await log(`   Feedback info included: Yes (${feedbackLines.length} lines)`, { verbose: true });
-    } else {
-      await log(`   Feedback info included: No`, { verbose: true });
-    }
-  }
-  
-  // Take resource snapshot before execution
-  const resourcesBefore = await getResourceSnapshot();
-  await log(`📈 System resources before execution:`, { verbose: true });
-  await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
-  await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
+  // Execute Claude command
+  const claudeResult = await executeClaudeCommand({
+    tempDir,
+    branchName,
+    prompt,
+    systemPrompt,
+    escapedPrompt,
+    escapedSystemPrompt,
+    argv,
+    log,
+    formatAligned,
+    getResourceSnapshot,
+    forkedRepo,
+    feedbackLines,
+    claudePath,
+    $
+  });
 
-  // Use command-stream's async iteration for real-time streaming with file logging
-  let commandFailed = false;
-  let sessionId = null;
-  let limitReached = false;
-  let messageCount = 0;
-  let toolUseCount = 0;
-  let lastMessage = '';
+  const { success, sessionId, limitReached, messageCount, toolUseCount } = claudeResult;
 
-  // Build claude command with optional resume flag
-  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
-
-  if (argv.resume) {
-    await log(`🔄 Resuming from session: ${argv.resume}`);
-    claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
-  }
-
-  claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-
-  // Print the command being executed (with cd for reproducibility)
-  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  await log(`\n${formatAligned('📋', 'Command details:', '')}`);
-  await log(formatAligned('📂', 'Working directory:', tempDir, 2));
-  await log(formatAligned('🌿', 'Branch:', branchName, 2));
-  await log(formatAligned('🤖', 'Model:', `Claude ${argv.model.toUpperCase()}`, 2));
-  if (argv.fork && forkedRepo) {
-    await log(formatAligned('🍴', 'Fork:', forkedRepo, 2));
-    await log(formatAligned('🔗', 'Upstream:', `${owner}/${repo}`, 2));
-  }
-  await log(`\n${formatAligned('📋', 'Full command:', '')}`);
-  await log(`   ${fullCommand}`);
-  await log('');
-
-  // If only preparing command or dry-run, exit here
-  if (argv.onlyPrepareCommand || argv.dryRun) {
-    await log(formatAligned('✅', 'Preparation:', 'Complete'));
-    await log(formatAligned('📂', 'Repository at:', tempDir));
-    await log(formatAligned('🌿', 'Branch ready:', branchName));
-    if (argv.fork && forkedRepo) {
-      await log(formatAligned('🍴', 'Using fork:', forkedRepo));
-    }
-    await log(`\n${formatAligned('💡', 'To execute:', '')}`);
-    await log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
-    process.exit(0);
-  }
-
-  // Change to the temporary directory and execute
-  process.chdir(tempDir);
-
-  // Build the actual command for execution
-  let execCommand;
-  if (argv.resume) {
-    execCommand = $({ mirror: false })`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-  } else {
-    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model}`;
-  }
-
-  for await (const chunk of execCommand.stream()) {
-    if (chunk.type === 'stdout') {
-      const data = chunk.data.toString();
-      let json;
-      try {
-        json = JSON.parse(data);
-        await log(JSON.stringify(json, null, 2));
-      } catch (error) {
-        await log(data);
-        continue;
-      }
-
-      // Extract session ID from any level of the JSON structure
-      if (!sessionId) {
-        // Debug: Log what we're checking
-        if (argv.verbose && json.session_id) {
-          await log(`   Found session_id in JSON: ${json.session_id}`, { verbose: true });
-        }
-        
-        // Check multiple possible locations for session_id
-        const possibleSessionId = json.session_id || 
-                                 json.uuid || 
-                                 (json.message && json.message.session_id) ||
-                                 (json.metadata && json.metadata.session_id);
-        
-        if (possibleSessionId) {
-          sessionId = possibleSessionId;
-          await log(`🔧 Session ID: ${sessionId}`);
-          
-          // Try to rename log file to include session ID
-          try {
-            const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-            
-            // Check if target file already exists
-            try {
-              await fs.access(sessionLogFile);
-              await log(`📁 Session log already exists: ${sessionLogFile}`);
-              // Don't rename if target exists
-            } catch {
-              // Target doesn't exist, safe to rename
-              try {
-                await fs.rename(logFile, sessionLogFile);
-                setLogFile(sessionLogFile);
-                await log(`📁 Log renamed to: ${sessionLogFile}`);
-              } catch (renameErr) {
-                // If rename fails (e.g., cross-device link), try copying
-                if (argv.verbose) {
-                  await log(`   Rename failed: ${renameErr.message}, trying copy...`, { verbose: true });
-                }
-                
-                try {
-                  // Read current log content
-                  const oldLogFile = logFile;
-                  const currentContent = await fs.readFile(oldLogFile, 'utf8');
-                  // Write to new file
-                  await fs.writeFile(sessionLogFile, currentContent);
-                  // Update log file reference
-                  setLogFile(sessionLogFile);
-                  await log(`📁 Log copied to: ${sessionLogFile}`);
-                  
-                  // Try to delete old file (non-critical if it fails)
-                  try {
-                    await fs.unlink(oldLogFile);
-                  } catch {
-                    // Ignore deletion errors
-                  }
-                } catch (copyErr) {
-                  await log(`⚠️  Could not copy log file: ${copyErr.message}`, { level: 'warning' });
-                  await log(`📁 Keeping log file: ${getLogFile()}`);
-                }
-              }
-            }
-          } catch (renameError) {
-            // If rename fails, keep original filename
-            await log(`⚠️  Could not rename log file: ${renameError.message}`, { level: 'warning' });
-            await log(`📁 Keeping log file: ${getLogFile()}`);
-          }
-          await log('');
-        }
-      }
-
-      // Display user-friendly progress
-      if (json.type === 'message' && json.message) {
-        messageCount++;
-        
-        // Extract text content from message
-        if (json.message.content && Array.isArray(json.message.content)) {
-          for (const item of json.message.content) {
-            if (item.type === 'text' && item.text) {
-              lastMessage = item.text.substring(0, 100); // First 100 chars
-              
-              // Enhanced limit detection with auto-continue support
-              const text = item.text;
-              if (text.includes('limit reached')) {
-                limitReached = true;
-                
-                // Look for the specific pattern with reset time (improved to catch more variations)
-                const resetPattern = /(\d+)[-\s]hour\s+limit\s+reached.*?resets?\s*(?:at\s+)?(\d{1,2}:\d{2}[ap]m)/i;
-                const match = text.match(resetPattern);
-                
-                if (match) {
-                  const [, hours, resetTime] = match;
-                  // Store the reset time for auto-continue functionality
-                  global.limitResetTime = resetTime;
-                  global.limitHours = hours;
-                  await log(`\n🔍 Detected ${hours}-hour limit reached, resets at ${resetTime}`, { verbose: true });
-                } else {
-                  // Fallback for generic limit messages
-                  await log(`\n🔍 Generic limit reached detected`, { verbose: true });
-                }
-              }
-            }
-          }
-        }
-        
-        // Show progress indicator (console only, not logged)
-        process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
-      } else if (json.type === 'tool_use') {
-        toolUseCount++;
-        const toolName = json.tool_use?.name || 'unknown';
-        // Log tool use
-        await log(`[TOOL USE] ${toolName}`);
-        // Show progress in console (without logging)
-        process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
-      } else if (json.type === 'system' && json.subtype === 'init') {
-        await log('🚀 Claude session started');
-        await log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
-        await log('\n🔄 Processing...\n');
-      }
-
-    } else if (chunk.type === 'stderr') {
-      const data = chunk.data.toString();
-      
-      // Check for critical errors that should cause failure
-      const criticalErrorPatterns = [
-        'ENOSPC: no space left on device',
-        'npm error code ENOSPC',
-        'Command failed:',
-        'Error:',
-        'error code',
-        'errno -28',
-        'killed',
-        'Killed',
-        'SIGKILL',
-        'SIGTERM',
-        'out of memory',
-        'OOM',
-        'memory exhausted'
-      ];
-      
-      const isCriticalError = criticalErrorPatterns.some(pattern => 
-        data.toLowerCase().includes(pattern.toLowerCase())
-      );
-      
-      if (isCriticalError) {
-        commandFailed = true;
-        await log(`\n❌ Critical error detected in stderr: ${data}`, { level: 'error' });
-        
-        // Check if this looks like a process kill due to memory
-        const memoryKillPatterns = ['killed', 'Killed', 'SIGKILL', 'out of memory', 'OOM'];
-        const isMemoryKill = memoryKillPatterns.some(pattern => 
-          data.toLowerCase().includes(pattern.toLowerCase())
-        );
-        
-        if (isMemoryKill) {
-          await log('\n💀 Process appears to have been killed, likely due to insufficient memory', { level: 'error' });
-          const resourcesNow = await getResourceSnapshot();
-          const availableMatch = resourcesNow.memory.match(/MemAvailable:\s+(\d+)/);
-          if (availableMatch) {
-            const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
-            await log(`   Current available memory: ${availableMB}MB`, { level: 'error' });
-          }
-        }
-      }
-      
-      // Only show actual errors, not verbose output
-      if (data.includes('Error') || data.includes('error')) {
-        await log(`\n⚠️  ${data}`, { level: 'error' });
-      }
-      // Log stderr
-      await log(`STDERR: ${data}`);
-    } else if (chunk.type === 'exit') {
-      if (chunk.code !== 0) {
-        commandFailed = true;
-        
-        // Provide more detailed explanation for common exit codes
-        let exitReason = '';
-        switch (chunk.code) {
-          case 137:
-            exitReason = ' (SIGKILL - likely killed due to memory constraints)';
-            break;
-          case 139:
-            exitReason = ' (SIGSEGV - segmentation fault)';
-            break;
-          case 143:
-            exitReason = ' (SIGTERM - terminated)';
-            break;
-          case 1:
-            exitReason = ' (general error)';
-            break;
-          default:
-            exitReason = '';
-        }
-        
-        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}${exitReason}`, { level: 'error' });
-        
-        if (chunk.code === 137) {
-          await log('\n💀 This exit code typically indicates the process was killed by the system', { level: 'error' });
-          await log('   Most common cause: Insufficient memory (OOM killer)', { level: 'error' });
-        }
-      }
-    }
-  }
-
-  // Clear the progress line
-  process.stdout.write('\r' + ' '.repeat(100) + '\r');
-
-  if (commandFailed) {
-    await log('\n❌ Command execution failed. Check the log file for details.');
-    await log(`📁 Log file: ${getLogFile()}`);
-    
-    // Take resource snapshot after failure
-    const resourcesAfter = await getResourceSnapshot();
-    await log(`\n📉 System resources at time of failure:`);
-    await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`);
-    await log(`   Load: ${resourcesAfter.load}`);
-    
-    // Check if it looks like a memory kill
-    const availableMatch = resourcesAfter.memory.match(/MemAvailable:\s+(\d+)/);
-    if (availableMatch) {
-      const availableMB = Math.floor(parseInt(availableMatch[1]) / 1024);
-      if (availableMB < 100) {
-        await log(`\n💀 Likely killed due to low memory (${availableMB}MB available)`, { level: 'error' });
-        await log('   Consider increasing system swap or using a machine with more RAM.', { level: 'error' });
-      }
-    }
-    
-    // If --attach-logs is enabled, ensure we attach failure logs
-    if (shouldAttachLogs && sessionId) {
-      await log('\n📄 Attempting to attach failure logs to PR/Issue...');
-      // The attach logs logic will handle this in the catch block below
-    }
-    
+  if (!success) {
     process.exit(1);
   }
 
-  await log('\n\n✅ Claude command completed');
-  await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
-  
-  // Check for and commit any uncommitted changes made by Claude
-  await log('\n🔍 Checking for uncommitted changes...');
-  try {
-    // Check git status to see if there are any uncommitted changes
-    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
-    
-    if (gitStatusResult.code === 0) {
-      const statusOutput = gitStatusResult.stdout.toString().trim();
-      
-      if (statusOutput) {
-        // There are uncommitted changes - log them and commit automatically
-        await log(formatAligned('📝', 'Found changes:', 'Uncommitted files detected'));
-        
-        // Show what files have changes
-        const changedFiles = statusOutput.split('\n').map(line => line.trim()).filter(line => line);
-        for (const file of changedFiles) {
-          await log(formatAligned('', '', `  ${file}`, 2));
-        }
-        
-        // Stage all changes
-        const gitAddResult = await $({ cwd: tempDir })`git add . 2>&1`;
-        if (gitAddResult.code === 0) {
-          await log(formatAligned('📦', 'Staged:', 'All changes added to git'));
-          
-          // Commit with a descriptive message
-          const commitMessage = `Auto-commit changes made by Claude
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>`;
-          
-          const gitCommitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}" 2>&1`;
-          if (gitCommitResult.code === 0) {
-            await log(formatAligned('✅', 'Committed:', 'Changes automatically committed'));
-            
-            // Push the changes to remote
-            const gitPushResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-            if (gitPushResult.code === 0) {
-              await log(formatAligned('📤', 'Pushed:', 'Changes synced to GitHub'));
-            } else {
-              await log(`⚠️ Warning: Could not push auto-committed changes: ${gitPushResult.stderr.toString().trim()}`, { level: 'warning' });
-            }
-          } else {
-            await log(`⚠️ Warning: Could not commit changes: ${gitCommitResult.stderr.toString().trim()}`, { level: 'warning' });
-          }
-        } else {
-          await log(`⚠️ Warning: Could not stage changes: ${gitAddResult.stderr.toString().trim()}`, { level: 'warning' });
-        }
-      } else {
-        await log(formatAligned('✅', 'No changes:', 'Repository is clean'));
-      }
-    } else {
-      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
-    }
-  } catch (gitError) {
-    await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
-  }
-  
+  // Check for uncommitted changes
+  await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log);
   // Remove CLAUDE.md now that Claude command has finished
-  // We need to commit and push the deletion so it's reflected in the PR
-  try {
-    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
-    
-    // Commit the deletion
-    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
-    if (deleteCommitResult.code === 0) {
-      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
-      
-      // Push the deletion
-      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-      if (pushDeleteResult.code === 0) {
-        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
-      } else {
-        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
-      }
-    } else {
-      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
-    }
-  } catch (e) {
-    // File might not exist or already removed, that's fine
-    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
-  }
+  await cleanupClaudeFile(tempDir, branchName);
 
   // Show summary of session and log file
-  await log('\n=== Session Summary ===');
+  await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir);
 
-  if (sessionId) {
-    await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${getLogFile()}`);
+  // YouTrack integration: Update issue stage and add comment
+  if (isYouTrackUrl && youTrackConfig && youTrackIssueId && prUrl) {
+    await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
 
-    if (limitReached) {
-      await log(`\n⏰ LIMIT REACHED DETECTED!`);
-      
-      if (argv.autoContinueLimit && global.limitResetTime) {
-        await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
-        await autoContinueWhenLimitResets(issueUrl, sessionId);
-      } else {
-        await log(`\n🔄 To resume when limit resets, use:\n`);
-        await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-        
-        if (global.limitResetTime) {
-          await log(`\n💡 Or enable auto-continue-limit to wait until ${global.limitResetTime}:\n`);
-          await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
-        }
-        
-        await log(`\n   This will continue from where it left off with full context.\n`);
-      }
+    // Add comment about PR
+    const prComment = `Pull Request created: ${prUrl}\n\nPlease review the proposed solution.`;
+    const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
+    if (commentAdded) {
+      await log(`✅ Added comment to YouTrack issue`);
     } else {
-      // Show command to resume session in interactive mode
-      await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
-      await log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
-      await log(``);
+      await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
     }
 
-    // Don't show log preview, it's too technical
-  } else {
-    await log(`❌ No session ID extracted`);
-    await log(`📁 Log file available: ${getLogFile()}`);
+    // Update issue stage if nextStage is configured
+    if (youTrackConfig.nextStage) {
+      const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
+      if (stageUpdated) {
+        await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
+      } else {
+        await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
+      }
+    }
   }
 
-  // Now search for newly created pull requests and comments
-  await log('\n🔍 Searching for created pull requests or comments...');
-
-  try {
-    // Get the current user's GitHub username
-    const userResult = await $`gh api user --jq .login`;
-    
-    if (userResult.code !== 0) {
-      throw new Error(`Failed to get current user: ${userResult.stderr ? userResult.stderr.toString() : 'Unknown error'}`);
-    }
-    
-    const currentUser = userResult.stdout.toString().trim();
-    if (!currentUser) {
-      throw new Error('Unable to determine current GitHub user');
-    }
-
-    // Search for pull requests created from our branch
-    await log('\n🔍 Checking for pull requests from branch ' + branchName + '...');
-
-    // First, get all PRs from our branch
-    const allBranchPrsResult = await $`gh pr list --repo ${owner}/${repo} --head ${branchName} --json number,url,createdAt,headRefName,title,state,updatedAt,isDraft`;
-    
-    if (allBranchPrsResult.code !== 0) {
-      await log('  ⚠️  Failed to check pull requests');
-      // Continue with empty list
-    }
-    
-    const allBranchPrs = allBranchPrsResult.stdout.toString().trim() ? JSON.parse(allBranchPrsResult.stdout.toString().trim()) : [];
-
-    // Check if we have any PRs from our branch
-    // If auto-PR was created, it should be the one we're working on
-    if (allBranchPrs.length > 0) {
-      const pr = allBranchPrs[0]; // Get the most recent PR from our branch
-      
-      // If we created a PR earlier in this session, it would be prNumber
-      // Or if the PR was updated during the session (updatedAt > referenceTime)
-      const isPrFromSession = (prNumber && pr.number.toString() === prNumber) || 
-                              (prUrl && pr.url === prUrl) ||
-                              new Date(pr.updatedAt) > referenceTime ||
-                              new Date(pr.createdAt) > referenceTime;
-      
-      if (isPrFromSession) {
-        await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
-        
-        // Check if PR body has proper issue linking keywords
-        const prBodyResult = await $`gh pr view ${pr.number} --repo ${owner}/${repo} --json body --jq .body`;
-        if (prBodyResult.code === 0) {
-          const prBody = prBodyResult.stdout.toString();
-          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
-          
-          // Check if any linking keywords exist (case-insensitive)
-          const linkingKeywords = ['fixes', 'closes', 'resolves', 'fix', 'close', 'resolve'];
-          const hasLinkingKeyword = linkingKeywords.some(keyword => {
-            const regex = new RegExp(`\\b${keyword}\\s+${issueRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-            return regex.test(prBody);
-          });
-          
-          if (!hasLinkingKeyword) {
-            // No linking keyword found, update PR to add it
-            await log(`  ⚠️  PR doesn't have issue linking keyword, adding it...`);
-            
-            // Append "Resolves #issueNumber" with separator
-            const updatedBody = `${prBody}\n\n---\n\nResolves ${issueRef}`;
-            
-            // Write updated body to temp file
-            const tempBodyFile = `/tmp/pr-body-fix-${Date.now()}.md`;
-            await fs.writeFile(tempBodyFile, updatedBody);
-            
-            // Update the PR
-            const updateResult = await $`gh pr edit ${pr.number} --repo ${owner}/${repo} --body-file "${tempBodyFile}"`;
-            
-            // Clean up temp file
-            await fs.unlink(tempBodyFile).catch(() => {});
-            
-            if (updateResult.code === 0) {
-              await log(`  ✅ Added issue linking to PR`);
-            } else {
-              await log(`  ⚠️  Could not update PR body to add issue link`);
-            }
-          } else {
-            await log(`  ✅ PR already has proper issue linking`, { verbose: true });
-          }
-        }
-        
-        // Check if PR is in draft state and convert to ready if needed
-        if (pr.isDraft) {
-          await log(`  ⚠️  PR is in draft state, converting to ready for review...`);
-          
-          const readyResult = await $`gh pr ready ${pr.number} --repo ${owner}/${repo}`;
-          
-          if (readyResult.code === 0) {
-            await log(`  ✅ PR converted to ready for review`);
-          } else {
-            await log(`  ⚠️  Could not convert PR to ready (${readyResult.stderr ? readyResult.stderr.toString().trim() : 'unknown error'})`);
-          }
-        } else {
-          await log(`  ✅ PR is already ready for review`, { verbose: true });
-        }
-        
-        // Upload log file to PR if requested
-        let logUploadSuccess = false;
-        if (shouldAttachLogs) {
-          await log(`\n📎 Uploading solution log to Pull Request...`);
-          logUploadSuccess = await attachLogToGitHub({
-            logFile: getLogFile(),
-            targetType: 'pr',
-            targetNumber: pr.number,
-            owner,
-            repo,
-            $,
-            log,
-            sanitizeLogContent,
-            verbose: argv.verbose
-          });
-        }
-        
-        // YouTrack integration: Update issue stage and add comment
-        console.debug(`YouTrack update check: isYouTrackUrl=${isYouTrackUrl}, hasConfig=${!!youTrackConfig}, youTrackIssueId=${youTrackIssueId}`);
-        console.debug(`YouTrack config details: url=${youTrackConfig?.url}, projectCode=${youTrackConfig?.projectCode}, nextStage=${youTrackConfig?.nextStage}`);
-        console.debug(`PR details: prNumber=${pr.number}, prUrl=${pr.url}`);
-
-        if (isYouTrackUrl && youTrackConfig && youTrackIssueId) {
-          await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
-
-          // Add comment about PR
-          const prComment = `Pull Request created: ${pr.url}\n\nPlease review the proposed solution.`;
-          const commentAdded = await addYouTrackComment(youTrackIssueId, prComment, youTrackConfig);
-          if (commentAdded) {
-            await log(`✅ Added comment to YouTrack issue`);
-          } else {
-            await log(`⚠️ Failed to add comment to YouTrack issue`, { level: 'warning' });
-          }
-
-          // Update issue stage if nextStage is configured
-          if (youTrackConfig.nextStage) {
-            const stageUpdated = await updateYouTrackIssueStage(youTrackIssueId, youTrackConfig.nextStage, youTrackConfig);
-            if (stageUpdated) {
-              await log(`✅ Updated YouTrack issue stage to "${youTrackConfig.nextStage}"`);
-            } else {
-              await log(`⚠️ Failed to update YouTrack issue stage`, { level: 'warning' });
-            }
-          }
-        }
-
-        await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
-        await log(`📍 URL: ${pr.url}`);
-        if (shouldAttachLogs && logUploadSuccess) {
-          await log(`📎 Solution log has been attached to the Pull Request`);
-        } else if (shouldAttachLogs && !logUploadSuccess) {
-          await log(`⚠️  Solution log upload was requested but failed`);
-        }
-        await log(`\n✨ Please review the pull request for the proposed solution.`);
-        process.exit(0);
-      } else {
-        await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
-      }
-    } else {
-      await log(`  ℹ️  No pull requests found from branch ${branchName}`);
-    }
-
-    // If no PR found, search for recent comments on the issue
-    await log('\n🔍 Checking for new comments on issue #' + issueNumber + '...');
-
-    // Get all comments and filter them
-    const allCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-    
-    if (allCommentsResult.code !== 0) {
-      await log('  ⚠️  Failed to check comments');
-      // Continue with empty list
-    }
-    
-    const allComments = JSON.parse(allCommentsResult.stdout.toString().trim() || '[]');
-
-    // Filter for new comments by current user
-    const newCommentsByUser = allComments.filter(comment =>
-      comment.user.login === currentUser && new Date(comment.created_at) > referenceTime
-    );
-
-    if (newCommentsByUser.length > 0) {
-      const lastComment = newCommentsByUser[newCommentsByUser.length - 1];
-      await log(`  ✅ Found new comment by ${currentUser}`);
-      
-      // Upload log file to issue if requested
-      if (shouldAttachLogs) {
-        await log(`\n📎 Uploading solution log to issue...`);
-        await attachLogToGitHub({
-          logFile: getLogFile(),
-          targetType: 'issue',
-          targetNumber: issueNumber,
-          owner,
-          repo,
-          $,
-          log,
-          sanitizeLogContent,
-          verbose: argv.verbose
-        });
-      }
-      
-      await log(`\n💬 SUCCESS: Comment posted on issue`);
-      await log(`📍 URL: ${lastComment.html_url}`);
-      if (shouldAttachLogs) {
-        await log(`📎 Solution log has been attached to the issue`);
-      }
-      await log(`\n✨ A clarifying comment has been added to the issue.`);
-      process.exit(0);
-    } else if (allComments.length > 0) {
-      await log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
-    } else {
-      await log(`  ℹ️  No comments found on issue`);
-    }
-
-    // If neither found, it might not have been necessary to create either
-    await log('\n📋 No new pull request or comment was created.');
-    await log('   The issue may have been resolved differently or required no action.');
-    await log(`\n💡 Review the session log for details:`);
-    await log(`   ${getLogFile()}`);
-    process.exit(0);
-
-  } catch (searchError) {
-    await log('\n⚠️  Could not verify results:', searchError.message);
-    await log(`\n💡 Check the log file for details:`);
-    await log(`   ${getLogFile()}`);
-    process.exit(0);
-  }
+  // Search for newly created pull requests and comments
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 
 } catch (error) {
-  await log('Error executing command:', cleanErrorMessage(error));
-  await log(`Stack trace: ${error.stack}`, { verbose: true });
-  
-  // If --attach-logs is enabled, try to attach failure logs
-  if (shouldAttachLogs && getLogFile()) {
-    await log('\n📄 Attempting to attach failure logs...');
-    
-    // Try to attach to existing PR first
-    if (global.createdPR && global.createdPR.number) {
-      try {
-        const logUploadSuccess = await attachLogToGitHub({
-          logFile: getLogFile(),
-          targetType: 'pr',
-          targetNumber: global.createdPR.number,
-          owner,
-          repo,
-          $,
-          log,
-          sanitizeLogContent,
-          verbose: argv.verbose,
-          errorMessage: cleanErrorMessage(error)
-        });
-        
-        if (logUploadSuccess) {
-          await log('📎 Failure log attached to Pull Request');
-        }
-      } catch (attachError) {
-        await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
-      }
-    }
-  }
-  
-  process.exit(1);
+  await handleExecutionError({
+    error,
+    shouldAttachLogs,
+    getLogFile,
+    attachLogToGitHub,
+    sanitizeLogContent,
+    cleanErrorMessage,
+    owner,
+    repo,
+    argv,
+    log,
+    $
+  });
 } finally {
-  // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
-  if (!argv.resume && !limitReached && !(argv.autoContinueLimit && global.limitResetTime)) {
-    try {
-      process.stdout.write('\n🧹 Cleaning up...');
-      await fs.rm(tempDir, { recursive: true, force: true });
-      await log(' ✅');
-    } catch (cleanupError) {
-      await log(' ⚠️  (failed)');
-    }
-  } else if (argv.resume) {
-    await log(`\n📁 Keeping directory for resumed session: ${tempDir}`);
-  } else if (limitReached && argv.autoContinueLimit) {
-    await log(`\n📁 Keeping directory for auto-continue: ${tempDir}`);
-  } else if (limitReached) {
-    await log(`\n📁 Keeping directory for future resume: ${tempDir}`);
-  }
+  // Clean up temporary directory using repository module
+  await cleanupTempDirectory(tempDir, argv, limitReached);
 }
