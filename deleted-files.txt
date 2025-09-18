@@ -1,4 +1,0 @@
-D	test-comment-counting-fix.mjs
-D	test-rate-limit-errors.mjs
-D	test-rate-limits.mjs
-D	test-timestamps.mjs
