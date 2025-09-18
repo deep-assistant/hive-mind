@@ -312,6 +312,8 @@ if (prModeResult.isContinueMode) {
 // Create or find temporary directory for cloning the repository
 const { tempDir, isResuming } = await setupTempDirectory(argv);
 
+let limitReached = false; // Declare here for access in finally block
+
 try {
   // Set up repository and handle forking
   const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo);
@@ -1388,7 +1390,8 @@ Self review.
     $
   });
 
-  const { success, sessionId, limitReached, messageCount, toolUseCount } = claudeResult;
+  const { success, sessionId, messageCount, toolUseCount } = claudeResult;
+  limitReached = claudeResult.limitReached;
 
   if (!success) {
     process.exit(1);
@@ -1411,19 +1414,7 @@ Self review.
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 
 } catch (error) {
-  await handleExecutionError({
-    error,
-    shouldAttachLogs,
-    getLogFile,
-    attachLogToGitHub,
-    sanitizeLogContent,
-    cleanErrorMessage,
-    owner,
-    repo,
-    argv,
-    log,
-    $
-  });
+  await handleExecutionError(error, shouldAttachLogs, owner, repo);
 } finally {
   // Clean up temporary directory using repository module
   await cleanupTempDirectory(tempDir, argv, limitReached);
