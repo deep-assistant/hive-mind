@@ -23,7 +23,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError } = githubLib;
 
 // Import YouTrack-related functions
 const youTrackLib = await import('./youtrack.lib.mjs');
@@ -52,6 +52,95 @@ const isLocalScript = commandName.endsWith('.mjs');
 
 // Determine which solve command to use based on execution context
 const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
+
+/**
+ * Fallback function to fetch issues from organization/user repositories
+ * when search API hits rate limits
+ * @param {string} owner - Organization or user name
+ * @param {string} scope - 'organization' or 'user'
+ * @param {string} monitorTag - Label to filter by (optional)
+ * @param {boolean} allIssues - Whether to fetch all issues or only labeled ones
+ * @returns {Promise<Array>} Array of issues
+ */
+async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIssues = false) {
+  const { execSync } = await import('child_process');
+
+  try {
+    await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
+
+    // First, get list of repositories
+    let repoListCmd;
+    if (scope === 'organization') {
+      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+    } else {
+      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+    }
+
+    await log(`   📋 Fetching repository list...`, { verbose: true });
+    await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
+
+    // Add delay for rate limiting
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
+    const repositories = JSON.parse(repoOutput || '[]');
+
+    await log(`   📊 Found ${repositories.length} repositories`);
+
+    let collectedIssues = [];
+    let processedRepos = 0;
+
+    // Process repositories in batches to avoid overwhelming the API
+    for (const repo of repositories) {
+      try {
+        const repoName = repo.name;
+        const ownerName = repo.owner?.login || owner;
+
+        await log(`   🔍 Fetching issues from ${ownerName}/${repoName}...`, { verbose: true });
+
+        // Build the appropriate issue list command
+        let issueCmd;
+        if (fetchAllIssues) {
+          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --json url,title,number`;
+        } else {
+          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --label "${monitorTag}" --json url,title,number`;
+        }
+
+        // Add delay between repository requests
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const repoIssues = await fetchAllIssuesWithPagination(issueCmd);
+
+        // Add repository information to each issue
+        const issuesWithRepo = repoIssues.map(issue => ({
+          ...issue,
+          repository: {
+            name: repoName,
+            owner: { login: ownerName }
+          }
+        }));
+
+        collectedIssues.push(...issuesWithRepo);
+        processedRepos++;
+
+        if (issuesWithRepo.length > 0) {
+          await log(`   ✅ Found ${issuesWithRepo.length} issues in ${ownerName}/${repoName}`, { verbose: true });
+        }
+
+      } catch (repoError) {
+        await log(`   ⚠️  Failed to fetch issues from ${repo.name}: ${cleanErrorMessage(repoError)}`, { verbose: true });
+        // Continue with other repositories
+      }
+    }
+
+    await log(`   ✅ Repository fallback complete: ${collectedIssues.length} issues from ${processedRepos}/${repositories.length} repositories`);
+    return collectedIssues;
+
+  } catch (error) {
+    await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    return [];
+  }
+}
 
 // Function to create yargs configuration - avoids duplication
 const createYargsConfig = (yargsInstance) => {
@@ -678,8 +767,25 @@ async function fetchIssues() {
       
       await log(`   🔎 Fetching all issues with pagination and rate limiting...`);
       await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
-      
-      issues = await fetchAllIssuesWithPagination(searchCmd);
+
+      try {
+        issues = await fetchAllIssuesWithPagination(searchCmd);
+      } catch (searchError) {
+        await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
+
+        // Check if the error is due to rate limiting and we're not in repository scope
+        if (isRateLimitError(searchError) && scope !== 'repository') {
+          await log(`   🔍 Rate limit detected - attempting repository fallback...`);
+          try {
+            issues = await fetchIssuesFromRepositories(owner, scope, null, true);
+          } catch (fallbackError) {
+            await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(fallbackError)}`, { verbose: true });
+            issues = [];
+          }
+        } else {
+          issues = [];
+        }
+      }
       
     } else {
       // Use label filter
@@ -726,7 +832,19 @@ async function fetchIssues() {
           issues = await fetchAllIssuesWithPagination(searchCmd);
         } catch (searchError) {
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
-          issues = [];
+
+          // Check if the error is due to rate limiting
+          if (isRateLimitError(searchError)) {
+            await log(`   🔍 Rate limit detected - attempting repository fallback...`);
+            try {
+              issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
+            } catch (fallbackError) {
+              await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(fallbackError)}`, { verbose: true });
+              issues = [];
+            }
+          } else {
+            issues = [];
+          }
         }
       }
     }
