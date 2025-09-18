@@ -444,7 +444,7 @@ if (!hasValidAuth) {
 // NO DUPLICATE VALIDATION! URL was already validated at the beginning.
 // If we have a URL but no validation results, that means the early validation
 // logic has a bug or was bypassed incorrectly.
-if (issueUrl && isIssueUrl === null && isPrUrl === null) {
+if (issueUrl && isIssueUrl === null && isPrUrl === null && isYouTrackUrl === null) {
   // This should never happen - it means our early validation was skipped incorrectly
   await log('Internal error: URL validation was not performed correctly', { level: 'error' });
   await log('This is a bug in the script logic', { level: 'error' });
@@ -456,15 +456,35 @@ if (argv.verbose) {
   await log(`   Input URL: ${issueUrl}`, { verbose: true });
   await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
   await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
+  await log(`   Is YouTrack URL: ${!!isYouTrackUrl}`, { verbose: true });
 }
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 
-// Extract repository and number from URL
-const urlParts = issueUrl.split('/');
-const owner = urlParts[3];
-const repo = urlParts[4];
-const urlNumber = urlParts[6]; // Could be issue or PR number
+// Extract repository and number from URL (for GitHub URLs)
+// For YouTrack, we'll get repo info from environment or arguments
+let owner, repo, urlNumber;
+
+if (isYouTrackUrl) {
+  // For YouTrack issues, get GitHub repo from GITHUB_URL or environment
+  const githubUrl = process.env.GITHUB_URL;
+  if (githubUrl) {
+    const githubParts = githubUrl.split('/');
+    owner = githubParts[3];
+    repo = githubParts[4];
+  } else {
+    // Fallback to environment variables
+    owner = process.env.GITHUB_ORGANIZATION || process.env.GITHUB_OWNER || 'alanef';
+    repo = process.env.GITHUB_REPO || 'hive-mind';
+  }
+  urlNumber = null; // Not applicable for YouTrack
+} else {
+  // For GitHub URLs, extract from URL
+  const urlParts = issueUrl.split('/');
+  owner = urlParts[3];
+  repo = urlParts[4];
+  urlNumber = urlParts[6]; // Could be issue or PR number
+}
 
 // Determine mode and get issue details
 let issueNumber;
@@ -600,8 +620,15 @@ if (isPrUrl) {
   }
 } else {
   // Traditional issue mode
-  issueNumber = urlNumber;
-  await log(`📝 Issue mode: Working with issue #${issueNumber}`);
+  if (isYouTrackUrl) {
+    // For YouTrack, we don't have a GitHub issue number
+    // We'll use a placeholder or generate one for branch naming
+    issueNumber = youTrackIssueId ? youTrackIssueId.replace('-', '') : 'youtrack';
+    await log(`📝 YouTrack mode: Working with ${youTrackIssueId}`);
+  } else {
+    issueNumber = urlNumber;
+    await log(`📝 Issue mode: Working with issue #${issueNumber}`);
+  }
 }
 
 // Create or find temporary directory for cloning the repository
