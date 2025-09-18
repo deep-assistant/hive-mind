@@ -90,6 +90,11 @@ async function makeYouTrackRequest(endpoint, config, options = {}) {
   const baseUrl = config.url.endsWith('/') ? config.url.slice(0, -1) : config.url;
   const fullUrl = `${baseUrl}/api${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 
+  // Debug logging for API calls
+  if (global.verboseMode || process.env.VERBOSE === 'true') {
+    await log(`   YouTrack API call: ${method} ${fullUrl}`, { verbose: true });
+  }
+
   // Prepare headers
   const requestHeaders = {
     'Authorization': `Bearer ${config.apiKey}`,
@@ -140,12 +145,20 @@ export async function testYouTrackConnection(config) {
   try {
     validateYouTrackConfig(config);
 
+    // Add debug logging
+    await log(`🔍 Testing YouTrack connection to: ${config.url}`);
+    await log(`   Project: ${config.projectCode}`);
+    await log(`   Stage: ${config.stage}`);
+
     // Test connection by fetching user info
-    await makeYouTrackRequest('/admin/users/me', config);
+    // Note: YouTrack Cloud uses /users/me, not /admin/users/me
+    await makeYouTrackRequest('/users/me', config);
     await log(`✅ YouTrack connection successful: ${config.url}`);
     return true;
   } catch (error) {
     await log(`❌ YouTrack connection failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    await log(`   URL: ${config.url}`);
+    await log(`   Endpoint tested: /api/users/me`);
     return false;
   }
 }
