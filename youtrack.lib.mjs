@@ -289,8 +289,12 @@ export async function updateYouTrackIssueStage(issueId, newStage, config) {
     const updateData = {
       customFields: [
         {
+          $type: 'StateMachineCustomField',
           name: 'State',
-          value: { name: newStage }
+          value: {
+            $type: 'StateBundleElement',
+            name: newStage
+          }
         }
       ]
     };
