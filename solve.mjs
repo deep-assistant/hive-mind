@@ -1659,6 +1659,9 @@ ${prBody}`, { verbose: true });
               // CLAUDE.md will be removed after Claude command completes
 
               // YouTrack integration: Update issue stage and add comment
+              console.debug(`YouTrack update check: isYouTrackUrl=${isYouTrackUrl}, hasConfig=${!!youTrackConfig}, youTrackIssueId=${youTrackIssueId}`);
+              console.debug(`YouTrack config details: url=${youTrackConfig?.url}, projectCode=${youTrackConfig?.projectCode}, nextStage=${youTrackConfig?.nextStage}`);
+              console.debug(`PR details: prNumber=${prNumber}, prUrl=${prUrl}, targetBranch=${targetBranch}`);
               if (isYouTrackUrl && youTrackConfig && youTrackIssueId) {
                 await log(`\n🔗 Updating YouTrack issue ${youTrackIssueId}...`);
 
