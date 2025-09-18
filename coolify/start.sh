@@ -76,6 +76,14 @@ if gh auth status >/dev/null 2>&1 && [ -n "$GITHUB_URL" ]; then
   [ -n "$PROJECT_STATUS" ] && HIVE_CMD="$HIVE_CMD --project-status \"$PROJECT_STATUS\""
   [ "$PROJECT_MODE" = "true" ] && HIVE_CMD="$HIVE_CMD --project-mode"
 
+  # YouTrack integration options
+  [ "$YOUTRACK_MODE" = "true" ] && HIVE_CMD="$HIVE_CMD --youtrack-mode"
+  [ -n "$YOUTRACK_PROJECT_CODE" ] && HIVE_CMD="$HIVE_CMD --youtrack-project \"$YOUTRACK_PROJECT_CODE\""
+  [ -n "$YOUTRACK_STAGE" ] && HIVE_CMD="$HIVE_CMD --youtrack-stage \"$YOUTRACK_STAGE\""
+
+  # Target branch for PRs
+  [ -n "$TARGET_BRANCH" ] && HIVE_CMD="$HIVE_CMD --target-branch \"$TARGET_BRANCH\""
+
   # Add any additional arguments from HIVE_ARGS
   [ -n "$HIVE_ARGS" ] && HIVE_CMD="$HIVE_CMD $HIVE_ARGS"
 
