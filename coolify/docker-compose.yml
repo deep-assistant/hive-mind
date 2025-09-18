@@ -19,6 +19,13 @@ services:
       - CLAUDE_API_KEY
       - ANTHROPIC_API_KEY
 
+      # YouTrack Configuration
+      - YOUTRACK_URL
+      - YOUTRACK_API_KEY
+      - YOUTRACK_PROJECT_CODE
+      - YOUTRACK_STAGE
+      - YOUTRACK_NEXT_STAGE
+
       # Application Settings
       - NODE_ENV=production
       - MONITOR_TAG
@@ -32,6 +39,7 @@ services:
       - PULL_REQUESTS_PER_ISSUE
       - ATTACH_LOGS
       - VERBOSE
+      - TARGET_BRANCH
 
       # Coolify/Container Settings
       - PORT
