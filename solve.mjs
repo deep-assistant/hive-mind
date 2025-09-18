@@ -15,7 +15,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
   const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
   globalThis.use = use;
-  const config = await import('./solve-config.mjs');
+  const config = await import('./solve.config.lib.mjs');
   const { initializeConfig, createYargsConfig } = config;
   const { yargs, hideBin } = await initializeConfig(use);
   const rawArgs = hideBin(process.argv);
@@ -50,7 +50,7 @@ globalThis.use = use;
 const { $ } = await use('command-stream');
 
 // Import CLI configuration module
-const config = await import('./solve-config.mjs');
+const config = await import('./solve.config.lib.mjs');
 const { initializeConfig, parseArguments, createYargsConfig } = config;
 
 // Initialize yargs and hideBin using the shared 'use' function
@@ -90,7 +90,7 @@ const {
 } = claudeLib;
 
 // Import validation functions
-const validation = await import('./solve-validation.mjs');
+const validation = await import('./solve.validation.lib.mjs');
 const {
   validateGitHubUrl,
   showAttachLogsWarning,
@@ -104,7 +104,7 @@ const {
 } = validation;
 
 // Import auto-continue functions
-const autoContinue = await import('./solve-auto-continue.mjs');
+const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const {
   autoContinueWhenLimitResets,
   checkExistingPRsForAutoContinue,
@@ -112,7 +112,7 @@ const {
 } = autoContinue;
 
 // Import repository management functions
-const repository = await import('./solve-repository.mjs');
+const repository = await import('./solve.repository.lib.mjs');
 const {
   setupTempDirectory,
   setupRepository,
@@ -122,7 +122,7 @@ const {
 } = repository;
 
 // Import results processing functions
-const results = await import('./solve-results.mjs');
+const results = await import('./solve.results.lib.mjs');
 const {
   cleanupClaudeFile,
   showSessionSummary,
@@ -131,14 +131,14 @@ const {
 } = results;
 
 // Import Claude execution functions
-const claudeExecution = await import('./solve-claude-execution.mjs');
+const claudeExecution = await import('./solve.claude-execution.lib.mjs');
 const {
   executeClaudeCommand,
   checkForUncommittedChanges
 } = claudeExecution;
 
 // Import feedback detection functions
-const feedback = await import('./solve-feedback.mjs');
+const feedback = await import('./solve.feedback.lib.mjs');
 const {
   detectAndCountFeedback
 } = feedback;

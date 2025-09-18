@@ -37,6 +37,7 @@
   "files": [
     "hive.mjs",
     "solve.mjs",
+    "solve.*.lib.mjs",
     "task.mjs",
     "review.mjs",
     "lib.mjs",
