@@ -1,0 +1,79 @@
+🧪 Integration Test: Feedback Lines with Real Repository
+=======================================================
+
+📦 Step 1: Creating test repository with comments...
+📦 Creating test repository: test-feedback-lines-5a79ca99
+   ✅ Repository created: https://github.com/konard/test-feedback-lines-5a79ca99
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: is subject to change. To configure the initial branch name to use in all
+hint: of your new repositories, which will suppress this warning, call:
+hint: 
+hint: 	git config --global init.defaultBranch <name>
+hint: 
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint: 
+hint: 	git branch -m <name>
+Initialized empty Git repository in /tmp/test-feedback-lines-5a79ca99-init/.git/
+[master (root-commit) 36b3b8d] Initial commit
+ 1 file changed, 3 insertions(+)
+ create mode 100644 README.md
+To https://github.com/konard/test-feedback-lines-5a79ca99.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
+   ✅ Repository initialized with initial commit
+   ✅ Test issue created
+Switched to a new branch 'test-branch'
+[test-branch edbc894] Add testing section
+ 1 file changed, 3 insertions(+)
+remote: 
+remote: Create a pull request for 'test-branch' on GitHub by visiting:        
+remote:      https://github.com/konard/test-feedback-lines-5a79ca99/pull/new/test-branch        
+remote: 
+To https://github.com/konard/test-feedback-lines-5a79ca99.git
+ * [new branch]      test-branch -> test-branch
+branch 'test-branch' set up to track 'origin/test-branch'.
+   ✅ Test PR created
+   ✅ PR number: 2
+https://github.com/konard/test-feedback-lines-5a79ca99/pull/2#issuecomment-3308453808
+https://github.com/konard/test-feedback-lines-5a79ca99/pull/2#issuecomment-3308453871
+   ✅ Test comments added
+[test-branch bb9722a] Add documentation section
+ 1 file changed, 3 insertions(+)
+To https://github.com/konard/test-feedback-lines-5a79ca99.git
+   edbc894..bb9722a  test-branch -> test-branch
+   ✅ Baseline commit created
+https://github.com/konard/test-feedback-lines-5a79ca99/pull/2#issuecomment-3308454037
+https://github.com/konard/test-feedback-lines-5a79ca99/pull/2#issuecomment-3308454111
+   ✅ New comments added after baseline commit
+✅ Test repository setup complete\n
+🚀 Step 2: Testing solve.mjs feedback detection...
+🔍 Testing solve.mjs with PR: https://github.com/konard/test-feedback-lines-5a79ca99/pull/2
+   ⚠️  solve.mjs had issues (expected for --dry-run)
+   📋 Analyzing solve.mjs output...
+   📊 Feedback lines detected: NO
+   📊 Comment count included: NO
+   📊 Feedback in system prompt: NO (CORRECT)
+   📊 Feedback in user prompt: NO (WRONG)
+   📄 Full output saved: /tmp/feedback-lines-integration-report-1758213216928.txt
+✅ solve.mjs testing complete\n
+🧪 Step 3: Running integration tests...\n
+🔬 Test 1: Feedback lines should be detected in PR with new comments
+   ❌ FAIL
+
+🔬 Test 2: Feedback lines should NOT appear in system prompt
+   ✅ PASS
+
+🔬 Test 3: Feedback lines should appear in user prompt
+   ❌ FAIL
+
+🔬 Test 4: Comment counting should work with real repository data
+   ❌ FAIL
+
+\n🧹 Cleaning up test resources...
+   ⚠️  Could not delete repository (may need manual cleanup)
+   ✅ Temporary files cleaned up
+\n📊 Integration Test Results:
+   Passed: 1/4
+   ❌ Some integration tests failed
+   🔍 Check the output logs for detailed analysis

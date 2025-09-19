@@ -142,7 +142,7 @@ export const validateContinueOnlyOnFeedback = async (argv, isPrUrl, isIssueUrl) 
 };
 
 // Perform all system checks (disk space, memory, Claude connection, GitHub permissions)
-export const performSystemChecks = async (minDiskSpace = 500) => {
+export const performSystemChecks = async (minDiskSpace = 500, skipClaude = false) => {
   // Check disk space before proceeding
   const hasEnoughSpace = await checkDiskSpace(minDiskSpace);
   if (!hasEnoughSpace) {
@@ -155,11 +155,16 @@ export const performSystemChecks = async (minDiskSpace = 500) => {
     return false;
   }
 
-  // Validate Claude CLI connection before proceeding
-  const isClaudeConnected = await validateClaudeConnection();
-  if (!isClaudeConnected) {
-    await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
-    return false;
+  // Skip Claude CLI validation if in dry-run mode or explicitly requested
+  if (!skipClaude) {
+    // Validate Claude CLI connection before proceeding
+    const isClaudeConnected = await validateClaudeConnection();
+    if (!isClaudeConnected) {
+      await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
+      return false;
+    }
+  } else {
+    await log(`⏩ Skipping Claude CLI validation (dry-run mode)`, { verbose: true });
   }
 
   // Check GitHub permissions

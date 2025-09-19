@@ -1,0 +1,29 @@
+title:	[WIP] We are not getting line about number of new comments to pull request in initial prompt with continue/auto-continue mode
+state:	DRAFT
+author:	konard
+labels:	
+assignees:	konard
+reviewers:	
+projects:	
+milestone:	
+number:	199
+url:	https://github.com/deep-assistant/hive-mind/pull/199
+additions:	5
+deletions:	0
+auto-merge:	disabled
+--
+## 🤖 AI-Powered Solution
+
+This pull request is being automatically generated to solve issue #197.
+
+### 📋 Issue Reference
+Fixes #197
+
+### 🚧 Status
+**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+
+### 📝 Implementation Details
+_Details will be added as the solution is developed..._
+
+---
+*This PR was created automatically by the AI issue solver*

@@ -186,7 +186,8 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
 }
 
 // Perform all system checks using validation module
-if (!(await performSystemChecks(argv.minDiskSpace || 500))) {
+// Skip Claude validation in dry-run mode since we won't actually run Claude
+if (!(await performSystemChecks(argv.minDiskSpace || 500, argv.dryRun))) {
   process.exit(1);
 }
 
@@ -1249,6 +1250,14 @@ ${prBody}`, { verbose: true });
     await log(`   Characters: ${prompt.length}`, { verbose: true });
     if (feedbackLines && feedbackLines.length > 0) {
       await log(`   Feedback info: Included`, { verbose: true });
+    }
+
+    // In dry-run mode, output the actual prompt for debugging
+    if (argv.dryRun) {
+      await log(`\n📋 User prompt content:`, { verbose: true });
+      await log(`---BEGIN USER PROMPT---`, { verbose: true });
+      await log(prompt, { verbose: true });
+      await log(`---END USER PROMPT---`, { verbose: true });
     }
   }
 

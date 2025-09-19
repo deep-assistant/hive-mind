@@ -33,7 +33,7 @@ const {
 } = githubLib;
 
 // Import auto-continue functions
-const autoContinue = await import('./solve-auto-continue.mjs');
+const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const {
   autoContinueWhenLimitResets
 } = autoContinue;
