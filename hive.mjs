@@ -23,7 +23,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -606,34 +606,8 @@ async function worker(workerId) {
 }
 
 // Function to check if an issue has open pull requests
-async function hasOpenPullRequests(issueUrl) {
-  try {
-    const { execSync } = await import('child_process');
-    
-    // Extract owner, repo, and issue number from URL
-    const urlMatch = issueUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
-    if (!urlMatch) return false;
-    
-    const [, issueOwner, issueRepo, issueNumber] = urlMatch;
-    
-    // Check for linked PRs using GitHub API
-    const cmd = `gh api repos/${issueOwner}/${issueRepo}/issues/${issueNumber}/timeline --jq '[.[] | select(.event == "cross-referenced" and .source.issue.pull_request != null and .source.issue.state == "open")] | length'`;
-    
-    const output = execSync(cmd, { encoding: 'utf8' }).trim();
-    const openPrCount = parseInt(output) || 0;
-    
-    if (openPrCount > 0) {
-      await log(`      ↳ Skipping (has ${openPrCount} open PR${openPrCount > 1 ? 's' : ''})`, { verbose: true });
-      return true;
-    }
-    
-    return false;
-  } catch (error) {
-    // If we can't check, assume no PRs
-    await log(`      ↳ Could not check for PRs: ${cleanErrorMessage(error)}`, { verbose: true });
-    return false;
-  }
-}
+// Note: hasOpenPullRequests function has been replaced by batchCheckPullRequestsForIssues
+// in github.lib.mjs for better performance and reduced API calls
 
 // Function to fetch issues from GitHub
 async function fetchIssues() {
@@ -774,21 +748,53 @@ async function fetchIssues() {
     // Filter out issues with open PRs if option is enabled
     let issuesToProcess = issues;
     if (argv.skipIssuesWithPrs) {
-      await log(`   🔍 Checking for existing pull requests...`);
-      const filteredIssues = [];
-      
+      await log(`   🔍 Checking for existing pull requests using batch GraphQL query...`);
+
+      // Extract issue numbers and repository info from URLs
+      const issuesByRepo = {};
       for (const issue of issuesToProcess) {
-        const hasPr = await hasOpenPullRequests(issue.url);
-        if (hasPr) {
-          await log(`      ⏭️  Skipping (has PR): ${issue.title || 'Untitled'} (${issue.url})`, { verbose: true });
-        } else {
-          filteredIssues.push(issue);
+        const urlMatch = issue.url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+        if (urlMatch) {
+          const [, issueOwner, issueRepo, issueNumber] = urlMatch;
+          const repoKey = `${issueOwner}/${issueRepo}`;
+
+          if (!issuesByRepo[repoKey]) {
+            issuesByRepo[repoKey] = {
+              owner: issueOwner,
+              repo: issueRepo,
+              issues: []
+            };
+          }
+
+          issuesByRepo[repoKey].issues.push({
+            number: parseInt(issueNumber),
+            issue: issue
+          });
         }
       }
-      
-      const skippedCount = issuesToProcess.length - filteredIssues.length;
-      if (skippedCount > 0) {
-        await log(`   ⏭️  Skipped ${skippedCount} issue(s) with existing pull requests`);
+
+      // Batch check PRs for each repository
+      const filteredIssues = [];
+      let totalSkipped = 0;
+
+      for (const [repoKey, repoData] of Object.entries(issuesByRepo)) {
+        const issueNumbers = repoData.issues.map(i => i.number);
+        const prResults = await batchCheckPullRequestsForIssues(repoData.owner, repoData.repo, issueNumbers);
+
+        // Process results
+        for (const issueData of repoData.issues) {
+          const prInfo = prResults[issueData.number];
+          if (prInfo && prInfo.openPRCount > 0) {
+            await log(`      ⏭️  Skipping (has ${prInfo.openPRCount} PR${prInfo.openPRCount > 1 ? 's' : ''}): ${issueData.issue.title || 'Untitled'} (${issueData.issue.url})`, { verbose: true });
+            totalSkipped++;
+          } else {
+            filteredIssues.push(issueData.issue);
+          }
+        }
+      }
+
+      if (totalSkipped > 0) {
+        await log(`   ⏭️  Skipped ${totalSkipped} issue(s) with existing pull requests`);
       }
       issuesToProcess = filteredIssues;
     }
