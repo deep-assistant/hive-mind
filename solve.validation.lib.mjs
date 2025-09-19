@@ -117,7 +117,7 @@ export const initializeLogFile = async (logDir = null) => {
       await fs.mkdir(targetDir, { recursive: true });
     } catch (mkdirError) {
       await log(`⚠️  Unable to create log directory: ${targetDir}`, { level: 'error' });
-      await log(`   Falling back to current working directory`, { level: 'error' });
+      await log('   Falling back to current working directory', { level: 'error' });
       // Fall back to current working directory
       targetDir = process.cwd();
     }

@@ -305,7 +305,7 @@ try {
     await fs.mkdir(targetDir, { recursive: true });
   } catch (mkdirError) {
     console.error(`⚠️  Unable to create log directory: ${targetDir}`);
-    console.error(`   Falling back to current working directory`);
+    console.error('   Falling back to current working directory');
     // Fall back to current working directory
     targetDir = process.cwd();
   }
