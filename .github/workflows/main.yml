@@ -437,20 +437,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -459,7 +459,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -506,20 +506,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -528,7 +528,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -538,7 +538,7 @@ jobs:
     - name: Test macOS-specific features
       run: |
         echo "Testing macOS swap detection..."
-        output=$(./memory-check.mjs --min-memory 10 --quiet --json)
+        output=$(./src/memory-check.mjs --min-memory 10 --quiet --json)
         if echo "$output" | grep -q '"swap"'; then
           echo "✅ Swap information detected in output"
         else
@@ -580,11 +580,11 @@ jobs:
       run: |
         echo "Node version: $(node --version)"
         echo "Testing memory-check.mjs on Windows..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing with JSON output..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
 
   # === DOCUMENTATION VALIDATION ===
   validate-docs:
