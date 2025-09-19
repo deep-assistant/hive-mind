@@ -1,1 +1,0 @@
-{"body":"We also should add a test to GitHub actions that checks all .mjs files to be shorter than 1500 lines, so if it is not short enough it will not pass checks.","state":"OPEN","title":"Reoorganize the code, so each code file includes not more than 1500 lines of code"}

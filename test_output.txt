@@ -1,5 +1,0 @@
-
-> @deep-assistant/hive-mind@0.4.1 test
-> echo "Error: no test specified" && exit 1
-
-Error: no test specified
