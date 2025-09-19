@@ -114,6 +114,12 @@ async function createTestRepository() {
   $('git config user.email "test@example.com"');
   $('git config user.name "Test User"');
 
+  // Use gh auth setup-git for authentication (similar to create-test-repo.mjs)
+  const authSetupResult = $('gh auth setup-git', { silent: true });
+  if (authSetupResult.code !== 0) {
+    console.log('   ⚠️  gh auth setup-git had issues (may work anyway)');
+  }
+
   $('echo "# Test Repository\\n\\nThis is a test repository for feedback lines testing." > README.md');
   $('git add README.md');
 
@@ -274,18 +280,12 @@ function testSolveFeedbackLines(prUrl) {
 function cleanup() {
   console.log('\\n🧹 Cleaning up test resources...');
 
+  // Per user request: DO NOT DELETE THE TEST REPOSITORY
+  // This allows manual review of the test results
   if (testRepo) {
     const username = getGitHubUsername();
-    try {
-      const deleteResult = $(`gh repo delete ${username}/${testRepo} --yes`, { silent: true });
-      if (deleteResult.code === 0) {
-        console.log('   ✅ Test repository deleted');
-      } else {
-        console.log('   ⚠️  Could not delete repository (may need manual cleanup)');
-      }
-    } catch (error) {
-      console.log('   ⚠️  Cleanup error (may need manual cleanup)');
-    }
+    console.log(`   📦 Test repository preserved for review: https://github.com/${username}/${testRepo}`);
+    console.log('   ℹ️  Please manually delete the repository after review');
   }
 
   cleanupFiles.forEach(file => {

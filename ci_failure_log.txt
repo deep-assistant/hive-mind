@@ -1,0 +1,93 @@
+test-suites	Run feedback lines integration test (Issue	﻿2025-09-19T04:34:05.4057565Z ##[group]Run echo "Running feedback lines integration test with real repository..."
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4058107Z [36;1mecho "Running feedback lines integration test with real repository..."[0m
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4058526Z [36;1mnode tests/test-feedback-lines-integration.mjs[0m
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4087713Z shell: /usr/bin/bash -e {0}
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4087935Z env:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4088398Z   GITHUB_TOKEN: ***
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4088615Z   TEST_GITHUB_USERNAME: ***
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4088939Z   TEST_GITHUB_USER_TOKEN: ***
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4089149Z ##[endgroup]
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4140441Z Running feedback lines integration test with real repository...
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4431903Z 🧪 Integration Test: Feedback Lines with Real Repository
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4436176Z =======================================================
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4436462Z 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4437603Z 📦 Step 1: Creating test repository with comments...
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4443378Z 📦 Creating test repository: test-feedback-lines-6653c4d3
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:05.4443966Z    🔑 Using custom GitHub token for authentication
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7097078Z    ✅ Repository created: https://github.com/***/test-feedback-lines-6653c4d3
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7172925Z hint: Using 'master' as the name for the initial branch. This default branch name
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7173998Z hint: is subject to change. To configure the initial branch name to use in all
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7174948Z hint: of your new repositories, which will suppress this warning, call:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7175516Z hint:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7176002Z hint: 	git config --global init.defaultBranch <name>
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7176486Z hint:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7176859Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7177417Z hint: 'development'. The just-created branch can be renamed via this command:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7178053Z hint:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7178409Z hint: 	git branch -m <name>
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7178811Z hint:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7179515Z hint: Disable this message with "git config set advice.defaultBranchName false"
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7180628Z Initialized empty Git repository in /tmp/test-feedback-lines-6653c4d3-init/.git/
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7326703Z [master (root-commit) 9d56b4b] Initial commit
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7327257Z  1 file changed, 3 insertions(+)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:08.7327659Z  create mode 100644 README.md
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.2941530Z To https://github.com/***/test-feedback-lines-6653c4d3.git
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.2942440Z  * [new branch]      main -> main
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.2985682Z branch 'main' set up to track 'origin/main'.
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.2991425Z    ✅ Repository initialized with initial commit
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.9315932Z    ✅ Test issue created
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.9351026Z Switched to a new branch 'test-branch'
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.9454914Z [test-branch 5b4a115] Add testing section
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:09.9455463Z  1 file changed, 3 insertions(+)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4139705Z remote: 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4140835Z remote: Create a pull request for 'test-branch' on GitHub by visiting:        
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4142561Z remote:      https://github.com/***/test-feedback-lines-6653c4d3/pull/new/test-branch        
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4143118Z remote: 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4145549Z To https://github.com/***/test-feedback-lines-6653c4d3.git
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4146238Z  * [new branch]      test-branch -> test-branch
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:10.4192869Z branch 'test-branch' set up to track 'origin/test-branch'.
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:11.6148126Z    ✅ Test PR created
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:11.8639449Z    ✅ PR number: 2
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:12.5554098Z https://github.com/***/test-feedback-lines-6653c4d3/pull/2#issuecomment-3310520523
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.1528519Z https://github.com/***/test-feedback-lines-6653c4d3/pull/2#issuecomment-3310520544
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.1563810Z    ✅ Test comments added
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.1667257Z [test-branch 488d294] Add documentation section
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.1667824Z  1 file changed, 3 insertions(+)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.5796741Z To https://github.com/***/test-feedback-lines-6653c4d3.git
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.5797243Z    5b4a115..488d294  test-branch -> test-branch
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:13.5841146Z    ✅ Baseline commit created
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.1329339Z https://github.com/***/test-feedback-lines-6653c4d3/pull/2#issuecomment-3310520566
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.7406438Z https://github.com/***/test-feedback-lines-6653c4d3/pull/2#issuecomment-3310520585
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.7435498Z    ✅ New comments added after baseline commit
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.7436443Z ✅ Test repository setup complete\n
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.7437415Z 🚀 Step 2: Testing solve.mjs feedback detection...
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:14.7439425Z 🔍 Testing solve.mjs with PR: https://github.com/***/test-feedback-lines-6653c4d3/pull/2
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6403599Z    ⚠️  solve.mjs had issues (expected for --dry-run)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6404343Z    📋 Analyzing solve.mjs output...
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6406595Z    📊 Feedback lines detected: NO
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6407821Z    📊 Comment count included: NO
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6408632Z    📊 Feedback in system prompt: NO (CORRECT)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6409742Z    📊 Feedback in user prompt: NO (WRONG)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6413378Z    📄 Full output saved: /tmp/feedback-lines-integration-report-1758256457640.txt
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6414231Z ✅ solve.mjs testing complete\n
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6414874Z 🧪 Step 3: Running integration tests...\n
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6415712Z 🔬 Test 1: Feedback lines should be detected in PR with new comments
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6416135Z    ❌ FAIL
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6416242Z 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6416607Z 🔬 Test 2: Feedback lines should NOT appear in system prompt
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6417158Z    ✅ PASS
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6417325Z 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6417721Z 🔬 Test 3: Feedback lines should appear in user prompt
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6418221Z    ❌ FAIL
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6418375Z 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6418855Z 🔬 Test 4: Comment counting should work with real repository data
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6419429Z    ❌ FAIL
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6419603Z 
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.6420326Z \n🧹 Cleaning up test resources...
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9787057Z    ⚠️  Could not delete repository (may need manual cleanup)
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9835886Z    ✅ Temporary files cleaned up
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9836629Z \n📊 Integration Test Results:
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9837064Z    Passed: 1/4
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9837659Z    ❌ Some integration tests failed
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9838310Z    🔍 Check the output logs for detailed analysis
+test-suites	Run feedback lines integration test (Issue	2025-09-19T04:34:17.9881658Z ##[error]Process completed with exit code 1.
