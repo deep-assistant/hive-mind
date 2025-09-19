@@ -174,7 +174,7 @@ if (argv.verbose) {
 // Show security warning and initialize log file using validation module
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
-const logFile = await initializeLogFile();
+const logFile = await initializeLogFile(argv.logDir);
 
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {

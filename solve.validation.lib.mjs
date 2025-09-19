@@ -102,10 +102,29 @@ export const showAttachLogsWarning = async (shouldAttachLogs) => {
 };
 
 // Create and initialize log file
-export const initializeLogFile = async () => {
-  const scriptDir = path.dirname(process.argv[1]);
+export const initializeLogFile = async (logDir = null) => {
+  // Determine log directory:
+  // 1. Use provided logDir if specified
+  // 2. Otherwise use current working directory (not script directory)
+  let targetDir = logDir || process.cwd();
+
+  // Verify the directory exists
+  try {
+    await fs.access(targetDir);
+  } catch (error) {
+    // If directory doesn't exist, try to create it
+    try {
+      await fs.mkdir(targetDir, { recursive: true });
+    } catch (mkdirError) {
+      await log(`⚠️  Unable to create log directory: ${targetDir}`, { level: 'error' });
+      await log(`   Falling back to current working directory`, { level: 'error' });
+      // Fall back to current working directory
+      targetDir = process.cwd();
+    }
+  }
+
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logFile = path.join(scriptDir, `solve-${timestamp}.log`);
+  const logFile = path.join(targetDir, `solve-${timestamp}.log`);
   setLogFile(logFile);
 
   // Create the log file immediately
