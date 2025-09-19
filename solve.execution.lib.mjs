@@ -118,11 +118,28 @@ export const setupRepository = async (argv, owner, repo) => {
         await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created by another worker')}`);
         await log(`${formatAligned('✅', 'Using existing fork:', `${currentUser}/${repo}`)}`);
 
-        // Double-check that the fork actually exists now
-        const reCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
-        if (reCheckResult.code !== 0) {
-          await log(`${formatAligned('❌', 'Error:', 'Fork reported as existing but not found')}`);
-          await log(`${formatAligned('', 'Suggestion:', 'Try running the command again - the fork may need a moment to become available')}`);
+        // Retry verification with exponential backoff
+        // GitHub may need time to propagate the fork visibility across their infrastructure
+        const maxRetries = 5;
+        const baseDelay = 2000; // Start with 2 seconds
+        let forkVerified = false;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          const delay = baseDelay * Math.pow(2, attempt - 1); // 2s, 4s, 8s, 16s, 32s
+          await log(`${formatAligned('⏳', 'Verifying fork:', `Attempt ${attempt}/${maxRetries} (waiting ${delay/1000}s)...`)}`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+
+          const reCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          if (reCheckResult.code === 0) {
+            forkVerified = true;
+            await log(`${formatAligned('✅', 'Fork verified:', 'Successfully confirmed fork exists')}`);
+            break;
+          }
+        }
+
+        if (!forkVerified) {
+          await log(`${formatAligned('❌', 'Error:', 'Fork reported as existing but not found after multiple retries')}`);
+          await log(`${formatAligned('', 'Suggestion:', 'GitHub may be experiencing delays - try running the command again in a few minutes')}`);
           process.exit(1);
         }
       } else {
