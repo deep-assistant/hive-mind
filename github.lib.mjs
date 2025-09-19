@@ -157,24 +157,24 @@ export const checkGitHubPermissions = async () => {
   const { $ } = await use('command-stream');
   
   try {
-    await log(`\n🔐 Checking GitHub authentication and permissions...`);
+    await log('\n🔐 Checking GitHub authentication and permissions...');
     
     // Get auth status including token scopes
     const authStatusResult = await $`gh auth status 2>&1`;
     const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
     
     if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
-      await log(`❌ GitHub authentication error: Not logged in`, { level: 'error' });
-      await log(`   To fix this, run: gh auth login`, { level: 'error' });
+      await log('❌ GitHub authentication error: Not logged in', { level: 'error' });
+      await log('   To fix this, run: gh auth login', { level: 'error' });
       return false;
     }
     
-    await log(`✅ GitHub authentication: OK`);
+    await log('✅ GitHub authentication: OK');
     
     // Parse the auth status output to extract token scopes
     const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
     if (!scopeMatch) {
-      await log(`⚠️  Warning: Could not determine token scopes from auth status`, { level: 'warning' });
+      await log('⚠️  Warning: Could not determine token scopes from auth status', { level: 'warning' });
       return true; // Continue despite not being able to check scopes
     }
     
@@ -204,7 +204,7 @@ export const checkGitHubPermissions = async () => {
     
     // Display warnings
     if (warnings.length > 0) {
-      await log(`\n⚠️  Permission warnings detected:`, { level: 'warning' });
+      await log('\n⚠️  Permission warnings detected:', { level: 'warning' });
       
       for (const warning of warnings) {
         await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
@@ -212,16 +212,16 @@ export const checkGitHubPermissions = async () => {
         await log(`   Solution: ${warning.solution}`, { level: 'warning' });
       }
       
-      await log(`\n   💡 You can continue, but some operations may fail due to insufficient permissions.`, { level: 'warning' });
-      await log(`   💡 To avoid issues, it's recommended to refresh your authentication with the missing scopes.`, { level: 'warning' });
+      await log('\n   💡 You can continue, but some operations may fail due to insufficient permissions.', { level: 'warning' });
+      await log('   💡 To avoid issues, it\'s recommended to refresh your authentication with the missing scopes.', { level: 'warning' });
     } else {
-      await log(`✅ All required permissions: Available`);
+      await log('✅ All required permissions: Available');
     }
     
     return true;
   } catch (error) {
     await log(`⚠️  Warning: Could not check GitHub permissions: ${maskToken(error.message || error.toString())}`, { level: 'warning' });
-    await log(`   Continuing anyway, but some operations may fail if permissions are insufficient`, { level: 'warning' });
+    await log('   Continuing anyway, but some operations may fail if permissions are insufficient', { level: 'warning' });
     return true; // Continue despite permission check failure
   }
 };
@@ -265,7 +265,7 @@ export async function attachLogToGitHub(options) {
     // Check if log file exists and is not empty
     const logStats = await fs.stat(logFile);
     if (logStats.size === 0) {
-      await log(`  ⚠️  Log file is empty, skipping upload`);
+      await log('  ⚠️  Log file is empty, skipping upload');
       return false;
     } else if (logStats.size > 25 * 1024 * 1024) { // 25MB GitHub limit
       await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is 25MB`);
@@ -275,7 +275,7 @@ export async function attachLogToGitHub(options) {
     // Read and sanitize log content
     const rawLogContent = await fs.readFile(logFile, 'utf8');
     if (verbose) {
-      await log(`  🔍 Sanitizing log content to mask GitHub tokens...`, { verbose: true });
+      await log('  🔍 Sanitizing log content to mask GitHub tokens...', { verbose: true });
     }
     const logContent = await sanitizeLogContent(rawLogContent);
 
@@ -326,7 +326,7 @@ ${logContent}
 
     if (logComment.length > GITHUB_COMMENT_LIMIT) {
       await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${GITHUB_COMMENT_LIMIT} chars`);
-      await log(`  📎 Uploading log as GitHub Gist instead...`);
+      await log('  📎 Uploading log as GitHub Gist instead...');
 
       try {
         // Create gist
@@ -389,7 +389,7 @@ This log file contains the complete execution trace of the AI ${targetType === '
           await log(`  ❌ Failed to create gist: ${gistResult.stderr ? gistResult.stderr.toString().trim() : 'unknown error'}`);
           
           // Fallback to truncated comment
-          await log(`  🔄 Falling back to truncated comment...`);
+          await log('  🔄 Falling back to truncated comment...');
           return await attachTruncatedLog(options);
         }
       } catch (gistError) {
@@ -525,10 +525,10 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
   
   try {
     // First, try without pagination to see if we get more than the default limit
-    await log(`   📊 Fetching issues with improved limits and rate limiting...`, { verbose: true });
+    await log('   📊 Fetching issues with improved limits and rate limiting...', { verbose: true });
     
     // Add a 5-second delay before making the API call to respect rate limits
-    await log(`   ⏰ Waiting 5 seconds before API call to respect rate limits...`, { verbose: true });
+    await log('   ⏰ Waiting 5 seconds before API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     const startTime = Date.now();
@@ -556,7 +556,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     }
     
     // Add a 5-second delay after the call to be extra safe with rate limits
-    await log(`   ⏰ Adding 5-second delay after API call to respect rate limits...`, { verbose: true });
+    await log('   ⏰ Adding 5-second delay after API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     return issues;
@@ -565,7 +565,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     
     // Fallback to original behavior with 100 limit
     try {
-      await log(`   🔄 Falling back to default behavior...`, { verbose: true });
+      await log('   🔄 Falling back to default behavior...', { verbose: true });
       const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
       await new Promise(resolve => setTimeout(resolve, 2000)); // Shorter delay for fallback
       const output = execSync(fallbackCommand, { encoding: 'utf8' });
@@ -595,7 +595,7 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
     }
 
     // Add delay to respect rate limits
-    await log(`   ⏰ Waiting 2 seconds before API call to respect rate limits...`, { verbose: true });
+    await log('   ⏰ Waiting 2 seconds before API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const startTime = Date.now();
@@ -641,14 +641,14 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
     await log(`   ✅ Found ${issues.length} issues with status "${statusFilter}"`);
 
     if (issues.length > 0) {
-      await log(`   📋 Issues found:`, { verbose: true });
+      await log('   📋 Issues found:', { verbose: true });
       for (const issue of issues) {
         await log(`      • #${issue.number}: ${issue.title}`, { verbose: true });
       }
     }
 
     // Add delay after API call
-    await log(`   ⏰ Adding 2-second delay after API call to respect rate limits...`, { verbose: true });
+    await log('   ⏰ Adding 2-second delay after API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     return issues;
@@ -658,12 +658,12 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
 
     // Provide helpful error messages for common issues
     if (error.message.includes('project scope')) {
-      await log(`   💡 To fix this, run: gh auth refresh -s project`, { level: 'info' });
+      await log('   💡 To fix this, run: gh auth refresh -s project', { level: 'info' });
     } else if (error.message.includes('authentication')) {
-      await log(`   💡 To fix this, run: gh auth login`, { level: 'info' });
+      await log('   💡 To fix this, run: gh auth login', { level: 'info' });
     } else if (error.message.includes('not found') || error.message.includes('404')) {
-      await log(`   💡 Check that the project number and owner are correct`, { level: 'info' });
-      await log(`   💡 Make sure you have access to the project`, { level: 'info' });
+      await log('   💡 Check that the project number and owner are correct', { level: 'info' });
+      await log('   💡 Make sure you have access to the project', { level: 'info' });
     }
 
     return [];
@@ -724,7 +724,7 @@ export async function batchCheckPullRequestsForIssues(owner, repo, issueNumbers)
       try {
         // Add small delay between batches to respect rate limits
         if (i > 0) {
-          await log(`   ⏰ Waiting 2 seconds before next batch...`, { verbose: true });
+          await log('   ⏰ Waiting 2 seconds before next batch...', { verbose: true });
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
@@ -777,7 +777,7 @@ export async function batchCheckPullRequestsForIssues(owner, repo, issueNumbers)
         await log(`   ⚠️  GraphQL batch query failed: ${cleanErrorMessage(batchError)}`, { level: 'warning' });
 
         // Fall back to individual REST API calls for this batch
-        await log(`   🔄 Falling back to REST API for batch...`, { verbose: true });
+        await log('   🔄 Falling back to REST API for batch...', { verbose: true });
 
         for (const issueNum of batch) {
           try {

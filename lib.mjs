@@ -190,44 +190,44 @@ export const displayFormattedError = async (options) => {
     level = 'error'
   } = options;
 
-  await logFn(``);
+  await logFn('');
   await logFn(`❌ ${title}`, { level });
-  await logFn(``);
+  await logFn('');
   
   if (what) {
-    await logFn(`  🔍 What happened:`);
+    await logFn('  🔍 What happened:');
     await logFn(`     ${what}`);
-    await logFn(``);
+    await logFn('');
   }
   
   if (details) {
-    await logFn(`  📦 Error details:`);
+    await logFn('  📦 Error details:');
     const detailLines = Array.isArray(details) ? details : details.split('\n');
     for (const line of detailLines) {
       if (line.trim()) await logFn(`     ${line.trim()}`);
     }
-    await logFn(``);
+    await logFn('');
   }
   
   if (causes && causes.length > 0) {
-    await logFn(`  💡 Possible causes:`);
+    await logFn('  💡 Possible causes:');
     for (const cause of causes) {
       await logFn(`     • ${cause}`);
     }
-    await logFn(``);
+    await logFn('');
   }
   
   if (fixes && fixes.length > 0) {
-    await logFn(`  🔧 How to fix:`);
+    await logFn('  🔧 How to fix:');
     for (let i = 0; i < fixes.length; i++) {
       await logFn(`     ${i + 1}. ${fixes[i]}`);
     }
-    await logFn(``);
+    await logFn('');
   }
   
   if (workDir) {
     await logFn(`  📂 Working directory: ${workDir}`);
-    await logFn(``);
+    await logFn('');
   }
 };
 
@@ -241,8 +241,8 @@ export const cleanupTempDirectories = async (argv) => {
   const { $ } = await use('command-stream');
   
   try {
-    await log(`\n🧹 Auto-cleanup enabled, removing temporary directories...`);
-    await log(`   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*`, { verbose: true });
+    await log('\n🧹 Auto-cleanup enabled, removing temporary directories...');
+    await log('   ⚠️  Executing: sudo rm -rf /tmp/* /var/tmp/*', { verbose: true });
     
     // Execute cleanup command using command-stream
     const cleanupCommand = $`sudo rm -rf /tmp/* /var/tmp/*`;
@@ -260,7 +260,7 @@ export const cleanupTempDirectories = async (argv) => {
     }
     
     if (exitCode === 0) {
-      await log(`   ✅ Temporary directories cleaned successfully`);
+      await log('   ✅ Temporary directories cleaned successfully');
     } else {
       await log(`   ⚠️  Cleanup completed with warnings (exit code: ${exitCode})`, { level: 'warn' });
     }

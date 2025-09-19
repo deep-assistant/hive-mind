@@ -66,7 +66,7 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
       repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
     }
 
-    await log(`   📋 Fetching repository list...`, { verbose: true });
+    await log('   📋 Fetching repository list...', { verbose: true });
     await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
 
     // Add delay for rate limiting
@@ -279,7 +279,7 @@ const needsUrlValidation = githubUrl;
 
 if (needsUrlValidation) {
   // Do the regex matching ONCE - this result will be used everywhere
-  urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^\/]+)(\/([^\/]+))?$/);
+  urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^/]+)(\/([^/]+))?$/);
   if (!urlMatch) {
     console.error('Error: Invalid GitHub URL format');
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
@@ -298,31 +298,31 @@ setLogFile(logFile);
 // Create the log file immediately
 await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
-await log(`   (All output will be logged here)`);
+await log('   (All output will be logged here)');
 
 // Validate GitHub URL requirement
 if (!githubUrl) {
-  await log(`❌ GitHub URL is required`, { level: 'error' });
-  await log(`   Usage: hive <github-url> [options]`, { level: 'error' });
+  await log('❌ GitHub URL is required', { level: 'error' });
+  await log('   Usage: hive <github-url> [options]', { level: 'error' });
   process.exit(1);
 }
 
 // Validate project mode arguments
 if (argv.projectMode) {
   if (!argv.projectNumber) {
-    await log(`❌ Project mode requires --project-number`, { level: 'error' });
-    await log(`   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER`, { level: 'error' });
+    await log('❌ Project mode requires --project-number', { level: 'error' });
+    await log('   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER', { level: 'error' });
     process.exit(1);
   }
 
   if (!argv.projectOwner) {
-    await log(`❌ Project mode requires --project-owner`, { level: 'error' });
-    await log(`   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER`, { level: 'error' });
+    await log('❌ Project mode requires --project-owner', { level: 'error' });
+    await log('   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER', { level: 'error' });
     process.exit(1);
   }
 
   if (typeof argv.projectNumber !== 'number' || argv.projectNumber <= 0) {
-    await log(`❌ Project number must be a positive integer`, { level: 'error' });
+    await log('❌ Project number must be a positive integer', { level: 'error' });
     process.exit(1);
   }
 }
@@ -332,7 +332,7 @@ if (argv.projectMode) {
 // Check GitHub permissions early in the process
 const hasValidAuth = await checkGitHubPermissions();
 if (!hasValidAuth) {
-  await log(`\n❌ Cannot proceed without valid GitHub authentication`, { level: 'error' });
+  await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
   process.exit(1);
 }
 
@@ -370,24 +370,24 @@ if (!repo) {
   scope = 'repository';
 }
 
-await log(`🎯 Monitoring Configuration:`);
+await log('🎯 Monitoring Configuration:');
 await log(`   📍 Target: ${scope.charAt(0).toUpperCase() + scope.slice(1)} - ${owner}${repo ? `/${repo}` : ''}`);
 if (argv.projectMode) {
   await log(`   📋 Mode: PROJECT #${argv.projectNumber} (owner: ${argv.projectOwner})`);
   await log(`   📌 Status: "${argv.projectStatus}"`);
 } else if (argv.allIssues) {
-  await log(`   🏷️  Mode: ALL ISSUES (no label filter)`);
+  await log('   🏷️  Mode: ALL ISSUES (no label filter)');
 } else {
   await log(`   🏷️  Tag: "${argv.monitorTag}"`);
 }
 if (argv.skipIssuesWithPrs) {
-  await log(`   🚫 Skipping: Issues with open PRs`);
+  await log('   🚫 Skipping: Issues with open PRs');
 }
 await log(`   🔄 Concurrency: ${argv.concurrency} parallel workers`);
 await log(`   📊 Pull Requests per Issue: ${argv.pullRequestsPerIssue}`);
 await log(`   🤖 Model: ${argv.model}`);
 if (argv.fork) {
-  await log(`   🍴 Fork: ENABLED (will fork repos if no write access)`);
+  await log('   🍴 Fork: ENABLED (will fork repos if no write access)');
 }
 if (!argv.once) {
   await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
@@ -397,10 +397,10 @@ if (argv.maxIssues > 0) {
   await log(`   🔢 Max Issues: ${argv.maxIssues}`);
 }
 if (argv.dryRun) {
-  await log(`   🧪 DRY RUN MODE - No actual processing`);
+  await log('   🧪 DRY RUN MODE - No actual processing');
 }
 if (argv.autoCleanup) {
-  await log(`   🧹 Auto-cleanup: ENABLED (will clean /tmp/* /var/tmp/* on success)`);
+  await log('   🧹 Auto-cleanup: ENABLED (will clean /tmp/* /var/tmp/* on success)');
 }
 await log('');
 
@@ -614,7 +614,7 @@ async function fetchIssues() {
   if (argv.projectMode) {
     await log(`\n🔍 Fetching issues from GitHub Project #${argv.projectNumber} (status: "${argv.projectStatus}")...`);
   } else if (argv.allIssues) {
-    await log(`\n🔍 Fetching ALL open issues...`);
+    await log('\n🔍 Fetching ALL open issues...');
   } else {
     await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
   }
@@ -642,7 +642,7 @@ async function fetchIssues() {
         searchCmd = `gh search issues user:${owner} is:open --json url,title,number,repository`;
       }
       
-      await log(`   🔎 Fetching all issues with pagination and rate limiting...`);
+      await log('   🔎 Fetching all issues with pagination and rate limiting...');
       await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
 
       try {
@@ -652,7 +652,7 @@ async function fetchIssues() {
 
         // Check if the error is due to rate limiting and we're not in repository scope
         if (isRateLimitError(searchError) && scope !== 'repository') {
-          await log(`   🔍 Rate limit detected - attempting repository fallback...`);
+          await log('   🔍 Rate limit detected - attempting repository fallback...');
           try {
             issues = await fetchIssuesFromRepositories(owner, scope, null, true);
           } catch (fallbackError) {
@@ -671,7 +671,7 @@ async function fetchIssues() {
       // For repositories, use gh issue list which works better with new repos
       if (scope === 'repository') {
         const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --json url,title,number`;
-        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
+        await log('   🔎 Fetching labeled issues with pagination and rate limiting...');
         await log(`   🔎 Command: ${listCmd}`, { verbose: true });
         
         try {
@@ -701,7 +701,7 @@ async function fetchIssues() {
           searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
         }
         
-        await log(`   🔎 Fetching labeled issues with pagination and rate limiting...`);
+        await log('   🔎 Fetching labeled issues with pagination and rate limiting...');
         await log(`   🔎 Search query: ${searchQuery}`, { verbose: true });
         await log(`   🔎 Command: ${searchCmd}`, { verbose: true });
         
@@ -712,7 +712,7 @@ async function fetchIssues() {
 
           // Check if the error is due to rate limiting
           if (isRateLimitError(searchError)) {
-            await log(`   🔍 Rate limit detected - attempting repository fallback...`);
+            await log('   🔍 Rate limit detected - attempting repository fallback...');
             try {
               issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
             } catch (fallbackError) {
@@ -730,7 +730,7 @@ async function fetchIssues() {
       if (argv.projectMode) {
         await log(`   ℹ️  No issues found in project with status "${argv.projectStatus}"`);
       } else if (argv.allIssues) {
-        await log(`   ℹ️  No open issues found`);
+        await log('   ℹ️  No open issues found');
       } else {
         await log(`   ℹ️  No issues found with label "${argv.monitorTag}"`);
       }
@@ -748,12 +748,12 @@ async function fetchIssues() {
     // Filter out issues with open PRs if option is enabled
     let issuesToProcess = issues;
     if (argv.skipIssuesWithPrs) {
-      await log(`   🔍 Checking for existing pull requests using batch GraphQL query...`);
+      await log('   🔍 Checking for existing pull requests using batch GraphQL query...');
 
       // Extract issue numbers and repository info from URLs
       const issuesByRepo = {};
       for (const issue of issuesToProcess) {
-        const urlMatch = issue.url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+        const urlMatch = issue.url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
         if (urlMatch) {
           const [, issueOwner, issueRepo, issueNumber] = urlMatch;
           const repoKey = `${issueOwner}/${issueRepo}`;
@@ -807,7 +807,7 @@ async function fetchIssues() {
     
     // In dry-run mode, show the issues that would be processed
     if (argv.dryRun && issuesToProcess.length > 0) {
-      await log(`\n   📝 Issues that would be processed:`);
+      await log('\n   📝 Issues that would be processed:');
       for (const issue of issuesToProcess) {
         await log(`      - ${issue.title || 'Untitled'} (${issue.url})`);
       }
@@ -823,7 +823,7 @@ async function fetchIssues() {
 
 // Main monitoring loop
 async function monitor() {
-  await log(`\n🚀 Starting Hive Mind monitoring system...`);
+  await log('\n🚀 Starting Hive Mind monitoring system...');
   
   // Start workers
   await log(`\n👷 Starting ${argv.concurrency} workers...`);
@@ -852,12 +852,12 @@ async function monitor() {
     if (newIssues > 0) {
       await log(`   📥 Added ${newIssues} new issue(s) to queue`);
     } else {
-      await log(`   ℹ️  No new issues to add (all already processed or in queue)`);
+      await log('   ℹ️  No new issues to add (all already processed or in queue)');
     }
     
     // Show current stats
     const stats = issueQueue.getStats();
-    await log(`\n📊 Current Status:`);
+    await log('\n📊 Current Status:');
     await log(`   📋 Queued: ${stats.queued}`);
     await log(`   ⚙️  Processing: ${stats.processing}`);
     await log(`   ✅ Completed: ${stats.completed}`);
@@ -865,7 +865,7 @@ async function monitor() {
     
     // If running once, wait for queue to empty then exit
     if (argv.once) {
-      await log(`\n🏁 Single run mode - waiting for queue to empty...`);
+      await log('\n🏁 Single run mode - waiting for queue to empty...');
       
       while (stats.queued > 0 || stats.processing > 0) {
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -876,7 +876,7 @@ async function monitor() {
         Object.assign(stats, currentStats);
       }
       
-      await log(`\n✅ All issues processed!`);
+      await log('\n✅ All issues processed!');
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
       
@@ -902,7 +902,7 @@ async function monitor() {
     await cleanupTempDirectories();
   }
   
-  await log(`\n👋 Hive Mind monitoring stopped`);
+  await log('\n👋 Hive Mind monitoring stopped');
 }
 
 // Graceful shutdown handler
@@ -939,7 +939,7 @@ async function gracefulShutdown(signal) {
       await cleanupTempDirectories(argv);
     }
     
-    await log(`   ✅ Shutdown complete`);
+    await log('   ✅ Shutdown complete');
     
   } catch (error) {
     await log(`   ⚠️  Error during shutdown: ${cleanErrorMessage(error)}`, { level: 'error' });
@@ -972,7 +972,7 @@ if (!systemCheck.success) {
 // Validate Claude CLI connection before starting monitoring
 const isClaudeConnected = await validateClaudeConnection();
 if (!isClaudeConnected) {
-  await log(`❌ Cannot start monitoring without Claude CLI connection`, { level: 'error' });
+  await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
   process.exit(1);
 }
 

@@ -54,19 +54,19 @@ export const cleanupClaudeFile = async (tempDir, branchName) => {
       if (pushDeleteResult.code === 0) {
         await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
       } else {
-        await log(`   Warning: Could not push CLAUDE.md deletion`, { verbose: true });
+        await log('   Warning: Could not push CLAUDE.md deletion', { verbose: true });
       }
     } else {
-      await log(`   Warning: Could not commit CLAUDE.md deletion`, { verbose: true });
+      await log('   Warning: Could not commit CLAUDE.md deletion', { verbose: true });
     }
   } catch (e) {
     // File might not exist or already removed, that's fine
-    await log(`   CLAUDE.md already removed or not found`, { verbose: true });
+    await log('   CLAUDE.md already removed or not found', { verbose: true });
   }
 };
 
 // Show session summary and handle limit reached scenarios
-export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl, tempDir) => {
+export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs = false) => {
   await log('\n=== Session Summary ===');
 
   if (sessionId) {
@@ -74,13 +74,13 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
     await log(`✅ Complete log file: ${getLogFile()}`);
 
     if (limitReached) {
-      await log(`\n⏰ LIMIT REACHED DETECTED!`);
+      await log('\n⏰ LIMIT REACHED DETECTED!');
 
       if (argv.autoContinueLimit && global.limitResetTime) {
         await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
         await autoContinueWhenLimitResets(issueUrl, sessionId, argv, shouldAttachLogs);
       } else {
-        await log(`\n🔄 To resume when limit resets, use:\n`);
+        await log('\n🔄 To resume when limit resets, use:\n');
         await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
 
         if (global.limitResetTime) {
@@ -88,18 +88,18 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
           await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
         }
 
-        await log(`\n   This will continue from where it left off with full context.\n`);
+        await log('\n   This will continue from where it left off with full context.\n');
       }
     } else {
       // Show command to resume session in interactive mode
-      await log(`\n💡 To continue this session in Claude Code interactive mode:\n`);
+      await log('\n💡 To continue this session in Claude Code interactive mode:\n');
       await log(`   (cd ${tempDir} && claude --resume ${sessionId})`);
-      await log(``);
+      await log('');
     }
 
     // Don't show log preview, it's too technical
   } else {
-    await log(`❌ No session ID extracted`);
+    await log('❌ No session ID extracted');
     await log(`📁 Log file available: ${getLogFile()}`);
   }
 };
@@ -176,27 +176,27 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
               await log(`  ⚠️  Could not update PR body: ${updateResult.stderr ? updateResult.stderr.toString().trim() : 'Unknown error'}`);
             }
           } else {
-            await log(`  ✅ PR body already contains issue reference`);
+            await log('  ✅ PR body already contains issue reference');
           }
         }
 
         // Check if PR is ready for review (convert from draft if necessary)
         if (pr.isDraft) {
-          await log(`  🔄 Converting PR from draft to ready for review...`);
+          await log('  🔄 Converting PR from draft to ready for review...');
           const readyResult = await $`gh pr ready ${pr.number} --repo ${owner}/${repo}`;
           if (readyResult.code === 0) {
-            await log(`  ✅ PR converted to ready for review`);
+            await log('  ✅ PR converted to ready for review');
           } else {
             await log(`  ⚠️  Could not convert PR to ready (${readyResult.stderr ? readyResult.stderr.toString().trim() : 'unknown error'})`);
           }
         } else {
-          await log(`  ✅ PR is already ready for review`, { verbose: true });
+          await log('  ✅ PR is already ready for review', { verbose: true });
         }
 
         // Upload log file to PR if requested
         let logUploadSuccess = false;
         if (shouldAttachLogs) {
-          await log(`\n📎 Uploading solution log to Pull Request...`);
+          await log('\n📎 Uploading solution log to Pull Request...');
           logUploadSuccess = await attachLogToGitHub({
             logFile: getLogFile(),
             targetType: 'pr',
@@ -210,14 +210,14 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           });
         }
 
-        await log(`\n🎉 SUCCESS: A solution has been prepared as a pull request`);
+        await log('\n🎉 SUCCESS: A solution has been prepared as a pull request');
         await log(`📍 URL: ${pr.url}`);
         if (shouldAttachLogs && logUploadSuccess) {
-          await log(`📎 Solution log has been attached to the Pull Request`);
+          await log('📎 Solution log has been attached to the Pull Request');
         } else if (shouldAttachLogs && !logUploadSuccess) {
-          await log(`⚠️  Solution log upload was requested but failed`);
+          await log('⚠️  Solution log upload was requested but failed');
         }
-        await log(`\n✨ Please review the pull request for the proposed solution.`);
+        await log('\n✨ Please review the pull request for the proposed solution.');
         process.exit(0);
       } else {
         await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
@@ -250,7 +250,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
 
       // Upload log file to issue if requested
       if (shouldAttachLogs) {
-        await log(`\n📎 Uploading solution log to issue...`);
+        await log('\n📎 Uploading solution log to issue...');
         await attachLogToGitHub({
           logFile: getLogFile(),
           targetType: 'issue',
@@ -264,36 +264,37 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
         });
       }
 
-      await log(`\n💬 SUCCESS: Comment posted on issue`);
+      await log('\n💬 SUCCESS: Comment posted on issue');
       await log(`📍 URL: ${lastComment.html_url}`);
       if (shouldAttachLogs) {
-        await log(`📎 Solution log has been attached to the issue`);
+        await log('📎 Solution log has been attached to the issue');
       }
-      await log(`\n✨ A clarifying comment has been added to the issue.`);
+      await log('\n✨ A clarifying comment has been added to the issue.');
       process.exit(0);
     } else if (allComments.length > 0) {
       await log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
     } else {
-      await log(`  ℹ️  No comments found on issue`);
+      await log('  ℹ️  No comments found on issue');
     }
 
     // If neither found, it might not have been necessary to create either
     await log('\n📋 No new pull request or comment was created.');
     await log('   The issue may have been resolved differently or required no action.');
-    await log(`\n💡 Review the session log for details:`);
+    await log('\n💡 Review the session log for details:');
     await log(`   ${getLogFile()}`);
     process.exit(0);
 
   } catch (searchError) {
     await log('\n⚠️  Could not verify results:', searchError.message);
-    await log(`\n💡 Check the log file for details:`);
+    await log('\n💡 Check the log file for details:');
     await log(`   ${getLogFile()}`);
     process.exit(0);
   }
 };
 
 // Handle execution errors with log attachment
-export const handleExecutionError = async (error, shouldAttachLogs, owner, repo) => {
+export const handleExecutionError = async (error, shouldAttachLogs, owner, repo, argv = {}) => {
+  const { cleanErrorMessage } = await import('./lib.mjs');
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
 
@@ -313,7 +314,7 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo)
           $,
           log,
           sanitizeLogContent,
-          verbose: argv.verbose,
+          verbose: argv.verbose || false,
           errorMessage: cleanErrorMessage(error)
         });
 

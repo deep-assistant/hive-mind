@@ -143,7 +143,7 @@ export const setupRepository = async (argv, owner, repo) => {
 };
 
 // Error handling with log attachment
-export const handleExecutionError = async (error, shouldAttachLogs, owner, repo) => {
+export const handleExecutionError = async (error, shouldAttachLogs, owner, repo, argv = {}) => {
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
 
@@ -163,7 +163,7 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo)
           $,
           log,
           sanitizeLogContent,
-          verbose: argv.verbose,
+          verbose: argv.verbose || false,
           errorMessage: cleanErrorMessage(error)
         });
 
