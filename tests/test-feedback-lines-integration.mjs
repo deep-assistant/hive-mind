@@ -122,12 +122,20 @@ async function createTestRepository() {
     throw new Error(`Failed to commit: ${commitResult.stderr}`);
   }
 
+  // Use gh CLI URL which includes authentication
   $(`git remote add origin https://github.com/${username}/${testRepo}.git`);
   $('git branch -M main');
 
+  // Configure git to use the GitHub token for authentication
+  const token = process.env.GITHUB_TOKEN || process.env.TEST_GITHUB_USER_TOKEN;
+  if (token) {
+    // Set up authentication for this repository
+    $(`git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${token}"`);
+  }
+
   const pushResult = $('git push -u origin main');
   if (pushResult.code !== 0) {
-    throw new Error(`Failed to push main branch: ${pushResult.stderr}`);
+    throw new Error(`Failed to push main branch: ${pushResult.stderr || pushResult.stdout}`);
   }
 
   console.log('   ✅ Repository initialized with initial commit');
