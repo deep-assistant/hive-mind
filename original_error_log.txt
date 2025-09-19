@@ -1,0 +1,1125 @@
+# Hive.mjs Log - 2025-09-19T16:04:52.872Z
+
+[2025-09-19T16:04:52.874Z] [INFO] 📁 Log file: /home/hive/hive-2025-09-19T16-04-52-872Z.log
+[2025-09-19T16:04:52.877Z] [INFO]    (All output will be logged here)
+[2025-09-19T16:04:54.383Z] [INFO] 
+🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:04:54.909Z] [INFO] ✅ GitHub authentication: OK
+[2025-09-19T16:04:54.912Z] [INFO] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:04:54.913Z] [INFO] ✅ All required permissions: Available
+[2025-09-19T16:04:54.914Z] [INFO] 🎯 Monitoring Configuration:
+[2025-09-19T16:04:54.915Z] [INFO]    📍 Target: Repository - deep-assistant/hive-mind
+[2025-09-19T16:04:54.916Z] [INFO]    🏷️  Mode: ALL ISSUES (no label filter)
+[2025-09-19T16:04:54.917Z] [INFO]    🚫 Skipping: Issues with open PRs
+[2025-09-19T16:04:54.919Z] [INFO]    🔄 Concurrency: 2 parallel workers
+[2025-09-19T16:04:54.920Z] [INFO]    📊 Pull Requests per Issue: 1
+[2025-09-19T16:04:54.923Z] [INFO]    🤖 Model: opus
+[2025-09-19T16:04:54.925Z] [INFO]    🚀 Mode: Single run
+[2025-09-19T16:04:54.926Z] [INFO] 
+[2025-09-19T16:04:54.963Z] [INFO] 💾 Disk space check: 85748MB available (500MB required) ✅
+[2025-09-19T16:04:54.967Z] [INFO] 🧠 Memory check: 797MB available, swap: 2047MB (68MB used)
+[2025-09-19T16:04:54.968Z] [INFO] 🧠 Total memory: 2776MB available (256MB required) ✅
+[2025-09-19T16:04:54.970Z] [INFO] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:04:57.822Z] [INFO] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:05:04.185Z] [INFO] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:05:04.188Z] [INFO] 
+🚀 Starting Hive Mind monitoring system...
+[2025-09-19T16:05:04.190Z] [INFO] 
+👷 Starting 2 workers...
+[2025-09-19T16:05:04.193Z] [INFO] 🔧 Worker 1 started
+[2025-09-19T16:05:04.193Z] [INFO] 🔧 Worker 2 started
+[2025-09-19T16:05:04.193Z] [INFO] 
+🔄 Monitoring iteration 1 at 2025-09-19T16:05:04.193Z
+[2025-09-19T16:05:04.198Z] [INFO] 
+🔍 Fetching ALL open issues...
+[2025-09-19T16:05:04.200Z] [INFO]    🔎 Fetching all issues with pagination and rate limiting...
+[2025-09-19T16:05:04.200Z] [INFO]    🔎 Command: gh issue list --repo deep-assistant/hive-mind --state open --json url,title,number
+[2025-09-19T16:05:04.203Z] [INFO]    📊 Fetching issues with improved limits and rate limiting...
+[2025-09-19T16:05:04.204Z] [INFO]    ⏰ Waiting 5 seconds before API call to respect rate limits...
+[2025-09-19T16:05:09.206Z] [INFO]    🔎 Executing: gh issue list --repo deep-assistant/hive-mind --state open --json url,title,number --limit 1000
+[2025-09-19T16:05:09.855Z] [INFO]    ✅ Fetched 5 issues in 1s
+[2025-09-19T16:05:09.856Z] [INFO]    ⏰ Adding 5-second delay after API call to respect rate limits...
+[2025-09-19T16:05:14.859Z] [INFO]    📋 Found 5 open issue(s)
+[2025-09-19T16:05:14.861Z] [INFO]    🔍 Checking for existing pull requests using batch GraphQL query...
+[2025-09-19T16:05:14.866Z] [INFO]    🔍 Batch checking PRs for 5 issues using GraphQL...
+[2025-09-19T16:05:15.614Z] [INFO]    ✅ Batch 1/1 processed (5 issues)
+[2025-09-19T16:05:15.616Z] [INFO]    📊 Batch PR check complete: 0/5 issues have open PRs
+[2025-09-19T16:05:15.617Z] [INFO]    ➕ Added to queue: https://github.com/deep-assistant/hive-mind/issues/217
+[2025-09-19T16:05:15.618Z] [INFO]    ➕ Added to queue: https://github.com/deep-assistant/hive-mind/issues/212
+[2025-09-19T16:05:15.620Z] [INFO]    ➕ Added to queue: https://github.com/deep-assistant/hive-mind/issues/211
+[2025-09-19T16:05:15.620Z] [INFO]    ➕ Added to queue: https://github.com/deep-assistant/hive-mind/issues/210
+[2025-09-19T16:05:15.621Z] [INFO]    ➕ Added to queue: https://github.com/deep-assistant/hive-mind/issues/209
+[2025-09-19T16:05:15.622Z] [INFO]    📥 Added 5 new issue(s) to queue
+[2025-09-19T16:05:15.623Z] [INFO] 
+📊 Current Status:
+[2025-09-19T16:05:15.624Z] [INFO]    📋 Queued: 5
+[2025-09-19T16:05:15.625Z] [INFO]    ⚙️  Processing: 0
+[2025-09-19T16:05:15.626Z] [INFO]    ✅ Completed: 0
+[2025-09-19T16:05:15.627Z] [INFO]    ❌ Failed: 0
+[2025-09-19T16:05:15.628Z] [INFO] 
+🏁 Single run mode - waiting for queue to empty...
+[2025-09-19T16:05:19.211Z] [INFO] 
+👷 Worker 1 processing: https://github.com/deep-assistant/hive-mind/issues/217
+[2025-09-19T16:05:19.212Z] [INFO] 
+👷 Worker 2 processing: https://github.com/deep-assistant/hive-mind/issues/212
+[2025-09-19T16:05:19.213Z] [INFO]    🚀 Executing solve for https://github.com/deep-assistant/hive-mind/issues/217...
+[2025-09-19T16:05:19.213Z] [INFO]    🚀 Executing solve for https://github.com/deep-assistant/hive-mind/issues/212...
+[2025-09-19T16:05:19.215Z] [INFO]    📋 Command: solve "https://github.com/deep-assistant/hive-mind/issues/217" --model opus --verbose --attach-logs
+[2025-09-19T16:05:19.216Z] [INFO]    📋 Command: solve "https://github.com/deep-assistant/hive-mind/issues/212" --model opus --verbose --attach-logs
+[2025-09-19T16:05:20.630Z] [INFO]    ⏳ Waiting... Queue: 3, Processing: 2
+[2025-09-19T16:05:44.520Z] [INFO]    [solve worker-2] Debug: argv.attachLogs = true
+[2025-09-19T16:05:44.522Z] [INFO]    [solve worker-2] Debug: argv["attach-logs"] = true
+[2025-09-19T16:05:44.523Z] [INFO]    [solve worker-2]    This option will upload the complete solution log file to the Pull Request.
+[2025-09-19T16:05:44.523Z] [INFO]    [solve worker-2]    The log may contain sensitive information such as:
+[2025-09-19T16:05:44.523Z] [INFO]    [solve worker-2]    • API keys, tokens, or secrets
+[2025-09-19T16:05:44.523Z] [INFO]    [solve worker-2]    • File paths and directory structures
+[2025-09-19T16:05:44.524Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+[2025-09-19T16:05:44.525Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+[2025-09-19T16:05:44.526Z] [INFO]    [solve worker-2]    • Internal system information
+[2025-09-19T16:05:44.527Z] [INFO]    [solve worker-2]    ⚠️  DO NOT use this option with public repositories or if the log
+[2025-09-19T16:05:44.527Z] [INFO]    [solve worker-2]        might contain sensitive data that should not be shared publicly.
+[2025-09-19T16:05:44.527Z] [INFO]    [solve worker-2]    Continuing in 5 seconds... (Press Ctrl+C to abort)
+[2025-09-19T16:05:44.527Z] [INFO]    [solve worker-2]    Countdown: 5 seconds remaining...
+[2025-09-19T16:05:44.833Z] [INFO]    [solve worker-1] Debug: argv.attachLogs = true
+[2025-09-19T16:05:44.834Z] [INFO]    [solve worker-1] Debug: argv["attach-logs"] = true
+[2025-09-19T16:05:44.835Z] [ERROR]    [solve worker-1 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+[2025-09-19T16:05:44.837Z] [INFO]    [solve worker-1]    This option will upload the complete solution log file to the Pull Request.
+[2025-09-19T16:05:44.837Z] [INFO]    [solve worker-1]    The log may contain sensitive information such as:
+[2025-09-19T16:05:44.838Z] [INFO]    [solve worker-1]    • API keys, tokens, or secrets
+[2025-09-19T16:05:44.838Z] [INFO]    [solve worker-1]    • File paths and directory structures
+[2025-09-19T16:05:44.841Z] [INFO]    [solve worker-1]    • Command outputs and error messages
+[2025-09-19T16:05:44.841Z] [INFO]    [solve worker-1]    • Internal system information
+[2025-09-19T16:05:44.842Z] [INFO]    [solve worker-1]    ⚠️  DO NOT use this option with public repositories or if the log
+[2025-09-19T16:05:44.842Z] [INFO]    [solve worker-1]        might contain sensitive data that should not be shared publicly.
+[2025-09-19T16:05:44.842Z] [INFO]    [solve worker-1]    Continuing in 5 seconds... (Press Ctrl+C to abort)
+[2025-09-19T16:05:44.842Z] [INFO]    [solve worker-1]    Countdown: 5 seconds remaining...
+[2025-09-19T16:05:45.529Z] [INFO]    [solve worker-2]    Countdown: 4 seconds remaining...
+[2025-09-19T16:05:45.844Z] [INFO]    [solve worker-1]    Countdown: 4 seconds remaining...
+[2025-09-19T16:05:46.530Z] [INFO]    [solve worker-2]    Countdown: 3 seconds remaining...
+[2025-09-19T16:05:46.845Z] [INFO]    [solve worker-1]    Countdown: 3 seconds remaining...
+[2025-09-19T16:05:47.531Z] [INFO]    [solve worker-2]    Countdown: 2 seconds remaining...
+[2025-09-19T16:05:47.849Z] [INFO]    [solve worker-1]    Countdown: 2 seconds remaining...
+[2025-09-19T16:05:48.533Z] [INFO]    [solve worker-2]    Countdown: 1 seconds remaining...
+[2025-09-19T16:05:48.850Z] [INFO]    [solve worker-1]    Countdown: 1 seconds remaining...
+[2025-09-19T16:05:49.534Z] [INFO]    [solve worker-2]    Proceeding with log attachment enabled.                    
+[2025-09-19T16:05:49.547Z] [INFO]    [solve worker-2] 📁 Log file: /home/hive/solve-2025-09-19T16-05-49-538Z.log
+[2025-09-19T16:05:49.549Z] [INFO]    [solve worker-2]    (All output will be logged here)
+[2025-09-19T16:05:49.615Z] [INFO]    [solve worker-2] 💾 Disk space check: 85748MB available (500MB required) ✅
+[2025-09-19T16:05:49.623Z] [INFO]    [solve worker-2] 🧠 Memory check: 728MB available, swap: 2047MB (68MB used)
+[2025-09-19T16:05:49.625Z] [INFO]    [solve worker-2] 🧠 Total memory: 2707MB available (256MB required) ✅
+[2025-09-19T16:05:49.630Z] [INFO]    [solve worker-2] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:05:49.853Z] [INFO]    [solve worker-1]    Proceeding with log attachment enabled.                    
+[2025-09-19T16:05:49.867Z] [INFO]    [solve worker-1] 📁 Log file: /home/hive/solve-2025-09-19T16-05-49-857Z.log
+[2025-09-19T16:05:49.870Z] [INFO]    [solve worker-1]    (All output will be logged here)
+[2025-09-19T16:05:49.981Z] [INFO]    [solve worker-1] 💾 Disk space check: 85748MB available (500MB required) ✅
+[2025-09-19T16:05:49.994Z] [INFO]    [solve worker-1] 🧠 Memory check: 727MB available, swap: 2047MB (68MB used)
+[2025-09-19T16:05:49.999Z] [INFO]    [solve worker-1] 🧠 Total memory: 2706MB available (256MB required) ✅
+[2025-09-19T16:05:50.007Z] [INFO]    [solve worker-1] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:05:56.515Z] [INFO]    [solve worker-2] 1.0.115 (Claude Code)
+[2025-09-19T16:05:56.673Z] [INFO]    [solve worker-2] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:05:57.053Z] [INFO]    [solve worker-1] 1.0.115 (Claude Code)
+[2025-09-19T16:05:57.111Z] [INFO]    [solve worker-1] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:06:09.846Z] [INFO]    [solve worker-2] Hi! How can I help you today?
+[2025-09-19T16:06:09.904Z] [INFO]    [solve worker-2] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:06:10.051Z] [INFO]    [solve worker-1] Hi! How can I help you with your software engineering tasks today?
+[2025-09-19T16:06:10.172Z] [INFO]    [solve worker-1] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:06:13.738Z] [INFO]    [solve worker-2] 🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:06:14.099Z] [INFO]    [solve worker-1] 🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:06:14.595Z] [INFO]    [solve worker-2] github.com
+[2025-09-19T16:06:14.596Z] [INFO]    [solve worker-2]   ✓ Logged in to github.com account konard (/home/hive/.config/gh/hosts.yml)
+[2025-09-19T16:06:14.597Z] [INFO]    [solve worker-2]   - Active account: true
+[2025-09-19T16:06:14.597Z] [INFO]    [solve worker-2]   - Git operations protocol: https
+[2025-09-19T16:06:14.598Z] [INFO]    [solve worker-2]   - Token: gho_************************************
+[2025-09-19T16:06:14.598Z] [INFO]    [solve worker-2]   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+[2025-09-19T16:06:14.612Z] [INFO]    [solve worker-2] ✅ GitHub authentication: OK
+[2025-09-19T16:06:14.616Z] [INFO]    [solve worker-2] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:06:14.619Z] [INFO]    [solve worker-2] ✅ All required permissions: Available
+[2025-09-19T16:06:14.620Z] [INFO]    [solve worker-2] 📋 URL validation:
+[2025-09-19T16:06:14.623Z] [INFO]    [solve worker-2]    Input URL: https://github.com/deep-assistant/hive-mind/issues/212
+[2025-09-19T16:06:14.624Z] [INFO]    [solve worker-2]    Is Issue URL: true
+[2025-09-19T16:06:14.626Z] [INFO]    [solve worker-2]    Is PR URL: false
+[2025-09-19T16:06:14.630Z] [INFO]    [solve worker-2] 📝 Issue mode: Working with issue #212
+[2025-09-19T16:06:14.635Z] [INFO]    [solve worker-2] Creating temporary directory: /tmp/gh-issue-solver-1758297974630
+[2025-09-19T16:06:14.640Z] [INFO]    [solve worker-2] 📥 Cloning repository:       deep-assistant/hive-mind
+[2025-09-19T16:06:14.749Z] [INFO]    [solve worker-1] github.com
+[2025-09-19T16:06:14.749Z] [INFO]    [solve worker-1]   ✓ Logged in to github.com account konard (/home/hive/.config/gh/hosts.yml)
+[2025-09-19T16:06:14.753Z] [INFO]    [solve worker-1]   - Active account: true
+[2025-09-19T16:06:14.753Z] [INFO]    [solve worker-1]   - Git operations protocol: https
+[2025-09-19T16:06:14.753Z] [INFO]    [solve worker-1]   - Token: gho_************************************
+[2025-09-19T16:06:14.753Z] [INFO]    [solve worker-1]   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+[2025-09-19T16:06:14.775Z] [INFO]    [solve worker-1] ✅ GitHub authentication: OK
+[2025-09-19T16:06:14.779Z] [INFO]    [solve worker-1] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:06:14.785Z] [INFO]    [solve worker-1] ✅ All required permissions: Available
+[2025-09-19T16:06:14.789Z] [INFO]    [solve worker-1] 📋 URL validation:
+[2025-09-19T16:06:14.792Z] [INFO]    [solve worker-1]    Input URL: https://github.com/deep-assistant/hive-mind/issues/217
+[2025-09-19T16:06:14.794Z] [INFO]    [solve worker-1]    Is Issue URL: true
+[2025-09-19T16:06:14.798Z] [INFO]    [solve worker-1]    Is PR URL: false
+[2025-09-19T16:06:14.802Z] [INFO]    [solve worker-1] 📝 Issue mode: Working with issue #217
+[2025-09-19T16:06:14.810Z] [INFO]    [solve worker-1] Creating temporary directory: /tmp/gh-issue-solver-1758297974803
+[2025-09-19T16:06:14.817Z] [INFO]    [solve worker-1] 📥 Cloning repository:       deep-assistant/hive-mind
+[2025-09-19T16:06:15.467Z] [INFO]    [solve worker-2] Cloning into '/tmp/gh-issue-solver-1758297974630'...
+[2025-09-19T16:06:16.642Z] [INFO]    [solve worker-1] Cloning into '/tmp/gh-issue-solver-1758297974803'...
+[2025-09-19T16:06:18.375Z] [INFO]    [solve worker-2] ✅ Cloned to:                /tmp/gh-issue-solver-1758297974630
+[2025-09-19T16:06:18.412Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:18.413Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:06:18.564Z] [INFO]    [solve worker-1] ✅ Cloned to:                /tmp/gh-issue-solver-1758297974803
+[2025-09-19T16:06:18.626Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:18.627Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:06:18.965Z] [INFO]    [solve worker-2] main
+[2025-09-19T16:06:18.973Z] [INFO]    [solve worker-2] 📌 Default branch:           main
+[2025-09-19T16:06:19.070Z] [INFO]    [solve worker-2] 🌿 Creating branch:          issue-212-0e43ecdf from main
+[2025-09-19T16:06:19.127Z] [INFO]    [solve worker-1] main
+[2025-09-19T16:06:19.128Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-212-0e43ecdf'
+[2025-09-19T16:06:19.139Z] [INFO]    [solve worker-1] 📌 Default branch:           main
+[2025-09-19T16:06:19.139Z] [INFO]    [solve worker-2] 🔍 Verifying:                Branch creation...
+[2025-09-19T16:06:19.194Z] [INFO]    [solve worker-2] issue-212-0e43ecdf
+[2025-09-19T16:06:19.203Z] [INFO]    [solve worker-2] ✅ Branch created:           issue-212-0e43ecdf
+[2025-09-19T16:06:19.207Z] [INFO]    [solve worker-2] ✅ Current branch:           issue-212-0e43ecdf
+[2025-09-19T16:06:19.209Z] [INFO]    [solve worker-2]    Branch operation: Create new branch
+[2025-09-19T16:06:19.210Z] [INFO]    [solve worker-2]    Branch verification: Matches expected
+[2025-09-19T16:06:19.215Z] [INFO]    [solve worker-2] 🚀 Auto PR creation:         ENABLED
+[2025-09-19T16:06:19.217Z] [INFO]    [solve worker-2]      Creating:               Initial commit and draft PR...
+[2025-09-19T16:06:19.225Z] [INFO]    [solve worker-2] 📝 Creating:                 CLAUDE.md with task details
+[2025-09-19T16:06:19.230Z] [INFO]    [solve worker-2] ✅ File created:             CLAUDE.md
+[2025-09-19T16:06:19.232Z] [INFO]    [solve worker-2] 📦 Adding file:              To git staging
+[2025-09-19T16:06:19.287Z] [INFO]    [solve worker-1] 🌿 Creating branch:          issue-217-561df850 from main
+[2025-09-19T16:06:19.343Z] [ERROR]    [solve worker-1 ERROR] Switched to a new branch 'issue-217-561df850'
+[2025-09-19T16:06:19.353Z] [INFO]    [solve worker-1] 🔍 Verifying:                Branch creation...
+[2025-09-19T16:06:19.367Z] [INFO]    [solve worker-2] A  CLAUDE.md
+[2025-09-19T16:06:19.377Z] [INFO]    [solve worker-2]    Git status after add: A  CLAUDE.md
+[2025-09-19T16:06:19.380Z] [INFO]    [solve worker-2] 📝 Creating commit:          With CLAUDE.md file
+[2025-09-19T16:06:19.406Z] [INFO]    [solve worker-1] issue-217-561df850
+[2025-09-19T16:06:19.416Z] [INFO]    [solve worker-1] ✅ Branch created:           issue-217-561df850
+[2025-09-19T16:06:19.421Z] [INFO]    [solve worker-1] ✅ Current branch:           issue-217-561df850
+[2025-09-19T16:06:19.423Z] [INFO]    [solve worker-1]    Branch operation: Create new branch
+[2025-09-19T16:06:19.428Z] [INFO]    [solve worker-1]    Branch verification: Matches expected
+[2025-09-19T16:06:19.431Z] [INFO]    [solve worker-1] 🚀 Auto PR creation:         ENABLED
+[2025-09-19T16:06:19.435Z] [INFO]    [solve worker-1]      Creating:               Initial commit and draft PR...
+[2025-09-19T16:06:19.439Z] [INFO]    [solve worker-1] 📝 Creating:                 CLAUDE.md with task details
+[2025-09-19T16:06:19.445Z] [INFO]    [solve worker-1] ✅ File created:             CLAUDE.md
+[2025-09-19T16:06:19.447Z] [INFO]    [solve worker-1] 📦 Adding file:              To git staging
+[2025-09-19T16:06:19.472Z] [INFO]    [solve worker-2] [issue-212-0e43ecdf e9e419b] Initial commit with task details for issue #212
+[2025-09-19T16:06:19.472Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:06:19.473Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:06:19.486Z] [INFO]    [solve worker-2] ✅ Commit created:           Successfully with CLAUDE.md
+[2025-09-19T16:06:19.492Z] [INFO]    [solve worker-2]    Commit output: [issue-212-0e43ecdf e9e419b] Initial commit with task details for issue #212
+[2025-09-19T16:06:19.492Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:06:19.492Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:06:19.543Z] [INFO]    [solve worker-2] e9e419b Initial commit with task details for issue #212
+[2025-09-19T16:06:19.551Z] [INFO]    [solve worker-2]    Latest commit: e9e419b Initial commit with task details for issue #212
+[2025-09-19T16:06:19.568Z] [INFO]    [solve worker-1] A  CLAUDE.md
+[2025-09-19T16:06:19.577Z] [INFO]    [solve worker-1]    Git status after add: A  CLAUDE.md
+[2025-09-19T16:06:19.582Z] [INFO]    [solve worker-1] 📝 Creating commit:          With CLAUDE.md file
+[2025-09-19T16:06:19.616Z] [INFO]    [solve worker-2]    Git status: clean
+[2025-09-19T16:06:19.661Z] [INFO]    [solve worker-1] [issue-217-561df850 0d4d848] Initial commit with task details for issue #217
+[2025-09-19T16:06:19.661Z] [INFO]    [solve worker-1]  1 file changed, 5 insertions(+)
+[2025-09-19T16:06:19.662Z] [INFO]    [solve worker-1]  create mode 100644 CLAUDE.md
+[2025-09-19T16:06:19.665Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:06:19.662Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:19.672Z] [INFO]    [solve worker-1] ✅ Commit created:           Successfully with CLAUDE.md
+[2025-09-19T16:06:19.673Z] [INFO]    [solve worker-2]    Remotes: origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:19.675Z] [INFO]    [solve worker-1]    Commit output: [issue-217-561df850 0d4d848] Initial commit with task details for issue #217
+[2025-09-19T16:06:19.675Z] [INFO]    [solve worker-1]  1 file changed, 5 insertions(+)
+[2025-09-19T16:06:19.675Z] [INFO]    [solve worker-1]  create mode 100644 CLAUDE.md
+[2025-09-19T16:06:19.721Z] [INFO]    [solve worker-2] * issue-212-0e43ecdf e9e419b Initial commit with task details for issue #212
+[2025-09-19T16:06:19.722Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:06:19.722Z] [INFO]    [solve worker-1] 0d4d848 Initial commit with task details for issue #217
+[2025-09-19T16:06:19.731Z] [INFO]    [solve worker-2]    Branch info: * issue-212-0e43ecdf e9e419b Initial commit with task details for issue #212
+[2025-09-19T16:06:19.731Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:06:19.732Z] [INFO]    [solve worker-1]    Latest commit: 0d4d848 Initial commit with task details for issue #217
+[2025-09-19T16:06:19.735Z] [INFO]    [solve worker-2] 📤 Pushing branch:           To remote repository...
+[2025-09-19T16:06:19.743Z] [INFO]    [solve worker-2]    Command: git push -u origin issue-212-0e43ecdf
+[2025-09-19T16:06:19.745Z] [INFO]    [solve worker-2]    Push command: git push -f -u origin issue-212-0e43ecdf
+[2025-09-19T16:06:19.797Z] [INFO]    [solve worker-1]    Git status: clean
+[2025-09-19T16:06:19.831Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:19.832Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:06:19.837Z] [INFO]    [solve worker-1]    Remotes: origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:06:19.861Z] [INFO]    [solve worker-1] * issue-217-561df850 0d4d848 Initial commit with task details for issue #217
+[2025-09-19T16:06:19.862Z] [INFO]    [solve worker-1]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:06:19.867Z] [INFO]    [solve worker-1]    Branch info: * issue-217-561df850 0d4d848 Initial commit with task details for issue #217
+[2025-09-19T16:06:19.867Z] [INFO]    [solve worker-1]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:06:19.874Z] [INFO]    [solve worker-1] 📤 Pushing branch:           To remote repository...
+[2025-09-19T16:06:19.876Z] [INFO]    [solve worker-1]    Command: git push -u origin issue-217-561df850
+[2025-09-19T16:06:19.881Z] [INFO]    [solve worker-1]    Push command: git push -f -u origin issue-217-561df850
+[2025-09-19T16:06:21.485Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:06:21.486Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-212-0e43ecdf' on GitHub by visiting:        
+[2025-09-19T16:06:21.487Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-212-0e43ecdf        
+[2025-09-19T16:06:21.487Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:06:21.488Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.489Z] [INFO]    [solve worker-2]  * [new branch]      issue-212-0e43ecdf -> issue-212-0e43ecdf
+[2025-09-19T16:06:21.512Z] [INFO]    [solve worker-2] branch 'issue-212-0e43ecdf' set up to track 'origin/issue-212-0e43ecdf'.
+[2025-09-19T16:06:21.517Z] [INFO]    [solve worker-2]    Push exit code: 0
+[2025-09-19T16:06:21.519Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:06:21.519Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-212-0e43ecdf' on GitHub by visiting:        
+[2025-09-19T16:06:21.519Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-212-0e43ecdf        
+[2025-09-19T16:06:21.519Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:06:21.520Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.520Z] [INFO]    [solve worker-2]  * [new branch]      issue-212-0e43ecdf -> issue-212-0e43ecdf
+[2025-09-19T16:06:21.521Z] [INFO]    [solve worker-2] branch 'issue-212-0e43ecdf' set up to track 'origin/issue-212-0e43ecdf'.
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2] ✅ Branch pushed:            Successfully to remote
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-212-0e43ecdf' on GitHub by visiting:        
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-212-0e43ecdf        
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:06:21.524Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.525Z] [INFO]    [solve worker-2]  * [new branch]      issue-212-0e43ecdf -> issue-212-0e43ecdf
+[2025-09-19T16:06:21.525Z] [INFO]    [solve worker-2] branch 'issue-212-0e43ecdf' set up to track 'origin/issue-212-0e43ecdf'.
+[2025-09-19T16:06:21.525Z] [INFO]    [solve worker-2]    Waiting for GitHub to sync...
+[2025-09-19T16:06:21.616Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:06:21.618Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-217-561df850' on GitHub by visiting:        
+[2025-09-19T16:06:21.618Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-217-561df850        
+[2025-09-19T16:06:21.618Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:06:21.618Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.618Z] [INFO]    [solve worker-1]  * [new branch]      issue-217-561df850 -> issue-217-561df850
+[2025-09-19T16:06:21.641Z] [INFO]    [solve worker-1] branch 'issue-217-561df850' set up to track 'origin/issue-217-561df850'.
+[2025-09-19T16:06:21.645Z] [INFO]    [solve worker-1]    Push exit code: 0
+[2025-09-19T16:06:21.647Z] [INFO]    [solve worker-1]    Push output: remote: 
+[2025-09-19T16:06:21.649Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-217-561df850' on GitHub by visiting:        
+[2025-09-19T16:06:21.650Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-217-561df850        
+[2025-09-19T16:06:21.650Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:06:21.650Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.650Z] [INFO]    [solve worker-1]  * [new branch]      issue-217-561df850 -> issue-217-561df850
+[2025-09-19T16:06:21.650Z] [INFO]    [solve worker-1] branch 'issue-217-561df850' set up to track 'origin/issue-217-561df850'.
+[2025-09-19T16:06:21.651Z] [INFO]    [solve worker-1] ✅ Branch pushed:            Successfully to remote
+[2025-09-19T16:06:21.655Z] [INFO]    [solve worker-1]    Push output: remote: 
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-217-561df850' on GitHub by visiting:        
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-217-561df850        
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1]  * [new branch]      issue-217-561df850 -> issue-217-561df850
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1] branch 'issue-217-561df850' set up to track 'origin/issue-217-561df850'.
+[2025-09-19T16:06:21.657Z] [INFO]    [solve worker-1]    Waiting for GitHub to sync...
+[2025-09-19T16:06:30.326Z] [INFO]    [solve worker-2] issue-212-0e43ecdf
+[2025-09-19T16:06:30.342Z] [INFO]    [solve worker-2]    Branch verified on GitHub: issue-212-0e43ecdf
+[2025-09-19T16:06:30.441Z] [INFO]    [solve worker-1] issue-217-561df850
+[2025-09-19T16:06:30.465Z] [INFO]    [solve worker-1]    Branch verified on GitHub: issue-217-561df850
+[2025-09-19T16:06:31.129Z] [INFO]    [solve worker-2] e9e419b7431b59d4c348860d78df1adcc7346c95
+[2025-09-19T16:06:31.139Z] [INFO]    [solve worker-2]    Remote commit SHA: e9e419b...
+[2025-09-19T16:06:31.141Z] [INFO]    [solve worker-2] 📋 Getting issue:            Title from GitHub...
+[2025-09-19T16:06:31.239Z] [INFO]    [solve worker-1] 0d4d84800c21805b4b71acdd4d17da1ea22a04d5
+[2025-09-19T16:06:31.252Z] [INFO]    [solve worker-1]    Remote commit SHA: 0d4d848...
+[2025-09-19T16:06:31.255Z] [INFO]    [solve worker-1] 📋 Getting issue:            Title from GitHub...
+[2025-09-19T16:06:31.857Z] [INFO]    [solve worker-2] Attach log for public repositories in public gist by default, and for private repositories in private gist
+[2025-09-19T16:06:31.868Z] [INFO]    [solve worker-2]    Issue title: "Attach log for public repositories in public gist by default, and for private repositories in private gist"
+[2025-09-19T16:06:31.870Z] [INFO]    [solve worker-2] 👤 Getting user:             Current GitHub account...
+[2025-09-19T16:06:31.882Z] [INFO]    [solve worker-1] Add sequence diagrams from flow.md into README, and link to the full flow.md description
+[2025-09-19T16:06:31.904Z] [INFO]    [solve worker-1]    Issue title: "Add sequence diagrams from flow.md into README, and link to the full flow.md description"
+[2025-09-19T16:06:31.909Z] [INFO]    [solve worker-1] 👤 Getting user:             Current GitHub account...
+[2025-09-19T16:06:32.639Z] [INFO]    [solve worker-2] konard
+[2025-09-19T16:06:32.647Z] [INFO]    [solve worker-2]    Current user: konard
+[2025-09-19T16:06:32.766Z] [INFO]    [solve worker-1] konard
+[2025-09-19T16:06:32.776Z] [INFO]    [solve worker-1]    Current user: konard
+[2025-09-19T16:06:33.207Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:06:33.209Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:06:33.210Z] [INFO]    [solve worker-2] 🔀 Creating PR:              Draft pull request...
+[2025-09-19T16:06:33.212Z] [INFO]    [solve worker-2]    PR Title: [WIP] Attach log for public repositories in public gist by default, and for private repositories in private gist
+[2025-09-19T16:06:33.214Z] [INFO]    [solve worker-2]    Base branch: main
+[2025-09-19T16:06:33.216Z] [INFO]    [solve worker-2]    Head branch: issue-212-0e43ecdf
+[2025-09-19T16:06:33.217Z] [INFO]    [solve worker-2]    Assignee: konard
+[2025-09-19T16:06:33.219Z] [INFO]    [solve worker-2]    PR Body:
+[2025-09-19T16:06:33.219Z] [INFO]    [solve worker-2] ## 🤖 AI-Powered Solution
+[2025-09-19T16:06:33.220Z] [INFO]    [solve worker-2] This pull request is being automatically generated to solve issue #212.
+[2025-09-19T16:06:33.220Z] [INFO]    [solve worker-2] ### 📋 Issue Reference
+[2025-09-19T16:06:33.220Z] [INFO]    [solve worker-2] Fixes #212
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] ### 🚧 Status
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] ### 📝 Implementation Details
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] _Details will be added as the solution is developed..._
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] ---
+[2025-09-19T16:06:33.221Z] [INFO]    [solve worker-2] *This PR was created automatically by the AI issue solver*
+[2025-09-19T16:06:33.227Z] [INFO]    [solve worker-2]    Command: cd "/tmp/gh-issue-solver-1758297974630" && gh pr create --draft --title "[WIP] Attach log for public repositories in public gist by default, and for private repositories in private gist" --body-file "/tmp/pr-body-1758297993219.md" --base main --head issue-212-0e43ecdf --assignee konard
+[2025-09-19T16:06:33.333Z] [INFO]    [solve worker-1]    User has collaborator access
+[2025-09-19T16:06:33.334Z] [INFO]    [solve worker-1]    User has collaborator access
+[2025-09-19T16:06:33.337Z] [INFO]    [solve worker-1] 🔀 Creating PR:              Draft pull request...
+[2025-09-19T16:06:33.345Z] [INFO]    [solve worker-1]    PR Title: [WIP] Add sequence diagrams from flow.md into README, and link to the full flow.md description
+[2025-09-19T16:06:33.345Z] [INFO]    [solve worker-1]    Base branch: main
+[2025-09-19T16:06:33.349Z] [INFO]    [solve worker-1]    Head branch: issue-217-561df850
+[2025-09-19T16:06:33.349Z] [INFO]    [solve worker-1]    Assignee: konard
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1]    PR Body:
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1] ## 🤖 AI-Powered Solution
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1] This pull request is being automatically generated to solve issue #217.
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1] ### 📋 Issue Reference
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1] Fixes #217
+[2025-09-19T16:06:33.352Z] [INFO]    [solve worker-1] ### 🚧 Status
+[2025-09-19T16:06:33.353Z] [INFO]    [solve worker-1] **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+[2025-09-19T16:06:33.353Z] [INFO]    [solve worker-1] ### 📝 Implementation Details
+[2025-09-19T16:06:33.353Z] [INFO]    [solve worker-1] _Details will be added as the solution is developed..._
+[2025-09-19T16:06:33.353Z] [INFO]    [solve worker-1] ---
+[2025-09-19T16:06:33.353Z] [INFO]    [solve worker-1] *This PR was created automatically by the AI issue solver*
+[2025-09-19T16:06:33.362Z] [INFO]    [solve worker-1]    Command: cd "/tmp/gh-issue-solver-1758297974803" && gh pr create --draft --title "[WIP] Add sequence diagrams from flow.md into README, and link to the full flow.md description" --body-file "/tmp/pr-body-1758297993351.md" --base main --head issue-217-561df850 --assignee konard
+[2025-09-19T16:06:36.847Z] [INFO]    [solve worker-2] ✅ PR created:               #220
+[2025-09-19T16:06:36.849Z] [INFO]    [solve worker-2] 📍 PR URL:                   https://github.com/deep-assistant/hive-mind/pull/220
+[2025-09-19T16:06:36.852Z] [INFO]    [solve worker-2] 👤 Assigned to:              konard
+[2025-09-19T16:06:36.854Z] [INFO]    [solve worker-2] 🔗 Linking:                  Issue #212 to PR #220...
+[2025-09-19T16:06:36.936Z] [INFO]    [solve worker-1] ✅ PR created:               #219
+[2025-09-19T16:06:36.941Z] [INFO]    [solve worker-1] 📍 PR URL:                   https://github.com/deep-assistant/hive-mind/pull/219
+[2025-09-19T16:06:36.945Z] [INFO]    [solve worker-1] 👤 Assigned to:              konard
+[2025-09-19T16:06:36.948Z] [INFO]    [solve worker-1] 🔗 Linking:                  Issue #217 to PR #219...
+[2025-09-19T16:06:37.608Z] [INFO]    [solve worker-2] I_kwDOPUU0qc7MthDj
+[2025-09-19T16:06:37.622Z] [INFO]    [solve worker-2]    Issue node ID: I_kwDOPUU0qc7MthDj
+[2025-09-19T16:06:37.792Z] [INFO]    [solve worker-1] I_kwDOPUU0qc7MuVjc
+[2025-09-19T16:06:37.815Z] [INFO]    [solve worker-1]    Issue node ID: I_kwDOPUU0qc7MuVjc
+[2025-09-19T16:06:38.380Z] [INFO]    [solve worker-2] PR_kwDOPUU0qc6piaoV
+[2025-09-19T16:06:38.388Z] [INFO]    [solve worker-2]    PR node ID: PR_kwDOPUU0qc6piaoV
+[2025-09-19T16:06:38.850Z] [INFO]    [solve worker-1] PR_kwDOPUU0qc6piaoW
+[2025-09-19T16:06:38.856Z] [INFO]    [solve worker-1]    PR node ID: PR_kwDOPUU0qc6piaoW
+[2025-09-19T16:06:39.029Z] [INFO]    [solve worker-2] 212
+[2025-09-19T16:06:39.040Z] [INFO]    [solve worker-2] ✅ Link verified:            Issue #212 → PR #220
+[2025-09-19T16:06:39.045Z] [INFO]    [solve worker-2] 📊 Comment counting conditions:
+[2025-09-19T16:06:39.047Z] [INFO]    [solve worker-2]    prNumber: 220
+[2025-09-19T16:06:39.048Z] [INFO]    [solve worker-2]    branchName: issue-212-0e43ecdf
+[2025-09-19T16:06:39.050Z] [INFO]    [solve worker-2]    isContinueMode: false
+[2025-09-19T16:06:39.052Z] [INFO]    [solve worker-2]    Will count comments: true
+[2025-09-19T16:06:39.053Z] [INFO]    [solve worker-2] 💬 Counting comments:        Checking for new comments since last commit...
+[2025-09-19T16:06:39.055Z] [INFO]    [solve worker-2]    PR #220 on branch: issue-212-0e43ecdf
+[2025-09-19T16:06:39.057Z] [INFO]    [solve worker-2]    Owner/Repo: deep-assistant/hive-mind
+[2025-09-19T16:06:39.079Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:06:39.114Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:06:39.561Z] [INFO]    [solve worker-1] 217
+[2025-09-19T16:06:39.572Z] [INFO]    [solve worker-1] ✅ Link verified:            Issue #217 → PR #219
+[2025-09-19T16:06:39.578Z] [INFO]    [solve worker-1] 📊 Comment counting conditions:
+[2025-09-19T16:06:39.580Z] [INFO]    [solve worker-1]    prNumber: 219
+[2025-09-19T16:06:39.582Z] [INFO]    [solve worker-1]    branchName: issue-217-561df850
+[2025-09-19T16:06:39.583Z] [INFO]    [solve worker-1]    isContinueMode: false
+[2025-09-19T16:06:39.585Z] [INFO]    [solve worker-1]    Will count comments: true
+[2025-09-19T16:06:39.586Z] [INFO]    [solve worker-1] 💬 Counting comments:        Checking for new comments since last commit...
+[2025-09-19T16:06:39.589Z] [INFO]    [solve worker-1]    PR #219 on branch: issue-217-561df850
+[2025-09-19T16:06:39.590Z] [INFO]    [solve worker-1]    Owner/Repo: deep-assistant/hive-mind
+[2025-09-19T16:06:39.612Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:06:39.635Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:06:39.819Z] [INFO]    [solve worker-2] 2025-09-19T16:06:19Z
+[2025-09-19T16:06:39.827Z] [INFO]    [solve worker-2]   📅 Last commit time (from API): 2025-09-19T16:06:19.000Z
+[2025-09-19T16:06:40.437Z] [INFO]    [solve worker-1] 2025-09-19T16:06:19Z
+[2025-09-19T16:06:40.446Z] [INFO]    [solve worker-1]   📅 Last commit time (from API): 2025-09-19T16:06:19.000Z
+[2025-09-19T16:06:40.636Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:06:40.988Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:06:41.214Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:06:41.591Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:06:41.759Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:06:41.772Z] [INFO]    [solve worker-2]   💬 New PR comments:        0
+[2025-09-19T16:06:41.775Z] [INFO]    [solve worker-2]   💬 New issue comments:     0
+[2025-09-19T16:06:41.779Z] [INFO]    [solve worker-2]    Total new comments: 0
+[2025-09-19T16:06:41.781Z] [INFO]    [solve worker-2]    Comment lines to add: No (saving tokens)
+[2025-09-19T16:06:41.784Z] [INFO]    [solve worker-2]    PR review comments fetched: 0
+[2025-09-19T16:06:41.788Z] [INFO]    [solve worker-2]    PR conversation comments fetched: 0
+[2025-09-19T16:06:41.790Z] [INFO]    [solve worker-2]    Total PR comments checked: 0
+[2025-09-19T16:06:41.792Z] [INFO]    [solve worker-2]    No feedback info to add (0 new items, saving tokens)
+[2025-09-19T16:06:41.795Z] [INFO]    [solve worker-2] 📝 Final prompt structure:
+[2025-09-19T16:06:41.796Z] [INFO]    [solve worker-2]    Lines: 6
+[2025-09-19T16:06:41.798Z] [INFO]    [solve worker-2]    Characters: 270
+[2025-09-19T16:06:41.800Z] [INFO]    [solve worker-2] 📅 Getting timestamps:       From GitHub servers...
+[2025-09-19T16:06:42.435Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:06:42.444Z] [INFO]    [solve worker-1]   💬 New PR comments:        0
+[2025-09-19T16:06:42.445Z] [INFO]    [solve worker-1]   💬 New issue comments:     0
+[2025-09-19T16:06:42.448Z] [INFO]    [solve worker-1]    Total new comments: 0
+[2025-09-19T16:06:42.449Z] [INFO]    [solve worker-1]    Comment lines to add: No (saving tokens)
+[2025-09-19T16:06:42.450Z] [INFO]    [solve worker-1]    PR review comments fetched: 0
+[2025-09-19T16:06:42.452Z] [INFO]    [solve worker-1]    PR conversation comments fetched: 0
+[2025-09-19T16:06:42.454Z] [INFO]    [solve worker-1]    Total PR comments checked: 0
+[2025-09-19T16:06:42.455Z] [INFO]    [solve worker-1]    No feedback info to add (0 new items, saving tokens)
+[2025-09-19T16:06:42.457Z] [INFO]    [solve worker-1] 📝 Final prompt structure:
+[2025-09-19T16:06:42.458Z] [INFO]    [solve worker-1]    Lines: 6
+[2025-09-19T16:06:42.461Z] [INFO]    [solve worker-1]    Characters: 270
+[2025-09-19T16:06:42.461Z] [INFO]    [solve worker-1] 📅 Getting timestamps:       From GitHub servers...
+[2025-09-19T16:06:42.674Z] [INFO]    [solve worker-2] 2025-09-19T13:58:40Z
+[2025-09-19T16:06:42.686Z] [INFO]    [solve worker-2]   📝 Issue updated:          2025-09-19T13:58:40.000Z
+[2025-09-19T16:06:43.039Z] [INFO]    [solve worker-1] 2025-09-19T14:51:30Z
+[2025-09-19T16:06:43.051Z] [INFO]    [solve worker-1]   📝 Issue updated:          2025-09-19T14:51:30.000Z
+[2025-09-19T16:06:43.253Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:06:43.265Z] [INFO]    [solve worker-2]   💬 Comments:               None found
+[2025-09-19T16:06:43.747Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:06:43.763Z] [INFO]    [solve worker-1]   💬 Comments:               None found
+[2025-09-19T16:06:43.900Z] [INFO]    [solve worker-2] [{"createdAt":"2025-09-19T16:06:35Z"}]
+[2025-09-19T16:06:43.916Z] [INFO]    [solve worker-2]   🔀 Recent PR:              2025-09-19T16:06:35.000Z
+[2025-09-19T16:06:43.919Z] [INFO]    [solve worker-2] ✅ Reference time:           2025-09-19T16:06:35.000Z
+[2025-09-19T16:06:43.929Z] [INFO]    [solve worker-2] 🤖 Executing Claude:         OPUS
+[2025-09-19T16:06:43.932Z] [INFO]    [solve worker-2]    Model: opus
+[2025-09-19T16:06:43.935Z] [INFO]    [solve worker-2]    Working directory: /tmp/gh-issue-solver-1758297974630
+[2025-09-19T16:06:43.938Z] [INFO]    [solve worker-2]    Branch: issue-212-0e43ecdf
+[2025-09-19T16:06:43.942Z] [INFO]    [solve worker-2]    Prompt length: 270 chars
+[2025-09-19T16:06:43.944Z] [INFO]    [solve worker-2]    System prompt length: 5033 chars
+[2025-09-19T16:06:43.950Z] [INFO]    [solve worker-2]    Feedback info included: No
+[2025-09-19T16:06:44.029Z] [INFO]    [solve worker-2] 📈 System resources before execution:
+[2025-09-19T16:06:44.031Z] [INFO]    [solve worker-2]    Memory: MemFree:          395344 kB
+[2025-09-19T16:06:44.036Z] [INFO]    [solve worker-2]    Load: 1.32 0.62 0.29 3/175 327823
+[2025-09-19T16:06:44.039Z] [INFO]    [solve worker-2] 📋 Command details:          
+[2025-09-19T16:06:44.042Z] [INFO]    [solve worker-2]   📂 Working directory:      /tmp/gh-issue-solver-1758297974630
+[2025-09-19T16:06:44.046Z] [INFO]    [solve worker-2]   🌿 Branch:                 issue-212-0e43ecdf
+[2025-09-19T16:06:44.051Z] [INFO]    [solve worker-2]   🤖 Model:                  Claude OPUS
+[2025-09-19T16:06:44.053Z] [INFO]    [solve worker-2] ▶️ Streaming output:         
+[2025-09-19T16:06:44.059Z] [INFO]    [solve worker-2] Error executing command:
+[2025-09-19T16:06:44.061Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+[2025-09-19T16:06:44.062Z] [INFO]    [solve worker-2]     at executeClaudeCommand (file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.claude-execution.lib.mjs:83:5)
+[2025-09-19T16:06:44.062Z] [INFO]    [solve worker-2]     at async file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.mjs:1418:24
+[2025-09-19T16:06:44.063Z] [INFO]    [solve worker-2] 📄 Attempting to attach failure logs...
+[2025-09-19T16:06:44.079Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/212: solve exited with code 1
+[2025-09-19T16:06:44.081Z] [INFO]    📊 Queue: 3 waiting, 1 processing, 0 completed, 1 failed
+[2025-09-19T16:06:44.082Z] [INFO] 
+👷 Worker 2 processing: https://github.com/deep-assistant/hive-mind/issues/211
+[2025-09-19T16:06:44.083Z] [INFO]    🚀 Executing solve for https://github.com/deep-assistant/hive-mind/issues/211...
+[2025-09-19T16:06:44.085Z] [INFO]    📋 Command: solve "https://github.com/deep-assistant/hive-mind/issues/211" --model opus --verbose --attach-logs
+[2025-09-19T16:06:44.629Z] [INFO]    [solve worker-1] [{"createdAt":"2025-09-19T16:06:35Z"}]
+[2025-09-19T16:06:44.649Z] [INFO]    [solve worker-1]   🔀 Recent PR:              2025-09-19T16:06:35.000Z
+[2025-09-19T16:06:44.650Z] [INFO]    [solve worker-1] ✅ Reference time:           2025-09-19T16:06:35.000Z
+[2025-09-19T16:06:44.656Z] [INFO]    [solve worker-1] 🤖 Executing Claude:         OPUS
+[2025-09-19T16:06:44.658Z] [INFO]    [solve worker-1]    Model: opus
+[2025-09-19T16:06:44.659Z] [INFO]    [solve worker-1]    Working directory: /tmp/gh-issue-solver-1758297974803
+[2025-09-19T16:06:44.661Z] [INFO]    [solve worker-1]    Branch: issue-217-561df850
+[2025-09-19T16:06:44.662Z] [INFO]    [solve worker-1]    Prompt length: 270 chars
+[2025-09-19T16:06:44.665Z] [INFO]    [solve worker-1]    System prompt length: 5033 chars
+[2025-09-19T16:06:44.667Z] [INFO]    [solve worker-1]    Feedback info included: No
+[2025-09-19T16:06:44.752Z] [INFO]    [solve worker-1] 📈 System resources before execution:
+[2025-09-19T16:06:44.757Z] [INFO]    [solve worker-1]    Memory: MemFree:          403720 kB
+[2025-09-19T16:06:44.759Z] [INFO]    [solve worker-1]    Load: 1.32 0.62 0.29 4/171 327843
+[2025-09-19T16:06:44.763Z] [INFO]    [solve worker-1] 📋 Command details:          
+[2025-09-19T16:06:44.766Z] [INFO]    [solve worker-1]   📂 Working directory:      /tmp/gh-issue-solver-1758297974803
+[2025-09-19T16:06:44.768Z] [INFO]    [solve worker-1]   🌿 Branch:                 issue-217-561df850
+[2025-09-19T16:06:44.772Z] [INFO]    [solve worker-1]   🤖 Model:                  Claude OPUS
+[2025-09-19T16:06:44.776Z] [INFO]    [solve worker-1] ▶️ Streaming output:         
+[2025-09-19T16:06:44.781Z] [INFO]    [solve worker-1] Error executing command:
+[2025-09-19T16:06:44.787Z] [INFO]    [solve worker-1] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+[2025-09-19T16:06:44.788Z] [INFO]    [solve worker-1]     at executeClaudeCommand (file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.claude-execution.lib.mjs:83:5)
+[2025-09-19T16:06:44.788Z] [INFO]    [solve worker-1]     at async file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.mjs:1418:24
+[2025-09-19T16:06:44.788Z] [INFO]    [solve worker-1] 📄 Attempting to attach failure logs...
+[2025-09-19T16:06:44.813Z] [ERROR]    ❌ Worker 1 failed on https://github.com/deep-assistant/hive-mind/issues/217: solve exited with code 1
+[2025-09-19T16:06:44.817Z] [INFO]    📊 Queue: 2 waiting, 1 processing, 0 completed, 2 failed
+[2025-09-19T16:06:44.819Z] [INFO] 
+👷 Worker 1 processing: https://github.com/deep-assistant/hive-mind/issues/210
+[2025-09-19T16:06:44.823Z] [INFO]    🚀 Executing solve for https://github.com/deep-assistant/hive-mind/issues/210...
+[2025-09-19T16:06:44.824Z] [INFO]    📋 Command: solve "https://github.com/deep-assistant/hive-mind/issues/210" --model opus --verbose --attach-logs
+[2025-09-19T16:06:45.714Z] [INFO]    ⏳ Waiting... Queue: 1, Processing: 2
+[2025-09-19T16:07:08.922Z] [INFO]    [solve worker-2] Debug: argv.attachLogs = true
+[2025-09-19T16:07:08.926Z] [INFO]    [solve worker-2] Debug: argv["attach-logs"] = true
+[2025-09-19T16:07:08.929Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+[2025-09-19T16:07:08.930Z] [INFO]    [solve worker-2]    This option will upload the complete solution log file to the Pull Request.
+[2025-09-19T16:07:08.931Z] [INFO]    [solve worker-2]    The log may contain sensitive information such as:
+[2025-09-19T16:07:08.931Z] [INFO]    [solve worker-2]    • API keys, tokens, or secrets
+[2025-09-19T16:07:08.931Z] [INFO]    [solve worker-2]    • File paths and directory structures
+[2025-09-19T16:07:08.940Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+[2025-09-19T16:07:08.940Z] [INFO]    [solve worker-2]    • Internal system information
+[2025-09-19T16:07:08.940Z] [INFO]    [solve worker-2]    ⚠️  DO NOT use this option with public repositories or if the log
+[2025-09-19T16:07:08.941Z] [INFO]    [solve worker-2]        might contain sensitive data that should not be shared publicly.
+[2025-09-19T16:07:08.941Z] [INFO]    [solve worker-2]    Continuing in 5 seconds... (Press Ctrl+C to abort)
+[2025-09-19T16:07:08.941Z] [INFO]    [solve worker-2]    Countdown: 5 seconds remaining...
+[2025-09-19T16:07:09.555Z] [INFO]    [solve worker-1] Debug: argv.attachLogs = true
+[2025-09-19T16:07:09.556Z] [INFO]    [solve worker-1] Debug: argv["attach-logs"] = true
+[2025-09-19T16:07:09.557Z] [ERROR]    [solve worker-1 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+[2025-09-19T16:07:09.557Z] [INFO]    [solve worker-1]    This option will upload the complete solution log file to the Pull Request.
+[2025-09-19T16:07:09.559Z] [INFO]    [solve worker-1]    The log may contain sensitive information such as:
+[2025-09-19T16:07:09.559Z] [INFO]    [solve worker-1]    • API keys, tokens, or secrets
+[2025-09-19T16:07:09.560Z] [INFO]    [solve worker-1]    • File paths and directory structures
+[2025-09-19T16:07:09.561Z] [INFO]    [solve worker-1]    • Command outputs and error messages
+[2025-09-19T16:07:09.562Z] [INFO]    [solve worker-1]    • Internal system information
+[2025-09-19T16:07:09.562Z] [INFO]    [solve worker-1]    ⚠️  DO NOT use this option with public repositories or if the log
+[2025-09-19T16:07:09.562Z] [INFO]    [solve worker-1]        might contain sensitive data that should not be shared publicly.
+[2025-09-19T16:07:09.567Z] [INFO]    [solve worker-1]    Continuing in 5 seconds... (Press Ctrl+C to abort)
+[2025-09-19T16:07:09.567Z] [INFO]    [solve worker-1]    Countdown: 5 seconds remaining...
+[2025-09-19T16:07:09.941Z] [INFO]    [solve worker-2]    Countdown: 4 seconds remaining...
+[2025-09-19T16:07:10.563Z] [INFO]    [solve worker-1]    Countdown: 4 seconds remaining...
+[2025-09-19T16:07:10.941Z] [INFO]    [solve worker-2]    Countdown: 3 seconds remaining...
+[2025-09-19T16:07:11.565Z] [INFO]    [solve worker-1]    Countdown: 3 seconds remaining...
+[2025-09-19T16:07:11.944Z] [INFO]    [solve worker-2]    Countdown: 2 seconds remaining...
+[2025-09-19T16:07:12.567Z] [INFO]    [solve worker-1]    Countdown: 2 seconds remaining...
+[2025-09-19T16:07:12.946Z] [INFO]    [solve worker-2]    Countdown: 1 seconds remaining...
+[2025-09-19T16:07:13.569Z] [INFO]    [solve worker-1]    Countdown: 1 seconds remaining...
+[2025-09-19T16:07:13.947Z] [INFO]    [solve worker-2]    Proceeding with log attachment enabled.                    
+[2025-09-19T16:07:13.957Z] [INFO]    [solve worker-2] 📁 Log file: /home/hive/solve-2025-09-19T16-07-13-951Z.log
+[2025-09-19T16:07:13.959Z] [INFO]    [solve worker-2]    (All output will be logged here)
+[2025-09-19T16:07:14.013Z] [INFO]    [solve worker-2] 💾 Disk space check: 85742MB available (500MB required) ✅
+[2025-09-19T16:07:14.019Z] [INFO]    [solve worker-2] 🧠 Memory check: 762MB available, swap: 2047MB (77MB used)
+[2025-09-19T16:07:14.021Z] [INFO]    [solve worker-2] 🧠 Total memory: 2732MB available (256MB required) ✅
+[2025-09-19T16:07:14.025Z] [INFO]    [solve worker-2] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:07:14.571Z] [INFO]    [solve worker-1]    Proceeding with log attachment enabled.                    
+[2025-09-19T16:07:14.580Z] [INFO]    [solve worker-1] 📁 Log file: /home/hive/solve-2025-09-19T16-07-14-573Z.log
+[2025-09-19T16:07:14.583Z] [INFO]    [solve worker-1]    (All output will be logged here)
+[2025-09-19T16:07:14.657Z] [INFO]    [solve worker-1] 💾 Disk space check: 85742MB available (500MB required) ✅
+[2025-09-19T16:07:14.665Z] [INFO]    [solve worker-1] 🧠 Memory check: 715MB available, swap: 2047MB (77MB used)
+[2025-09-19T16:07:14.669Z] [INFO]    [solve worker-1] 🧠 Total memory: 2685MB available (256MB required) ✅
+[2025-09-19T16:07:14.673Z] [INFO]    [solve worker-1] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:07:19.332Z] [INFO]    [solve worker-2] 1.0.115 (Claude Code)
+[2025-09-19T16:07:19.387Z] [INFO]    [solve worker-2] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:07:20.496Z] [INFO]    [solve worker-1] 1.0.115 (Claude Code)
+[2025-09-19T16:07:20.536Z] [INFO]    [solve worker-1] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:07:30.222Z] [INFO]    [solve worker-2] Hi! I'm Claude Code, ready to help you with your software engineering tasks. What would you like me to work on?
+[2025-09-19T16:07:30.262Z] [INFO]    [solve worker-2] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:07:31.570Z] [INFO]    [solve worker-1] Hi! How can I help you with your software engineering tasks today?
+[2025-09-19T16:07:31.642Z] [INFO]    [solve worker-1] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:07:31.915Z] [INFO]    [solve worker-2] 🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:07:32.669Z] [INFO]    [solve worker-2] github.com
+[2025-09-19T16:07:32.670Z] [INFO]    [solve worker-2]   ✓ Logged in to github.com account konard (/home/hive/.config/gh/hosts.yml)
+[2025-09-19T16:07:32.670Z] [INFO]    [solve worker-2]   - Active account: true
+[2025-09-19T16:07:32.672Z] [INFO]    [solve worker-2]   - Git operations protocol: https
+[2025-09-19T16:07:32.672Z] [INFO]    [solve worker-2]   - Token: gho_************************************
+[2025-09-19T16:07:32.672Z] [INFO]    [solve worker-2]   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+[2025-09-19T16:07:32.686Z] [INFO]    [solve worker-2] ✅ GitHub authentication: OK
+[2025-09-19T16:07:32.690Z] [INFO]    [solve worker-2] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:07:32.692Z] [INFO]    [solve worker-2] ✅ All required permissions: Available
+[2025-09-19T16:07:32.695Z] [INFO]    [solve worker-2] 📋 URL validation:
+[2025-09-19T16:07:32.697Z] [INFO]    [solve worker-2]    Input URL: https://github.com/deep-assistant/hive-mind/issues/211
+[2025-09-19T16:07:32.702Z] [INFO]    [solve worker-2]    Is Issue URL: true
+[2025-09-19T16:07:32.706Z] [INFO]    [solve worker-2]    Is PR URL: false
+[2025-09-19T16:07:32.709Z] [INFO]    [solve worker-2] 📝 Issue mode: Working with issue #211
+[2025-09-19T16:07:32.715Z] [INFO]    [solve worker-2] Creating temporary directory: /tmp/gh-issue-solver-1758298052708
+[2025-09-19T16:07:32.718Z] [INFO]    [solve worker-2] 📥 Cloning repository:       deep-assistant/hive-mind
+[2025-09-19T16:07:33.598Z] [INFO]    [solve worker-2] Cloning into '/tmp/gh-issue-solver-1758298052708'...
+[2025-09-19T16:07:33.909Z] [INFO]    [solve worker-1] 🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:07:34.464Z] [INFO]    [solve worker-1] github.com
+[2025-09-19T16:07:34.470Z] [INFO]    [solve worker-1]   ✓ Logged in to github.com account konard (/home/hive/.config/gh/hosts.yml)
+[2025-09-19T16:07:34.473Z] [INFO]    [solve worker-1]   - Active account: true
+[2025-09-19T16:07:34.474Z] [INFO]    [solve worker-1]   - Git operations protocol: https
+[2025-09-19T16:07:34.475Z] [INFO]    [solve worker-1]   - Token: gho_************************************
+[2025-09-19T16:07:34.475Z] [INFO]    [solve worker-1]   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+[2025-09-19T16:07:34.489Z] [INFO]    [solve worker-1] ✅ GitHub authentication: OK
+[2025-09-19T16:07:34.492Z] [INFO]    [solve worker-1] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:07:34.495Z] [INFO]    [solve worker-1] ✅ All required permissions: Available
+[2025-09-19T16:07:34.501Z] [INFO]    [solve worker-1] 📋 URL validation:
+[2025-09-19T16:07:34.504Z] [INFO]    [solve worker-1]    Input URL: https://github.com/deep-assistant/hive-mind/issues/210
+[2025-09-19T16:07:34.516Z] [INFO]    [solve worker-1]    Is Issue URL: true
+[2025-09-19T16:07:34.516Z] [INFO]    [solve worker-1]    Is PR URL: false
+[2025-09-19T16:07:34.525Z] [INFO]    [solve worker-1] 📝 Issue mode: Working with issue #210
+[2025-09-19T16:07:34.535Z] [INFO]    [solve worker-1] Creating temporary directory: /tmp/gh-issue-solver-1758298054524
+[2025-09-19T16:07:34.542Z] [INFO]    [solve worker-1] 📥 Cloning repository:       deep-assistant/hive-mind
+[2025-09-19T16:07:35.249Z] [INFO]    [solve worker-2] ✅ Cloned to:                /tmp/gh-issue-solver-1758298052708
+[2025-09-19T16:07:35.272Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:35.273Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:07:35.461Z] [INFO]    [solve worker-2] main
+[2025-09-19T16:07:35.466Z] [INFO]    [solve worker-2] 📌 Default branch:           main
+[2025-09-19T16:07:35.506Z] [INFO]    [solve worker-2] 🌿 Creating branch:          issue-211-819a38f5 from main
+[2025-09-19T16:07:35.528Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-211-819a38f5'
+[2025-09-19T16:07:35.534Z] [INFO]    [solve worker-2] 🔍 Verifying:                Branch creation...
+[2025-09-19T16:07:35.553Z] [INFO]    [solve worker-2] issue-211-819a38f5
+[2025-09-19T16:07:35.563Z] [INFO]    [solve worker-2] ✅ Branch created:           issue-211-819a38f5
+[2025-09-19T16:07:35.566Z] [INFO]    [solve worker-2] ✅ Current branch:           issue-211-819a38f5
+[2025-09-19T16:07:35.569Z] [INFO]    [solve worker-2]    Branch operation: Create new branch
+[2025-09-19T16:07:35.571Z] [INFO]    [solve worker-2]    Branch verification: Matches expected
+[2025-09-19T16:07:35.574Z] [INFO]    [solve worker-1] Cloning into '/tmp/gh-issue-solver-1758298054524'...
+[2025-09-19T16:07:35.576Z] [INFO]    [solve worker-2] 🚀 Auto PR creation:         ENABLED
+[2025-09-19T16:07:35.576Z] [INFO]    [solve worker-2]      Creating:               Initial commit and draft PR...
+[2025-09-19T16:07:35.580Z] [INFO]    [solve worker-2] 📝 Creating:                 CLAUDE.md with task details
+[2025-09-19T16:07:35.587Z] [INFO]    [solve worker-2] ✅ File created:             CLAUDE.md
+[2025-09-19T16:07:35.591Z] [INFO]    [solve worker-2] 📦 Adding file:              To git staging
+[2025-09-19T16:07:35.697Z] [INFO]    [solve worker-2] A  CLAUDE.md
+[2025-09-19T16:07:35.704Z] [INFO]    [solve worker-2]    Git status after add: A  CLAUDE.md
+[2025-09-19T16:07:35.709Z] [INFO]    [solve worker-2] 📝 Creating commit:          With CLAUDE.md file
+[2025-09-19T16:07:35.794Z] [INFO]    [solve worker-2] [issue-211-819a38f5 347f70c] Initial commit with task details for issue #211
+[2025-09-19T16:07:35.794Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:07:35.794Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:07:35.802Z] [INFO]    [solve worker-2] ✅ Commit created:           Successfully with CLAUDE.md
+[2025-09-19T16:07:35.803Z] [INFO]    [solve worker-2]    Commit output: [issue-211-819a38f5 347f70c] Initial commit with task details for issue #211
+[2025-09-19T16:07:35.803Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:07:35.803Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:07:35.847Z] [INFO]    [solve worker-2] 347f70c Initial commit with task details for issue #211
+[2025-09-19T16:07:35.854Z] [INFO]    [solve worker-2]    Latest commit: 347f70c Initial commit with task details for issue #211
+[2025-09-19T16:07:35.922Z] [INFO]    [solve worker-2]    Git status: clean
+[2025-09-19T16:07:35.942Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:35.942Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:07:35.953Z] [INFO]    [solve worker-2]    Remotes: origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:35.985Z] [INFO]    [solve worker-2] * issue-211-819a38f5 347f70c Initial commit with task details for issue #211
+[2025-09-19T16:07:35.986Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:07:35.992Z] [INFO]    [solve worker-2]    Branch info: * issue-211-819a38f5 347f70c Initial commit with task details for issue #211
+[2025-09-19T16:07:35.992Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:07:35.994Z] [INFO]    [solve worker-2] 📤 Pushing branch:           To remote repository...
+[2025-09-19T16:07:35.997Z] [INFO]    [solve worker-2]    Command: git push -u origin issue-211-819a38f5
+[2025-09-19T16:07:35.998Z] [INFO]    [solve worker-2]    Push command: git push -f -u origin issue-211-819a38f5
+[2025-09-19T16:07:37.268Z] [INFO]    [solve worker-1] ✅ Cloned to:                /tmp/gh-issue-solver-1758298054524
+[2025-09-19T16:07:37.289Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:37.290Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:07:37.484Z] [INFO]    [solve worker-1] main
+[2025-09-19T16:07:37.488Z] [INFO]    [solve worker-1] 📌 Default branch:           main
+[2025-09-19T16:07:37.535Z] [INFO]    [solve worker-1] 🌿 Creating branch:          issue-210-600e04b1 from main
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-211-819a38f5' on GitHub by visiting:        
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-211-819a38f5        
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:37.559Z] [INFO]    [solve worker-2]  * [new branch]      issue-211-819a38f5 -> issue-211-819a38f5
+[2025-09-19T16:07:37.572Z] [ERROR]    [solve worker-1 ERROR] Switched to a new branch 'issue-210-600e04b1'
+[2025-09-19T16:07:37.581Z] [INFO]    [solve worker-1] 🔍 Verifying:                Branch creation...
+[2025-09-19T16:07:37.599Z] [INFO]    [solve worker-2] branch 'issue-211-819a38f5' set up to track 'origin/issue-211-819a38f5'.
+[2025-09-19T16:07:37.609Z] [INFO]    [solve worker-2]    Push exit code: 0
+[2025-09-19T16:07:37.613Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:07:37.615Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-211-819a38f5' on GitHub by visiting:        
+[2025-09-19T16:07:37.615Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-211-819a38f5        
+[2025-09-19T16:07:37.616Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:07:37.616Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:37.616Z] [INFO]    [solve worker-2]  * [new branch]      issue-211-819a38f5 -> issue-211-819a38f5
+[2025-09-19T16:07:37.617Z] [INFO]    [solve worker-2] branch 'issue-211-819a38f5' set up to track 'origin/issue-211-819a38f5'.
+[2025-09-19T16:07:37.621Z] [INFO]    [solve worker-2] ✅ Branch pushed:            Successfully to remote
+[2025-09-19T16:07:37.621Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:07:37.622Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-211-819a38f5' on GitHub by visiting:        
+[2025-09-19T16:07:37.622Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-211-819a38f5        
+[2025-09-19T16:07:37.622Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:07:37.623Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:37.625Z] [INFO]    [solve worker-2]  * [new branch]      issue-211-819a38f5 -> issue-211-819a38f5
+[2025-09-19T16:07:37.625Z] [INFO]    [solve worker-2] branch 'issue-211-819a38f5' set up to track 'origin/issue-211-819a38f5'.
+[2025-09-19T16:07:37.628Z] [INFO]    [solve worker-2]    Waiting for GitHub to sync...
+[2025-09-19T16:07:37.636Z] [INFO]    [solve worker-1] issue-210-600e04b1
+[2025-09-19T16:07:37.646Z] [INFO]    [solve worker-1] ✅ Branch created:           issue-210-600e04b1
+[2025-09-19T16:07:37.647Z] [INFO]    [solve worker-1] ✅ Current branch:           issue-210-600e04b1
+[2025-09-19T16:07:37.647Z] [INFO]    [solve worker-1]    Branch operation: Create new branch
+[2025-09-19T16:07:37.650Z] [INFO]    [solve worker-1]    Branch verification: Matches expected
+[2025-09-19T16:07:37.656Z] [INFO]    [solve worker-1] 🚀 Auto PR creation:         ENABLED
+[2025-09-19T16:07:37.656Z] [INFO]    [solve worker-1]      Creating:               Initial commit and draft PR...
+[2025-09-19T16:07:37.663Z] [INFO]    [solve worker-1] 📝 Creating:                 CLAUDE.md with task details
+[2025-09-19T16:07:37.668Z] [INFO]    [solve worker-1] ✅ File created:             CLAUDE.md
+[2025-09-19T16:07:37.669Z] [INFO]    [solve worker-1] 📦 Adding file:              To git staging
+[2025-09-19T16:07:37.759Z] [INFO]    [solve worker-1] A  CLAUDE.md
+[2025-09-19T16:07:37.763Z] [INFO]    [solve worker-1]    Git status after add: A  CLAUDE.md
+[2025-09-19T16:07:37.765Z] [INFO]    [solve worker-1] 📝 Creating commit:          With CLAUDE.md file
+[2025-09-19T16:07:37.808Z] [INFO]    [solve worker-1] [issue-210-600e04b1 5b18df9] Initial commit with task details for issue #210
+[2025-09-19T16:07:37.809Z] [INFO]    [solve worker-1]  1 file changed, 5 insertions(+)
+[2025-09-19T16:07:37.810Z] [INFO]    [solve worker-1]  create mode 100644 CLAUDE.md
+[2025-09-19T16:07:37.814Z] [INFO]    [solve worker-1] ✅ Commit created:           Successfully with CLAUDE.md
+[2025-09-19T16:07:37.815Z] [INFO]    [solve worker-1]    Commit output: [issue-210-600e04b1 5b18df9] Initial commit with task details for issue #210
+[2025-09-19T16:07:37.815Z] [INFO]    [solve worker-1]  1 file changed, 5 insertions(+)
+[2025-09-19T16:07:37.816Z] [INFO]    [solve worker-1]  create mode 100644 CLAUDE.md
+[2025-09-19T16:07:37.838Z] [INFO]    [solve worker-1] 5b18df9 Initial commit with task details for issue #210
+[2025-09-19T16:07:37.842Z] [INFO]    [solve worker-1]    Latest commit: 5b18df9 Initial commit with task details for issue #210
+[2025-09-19T16:07:37.880Z] [INFO]    [solve worker-1]    Git status: clean
+[2025-09-19T16:07:37.899Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:37.900Z] [INFO]    [solve worker-1] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:07:37.908Z] [INFO]    [solve worker-1]    Remotes: origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:07:37.930Z] [INFO]    [solve worker-1] * issue-210-600e04b1 5b18df9 Initial commit with task details for issue #210
+[2025-09-19T16:07:37.931Z] [INFO]    [solve worker-1]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:07:37.935Z] [INFO]    [solve worker-1]    Branch info: * issue-210-600e04b1 5b18df9 Initial commit with task details for issue #210
+[2025-09-19T16:07:37.936Z] [INFO]    [solve worker-1]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:07:37.938Z] [INFO]    [solve worker-1] 📤 Pushing branch:           To remote repository...
+[2025-09-19T16:07:37.939Z] [INFO]    [solve worker-1]    Command: git push -u origin issue-210-600e04b1
+[2025-09-19T16:07:37.941Z] [INFO]    [solve worker-1]    Push command: git push -f -u origin issue-210-600e04b1
+[2025-09-19T16:07:39.207Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:07:39.208Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-210-600e04b1' on GitHub by visiting:        
+[2025-09-19T16:07:39.210Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-210-600e04b1        
+[2025-09-19T16:07:39.210Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:07:39.216Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:39.216Z] [INFO]    [solve worker-1]  * [new branch]      issue-210-600e04b1 -> issue-210-600e04b1
+[2025-09-19T16:07:39.232Z] [INFO]    [solve worker-1] branch 'issue-210-600e04b1' set up to track 'origin/issue-210-600e04b1'.
+[2025-09-19T16:07:39.236Z] [INFO]    [solve worker-1]    Push exit code: 0
+[2025-09-19T16:07:39.239Z] [INFO]    [solve worker-1]    Push output: remote: 
+[2025-09-19T16:07:39.239Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-210-600e04b1' on GitHub by visiting:        
+[2025-09-19T16:07:39.239Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-210-600e04b1        
+[2025-09-19T16:07:39.240Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:07:39.240Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:39.241Z] [INFO]    [solve worker-1]  * [new branch]      issue-210-600e04b1 -> issue-210-600e04b1
+[2025-09-19T16:07:39.241Z] [INFO]    [solve worker-1] branch 'issue-210-600e04b1' set up to track 'origin/issue-210-600e04b1'.
+[2025-09-19T16:07:39.241Z] [INFO]    [solve worker-1] ✅ Branch pushed:            Successfully to remote
+[2025-09-19T16:07:39.246Z] [INFO]    [solve worker-1]    Push output: remote: 
+[2025-09-19T16:07:39.246Z] [INFO]    [solve worker-1] remote: Create a pull request for 'issue-210-600e04b1' on GitHub by visiting:        
+[2025-09-19T16:07:39.247Z] [INFO]    [solve worker-1] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-210-600e04b1        
+[2025-09-19T16:07:39.247Z] [INFO]    [solve worker-1] remote: 
+[2025-09-19T16:07:39.247Z] [INFO]    [solve worker-1] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:07:39.247Z] [INFO]    [solve worker-1]  * [new branch]      issue-210-600e04b1 -> issue-210-600e04b1
+[2025-09-19T16:07:39.247Z] [INFO]    [solve worker-1] branch 'issue-210-600e04b1' set up to track 'origin/issue-210-600e04b1'.
+[2025-09-19T16:07:39.251Z] [INFO]    [solve worker-1]    Waiting for GitHub to sync...
+[2025-09-19T16:07:46.249Z] [INFO]    [solve worker-2] issue-211-819a38f5
+[2025-09-19T16:07:46.263Z] [INFO]    [solve worker-2]    Branch verified on GitHub: issue-211-819a38f5
+[2025-09-19T16:07:46.836Z] [INFO]    [solve worker-2] 347f70c8aa1cfd4e3f5c702172cf1ba2f91af223
+[2025-09-19T16:07:46.843Z] [INFO]    [solve worker-2]    Remote commit SHA: 347f70c...
+[2025-09-19T16:07:46.844Z] [INFO]    [solve worker-2] 📋 Getting issue:            Title from GitHub...
+[2025-09-19T16:07:47.391Z] [INFO]    [solve worker-2] In all places where we write/output word 'solution', we should mention `solution draft`, if Pull Request already exists it should be `solution draft has been prepared as pull request`
+[2025-09-19T16:07:47.405Z] [INFO]    [solve worker-2]    Issue title: "In all places where we write/output word 'solution', we should mention `solution draft`, if Pull Request already exists it should be `solution draft has been prepared as pull request`"
+[2025-09-19T16:07:47.407Z] [INFO]    [solve worker-2] 👤 Getting user:             Current GitHub account...
+[2025-09-19T16:07:47.887Z] [INFO]    [solve worker-1] issue-210-600e04b1
+[2025-09-19T16:07:47.897Z] [INFO]    [solve worker-1]    Branch verified on GitHub: issue-210-600e04b1
+[2025-09-19T16:07:48.021Z] [INFO]    [solve worker-2] konard
+[2025-09-19T16:07:48.036Z] [INFO]    [solve worker-2]    Current user: konard
+[2025-09-19T16:07:48.553Z] [INFO]    [solve worker-1] 5b18df9abe4e6110ebd5852ca5d503453cb4fa8d
+[2025-09-19T16:07:48.564Z] [INFO]    [solve worker-1]    Remote commit SHA: 5b18df9...
+[2025-09-19T16:07:48.567Z] [INFO]    [solve worker-1] 📋 Getting issue:            Title from GitHub...
+[2025-09-19T16:07:48.689Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:07:48.693Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:07:48.696Z] [INFO]    [solve worker-2] 🔀 Creating PR:              Draft pull request...
+[2025-09-19T16:07:48.698Z] [INFO]    [solve worker-2]    PR Title: [WIP] In all places where we write/output word 'solution', we should mention `solution draft`, if Pull Request already exists it should be `solution draft has been prepared as pull request`
+[2025-09-19T16:07:48.701Z] [INFO]    [solve worker-2]    Base branch: main
+[2025-09-19T16:07:48.703Z] [INFO]    [solve worker-2]    Head branch: issue-211-819a38f5
+[2025-09-19T16:07:48.707Z] [INFO]    [solve worker-2]    Assignee: konard
+[2025-09-19T16:07:48.709Z] [INFO]    [solve worker-2]    PR Body:
+[2025-09-19T16:07:48.709Z] [INFO]    [solve worker-2] ## 🤖 AI-Powered Solution
+[2025-09-19T16:07:48.709Z] [INFO]    [solve worker-2] This pull request is being automatically generated to solve issue #211.
+[2025-09-19T16:07:48.710Z] [INFO]    [solve worker-2] ### 📋 Issue Reference
+[2025-09-19T16:07:48.710Z] [INFO]    [solve worker-2] Fixes #211
+[2025-09-19T16:07:48.710Z] [INFO]    [solve worker-2] ### 🚧 Status
+[2025-09-19T16:07:48.710Z] [INFO]    [solve worker-2] **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+[2025-09-19T16:07:48.711Z] [INFO]    [solve worker-2] ### 📝 Implementation Details
+[2025-09-19T16:07:48.711Z] [INFO]    [solve worker-2] _Details will be added as the solution is developed..._
+[2025-09-19T16:07:48.711Z] [INFO]    [solve worker-2] ---
+[2025-09-19T16:07:48.711Z] [INFO]    [solve worker-2] *This PR was created automatically by the AI issue solver*
+[2025-09-19T16:07:48.717Z] [INFO]    [solve worker-2]    Command: cd "/tmp/gh-issue-solver-1758298052708" && gh pr create --draft --title "[WIP] In all places where we write/output word 'solution', we should mention `solution draft`, if Pull Request already exists it should be `solution draft has been prepared as pull request`" --body-file "/tmp/pr-body-1758298068709.md" --base main --head issue-211-819a38f5 --assignee konard
+[2025-09-19T16:07:49.248Z] [INFO]    [solve worker-1] On any error (even unhandled) we should give full path to the log
+[2025-09-19T16:07:49.256Z] [INFO]    [solve worker-1]    Issue title: "On any error (even unhandled) we should give full path to the log"
+[2025-09-19T16:07:49.259Z] [INFO]    [solve worker-1] 👤 Getting user:             Current GitHub account...
+[2025-09-19T16:07:49.780Z] [INFO]    [solve worker-1] konard
+[2025-09-19T16:07:49.790Z] [INFO]    [solve worker-1]    Current user: konard
+[2025-09-19T16:07:50.352Z] [INFO]    [solve worker-1]    User has collaborator access
+[2025-09-19T16:07:50.354Z] [INFO]    [solve worker-1]    User has collaborator access
+[2025-09-19T16:07:50.356Z] [INFO]    [solve worker-1] 🔀 Creating PR:              Draft pull request...
+[2025-09-19T16:07:50.358Z] [INFO]    [solve worker-1]    PR Title: [WIP] On any error (even unhandled) we should give full path to the log
+[2025-09-19T16:07:50.361Z] [INFO]    [solve worker-1]    Base branch: main
+[2025-09-19T16:07:50.363Z] [INFO]    [solve worker-1]    Head branch: issue-210-600e04b1
+[2025-09-19T16:07:50.366Z] [INFO]    [solve worker-1]    Assignee: konard
+[2025-09-19T16:07:50.367Z] [INFO]    [solve worker-1]    PR Body:
+[2025-09-19T16:07:50.368Z] [INFO]    [solve worker-1] ## 🤖 AI-Powered Solution
+[2025-09-19T16:07:50.368Z] [INFO]    [solve worker-1] This pull request is being automatically generated to solve issue #210.
+[2025-09-19T16:07:50.369Z] [INFO]    [solve worker-1] ### 📋 Issue Reference
+[2025-09-19T16:07:50.369Z] [INFO]    [solve worker-1] Fixes #210
+[2025-09-19T16:07:50.369Z] [INFO]    [solve worker-1] ### 🚧 Status
+[2025-09-19T16:07:50.369Z] [INFO]    [solve worker-1] **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+[2025-09-19T16:07:50.370Z] [INFO]    [solve worker-1] ### 📝 Implementation Details
+[2025-09-19T16:07:50.370Z] [INFO]    [solve worker-1] _Details will be added as the solution is developed..._
+[2025-09-19T16:07:50.371Z] [INFO]    [solve worker-1] ---
+[2025-09-19T16:07:50.371Z] [INFO]    [solve worker-1] *This PR was created automatically by the AI issue solver*
+[2025-09-19T16:07:50.374Z] [INFO]    [solve worker-1]    Command: cd "/tmp/gh-issue-solver-1758298054524" && gh pr create --draft --title "[WIP] On any error (even unhandled) we should give full path to the log" --body-file "/tmp/pr-body-1758298070367.md" --base main --head issue-210-600e04b1 --assignee konard
+[2025-09-19T16:07:52.541Z] [ERROR]    [solve worker-2 ERROR] /bin/sh: 1: solution: not found
+[2025-09-19T16:07:52.541Z] [ERROR]    [solve worker-2 ERROR] /bin/sh: 1: solution: not found
+[2025-09-19T16:07:52.545Z] [INFO]    [solve worker-2] ✅ PR created:               #221
+[2025-09-19T16:07:52.546Z] [INFO]    [solve worker-2] 📍 PR URL:                   https://github.com/deep-assistant/hive-mind/pull/221
+[2025-09-19T16:07:52.550Z] [INFO]    [solve worker-2] 👤 Assigned to:              konard
+[2025-09-19T16:07:52.551Z] [INFO]    [solve worker-2] 🔗 Linking:                  Issue #211 to PR #221...
+[2025-09-19T16:07:53.117Z] [INFO]    [solve worker-2] I_kwDOPUU0qc7MtSH_
+[2025-09-19T16:07:53.126Z] [INFO]    [solve worker-2]    Issue node ID: I_kwDOPUU0qc7MtSH_
+[2025-09-19T16:07:53.730Z] [INFO]    [solve worker-2] PR_kwDOPUU0qc6pibg0
+[2025-09-19T16:07:53.738Z] [INFO]    [solve worker-2]    PR node ID: PR_kwDOPUU0qc6pibg0
+[2025-09-19T16:07:54.294Z] [INFO]    [solve worker-1] ✅ PR created:               #222
+[2025-09-19T16:07:54.296Z] [INFO]    [solve worker-1] 📍 PR URL:                   https://github.com/deep-assistant/hive-mind/pull/222
+[2025-09-19T16:07:54.298Z] [INFO]    [solve worker-1] 👤 Assigned to:              konard
+[2025-09-19T16:07:54.300Z] [INFO]    [solve worker-1] 🔗 Linking:                  Issue #210 to PR #222...
+[2025-09-19T16:07:54.323Z] [INFO]    [solve worker-2] 211
+[2025-09-19T16:07:54.339Z] [INFO]    [solve worker-2] ✅ Link verified:            Issue #211 → PR #221
+[2025-09-19T16:07:54.349Z] [INFO]    [solve worker-2] 📊 Comment counting conditions:
+[2025-09-19T16:07:54.353Z] [INFO]    [solve worker-2]    prNumber: 221
+[2025-09-19T16:07:54.362Z] [INFO]    [solve worker-2]    branchName: issue-211-819a38f5
+[2025-09-19T16:07:54.365Z] [INFO]    [solve worker-2]    isContinueMode: false
+[2025-09-19T16:07:54.369Z] [INFO]    [solve worker-2]    Will count comments: true
+[2025-09-19T16:07:54.372Z] [INFO]    [solve worker-2] 💬 Counting comments:        Checking for new comments since last commit...
+[2025-09-19T16:07:54.374Z] [INFO]    [solve worker-2]    PR #221 on branch: issue-211-819a38f5
+[2025-09-19T16:07:54.376Z] [INFO]    [solve worker-2]    Owner/Repo: deep-assistant/hive-mind
+[2025-09-19T16:07:54.409Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:07:54.446Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:07:55.099Z] [INFO]    [solve worker-2] 2025-09-19T16:07:35Z
+[2025-09-19T16:07:55.107Z] [INFO]    [solve worker-2]   📅 Last commit time (from API): 2025-09-19T16:07:35.000Z
+[2025-09-19T16:07:55.414Z] [INFO]    [solve worker-1] I_kwDOPUU0qc7MtPyM
+[2025-09-19T16:07:55.432Z] [INFO]    [solve worker-1]    Issue node ID: I_kwDOPUU0qc7MtPyM
+[2025-09-19T16:07:55.652Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:07:56.111Z] [INFO]    [solve worker-1] PR_kwDOPUU0qc6pibhr
+[2025-09-19T16:07:56.124Z] [INFO]    [solve worker-1]    PR node ID: PR_kwDOPUU0qc6pibhr
+[2025-09-19T16:07:56.453Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:07:56.759Z] [INFO]    [solve worker-1] 210
+[2025-09-19T16:07:56.767Z] [INFO]    [solve worker-1] ✅ Link verified:            Issue #210 → PR #222
+[2025-09-19T16:07:56.770Z] [INFO]    [solve worker-1] 📊 Comment counting conditions:
+[2025-09-19T16:07:56.772Z] [INFO]    [solve worker-1]    prNumber: 222
+[2025-09-19T16:07:56.773Z] [INFO]    [solve worker-1]    branchName: issue-210-600e04b1
+[2025-09-19T16:07:56.775Z] [INFO]    [solve worker-1]    isContinueMode: false
+[2025-09-19T16:07:56.778Z] [INFO]    [solve worker-1]    Will count comments: true
+[2025-09-19T16:07:56.779Z] [INFO]    [solve worker-1] 💬 Counting comments:        Checking for new comments since last commit...
+[2025-09-19T16:07:56.781Z] [INFO]    [solve worker-1]    PR #222 on branch: issue-210-600e04b1
+[2025-09-19T16:07:56.782Z] [INFO]    [solve worker-1]    Owner/Repo: deep-assistant/hive-mind
+[2025-09-19T16:07:56.802Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:07:56.821Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:07:56.932Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:07:56.946Z] [INFO]    [solve worker-2]   💬 New PR comments:        0
+[2025-09-19T16:07:56.948Z] [INFO]    [solve worker-2]   💬 New issue comments:     0
+[2025-09-19T16:07:56.951Z] [INFO]    [solve worker-2]    Total new comments: 0
+[2025-09-19T16:07:56.954Z] [INFO]    [solve worker-2]    Comment lines to add: No (saving tokens)
+[2025-09-19T16:07:56.957Z] [INFO]    [solve worker-2]    PR review comments fetched: 0
+[2025-09-19T16:07:56.958Z] [INFO]    [solve worker-2]    PR conversation comments fetched: 0
+[2025-09-19T16:07:56.962Z] [INFO]    [solve worker-2]    Total PR comments checked: 0
+[2025-09-19T16:07:56.965Z] [INFO]    [solve worker-2]    No feedback info to add (0 new items, saving tokens)
+[2025-09-19T16:07:56.969Z] [INFO]    [solve worker-2] 📝 Final prompt structure:
+[2025-09-19T16:07:56.969Z] [INFO]    [solve worker-2]    Lines: 6
+[2025-09-19T16:07:56.972Z] [INFO]    [solve worker-2]    Characters: 270
+[2025-09-19T16:07:56.976Z] [INFO]    [solve worker-2] 📅 Getting timestamps:       From GitHub servers...
+[2025-09-19T16:07:57.526Z] [INFO]    [solve worker-1] 2025-09-19T16:07:37Z
+[2025-09-19T16:07:57.536Z] [INFO]    [solve worker-1]   📅 Last commit time (from API): 2025-09-19T16:07:37.000Z
+[2025-09-19T16:07:57.866Z] [INFO]    [solve worker-2] 2025-09-19T13:41:03Z
+[2025-09-19T16:07:57.875Z] [INFO]    [solve worker-2]   📝 Issue updated:          2025-09-19T13:41:03.000Z
+[2025-09-19T16:07:58.080Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:07:58.473Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:07:58.489Z] [INFO]    [solve worker-2]   💬 Comments:               None found
+[2025-09-19T16:07:58.745Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:07:59.187Z] [INFO]    [solve worker-2] [{"createdAt":"2025-09-19T16:07:52Z"}]
+[2025-09-19T16:07:59.194Z] [INFO]    [solve worker-2]   🔀 Recent PR:              2025-09-19T16:07:52.000Z
+[2025-09-19T16:07:59.196Z] [INFO]    [solve worker-2] ✅ Reference time:           2025-09-19T16:07:52.000Z
+[2025-09-19T16:07:59.199Z] [INFO]    [solve worker-2] 🤖 Executing Claude:         OPUS
+[2025-09-19T16:07:59.200Z] [INFO]    [solve worker-2]    Model: opus
+[2025-09-19T16:07:59.202Z] [INFO]    [solve worker-2]    Working directory: /tmp/gh-issue-solver-1758298052708
+[2025-09-19T16:07:59.204Z] [INFO]    [solve worker-2]    Branch: issue-211-819a38f5
+[2025-09-19T16:07:59.207Z] [INFO]    [solve worker-2]    Prompt length: 270 chars
+[2025-09-19T16:07:59.210Z] [INFO]    [solve worker-2]    System prompt length: 5033 chars
+[2025-09-19T16:07:59.217Z] [INFO]    [solve worker-2]    Feedback info included: No
+[2025-09-19T16:07:59.266Z] [INFO]    [solve worker-2] 📈 System resources before execution:
+[2025-09-19T16:07:59.268Z] [INFO]    [solve worker-2]    Memory: MemFree:          390420 kB
+[2025-09-19T16:07:59.270Z] [INFO]    [solve worker-2]    Load: 1.54 0.90 0.42 1/176 329163
+[2025-09-19T16:07:59.271Z] [INFO]    [solve worker-2] 📋 Command details:          
+[2025-09-19T16:07:59.273Z] [INFO]    [solve worker-2]   📂 Working directory:      /tmp/gh-issue-solver-1758298052708
+[2025-09-19T16:07:59.275Z] [INFO]    [solve worker-2]   🌿 Branch:                 issue-211-819a38f5
+[2025-09-19T16:07:59.277Z] [INFO]    [solve worker-2]   🤖 Model:                  Claude OPUS
+[2025-09-19T16:07:59.279Z] [INFO]    [solve worker-2] ▶️ Streaming output:         
+[2025-09-19T16:07:59.284Z] [INFO]    [solve worker-2] Error executing command:
+[2025-09-19T16:07:59.286Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+[2025-09-19T16:07:59.287Z] [INFO]    [solve worker-2]     at executeClaudeCommand (file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.claude-execution.lib.mjs:83:5)
+[2025-09-19T16:07:59.287Z] [INFO]    [solve worker-2]     at async file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.mjs:1418:24
+[2025-09-19T16:07:59.288Z] [INFO]    [solve worker-2] 📄 Attempting to attach failure logs...
+[2025-09-19T16:07:59.303Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/211: solve exited with code 1
+[2025-09-19T16:07:59.304Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:07:59.307Z] [INFO]    📊 Queue: 1 waiting, 1 processing, 0 completed, 3 failed
+[2025-09-19T16:07:59.309Z] [INFO] 
+👷 Worker 2 processing: https://github.com/deep-assistant/hive-mind/issues/209
+[2025-09-19T16:07:59.310Z] [INFO]    🚀 Executing solve for https://github.com/deep-assistant/hive-mind/issues/209...
+[2025-09-19T16:07:59.312Z] [INFO]    📋 Command: solve "https://github.com/deep-assistant/hive-mind/issues/209" --model opus --verbose --attach-logs
+[2025-09-19T16:07:59.324Z] [INFO]    [solve worker-1]   💬 New PR comments:        0
+[2025-09-19T16:07:59.327Z] [INFO]    [solve worker-1]   💬 New issue comments:     0
+[2025-09-19T16:07:59.329Z] [INFO]    [solve worker-1]    Total new comments: 0
+[2025-09-19T16:07:59.331Z] [INFO]    [solve worker-1]    Comment lines to add: No (saving tokens)
+[2025-09-19T16:07:59.334Z] [INFO]    [solve worker-1]    PR review comments fetched: 0
+[2025-09-19T16:07:59.337Z] [INFO]    [solve worker-1]    PR conversation comments fetched: 0
+[2025-09-19T16:07:59.339Z] [INFO]    [solve worker-1]    Total PR comments checked: 0
+[2025-09-19T16:07:59.341Z] [INFO]    [solve worker-1]    No feedback info to add (0 new items, saving tokens)
+[2025-09-19T16:07:59.344Z] [INFO]    [solve worker-1] 📝 Final prompt structure:
+[2025-09-19T16:07:59.345Z] [INFO]    [solve worker-1]    Lines: 6
+[2025-09-19T16:07:59.348Z] [INFO]    [solve worker-1]    Characters: 270
+[2025-09-19T16:07:59.354Z] [INFO]    [solve worker-1] 📅 Getting timestamps:       From GitHub servers...
+[2025-09-19T16:08:00.190Z] [INFO]    [solve worker-1] 2025-09-19T16:03:23Z
+[2025-09-19T16:08:00.217Z] [INFO]    [solve worker-1]   📝 Issue updated:          2025-09-19T16:03:23.000Z
+[2025-09-19T16:08:00.766Z] [INFO]    ⏳ Waiting... Queue: 0, Processing: 2
+[2025-09-19T16:08:01.206Z] [INFO]    [solve worker-1] []
+[2025-09-19T16:08:01.223Z] [INFO]    [solve worker-1]   💬 Comments:               None found
+[2025-09-19T16:08:02.009Z] [INFO]    [solve worker-1] [{"createdAt":"2025-09-19T16:07:52Z"}]
+[2025-09-19T16:08:02.021Z] [INFO]    [solve worker-1]   🔀 Recent PR:              2025-09-19T16:07:52.000Z
+[2025-09-19T16:08:02.027Z] [INFO]    [solve worker-1] ✅ Reference time:           2025-09-19T16:07:52.000Z
+[2025-09-19T16:08:02.031Z] [INFO]    [solve worker-1] 🤖 Executing Claude:         OPUS
+[2025-09-19T16:08:02.036Z] [INFO]    [solve worker-1]    Model: opus
+[2025-09-19T16:08:02.036Z] [INFO]    [solve worker-1]    Working directory: /tmp/gh-issue-solver-1758298054524
+[2025-09-19T16:08:02.038Z] [INFO]    [solve worker-1]    Branch: issue-210-600e04b1
+[2025-09-19T16:08:02.043Z] [INFO]    [solve worker-1]    Prompt length: 270 chars
+[2025-09-19T16:08:02.044Z] [INFO]    [solve worker-1]    System prompt length: 5033 chars
+[2025-09-19T16:08:02.048Z] [INFO]    [solve worker-1]    Feedback info included: No
+[2025-09-19T16:08:02.118Z] [INFO]    [solve worker-1] 📈 System resources before execution:
+[2025-09-19T16:08:02.121Z] [INFO]    [solve worker-1]    Memory: MemFree:          345844 kB
+[2025-09-19T16:08:02.124Z] [INFO]    [solve worker-1]    Load: 1.66 0.93 0.43 2/183 329238
+[2025-09-19T16:08:02.126Z] [INFO]    [solve worker-1] 📋 Command details:          
+[2025-09-19T16:08:02.127Z] [INFO]    [solve worker-1]   📂 Working directory:      /tmp/gh-issue-solver-1758298054524
+[2025-09-19T16:08:02.131Z] [INFO]    [solve worker-1]   🌿 Branch:                 issue-210-600e04b1
+[2025-09-19T16:08:02.133Z] [INFO]    [solve worker-1]   🤖 Model:                  Claude OPUS
+[2025-09-19T16:08:02.138Z] [INFO]    [solve worker-1] ▶️ Streaming output:         
+[2025-09-19T16:08:02.144Z] [INFO]    [solve worker-1] Error executing command:
+[2025-09-19T16:08:02.148Z] [INFO]    [solve worker-1]     at executeClaudeCommand (file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.claude-execution.lib.mjs:83:5)
+[2025-09-19T16:08:02.147Z] [INFO]    [solve worker-1] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+[2025-09-19T16:08:02.148Z] [INFO]    [solve worker-1]     at async file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.mjs:1418:24
+[2025-09-19T16:08:02.151Z] [INFO]    [solve worker-1] 📄 Attempting to attach failure logs...
+[2025-09-19T16:08:02.172Z] [ERROR]    ❌ Worker 1 failed on https://github.com/deep-assistant/hive-mind/issues/210: solve exited with code 1
+[2025-09-19T16:08:02.175Z] [INFO]    📊 Queue: 0 waiting, 1 processing, 0 completed, 4 failed
+[2025-09-19T16:08:05.774Z] [INFO]    ⏳ Waiting... Queue: 0, Processing: 1
+[2025-09-19T16:08:13.196Z] [INFO]    [solve worker-2] Debug: argv.attachLogs = true
+[2025-09-19T16:08:13.197Z] [INFO]    [solve worker-2] Debug: argv["attach-logs"] = true
+[2025-09-19T16:08:13.198Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+[2025-09-19T16:08:13.199Z] [INFO]    [solve worker-2]    This option will upload the complete solution log file to the Pull Request.
+[2025-09-19T16:08:13.199Z] [INFO]    [solve worker-2]    The log may contain sensitive information such as:
+[2025-09-19T16:08:13.200Z] [INFO]    [solve worker-2]    • API keys, tokens, or secrets
+[2025-09-19T16:08:13.200Z] [INFO]    [solve worker-2]    • File paths and directory structures
+[2025-09-19T16:08:13.201Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+[2025-09-19T16:08:13.201Z] [INFO]    [solve worker-2]    • Internal system information
+[2025-09-19T16:08:13.201Z] [INFO]    [solve worker-2]    ⚠️  DO NOT use this option with public repositories or if the log
+[2025-09-19T16:08:13.201Z] [INFO]    [solve worker-2]        might contain sensitive data that should not be shared publicly.
+[2025-09-19T16:08:13.202Z] [INFO]    [solve worker-2]    Continuing in 5 seconds... (Press Ctrl+C to abort)
+[2025-09-19T16:08:13.203Z] [INFO]    [solve worker-2]    Countdown: 5 seconds remaining...
+[2025-09-19T16:08:14.203Z] [INFO]    [solve worker-2]    Countdown: 4 seconds remaining...
+[2025-09-19T16:08:15.205Z] [INFO]    [solve worker-2]    Countdown: 3 seconds remaining...
+[2025-09-19T16:08:16.206Z] [INFO]    [solve worker-2]    Countdown: 2 seconds remaining...
+[2025-09-19T16:08:17.207Z] [INFO]    [solve worker-2]    Countdown: 1 seconds remaining...
+[2025-09-19T16:08:18.208Z] [INFO]    [solve worker-2]    Proceeding with log attachment enabled.                    
+[2025-09-19T16:08:18.214Z] [INFO]    [solve worker-2] 📁 Log file: /home/hive/solve-2025-09-19T16-08-18-210Z.log
+[2025-09-19T16:08:18.216Z] [INFO]    [solve worker-2]    (All output will be logged here)
+[2025-09-19T16:08:18.266Z] [INFO]    [solve worker-2] 💾 Disk space check: 85736MB available (500MB required) ✅
+[2025-09-19T16:08:18.270Z] [INFO]    [solve worker-2] 🧠 Memory check: 777MB available, swap: 2047MB (77MB used)
+[2025-09-19T16:08:18.273Z] [INFO]    [solve worker-2] 🧠 Total memory: 2747MB available (256MB required) ✅
+[2025-09-19T16:08:18.275Z] [INFO]    [solve worker-2] 🔍 Validating Claude CLI connection...
+[2025-09-19T16:08:21.062Z] [INFO]    [solve worker-2] 1.0.115 (Claude Code)
+[2025-09-19T16:08:21.086Z] [INFO]    [solve worker-2] 📦 Claude CLI version: 1.0.115 (Claude Code)
+[2025-09-19T16:08:27.545Z] [INFO]    [solve worker-2] Hi! How can I help you with your software engineering tasks today?
+[2025-09-19T16:08:27.590Z] [INFO]    [solve worker-2] ✅ Claude CLI connection validated successfully
+[2025-09-19T16:08:29.236Z] [INFO]    [solve worker-2] 🔐 Checking GitHub authentication and permissions...
+[2025-09-19T16:08:29.779Z] [INFO]    [solve worker-2] github.com
+[2025-09-19T16:08:29.779Z] [INFO]    [solve worker-2]   ✓ Logged in to github.com account konard (/home/hive/.config/gh/hosts.yml)
+[2025-09-19T16:08:29.779Z] [INFO]    [solve worker-2]   - Active account: true
+[2025-09-19T16:08:29.779Z] [INFO]    [solve worker-2]   - Git operations protocol: https
+[2025-09-19T16:08:29.779Z] [INFO]    [solve worker-2]   - Token: gho_************************************
+[2025-09-19T16:08:29.780Z] [INFO]    [solve worker-2]   - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+[2025-09-19T16:08:29.797Z] [INFO]    [solve worker-2] ✅ GitHub authentication: OK
+[2025-09-19T16:08:29.801Z] [INFO]    [solve worker-2] 📋 Token scopes: gist, read:org, repo, workflow
+[2025-09-19T16:08:29.805Z] [INFO]    [solve worker-2] ✅ All required permissions: Available
+[2025-09-19T16:08:29.808Z] [INFO]    [solve worker-2] 📋 URL validation:
+[2025-09-19T16:08:29.810Z] [INFO]    [solve worker-2]    Input URL: https://github.com/deep-assistant/hive-mind/issues/209
+[2025-09-19T16:08:29.815Z] [INFO]    [solve worker-2]    Is Issue URL: true
+[2025-09-19T16:08:29.818Z] [INFO]    [solve worker-2]    Is PR URL: false
+[2025-09-19T16:08:29.824Z] [INFO]    [solve worker-2] 📝 Issue mode: Working with issue #209
+[2025-09-19T16:08:29.832Z] [INFO]    [solve worker-2] Creating temporary directory: /tmp/gh-issue-solver-1758298109826
+[2025-09-19T16:08:29.836Z] [INFO]    [solve worker-2] 📥 Cloning repository:       deep-assistant/hive-mind
+[2025-09-19T16:08:30.598Z] [INFO]    [solve worker-2] Cloning into '/tmp/gh-issue-solver-1758298109826'...
+[2025-09-19T16:08:32.003Z] [INFO]    [solve worker-2] ✅ Cloned to:                /tmp/gh-issue-solver-1758298109826
+[2025-09-19T16:08:32.036Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:08:32.037Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:08:32.301Z] [INFO]    [solve worker-2] main
+[2025-09-19T16:08:32.305Z] [INFO]    [solve worker-2] 📌 Default branch:           main
+[2025-09-19T16:08:32.349Z] [INFO]    [solve worker-2] 🌿 Creating branch:          issue-209-0cf6eeb4 from main
+[2025-09-19T16:08:32.387Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-209-0cf6eeb4'
+[2025-09-19T16:08:32.391Z] [INFO]    [solve worker-2] 🔍 Verifying:                Branch creation...
+[2025-09-19T16:08:32.407Z] [INFO]    [solve worker-2] issue-209-0cf6eeb4
+[2025-09-19T16:08:32.410Z] [INFO]    [solve worker-2] ✅ Branch created:           issue-209-0cf6eeb4
+[2025-09-19T16:08:32.412Z] [INFO]    [solve worker-2] ✅ Current branch:           issue-209-0cf6eeb4
+[2025-09-19T16:08:32.413Z] [INFO]    [solve worker-2]    Branch operation: Create new branch
+[2025-09-19T16:08:32.415Z] [INFO]    [solve worker-2]    Branch verification: Matches expected
+[2025-09-19T16:08:32.417Z] [INFO]    [solve worker-2] 🚀 Auto PR creation:         ENABLED
+[2025-09-19T16:08:32.418Z] [INFO]    [solve worker-2]      Creating:               Initial commit and draft PR...
+[2025-09-19T16:08:32.420Z] [INFO]    [solve worker-2] 📝 Creating:                 CLAUDE.md with task details
+[2025-09-19T16:08:32.423Z] [INFO]    [solve worker-2] ✅ File created:             CLAUDE.md
+[2025-09-19T16:08:32.425Z] [INFO]    [solve worker-2] 📦 Adding file:              To git staging
+[2025-09-19T16:08:32.465Z] [INFO]    [solve worker-2] A  CLAUDE.md
+[2025-09-19T16:08:32.468Z] [INFO]    [solve worker-2]    Git status after add: A  CLAUDE.md
+[2025-09-19T16:08:32.470Z] [INFO]    [solve worker-2] 📝 Creating commit:          With CLAUDE.md file
+[2025-09-19T16:08:32.494Z] [INFO]    [solve worker-2] [issue-209-0cf6eeb4 c9fd6a2] Initial commit with task details for issue #209
+[2025-09-19T16:08:32.495Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:08:32.495Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:08:32.499Z] [INFO]    [solve worker-2] ✅ Commit created:           Successfully with CLAUDE.md
+[2025-09-19T16:08:32.501Z] [INFO]    [solve worker-2]    Commit output: [issue-209-0cf6eeb4 c9fd6a2] Initial commit with task details for issue #209
+[2025-09-19T16:08:32.501Z] [INFO]    [solve worker-2]  1 file changed, 5 insertions(+)
+[2025-09-19T16:08:32.501Z] [INFO]    [solve worker-2]  create mode 100644 CLAUDE.md
+[2025-09-19T16:08:32.519Z] [INFO]    [solve worker-2] c9fd6a2 Initial commit with task details for issue #209
+[2025-09-19T16:08:32.523Z] [INFO]    [solve worker-2]    Latest commit: c9fd6a2 Initial commit with task details for issue #209
+[2025-09-19T16:08:32.549Z] [INFO]    [solve worker-2]    Git status: clean
+[2025-09-19T16:08:32.565Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:08:32.565Z] [INFO]    [solve worker-2] origin	https://github.com/deep-assistant/hive-mind.git (push)
+[2025-09-19T16:08:32.570Z] [INFO]    [solve worker-2]    Remotes: origin	https://github.com/deep-assistant/hive-mind.git (fetch)
+[2025-09-19T16:08:32.586Z] [INFO]    [solve worker-2] * issue-209-0cf6eeb4 c9fd6a2 Initial commit with task details for issue #209
+[2025-09-19T16:08:32.587Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:08:32.593Z] [INFO]    [solve worker-2]    Branch info: * issue-209-0cf6eeb4 c9fd6a2 Initial commit with task details for issue #209
+[2025-09-19T16:08:32.594Z] [INFO]    [solve worker-2]   main               7a73aa7 [origin/main] Reorganize files
+[2025-09-19T16:08:32.594Z] [INFO]    [solve worker-2] 📤 Pushing branch:           To remote repository...
+[2025-09-19T16:08:32.595Z] [INFO]    [solve worker-2]    Command: git push -u origin issue-209-0cf6eeb4
+[2025-09-19T16:08:32.597Z] [INFO]    [solve worker-2]    Push command: git push -f -u origin issue-209-0cf6eeb4
+[2025-09-19T16:08:34.003Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:08:34.006Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-209-0cf6eeb4' on GitHub by visiting:        
+[2025-09-19T16:08:34.006Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-209-0cf6eeb4        
+[2025-09-19T16:08:34.006Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:08:34.006Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:08:34.007Z] [INFO]    [solve worker-2]  * [new branch]      issue-209-0cf6eeb4 -> issue-209-0cf6eeb4
+[2025-09-19T16:08:34.025Z] [INFO]    [solve worker-2] branch 'issue-209-0cf6eeb4' set up to track 'origin/issue-209-0cf6eeb4'.
+[2025-09-19T16:08:34.031Z] [INFO]    [solve worker-2]    Push exit code: 0
+[2025-09-19T16:08:34.033Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:08:34.033Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-209-0cf6eeb4' on GitHub by visiting:        
+[2025-09-19T16:08:34.033Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-209-0cf6eeb4        
+[2025-09-19T16:08:34.034Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:08:34.034Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:08:34.035Z] [INFO]    [solve worker-2]  * [new branch]      issue-209-0cf6eeb4 -> issue-209-0cf6eeb4
+[2025-09-19T16:08:34.035Z] [INFO]    [solve worker-2] branch 'issue-209-0cf6eeb4' set up to track 'origin/issue-209-0cf6eeb4'.
+[2025-09-19T16:08:34.035Z] [INFO]    [solve worker-2] ✅ Branch pushed:            Successfully to remote
+[2025-09-19T16:08:34.038Z] [INFO]    [solve worker-2]    Push output: remote: 
+[2025-09-19T16:08:34.038Z] [INFO]    [solve worker-2] remote: Create a pull request for 'issue-209-0cf6eeb4' on GitHub by visiting:        
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2] remote:      https://github.com/deep-assistant/hive-mind/pull/new/issue-209-0cf6eeb4        
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2] remote: 
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2] To https://github.com/deep-assistant/hive-mind.git
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2]  * [new branch]      issue-209-0cf6eeb4 -> issue-209-0cf6eeb4
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2] branch 'issue-209-0cf6eeb4' set up to track 'origin/issue-209-0cf6eeb4'.
+[2025-09-19T16:08:34.039Z] [INFO]    [solve worker-2]    Waiting for GitHub to sync...
+[2025-09-19T16:08:42.577Z] [INFO]    [solve worker-2] issue-209-0cf6eeb4
+[2025-09-19T16:08:42.587Z] [INFO]    [solve worker-2]    Branch verified on GitHub: issue-209-0cf6eeb4
+[2025-09-19T16:08:43.115Z] [INFO]    [solve worker-2] c9fd6a2ed7a70598ca6963f7e140b70335d90405
+[2025-09-19T16:08:43.124Z] [INFO]    [solve worker-2]    Remote commit SHA: c9fd6a2...
+[2025-09-19T16:08:43.126Z] [INFO]    [solve worker-2] 📋 Getting issue:            Title from GitHub...
+[2025-09-19T16:08:43.707Z] [INFO]    [solve worker-2] Log should always include raw executed so the user only needs to upload log to gist and give a link
+[2025-09-19T16:08:43.718Z] [INFO]    [solve worker-2]    Issue title: "Log should always include raw executed so the user only needs to upload log to gist and give a link"
+[2025-09-19T16:08:43.719Z] [INFO]    [solve worker-2] 👤 Getting user:             Current GitHub account...
+[2025-09-19T16:08:44.286Z] [INFO]    [solve worker-2] konard
+[2025-09-19T16:08:44.297Z] [INFO]    [solve worker-2]    Current user: konard
+[2025-09-19T16:08:44.839Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:08:44.841Z] [INFO]    [solve worker-2]    User has collaborator access
+[2025-09-19T16:08:44.842Z] [INFO]    [solve worker-2] 🔀 Creating PR:              Draft pull request...
+[2025-09-19T16:08:44.845Z] [INFO]    [solve worker-2]    PR Title: [WIP] Log should always include raw executed so the user only needs to upload log to gist and give a link
+[2025-09-19T16:08:44.847Z] [INFO]    [solve worker-2]    Base branch: main
+[2025-09-19T16:08:44.850Z] [INFO]    [solve worker-2]    Head branch: issue-209-0cf6eeb4
+[2025-09-19T16:08:44.855Z] [INFO]    [solve worker-2]    Assignee: konard
+[2025-09-19T16:08:44.856Z] [INFO]    [solve worker-2]    PR Body:
+[2025-09-19T16:08:44.857Z] [INFO]    [solve worker-2] ## 🤖 AI-Powered Solution
+[2025-09-19T16:08:44.857Z] [INFO]    [solve worker-2] This pull request is being automatically generated to solve issue #209.
+[2025-09-19T16:08:44.857Z] [INFO]    [solve worker-2] ### 📋 Issue Reference
+[2025-09-19T16:08:44.858Z] [INFO]    [solve worker-2] Fixes #209
+[2025-09-19T16:08:44.858Z] [INFO]    [solve worker-2] ### 🚧 Status
+[2025-09-19T16:08:44.858Z] [INFO]    [solve worker-2] **Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+[2025-09-19T16:08:44.858Z] [INFO]    [solve worker-2] ### 📝 Implementation Details
+[2025-09-19T16:08:44.859Z] [INFO]    [solve worker-2] _Details will be added as the solution is developed..._
+[2025-09-19T16:08:44.859Z] [INFO]    [solve worker-2] ---
+[2025-09-19T16:08:44.859Z] [INFO]    [solve worker-2] *This PR was created automatically by the AI issue solver*
+[2025-09-19T16:08:44.863Z] [INFO]    [solve worker-2]    Command: cd "/tmp/gh-issue-solver-1758298109826" && gh pr create --draft --title "[WIP] Log should always include raw executed so the user only needs to upload log to gist and give a link" --body-file "/tmp/pr-body-1758298124856.md" --base main --head issue-209-0cf6eeb4 --assignee konard
+[2025-09-19T16:08:48.028Z] [INFO]    [solve worker-2] ✅ PR created:               #223
+[2025-09-19T16:08:48.031Z] [INFO]    [solve worker-2] 📍 PR URL:                   https://github.com/deep-assistant/hive-mind/pull/223
+[2025-09-19T16:08:48.033Z] [INFO]    [solve worker-2] 👤 Assigned to:              konard
+[2025-09-19T16:08:48.033Z] [INFO]    [solve worker-2] 🔗 Linking:                  Issue #209 to PR #223...
+[2025-09-19T16:08:48.675Z] [INFO]    [solve worker-2] I_kwDOPUU0qc7MtO0E
+[2025-09-19T16:08:48.683Z] [INFO]    [solve worker-2]    Issue node ID: I_kwDOPUU0qc7MtO0E
+[2025-09-19T16:08:49.237Z] [INFO]    [solve worker-2] PR_kwDOPUU0qc6picJA
+[2025-09-19T16:08:49.244Z] [INFO]    [solve worker-2]    PR node ID: PR_kwDOPUU0qc6picJA
+[2025-09-19T16:08:49.820Z] [INFO]    [solve worker-2] 209
+[2025-09-19T16:08:49.832Z] [INFO]    [solve worker-2] ✅ Link verified:            Issue #209 → PR #223
+[2025-09-19T16:08:49.839Z] [INFO]    [solve worker-2] 📊 Comment counting conditions:
+[2025-09-19T16:08:49.842Z] [INFO]    [solve worker-2]    prNumber: 223
+[2025-09-19T16:08:49.844Z] [INFO]    [solve worker-2]    branchName: issue-209-0cf6eeb4
+[2025-09-19T16:08:49.846Z] [INFO]    [solve worker-2]    isContinueMode: false
+[2025-09-19T16:08:49.849Z] [INFO]    [solve worker-2]    Will count comments: true
+[2025-09-19T16:08:49.852Z] [INFO]    [solve worker-2] 💬 Counting comments:        Checking for new comments since last commit...
+[2025-09-19T16:08:49.854Z] [INFO]    [solve worker-2]    PR #223 on branch: issue-209-0cf6eeb4
+[2025-09-19T16:08:49.856Z] [INFO]    [solve worker-2]    Owner/Repo: deep-assistant/hive-mind
+[2025-09-19T16:08:49.886Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:08:49.913Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+[2025-09-19T16:08:50.582Z] [INFO]    [solve worker-2] 2025-09-19T16:08:32Z
+[2025-09-19T16:08:50.590Z] [INFO]    [solve worker-2]   📅 Last commit time (from API): 2025-09-19T16:08:32.000Z
+[2025-09-19T16:08:51.069Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:08:51.730Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:08:52.378Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:08:52.383Z] [INFO]    [solve worker-2]   💬 New PR comments:        0
+[2025-09-19T16:08:52.385Z] [INFO]    [solve worker-2]   💬 New issue comments:     0
+[2025-09-19T16:08:52.386Z] [INFO]    [solve worker-2]    Total new comments: 0
+[2025-09-19T16:08:52.387Z] [INFO]    [solve worker-2]    Comment lines to add: No (saving tokens)
+[2025-09-19T16:08:52.390Z] [INFO]    [solve worker-2]    PR review comments fetched: 0
+[2025-09-19T16:08:52.393Z] [INFO]    [solve worker-2]    PR conversation comments fetched: 0
+[2025-09-19T16:08:52.395Z] [INFO]    [solve worker-2]    Total PR comments checked: 0
+[2025-09-19T16:08:52.396Z] [INFO]    [solve worker-2]    No feedback info to add (0 new items, saving tokens)
+[2025-09-19T16:08:52.398Z] [INFO]    [solve worker-2] 📝 Final prompt structure:
+[2025-09-19T16:08:52.400Z] [INFO]    [solve worker-2]    Lines: 6
+[2025-09-19T16:08:52.401Z] [INFO]    [solve worker-2]    Characters: 270
+[2025-09-19T16:08:52.405Z] [INFO]    [solve worker-2] 📅 Getting timestamps:       From GitHub servers...
+[2025-09-19T16:08:52.956Z] [INFO]    [solve worker-2] 2025-09-19T13:35:41Z
+[2025-09-19T16:08:52.967Z] [INFO]    [solve worker-2]   📝 Issue updated:          2025-09-19T13:35:41.000Z
+[2025-09-19T16:08:53.588Z] [INFO]    [solve worker-2] []
+[2025-09-19T16:08:53.605Z] [INFO]    [solve worker-2]   💬 Comments:               None found
+[2025-09-19T16:08:54.277Z] [INFO]    [solve worker-2] [{"createdAt":"2025-09-19T16:08:46Z"}]
+[2025-09-19T16:08:54.289Z] [INFO]    [solve worker-2]   🔀 Recent PR:              2025-09-19T16:08:46.000Z
+[2025-09-19T16:08:54.292Z] [INFO]    [solve worker-2] ✅ Reference time:           2025-09-19T16:08:46.000Z
+[2025-09-19T16:08:54.297Z] [INFO]    [solve worker-2] 🤖 Executing Claude:         OPUS
+[2025-09-19T16:08:54.300Z] [INFO]    [solve worker-2]    Model: opus
+[2025-09-19T16:08:54.302Z] [INFO]    [solve worker-2]    Working directory: /tmp/gh-issue-solver-1758298109826
+[2025-09-19T16:08:54.304Z] [INFO]    [solve worker-2]    Branch: issue-209-0cf6eeb4
+[2025-09-19T16:08:54.306Z] [INFO]    [solve worker-2]    Prompt length: 270 chars
+[2025-09-19T16:08:54.308Z] [INFO]    [solve worker-2]    System prompt length: 5033 chars
+[2025-09-19T16:08:54.311Z] [INFO]    [solve worker-2]    Feedback info included: No
+[2025-09-19T16:08:54.354Z] [INFO]    [solve worker-2] 📈 System resources before execution:
+[2025-09-19T16:08:54.356Z] [INFO]    [solve worker-2]    Memory: MemFree:          413624 kB
+[2025-09-19T16:08:54.357Z] [INFO]    [solve worker-2]    Load: 1.15 0.92 0.45 1/160 329881
+[2025-09-19T16:08:54.360Z] [INFO]    [solve worker-2] 📋 Command details:          
+[2025-09-19T16:08:54.362Z] [INFO]    [solve worker-2]   📂 Working directory:      /tmp/gh-issue-solver-1758298109826
+[2025-09-19T16:08:54.364Z] [INFO]    [solve worker-2]   🌿 Branch:                 issue-209-0cf6eeb4
+[2025-09-19T16:08:54.365Z] [INFO]    [solve worker-2]   🤖 Model:                  Claude OPUS
+[2025-09-19T16:08:54.367Z] [INFO]    [solve worker-2] ▶️ Streaming output:         
+[2025-09-19T16:08:54.370Z] [INFO]    [solve worker-2] Error executing command:
+[2025-09-19T16:08:54.372Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+[2025-09-19T16:08:54.372Z] [INFO]    [solve worker-2]     at executeClaudeCommand (file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.claude-execution.lib.mjs:83:5)
+[2025-09-19T16:08:54.373Z] [INFO]    [solve worker-2]     at async file:///home/hive/.bun/install/global/node_modules/@deep-assistant/hive-mind/src/solve.mjs:1418:24
+[2025-09-19T16:08:54.374Z] [INFO]    [solve worker-2] 📄 Attempting to attach failure logs...
+[2025-09-19T16:08:54.386Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/209: solve exited with code 1
+[2025-09-19T16:08:54.387Z] [INFO]    📊 Queue: 0 waiting, 0 processing, 0 completed, 5 failed
+[2025-09-19T16:08:55.803Z] [INFO]    ⏳ Waiting... Queue: 0, Processing: 0
+[2025-09-19T16:08:55.804Z] [INFO] 
+✅ All issues processed!
+[2025-09-19T16:08:55.806Z] [INFO]    Completed: 0
+[2025-09-19T16:08:55.808Z] [INFO]    Failed: 5
+[2025-09-19T16:08:57.191Z] [INFO] 🔧 Worker 1 stopped
+[2025-09-19T16:08:59.389Z] [INFO] 🔧 Worker 2 stopped
+[2025-09-19T16:08:59.390Z] [INFO] 
+👋 Hive Mind monitoring stopped
