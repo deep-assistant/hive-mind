@@ -233,14 +233,34 @@ function testSolveFeedbackLines(prUrl) {
 
   // Run solve.mjs with --dry-run and --verbose to see the prompt
   const solvePath = path.join(__dirname, '..', 'solve.mjs');
+
+  // Debug: Show what command we're running
+  console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose`);
+
   const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose 2>&1`, { silent: true });
 
   if (solveResult.code !== 0) {
-    console.log('   ⚠️  solve.mjs had issues (expected for --dry-run)');
+    console.log(`   ⚠️  solve.mjs exited with code ${solveResult.code} (expected for --dry-run)`);
+    // Check if it's a critical error (not just dry-run exit)
+    if (solveResult.stdout.includes('Error: Failed to') || solveResult.stdout.includes('Error: Invalid')) {
+      console.log('   ❌ Critical error detected in solve.mjs');
+    }
   }
 
   const output = solveResult.stdout + (solveResult.stderr || '');
   console.log('   📋 Analyzing solve.mjs output...');
+
+  // Debug: Show a snippet of output to understand what we're getting
+  if (output.includes('Error:') || output.includes('Failed')) {
+    console.log('   ⚠️  Output contains errors');
+    const errorLines = output.split('\n').filter(line => line.includes('Error:') || line.includes('Failed'));
+    errorLines.slice(0, 3).forEach(line => console.log(`      ${line.trim()}`));
+  }
+
+  // Debug: Check if prompt was found
+  if (!output.includes('Issue to solve:')) {
+    console.log('   ⚠️  No prompt found in output (missing "Issue to solve:")');
+  }
 
   // Check for feedback lines in the output
   const hasFeedbackLines = output.includes('New comments on the pull request:');
@@ -268,6 +288,8 @@ function testSolveFeedbackLines(prUrl) {
     const promptSection = output.substring(promptStartIndex);
     const feedbackInPromptSection = promptSection.includes('New comments on the pull request:');
     console.log(`   📊 Feedback after prompt start: ${feedbackInPromptSection ? 'YES' : 'NO'}`);
+  } else {
+    console.log('   ⚠️  Prompt start not found - solve.mjs might have failed');
   }
 
   // Save output for debugging
