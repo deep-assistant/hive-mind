@@ -105,16 +105,30 @@ async function createTestRepository() {
   $(`mkdir -p ${tempDir}`);
   process.chdir(tempDir);
 
-  $('git init');
+  const initResult = $('git init');
+  if (initResult.code !== 0) {
+    throw new Error(`Failed to init git: ${initResult.stderr}`);
+  }
+
   // Configure git user for commits (required in CI environment)
   $('git config user.email "test@example.com"');
   $('git config user.name "Test User"');
+
   $('echo "# Test Repository\\n\\nThis is a test repository for feedback lines testing." > README.md');
   $('git add README.md');
-  $('git commit -m "Initial commit"');
+
+  const commitResult = $('git commit -m "Initial commit"');
+  if (commitResult.code !== 0) {
+    throw new Error(`Failed to commit: ${commitResult.stderr}`);
+  }
+
   $(`git remote add origin https://github.com/${username}/${testRepo}.git`);
   $('git branch -M main');
-  $('git push -u origin main');
+
+  const pushResult = $('git push -u origin main');
+  if (pushResult.code !== 0) {
+    throw new Error(`Failed to push main branch: ${pushResult.stderr}`);
+  }
 
   console.log('   ✅ Repository initialized with initial commit');
 
@@ -130,8 +144,16 @@ async function createTestRepository() {
   $('git checkout -b test-branch');
   $('echo "\\n## Testing\\nAdded testing section" >> README.md');
   $('git add README.md');
-  $('git commit -m "Add testing section"');
-  $('git push -u origin test-branch');
+
+  const branchCommitResult = $('git commit -m "Add testing section"');
+  if (branchCommitResult.code !== 0) {
+    throw new Error(`Failed to commit on test-branch: ${branchCommitResult.stderr}`);
+  }
+
+  const branchPushResult = $('git push -u origin test-branch');
+  if (branchPushResult.code !== 0) {
+    throw new Error(`Failed to push test-branch: ${branchPushResult.stderr}`);
+  }
 
   const prResult = $(`gh pr create --title "Test PR for feedback lines" --body "This PR is for testing comment detection"`, { silent: true });
   if (prResult.code !== 0) {
@@ -163,8 +185,16 @@ async function createTestRepository() {
   // Make another commit to establish a baseline
   $('echo "\\n## Documentation\\nAdded docs section" >> README.md');
   $('git add README.md');
-  $('git commit -m "Add documentation section"');
-  $('git push');
+
+  const baselineCommitResult = $('git commit -m "Add documentation section"');
+  if (baselineCommitResult.code !== 0) {
+    throw new Error(`Failed to create baseline commit: ${baselineCommitResult.stderr}`);
+  }
+
+  const baselinePushResult = $('git push');
+  if (baselinePushResult.code !== 0) {
+    throw new Error(`Failed to push baseline commit: ${baselinePushResult.stderr}`);
+  }
 
   console.log('   ✅ Baseline commit created');
 
