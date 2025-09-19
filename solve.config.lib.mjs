@@ -91,6 +91,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Minimum required disk space in MB (default: 500)',
       default: 500
     })
+    .option('log-dir', {
+      type: 'string',
+      description: 'Directory to save log files (defaults to current working directory)',
+      alias: 'l'
+    })
     .help('h')
     .alias('h', 'help');
 };

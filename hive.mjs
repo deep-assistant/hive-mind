@@ -250,6 +250,11 @@ const createYargsConfig = (yargsInstance) => {
       alias: 'pm',
       default: false
     })
+    .option('log-dir', {
+      type: 'string',
+      description: 'Directory to save log files (defaults to current working directory)',
+      alias: 'l'
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -288,9 +293,26 @@ if (needsUrlValidation) {
 }
 
 // Create log file with timestamp
-const scriptDir = path.dirname(process.argv[1]);
+// Use log-dir option if provided, otherwise use current working directory
+let targetDir = argv.logDir || process.cwd();
+
+// Verify the directory exists, create if necessary
+try {
+  await fs.access(targetDir);
+} catch (error) {
+  // If directory doesn't exist, try to create it
+  try {
+    await fs.mkdir(targetDir, { recursive: true });
+  } catch (mkdirError) {
+    console.error(`⚠️  Unable to create log directory: ${targetDir}`);
+    console.error('   Falling back to current working directory');
+    // Fall back to current working directory
+    targetDir = process.cwd();
+  }
+}
+
 const timestamp = formatTimestamp();
-const logFile = path.join(scriptDir, `hive-${timestamp}.log`);
+const logFile = path.join(targetDir, `hive-${timestamp}.log`);
 
 // Set the log file for the lib.mjs logging system
 setLogFile(logFile);
@@ -499,7 +521,8 @@ async function worker(workerId) {
           const forkFlag = argv.fork ? ' --fork' : '';
           const verboseFlag = argv.verbose ? ' --verbose' : '';
           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
-          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`);
+          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
         } else {
           // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
@@ -509,6 +532,7 @@ async function worker(workerId) {
           const forkFlag = argv.fork ? ' --fork' : '';
           const verboseFlag = argv.verbose ? ' --verbose' : '';
           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
 
           // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
           const { spawn } = await import('child_process');
@@ -524,9 +548,12 @@ async function worker(workerId) {
           if (argv.attachLogs) {
             args.push('--attach-logs');
           }
+          if (argv.logDir) {
+            args.push('--log-dir', argv.logDir);
+          }
 
           // Log the actual command being executed so users can investigate/reproduce
-          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`;
+          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`;
           await log(`   📋 Command: ${command}`);
 
           let exitCode = 0;

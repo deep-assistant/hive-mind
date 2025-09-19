@@ -1,0 +1,150 @@
+diff --git a/hive.mjs b/hive.mjs
+index 717991b..6546a59 100755
+--- a/hive.mjs
++++ b/hive.mjs
+@@ -250,6 +250,11 @@ const createYargsConfig = (yargsInstance) => {
+       alias: 'pm',
+       default: false
+     })
++    .option('log-dir', {
++      type: 'string',
++      description: 'Directory to save log files (defaults to current working directory)',
++      alias: 'l'
++    })
+     .help('h')
+     .alias('h', 'help');
+ };
+@@ -288,9 +293,26 @@ if (needsUrlValidation) {
+ }
+ 
+ // Create log file with timestamp
+-const scriptDir = path.dirname(process.argv[1]);
++// Use log-dir option if provided, otherwise use current working directory
++let targetDir = argv.logDir || process.cwd();
++
++// Verify the directory exists, create if necessary
++try {
++  await fs.access(targetDir);
++} catch (error) {
++  // If directory doesn't exist, try to create it
++  try {
++    await fs.mkdir(targetDir, { recursive: true });
++  } catch (mkdirError) {
++    console.error(`⚠️  Unable to create log directory: ${targetDir}`);
++    console.error(`   Falling back to current working directory`);
++    // Fall back to current working directory
++    targetDir = process.cwd();
++  }
++}
++
+ const timestamp = formatTimestamp();
+-const logFile = path.join(scriptDir, `hive-${timestamp}.log`);
++const logFile = path.join(targetDir, `hive-${timestamp}.log`);
+ 
+ // Set the log file for the lib.mjs logging system
+ setLogFile(logFile);
+@@ -499,7 +521,8 @@ async function worker(workerId) {
+           const forkFlag = argv.fork ? ' --fork' : '';
+           const verboseFlag = argv.verbose ? ' --verbose' : '';
+           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+-          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`);
++          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
++          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`);
+           await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
+         } else {
+           // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
+@@ -509,6 +532,7 @@ async function worker(workerId) {
+           const forkFlag = argv.fork ? ' --fork' : '';
+           const verboseFlag = argv.verbose ? ' --verbose' : '';
+           const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
++          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+ 
+           // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
+           const { spawn } = await import('child_process');
+@@ -524,9 +548,12 @@ async function worker(workerId) {
+           if (argv.attachLogs) {
+             args.push('--attach-logs');
+           }
++          if (argv.logDir) {
++            args.push('--log-dir', argv.logDir);
++          }
+ 
+           // Log the actual command being executed so users can investigate/reproduce
+-          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}`;
++          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`;
+           await log(`   📋 Command: ${command}`);
+ 
+           let exitCode = 0;
+diff --git a/issue_205_details.json b/issue_205_details.json
+new file mode 100644
+index 0000000..2eb50cc
+--- /dev/null
++++ b/issue_205_details.json
+@@ -0,0 +1 @@
++{"body":"At the moment when we run the code from global installed command we do save logs in bin folder, which may be inconvenient and silently polute bin folder of app with logs - so they will slowly eat up the space without user noticing.\n\nSo if we run command as solve/hive, not the ./solve.mjs or ./hive.mjs we should be sure we put logs by default in the place where the globally installed command was executed.","comments":[],"state":"OPEN","title":"Make logs be saved to current working directory, and make the path to log configurable with option for hive and solve commands"}
+diff --git a/pr_213_details.json b/pr_213_details.json
+new file mode 100644
+index 0000000..eb8f7c5
+--- /dev/null
++++ b/pr_213_details.json
+@@ -0,0 +1 @@
++{"body":"## 🤖 AI-Powered Solution\n\nThis pull request is being automatically generated to solve issue #205.\n\n### 📋 Issue Reference\nFixes #205\n\n### 🚧 Status\n**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.\n\n### 📝 Implementation Details\n_Details will be added as the solution is developed..._\n\n---\n*This PR was created automatically by the AI issue solver*","comments":[],"reviews":[],"state":"OPEN","title":"[WIP] Make logs be saved to current working directory, and make the path to log configurable with option for hive and solve commands"}
+diff --git a/solve.config.lib.mjs b/solve.config.lib.mjs
+index b842bcd..6fc0031 100644
+--- a/solve.config.lib.mjs
++++ b/solve.config.lib.mjs
+@@ -91,6 +91,11 @@ export const createYargsConfig = (yargsInstance) => {
+       description: 'Minimum required disk space in MB (default: 500)',
+       default: 500
+     })
++    .option('log-dir', {
++      type: 'string',
++      description: 'Directory to save log files (defaults to current working directory)',
++      alias: 'l'
++    })
+     .help('h')
+     .alias('h', 'help');
+ };
+diff --git a/solve.mjs b/solve.mjs
+index 3698648..a6cc609 100755
+--- a/solve.mjs
++++ b/solve.mjs
+@@ -174,7 +174,7 @@ if (argv.verbose) {
+ // Show security warning and initialize log file using validation module
+ const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
+ await showAttachLogsWarning(shouldAttachLogs);
+-const logFile = await initializeLogFile();
++const logFile = await initializeLogFile(argv.logDir);
+ 
+ // Validate GitHub URL requirement and options using validation module
+ if (!(await validateUrlRequirement(issueUrl))) {
+diff --git a/solve.validation.lib.mjs b/solve.validation.lib.mjs
+index 055cdce..204c770 100644
+--- a/solve.validation.lib.mjs
++++ b/solve.validation.lib.mjs
+@@ -102,10 +102,29 @@ export const showAttachLogsWarning = async (shouldAttachLogs) => {
+ };
+ 
+ // Create and initialize log file
+-export const initializeLogFile = async () => {
+-  const scriptDir = path.dirname(process.argv[1]);
++export const initializeLogFile = async (logDir = null) => {
++  // Determine log directory:
++  // 1. Use provided logDir if specified
++  // 2. Otherwise use current working directory (not script directory)
++  let targetDir = logDir || process.cwd();
++
++  // Verify the directory exists
++  try {
++    await fs.access(targetDir);
++  } catch (error) {
++    // If directory doesn't exist, try to create it
++    try {
++      await fs.mkdir(targetDir, { recursive: true });
++    } catch (mkdirError) {
++      await log(`⚠️  Unable to create log directory: ${targetDir}`, { level: 'error' });
++      await log(`   Falling back to current working directory`, { level: 'error' });
++      // Fall back to current working directory
++      targetDir = process.cwd();
++    }
++  }
