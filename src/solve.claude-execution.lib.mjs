@@ -76,14 +76,16 @@ export const executeClaudeCommand = async (params) => {
   await log(`\n${formatAligned('▶️', 'Streaming output:', '')}\n`);
 
   // Execute the Claude command
-  for await (const chunk of $({
+  const claudeCommand = $({
     cwd: tempDir,
     shell: true,
     exitOnError: false
-  })`${claudePath} ${claudeArgs} | jq -c .`) {
+  })`${claudePath} ${claudeArgs} | jq -c .`;
+
+  for await (const chunk of claudeCommand.stream()) {
 
     // Handle command exit
-    if (chunk.done) {
+    if (chunk.type === 'exit') {
       if (chunk.code !== 0) {
         commandFailed = true;
         const exitReason = chunk.signal ? ` (signal: ${chunk.signal})` : '';
@@ -115,8 +117,8 @@ export const executeClaudeCommand = async (params) => {
     }
 
     // Process streaming output
-    const output = chunk.stdout ? chunk.stdout.toString() : '';
-    const errorOutput = chunk.stderr ? chunk.stderr.toString() : '';
+    const output = chunk.type === 'stdout' ? chunk.data.toString() : '';
+    const errorOutput = chunk.type === 'stderr' ? chunk.data.toString() : '';
 
     // Log stderr if present
     if (errorOutput) {
