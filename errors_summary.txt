@@ -1,0 +1,53 @@
+58:[2025-09-19T16:05:15.627Z] [INFO]    ❌ Failed: 0
+76:[2025-09-19T16:05:44.524Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+77:[2025-09-19T16:05:44.525Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+85:[2025-09-19T16:05:44.835Z] [ERROR]    [solve worker-1 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+90:[2025-09-19T16:05:44.841Z] [INFO]    [solve worker-1]    • Command outputs and error messages
+172:[2025-09-19T16:06:19.128Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-212-0e43ecdf'
+186:[2025-09-19T16:06:19.343Z] [ERROR]    [solve worker-1 ERROR] Switched to a new branch 'issue-217-561df850'
+376:[2025-09-19T16:06:39.079Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+377:[2025-09-19T16:06:39.114Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+388:[2025-09-19T16:06:39.612Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+389:[2025-09-19T16:06:39.635Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+450:[2025-09-19T16:06:44.059Z] [INFO]    [solve worker-2] Error executing command:
+451:[2025-09-19T16:06:44.061Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+455:[2025-09-19T16:06:44.079Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/212: solve exited with code 1
+456:[2025-09-19T16:06:44.081Z] [INFO]    📊 Queue: 3 waiting, 1 processing, 0 completed, 1 failed
+479:[2025-09-19T16:06:44.781Z] [INFO]    [solve worker-1] Error executing command:
+480:[2025-09-19T16:06:44.787Z] [INFO]    [solve worker-1] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+484:[2025-09-19T16:06:44.813Z] [ERROR]    ❌ Worker 1 failed on https://github.com/deep-assistant/hive-mind/issues/217: solve exited with code 1
+485:[2025-09-19T16:06:44.817Z] [INFO]    📊 Queue: 2 waiting, 1 processing, 0 completed, 2 failed
+493:[2025-09-19T16:07:08.929Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+498:[2025-09-19T16:07:08.940Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+506:[2025-09-19T16:07:09.557Z] [ERROR]    [solve worker-1 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+511:[2025-09-19T16:07:09.561Z] [INFO]    [solve worker-1]    • Command outputs and error messages
+588:[2025-09-19T16:07:35.528Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-211-819a38f5'
+636:[2025-09-19T16:07:37.572Z] [ERROR]    [solve worker-1 ERROR] Switched to a new branch 'issue-210-600e04b1'
+747:[2025-09-19T16:07:49.248Z] [INFO]    [solve worker-1] On any error (even unhandled) we should give full path to the log
+748:[2025-09-19T16:07:49.256Z] [INFO]    [solve worker-1]    Issue title: "On any error (even unhandled) we should give full path to the log"
+755:[2025-09-19T16:07:50.358Z] [INFO]    [solve worker-1]    PR Title: [WIP] On any error (even unhandled) we should give full path to the log
+770:[2025-09-19T16:07:50.374Z] [INFO]    [solve worker-1]    Command: cd "/tmp/gh-issue-solver-1758298054524" && gh pr create --draft --title "[WIP] On any error (even unhandled) we should give full path to the log" --body-file "/tmp/pr-body-1758298070367.md" --base main --head issue-210-600e04b1 --assignee konard
+771:[2025-09-19T16:07:52.541Z] [ERROR]    [solve worker-2 ERROR] /bin/sh: 1: solution: not found
+772:[2025-09-19T16:07:52.541Z] [ERROR]    [solve worker-2 ERROR] /bin/sh: 1: solution: not found
+795:[2025-09-19T16:07:54.409Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+796:[2025-09-19T16:07:54.446Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+815:[2025-09-19T16:07:56.802Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+816:[2025-09-19T16:07:56.821Z] [ERROR]    [solve worker-1 ERROR] fatal: not a git repository (or any of the parent directories): .git
+856:[2025-09-19T16:07:59.284Z] [INFO]    [solve worker-2] Error executing command:
+857:[2025-09-19T16:07:59.286Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+861:[2025-09-19T16:07:59.303Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/211: solve exited with code 1
+863:[2025-09-19T16:07:59.307Z] [INFO]    📊 Queue: 1 waiting, 1 processing, 0 completed, 3 failed
+903:[2025-09-19T16:08:02.144Z] [INFO]    [solve worker-1] Error executing command:
+905:[2025-09-19T16:08:02.147Z] [INFO]    [solve worker-1] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+908:[2025-09-19T16:08:02.172Z] [ERROR]    ❌ Worker 1 failed on https://github.com/deep-assistant/hive-mind/issues/210: solve exited with code 1
+909:[2025-09-19T16:08:02.175Z] [INFO]    📊 Queue: 0 waiting, 1 processing, 0 completed, 4 failed
+913:[2025-09-19T16:08:13.198Z] [ERROR]    [solve worker-2 ERROR] ⚠️  SECURITY WARNING: --attach-logs is ENABLED
+918:[2025-09-19T16:08:13.201Z] [INFO]    [solve worker-2]    • Command outputs and error messages
+963:[2025-09-19T16:08:32.387Z] [ERROR]    [solve worker-2 ERROR] Switched to a new branch 'issue-209-0cf6eeb4'
+1069:[2025-09-19T16:08:49.886Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+1070:[2025-09-19T16:08:49.913Z] [ERROR]    [solve worker-2 ERROR] fatal: not a git repository (or any of the parent directories): .git
+1110:[2025-09-19T16:08:54.370Z] [INFO]    [solve worker-2] Error executing command:
+1111:[2025-09-19T16:08:54.372Z] [INFO]    [solve worker-2] Stack trace: TypeError: $(...)(...) is not a function or its return value is not async iterable
+1115:[2025-09-19T16:08:54.386Z] [ERROR]    ❌ Worker 2 failed on https://github.com/deep-assistant/hive-mind/issues/209: solve exited with code 1
+1116:[2025-09-19T16:08:54.387Z] [INFO]    📊 Queue: 0 waiting, 0 processing, 0 completed, 5 failed
+1121:[2025-09-19T16:08:55.808Z] [INFO]    Failed: 5
