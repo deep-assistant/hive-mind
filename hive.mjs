@@ -279,7 +279,7 @@ const needsUrlValidation = githubUrl;
 
 if (needsUrlValidation) {
   // Do the regex matching ONCE - this result will be used everywhere
-  urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^\/]+)(\/([^\/]+))?$/);
+  urlMatch = githubUrl.match(/^https:\/\/github\.com\/([^/]+)(\/([^/]+))?$/);
   if (!urlMatch) {
     console.error('Error: Invalid GitHub URL format');
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
@@ -753,7 +753,7 @@ async function fetchIssues() {
       // Extract issue numbers and repository info from URLs
       const issuesByRepo = {};
       for (const issue of issuesToProcess) {
-        const urlMatch = issue.url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+        const urlMatch = issue.url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
         if (urlMatch) {
           const [, issueOwner, issueRepo, issueNumber] = urlMatch;
           const repoKey = `${issueOwner}/${issueRepo}`;

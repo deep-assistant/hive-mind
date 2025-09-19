@@ -56,8 +56,8 @@ export const validateGitHubUrl = (issueUrl) => {
   }
 
   // Do the regex matching ONCE - these results will be used everywhere
-  const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/issues\/\d+$/);
-  const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/);
+  const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/);
+  const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/);
 
   // Fail fast if URL is invalid
   if (!isIssueUrl && !isPrUrl) {
