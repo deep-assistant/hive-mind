@@ -111,7 +111,7 @@ export const initializeLogFile = async () => {
   // Create the log file immediately
   await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
   await log(`📁 Log file: ${getLogFile()}`);
-  await log(`   (All output will be logged here)`);
+  await log('   (All output will be logged here)');
 
   return logFile;
 };
@@ -119,8 +119,8 @@ export const initializeLogFile = async () => {
 // Validate GitHub URL requirement
 export const validateUrlRequirement = async (issueUrl) => {
   if (!issueUrl) {
-    await log(`❌ GitHub issue URL is required`, { level: 'error' });
-    await log(`   Usage: solve <github-issue-url> [options]`, { level: 'error' });
+    await log('❌ GitHub issue URL is required', { level: 'error' });
+    await log('   Usage: solve <github-issue-url> [options]', { level: 'error' });
     return false;
   }
   return true;
@@ -130,10 +130,10 @@ export const validateUrlRequirement = async (issueUrl) => {
 export const validateContinueOnlyOnFeedback = async (argv, isPrUrl, isIssueUrl) => {
   if (argv.continueOnlyOnFeedback) {
     if (!isPrUrl && !(isIssueUrl && argv.autoContinue)) {
-      await log(`❌ --continue-only-on-feedback option requirements not met`, { level: 'error' });
-      await log(`   This option works only with:`, { level: 'error' });
-      await log(`   • Pull request URL, OR`, { level: 'error' });
-      await log(`   • Issue URL with --auto-continue option`, { level: 'error' });
+      await log('❌ --continue-only-on-feedback option requirements not met', { level: 'error' });
+      await log('   This option works only with:', { level: 'error' });
+      await log('   • Pull request URL, OR', { level: 'error' });
+      await log('   • Issue URL with --auto-continue option', { level: 'error' });
       await log(`   Current: ${isPrUrl ? 'PR URL' : 'Issue URL'} ${argv.autoContinue ? 'with --auto-continue' : 'without --auto-continue'}`, { level: 'error' });
       return false;
     }
@@ -160,11 +160,11 @@ export const performSystemChecks = async (minDiskSpace = 500, skipClaude = false
     // Validate Claude CLI connection before proceeding
     const isClaudeConnected = await validateClaudeConnection();
     if (!isClaudeConnected) {
-      await log(`❌ Cannot proceed without Claude CLI connection`, { level: 'error' });
+      await log('❌ Cannot proceed without Claude CLI connection', { level: 'error' });
       return false;
     }
   } else {
-    await log(`⏩ Skipping Claude CLI validation (dry-run mode)`, { verbose: true });
+    await log('⏩ Skipping Claude CLI validation (dry-run mode)', { verbose: true });
   }
 
   // Check GitHub permissions

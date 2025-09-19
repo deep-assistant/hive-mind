@@ -26,16 +26,16 @@ export const detectAndCountFeedback = async (params) => {
 
   // Debug logging to understand when comment counting doesn't run
   if (argv.verbose) {
-    await log(`\n📊 Comment counting conditions:`, { verbose: true });
+    await log('\n📊 Comment counting conditions:', { verbose: true });
     await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
     await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
     await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
     await log(`   Will count comments: ${!!(prNumber && branchName)}`, { verbose: true });
     if (!prNumber) {
-      await log(`   ⚠️  Skipping: prNumber not set`, { verbose: true });
+      await log('   ⚠️  Skipping: prNumber not set', { verbose: true });
     }
     if (!branchName) {
-      await log(`   ⚠️  Skipping: branchName not set`, { verbose: true });
+      await log('   ⚠️  Skipping: branchName not set', { verbose: true });
     }
   }
 
@@ -120,8 +120,8 @@ export const detectAndCountFeedback = async (params) => {
         if (argv.autoContinueOnlyOnNewComments && (isContinueMode || argv.autoContinue)) {
           const totalNewComments = newPrComments + newIssueComments;
           if (totalNewComments === 0) {
-            await log(`❌ auto-continue-only-on-new-comments: No new comments found since last commit`);
-            await log(`   This option requires new comments to proceed with auto-continue or continue mode.`);
+            await log('❌ auto-continue-only-on-new-comments: No new comments found since last commit');
+            await log('   This option requires new comments to proceed with auto-continue or continue mode.');
             process.exit(1);
           } else {
             await log(`✅ auto-continue-only-on-new-comments: Found ${totalNewComments} new comments, continuing...`);
@@ -205,7 +205,7 @@ export const detectAndCountFeedback = async (params) => {
               const prDetails = JSON.parse(prDetailsResult.stdout.toString());
               const prUpdatedAt = new Date(prDetails.updated_at);
               if (prUpdatedAt > lastCommitTime) {
-                feedbackLines.push(`Pull request description was edited after last commit`);
+                feedbackLines.push('Pull request description was edited after last commit');
                 feedbackDetected = true;
                 feedbackSources.push('PR description edited');
               }
@@ -218,7 +218,7 @@ export const detectAndCountFeedback = async (params) => {
                 const issueDetails = JSON.parse(issueDetailsResult.stdout.toString());
                 const issueUpdatedAt = new Date(issueDetails.updated_at);
                 if (issueUpdatedAt > lastCommitTime) {
-                  feedbackLines.push(`Issue description was edited after last commit`);
+                  feedbackLines.push('Issue description was edited after last commit');
                   feedbackDetected = true;
                   feedbackSources.push('Issue description edited');
                 }
@@ -255,7 +255,7 @@ export const detectAndCountFeedback = async (params) => {
 
           // 4. Check merge status (dirty indicates conflicts)
           if (mergeStateStatus === 'DIRTY') {
-            feedbackLines.push(`Merge status is dirty (conflicts detected)`);
+            feedbackLines.push('Merge status is dirty (conflicts detected)');
             feedbackDetected = true;
             feedbackSources.push('Merge status dirty');
           }
@@ -284,16 +284,16 @@ export const detectAndCountFeedback = async (params) => {
           // Handle --continue-only-on-feedback option
           if (argv.continueOnlyOnFeedback) {
             if (feedbackDetected) {
-              await log(`✅ continue-only-on-feedback: Feedback detected, continuing...`);
+              await log('✅ continue-only-on-feedback: Feedback detected, continuing...');
               await log(formatAligned('📋', 'Feedback sources:', feedbackSources.join(', '), 2));
             } else {
-              await log(`❌ continue-only-on-feedback: No feedback detected since last commit`);
-              await log(`   This option requires any of the following to proceed:`);
-              await log(`   • New comments (excluding solve.mjs logs)`);
-              await log(`   • Edited issue/PR descriptions`);
-              await log(`   • New commits on default branch`);
-              await log(`   • Merge status dirty`);
-              await log(`   • Failed pull request checks`);
+              await log('❌ continue-only-on-feedback: No feedback detected since last commit');
+              await log('   This option requires any of the following to proceed:');
+              await log('   • New comments (excluding solve.mjs logs)');
+              await log('   • Edited issue/PR descriptions');
+              await log('   • New commits on default branch');
+              await log('   • Merge status dirty');
+              await log('   • Failed pull request checks');
               process.exit(1);
             }
           }
@@ -302,16 +302,16 @@ export const detectAndCountFeedback = async (params) => {
         if (feedbackLines.length > 0) {
           commentInfo = '\n\n' + feedbackLines.join('\n') + '\n';
           if (argv.verbose) {
-            await log(`   Feedback info will be added to prompt:`, { verbose: true });
+            await log('   Feedback info will be added to prompt:', { verbose: true });
             feedbackLines.forEach(async line => {
               await log(`     - ${line}`, { verbose: true });
             });
           }
         } else if (argv.verbose) {
-          await log(`   No feedback info to add (0 new items, saving tokens)`, { verbose: true });
+          await log('   No feedback info to add (0 new items, saving tokens)', { verbose: true });
         }
       } else {
-        await log(`Warning: Could not determine last commit time, skipping comment counting`, { level: 'warning' });
+        await log('Warning: Could not determine last commit time, skipping comment counting', { level: 'warning' });
       }
     } catch (error) {
       await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
@@ -321,7 +321,7 @@ export const detectAndCountFeedback = async (params) => {
     if (argv.verbose) {
       await log(`   prNumber: ${prNumber || 'NOT SET'}`, { verbose: true });
       await log(`   branchName: ${branchName || 'NOT SET'}`, { verbose: true });
-      await log(`   This means no new comment detection will run`, { verbose: true });
+      await log('   This means no new comment detection will run', { verbose: true });
     }
   }
 

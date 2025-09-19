@@ -168,7 +168,7 @@ const { isIssueUrl, isPrUrl } = urlValidation;
 // Debug logging for attach-logs option
 if (argv.verbose) {
   await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
-  await log(`Debug: argv["attach-logs"] = ${argv["attach-logs"]}`, { verbose: true });
+  await log(`Debug: argv["attach-logs"] = ${argv['attach-logs']}`, { verbose: true });
 }
 
 // Show security warning and initialize log file using validation module
@@ -193,7 +193,7 @@ if (!(await performSystemChecks(argv.minDiskSpace || 500, argv.dryRun))) {
 
 // URL validation debug logging
 if (argv.verbose) {
-  await log(`📋 URL validation:`, { verbose: true });
+  await log('📋 URL validation:', { verbose: true });
   await log(`   Input URL: ${issueUrl}`, { verbose: true });
   await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
   await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
@@ -250,7 +250,7 @@ if (argv.autoContinue && isIssueUrl) {
               prNumber = pr.number;
               prBranch = pr.headRefName;
               if (argv.verbose) {
-                await log(`   Continue mode activated: Auto-continue (CLAUDE.md missing)`, { verbose: true });
+                await log('   Continue mode activated: Auto-continue (CLAUDE.md missing)', { verbose: true });
                 await log(`   PR Number: ${prNumber}`, { verbose: true });
                 await log(`   PR Branch: ${prBranch}`, { verbose: true });
               }
@@ -263,7 +263,7 @@ if (argv.autoContinue && isIssueUrl) {
               prNumber = pr.number;
               prBranch = pr.headRefName;
               if (argv.verbose) {
-                await log(`   Continue mode activated: Auto-continue (24h+ old PR)`, { verbose: true });
+                await log('   Continue mode activated: Auto-continue (24h+ old PR)', { verbose: true });
                 await log(`   PR Number: ${prNumber}`, { verbose: true });
                 await log(`   PR Branch: ${prBranch}`, { verbose: true });
                 await log(`   PR Age: ${ageHours} hours`, { verbose: true });
@@ -276,7 +276,7 @@ if (argv.autoContinue && isIssueUrl) {
         }
         
         if (!isContinueMode) {
-          await log(`⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual`);
+          await log('⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual');
         }
       } else {
         await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
@@ -284,7 +284,7 @@ if (argv.autoContinue && isIssueUrl) {
     }
   } catch (prSearchError) {
     await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
-    await log(`   Continuing with normal flow...`);
+    await log('   Continuing with normal flow...');
   }
 }
 
@@ -294,9 +294,9 @@ if (isPrUrl) {
   
   await log(`🔄 Continue mode: Working with PR #${prNumber}`);
   if (argv.verbose) {
-    await log(`   Continue mode activated: PR URL provided directly`, { verbose: true });
+    await log('   Continue mode activated: PR URL provided directly', { verbose: true });
     await log(`   PR Number set to: ${prNumber}`, { verbose: true });
-    await log(`   Will fetch PR details and linked issue`, { verbose: true });
+    await log('   Will fetch PR details and linked issue', { verbose: true });
   }
   
   // Get PR details to find the linked issue and branch
@@ -345,6 +345,9 @@ if (isPrUrl) {
 // Create or find temporary directory for cloning the repository
 const { tempDir, isResuming } = await setupTempDirectory(argv);
 
+// Initialize limitReached variable outside try block for finally clause
+let limitReached = false;
+
 try {
   // Set up repository and handle forking
   const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo);
@@ -364,29 +367,29 @@ try {
   const defaultBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
   
   if (defaultBranchResult.code !== 0) {
-    await log(`Error: Failed to get current branch`);
+    await log('Error: Failed to get current branch');
     await log(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
 
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
   if (!defaultBranch) {
-    await log(``);
+    await log('');
     await log(`${formatAligned('❌', 'DEFAULT BRANCH DETECTION FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
-    await log(`     Unable to determine the repository's default branch.`);
-    await log(``);
-    await log(`  💡 This might mean:`);
-    await log(`     • Repository is empty (no commits)`);
-    await log(`     • Unusual repository configuration`);
-    await log(`     • Git command issues`);
-    await log(``);
-    await log(`  🔧 How to fix:`);
+    await log('');
+    await log('  🔍 What happened:');
+    await log('     Unable to determine the repository\'s default branch.');
+    await log('');
+    await log('  💡 This might mean:');
+    await log('     • Repository is empty (no commits)');
+    await log('     • Unusual repository configuration');
+    await log('     • Git command issues');
+    await log('');
+    await log('  🔧 How to fix:');
     await log(`     1. Check repository: gh repo view ${owner}/${repo}`);
     await log(`     2. Verify locally: cd ${tempDir} && git branch`);
     await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
-    await log(``);
+    await log('');
     process.exit(1);
   }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
@@ -395,7 +398,7 @@ try {
   const statusResult = await $({ cwd: tempDir })`git status --porcelain`;
 
   if (statusResult.code !== 0) {
-    await log(`Error: Failed to check git status`);
+    await log('Error: Failed to check git status');
     await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
     process.exit(1);
   }
@@ -403,7 +406,7 @@ try {
   // Note: Empty output means clean working directory
   const statusOutput = statusResult.stdout.toString().trim();
   if (statusOutput) {
-    await log(`Error: Repository has uncommitted changes after clone`);
+    await log('Error: Repository has uncommitted changes after clone');
     await log(`Status output: ${statusOutput}`);
     process.exit(1);
   }
@@ -448,34 +451,34 @@ try {
 
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
-    await log(``);
+    await log('');
     
     if (isContinueMode) {
       await log(`${formatAligned('❌', 'BRANCH CHECKOUT FAILED', '')}`, { level: 'error' });
-      await log(``);
-      await log(`  🔍 What happened:`);
+      await log('');
+      await log('  🔍 What happened:');
       await log(`     Unable to checkout PR branch '${branchName}'.`);
-      await log(``);
-      await log(`  📦 Git output:`);
+      await log('');
+      await log('  📦 Git output:');
       for (const line of errorOutput.split('\n')) {
         await log(`     ${line}`);
       }
-      await log(``);
-      await log(`  💡 Possible causes:`);
-      await log(`     • PR branch doesn't exist on remote`);
-      await log(`     • Network connectivity issues`);
-      await log(`     • Permission denied to fetch branches`);
+      await log('');
+      await log('  💡 Possible causes:');
+      await log('     • PR branch doesn\'t exist on remote');
+      await log('     • Network connectivity issues');
+      await log('     • Permission denied to fetch branches');
       if (isForkPR) {
-        await log(`     • This is a forked PR - branch is in the fork, not the main repo`);
+        await log('     • This is a forked PR - branch is in the fork, not the main repo');
       }
-      await log(``);
-      await log(`  🔧 How to fix:`);
+      await log('');
+      await log('  🔧 How to fix:');
       if (isForkPR) {
-        await log(`     1. Use --fork option (RECOMMENDED for forked PRs):`);
+        await log('     1. Use --fork option (RECOMMENDED for forked PRs):');
         await log(`        ./solve.mjs "${issueUrl}" --fork`);
-        await log(`        This will create a fork and work from there.`);
-        await log(``);
-        await log(`     2. Alternative diagnostic steps:`);
+        await log('        This will create a fork and work from there.');
+        await log('');
+        await log('     2. Alternative diagnostic steps:');
         await log(`        • Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
         await log(`        • Check remote branches: cd ${tempDir} && git branch -r`);
         await log(`        • Try fetching manually: cd ${tempDir} && git fetch origin`);
@@ -486,27 +489,27 @@ try {
       }
     } else {
       await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
-      await log(``);
-      await log(`  🔍 What happened:`);
+      await log('');
+      await log('  🔍 What happened:');
       await log(`     Unable to create branch '${branchName}'.`);
-      await log(``);
-      await log(`  📦 Git output:`);
+      await log('');
+      await log('  📦 Git output:');
       for (const line of errorOutput.split('\n')) {
         await log(`     ${line}`);
       }
-      await log(``);
-      await log(`  💡 Possible causes:`);
-      await log(`     • Branch name already exists`);
-      await log(`     • Uncommitted changes in repository`);
-      await log(`     • Git configuration issues`);
-      await log(``);
-      await log(`  🔧 How to fix:`);
-      await log(`     1. Try running the command again (uses random names)`);
+      await log('');
+      await log('  💡 Possible causes:');
+      await log('     • Branch name already exists');
+      await log('     • Uncommitted changes in repository');
+      await log('     • Git configuration issues');
+      await log('');
+      await log('  🔧 How to fix:');
+      await log('     1. Try running the command again (uses random names)');
       await log(`     2. Check git status: cd ${tempDir} && git status`);
       await log(`     3. View existing branches: cd ${tempDir} && git branch -a`);
     }
     
-    await log(``);
+    await log('');
     await log(`  📂 Working directory: ${tempDir}`);
     process.exit(1);
   }
@@ -516,79 +519,79 @@ try {
   const verifyResult = await $({ cwd: tempDir })`git branch --show-current`;
   
   if (verifyResult.code !== 0 || !verifyResult.stdout) {
-    await log(``);
+    await log('');
     await log(`${formatAligned('❌', 'BRANCH VERIFICATION FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
+    await log('');
+    await log('  🔍 What happened:');
     await log(`     Unable to verify branch after ${isContinueMode ? 'checkout' : 'creation'} attempt.`);
-    await log(``);
-    await log(`  🔧 Debug commands to try:`);
+    await log('');
+    await log('  🔧 Debug commands to try:');
     await log(`     cd ${tempDir} && git branch -a`);
     await log(`     cd ${tempDir} && git status`);
-    await log(``);
+    await log('');
     process.exit(1);
   }
   
   const actualBranch = verifyResult.stdout.toString().trim();
   if (actualBranch !== branchName) {
     // Branch wasn't actually created/checked out or we didn't switch to it
-    await log(``);
+    await log('');
     await log(`${formatAligned('❌', isContinueMode ? 'BRANCH CHECKOUT FAILED' : 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
+    await log('');
+    await log('  🔍 What happened:');
     if (isContinueMode) {
-      await log(`     Git checkout command didn't switch to the PR branch.`);
+      await log('     Git checkout command didn\'t switch to the PR branch.');
     } else {
-      await log(`     Git checkout -b command didn't create or switch to the branch.`);
+      await log('     Git checkout -b command didn\'t create or switch to the branch.');
     }
-    await log(``);
-    await log(`  📊 Branch status:`);
+    await log('');
+    await log('  📊 Branch status:');
     await log(`     Expected branch: ${branchName}`);
     await log(`     Currently on: ${actualBranch || '(unknown)'}`);
-    await log(``);
+    await log('');
     
     // Show all branches to help debug
     const allBranchesResult = await $({ cwd: tempDir })`git branch -a 2>&1`;
     if (allBranchesResult.code === 0) {
-      await log(`  🌿 Available branches:`);
+      await log('  🌿 Available branches:');
       for (const line of allBranchesResult.stdout.toString().split('\n')) {
         if (line.trim()) await log(`     ${line}`);
       }
-      await log(``);
+      await log('');
     }
     
     if (isContinueMode) {
-      await log(`  💡 This might mean:`);
-      await log(`     • PR branch doesn't exist on remote`);
-      await log(`     • Branch name mismatch`);
-      await log(`     • Network/permission issues`);
-      await log(``);
-      await log(`  🔧 How to fix:`);
+      await log('  💡 This might mean:');
+      await log('     • PR branch doesn\'t exist on remote');
+      await log('     • Branch name mismatch');
+      await log('     • Network/permission issues');
+      await log('');
+      await log('  🔧 How to fix:');
       await log(`     1. Check PR details: gh pr view ${prNumber} --repo ${owner}/${repo}`);
       await log(`     2. List remote branches: cd ${tempDir} && git branch -r`);
       await log(`     3. Try manual checkout: cd ${tempDir} && git checkout ${branchName}`);
     } else {
-      await log(`  💡 This is unusual. Possible causes:`);
-      await log(`     • Git version incompatibility`);
-      await log(`     • File system permissions issue`);
-      await log(`     • Repository corruption`);
-      await log(``);
-      await log(`  🔧 How to fix:`);
-      await log(`     1. Try creating the branch manually:`);
+      await log('  💡 This is unusual. Possible causes:');
+      await log('     • Git version incompatibility');
+      await log('     • File system permissions issue');
+      await log('     • Repository corruption');
+      await log('');
+      await log('  🔧 How to fix:');
+      await log('     1. Try creating the branch manually:');
       await log(`        cd ${tempDir}`);
       await log(`        git checkout -b ${branchName}`);
-      await log(`     `);
-      await log(`     2. If that fails, try two-step approach:`);
+      await log('     ');
+      await log('     2. If that fails, try two-step approach:');
       await log(`        cd ${tempDir}`);
       await log(`        git branch ${branchName}`);
       await log(`        git checkout ${branchName}`);
-      await log(`     `);
-      await log(`     3. Check your git version:`);
-      await log(`        git --version`);
+      await log('     ');
+      await log('     3. Check your git version:');
+      await log('        git --version');
     }
-    await log(``);
+    await log('');
     await log(`  📂 Working directory: ${tempDir}`);
-    await log(``);
+    await log('');
     process.exit(1);
   }
   
@@ -596,14 +599,14 @@ try {
     await log(`${formatAligned('✅', 'Branch checked out:', branchName)}`);
     await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
     if (argv.verbose) {
-      await log(`   Branch operation: Checkout existing PR branch`, { verbose: true });
+      await log('   Branch operation: Checkout existing PR branch', { verbose: true });
       await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
     }
   } else {
     await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
     await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
     if (argv.verbose) {
-      await log(`   Branch operation: Create new branch`, { verbose: true });
+      await log('   Branch operation: Create new branch', { verbose: true });
       await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
     }
   }
@@ -622,7 +625,7 @@ try {
   
   if (argv.autoPullRequestCreation && !isContinueMode) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
-    await log(`     Creating:               Initial commit and draft PR...`);
+    await log('     Creating:               Initial commit and draft PR...');
     await log('');
     
     try {
@@ -647,7 +650,7 @@ Proceed.`;
       const addResult = await $({ cwd: tempDir })`git add CLAUDE.md`;
       
       if (addResult.code !== 0) {
-        await log(`❌ Failed to add CLAUDE.md`, { level: 'error' });
+        await log('❌ Failed to add CLAUDE.md', { level: 'error' });
         await log(`   Error: ${addResult.stderr ? addResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
         process.exit(1);
       }
@@ -670,7 +673,7 @@ Issue: ${issueUrl}`;
       const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
       
       if (commitResult.code !== 0) {
-        await log(`❌ Failed to create initial commit`, { level: 'error' });
+        await log('❌ Failed to create initial commit', { level: 'error' });
         await log(`   Error: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
         await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
         process.exit(1);
@@ -734,43 +737,43 @@ Issue: ${issueUrl}`;
           // Check for permission denied error
           if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {
             await log(`\n${formatAligned('❌', 'PERMISSION DENIED:', 'Cannot push to repository')}`, { level: 'error' });
-            await log(``);
-            await log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-            await log(``);
+            await log('');
+            await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            await log('');
             await log(`  🔒 You don't have write access to ${owner}/${repo}`);
-            await log(``);
-            await log(`  This typically happens when:`);
-            await log(`    • You're not a collaborator on the repository`);
-            await log(`    • The repository belongs to another user/organization`);
-            await log(``);
-            await log(`  📋 HOW TO FIX THIS:`);
-            await log(``);
-            await log(`  Option 1: Use the --fork flag (RECOMMENDED)`);
+            await log('');
+            await log('  This typically happens when:');
+            await log('    • You\'re not a collaborator on the repository');
+            await log('    • The repository belongs to another user/organization');
+            await log('');
+            await log('  📋 HOW TO FIX THIS:');
+            await log('');
+            await log('  Option 1: Use the --fork flag (RECOMMENDED)');
             await log(`  ${'-'.repeat(40)}`);
-            await log(`  Run the command again with --fork:`);
-            await log(``);
+            await log('  Run the command again with --fork:');
+            await log('');
             await log(`    ./solve.mjs "${issueUrl}" --fork`);
-            await log(``);
-            await log(`  This will:`);
-            await log(`    ✓ Fork the repository to your account`);
-            await log(`    ✓ Push changes to your fork`);
-            await log(`    ✓ Create a PR from your fork to the original repo`);
-            await log(``);
-            await log(`  Option 2: Request collaborator access`);
+            await log('');
+            await log('  This will:');
+            await log('    ✓ Fork the repository to your account');
+            await log('    ✓ Push changes to your fork');
+            await log('    ✓ Create a PR from your fork to the original repo');
+            await log('');
+            await log('  Option 2: Request collaborator access');
             await log(`  ${'-'.repeat(40)}`);
-            await log(`  Ask the repository owner to add you as a collaborator:`);
+            await log('  Ask the repository owner to add you as a collaborator:');
             await log(`    → Go to: https://github.com/${owner}/${repo}/settings/access`);
-            await log(``);
-            await log(`  Option 3: Manual fork and clone`);
+            await log('');
+            await log('  Option 3: Manual fork and clone');
             await log(`  ${'-'.repeat(40)}`);
             await log(`  1. Fork the repo: https://github.com/${owner}/${repo}/fork`);
-            await log(`  2. Clone your fork and work there`);
-            await log(`  3. Create a PR from your fork`);
-            await log(``);
-            await log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-            await log(``);
-            await log(`💡 Tip: The --fork option automates the entire fork workflow!`);
-            await log(``);
+            await log('  2. Clone your fork and work there');
+            await log('  3. Create a PR from your fork');
+            await log('');
+            await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            await log('');
+            await log('💡 Tip: The --fork option automates the entire fork workflow!');
+            await log('');
             process.exit(1);
           } else {
             // Other push errors
@@ -786,7 +789,7 @@ Issue: ${issueUrl}`;
           
           // CRITICAL: Wait for GitHub to process the push before creating PR
           // This prevents "No commits between branches" error
-          await log(`   Waiting for GitHub to sync...`);
+          await log('   Waiting for GitHub to sync...');
           await new Promise(resolve => setTimeout(resolve, 8000)); // Longer wait for GitHub to process
           
           // Verify the push actually worked by checking GitHub API
@@ -801,8 +804,8 @@ Issue: ${issueUrl}`;
               await log(`   Remote commit SHA: ${remoteSha.substring(0, 7)}...`);
             }
           } else {
-            await log(`   Warning: Branch not found on GitHub!`);
-            await log(`   This will cause PR creation to fail.`);
+            await log('   Warning: Branch not found on GitHub!');
+            await log('   This will cause PR creation to fail.');
             
             if (argv.verbose) {
               await log(`   Branch check result: ${branchCheckResult.stdout || branchCheckResult.stderr || 'empty'}`);
@@ -815,21 +818,21 @@ Issue: ${issueUrl}`;
             }
             
             // Try one more force push with explicit ref
-            await log(`   Attempting explicit push...`);
+            await log('   Attempting explicit push...');
             const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName} -f`;
             if (argv.verbose) {
               await log(`   Command: ${explicitPushCmd}`);
             }
             const explicitPushResult = await $`cd ${tempDir} && ${explicitPushCmd} 2>&1`;
             if (explicitPushResult.code === 0) {
-              await log(`   Explicit push completed`);
+              await log('   Explicit push completed');
               if (argv.verbose && explicitPushResult.stdout) {
                 await log(`   Output: ${explicitPushResult.stdout.toString().trim()}`);
               }
               // Wait a bit more for GitHub to process
               await new Promise(resolve => setTimeout(resolve, 3000));
             } else {
-              await log(`   ERROR: Cannot push to GitHub!`);
+              await log('   ERROR: Cannot push to GitHub!');
               await log(`   Error: ${explicitPushResult.stderr || explicitPushResult.stdout || 'Unknown'}`);
             }
           }
@@ -842,7 +845,7 @@ Issue: ${issueUrl}`;
             issueTitle = issueTitleResult.stdout.toString().trim();
             await log(`   Issue title: "${issueTitle}"`, { verbose: true });
           } else {
-            await log(`   Warning: Could not get issue title, using default`, { verbose: true });
+            await log('   Warning: Could not get issue title, using default', { verbose: true });
           }
           
           // Get current GitHub user to set as assignee (but validate it's a collaborator)
@@ -864,24 +867,24 @@ Issue: ${issueUrl}`;
               execSync(`gh api repos/${owner}/${repo}/collaborators/${currentUser} 2>/dev/null`, 
                        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
               canAssign = true;
-              await log(`   User has collaborator access`, { verbose: true });
+              await log('   User has collaborator access', { verbose: true });
             } catch (e) {
               // User doesn't have access, which is fine - we just won't assign
               canAssign = false;
-              await log(`   User is not a collaborator (will skip assignment)`, { verbose: true });
+              await log('   User is not a collaborator (will skip assignment)', { verbose: true });
             }
             
             // Set permCheckResult for backward compatibility
             const permCheckResult = { code: canAssign ? 0 : 1 };
             if (permCheckResult.code === 0) {
               canAssign = true;
-              await log(`   User has collaborator access`, { verbose: true });
+              await log('   User has collaborator access', { verbose: true });
             } else {
               // User doesn't have permission, but that's okay - we just won't assign
-              await log(`   User is not a collaborator (will skip assignment)`, { verbose: true });
+              await log('   User is not a collaborator (will skip assignment)', { verbose: true });
             }
           } else {
-            await log(`   Warning: Could not get current user`, { verbose: true });
+            await log('   Warning: Could not get current user', { verbose: true });
           }
           
           // Create draft pull request
@@ -953,11 +956,11 @@ ${prBody}`, { verbose: true });
             prUrl = output.trim();
             
             if (!prUrl) {
-              await log(`⚠️ Warning: PR created but no URL returned`, { level: 'warning' });
+              await log('⚠️ Warning: PR created but no URL returned', { level: 'warning' });
               await log(`   Output: ${output}`, { verbose: true });
               
               // Try to get the PR URL using gh pr list
-              await log(`   Attempting to find PR using gh pr list...`, { verbose: true });
+              await log('   Attempting to find PR using gh pr list...', { verbose: true });
               const prListResult = await $`cd ${tempDir} && gh pr list --head ${branchName} --json url --jq '.[0].url'`;
               if (prListResult.code === 0 && prListResult.stdout.toString().trim()) {
                 prUrl = prListResult.stdout.toString().trim();
@@ -1017,31 +1020,31 @@ ${prBody}`, { verbose: true });
                       await log(formatAligned('✅', 'Link verified:', `Issue #${issueNumber} → PR #${prNumber}`));
                     } else {
                       // This is a problem - the link wasn't created
-                      await log(``);
+                      await log('');
                       await log(formatAligned('⚠️', 'ISSUE LINK MISSING:', 'PR not linked to issue'), { level: 'warning' });
-                      await log(``);
+                      await log('');
                       
                       if (argv.fork) {
-                        await log(`   The PR was created from a fork but wasn't linked to the issue.`, { level: 'warning' });
+                        await log('   The PR was created from a fork but wasn\'t linked to the issue.', { level: 'warning' });
                         await log(`   Expected: "Fixes ${owner}/${repo}#${issueNumber}" in PR body`, { level: 'warning' });
-                        await log(``);
-                        await log(`   To fix manually:`, { level: 'warning' });
+                        await log('');
+                        await log('   To fix manually:', { level: 'warning' });
                         await log(`   1. Edit the PR description at: ${prUrl}`, { level: 'warning' });
                         await log(`   2. Add this line: Fixes ${owner}/${repo}#${issueNumber}`, { level: 'warning' });
                       } else {
                         await log(`   The PR wasn't linked to issue #${issueNumber}`, { level: 'warning' });
                         await log(`   Expected: "Fixes #${issueNumber}" in PR body`, { level: 'warning' });
-                        await log(``);
-                        await log(`   To fix manually:`, { level: 'warning' });
+                        await log('');
+                        await log('   To fix manually:', { level: 'warning' });
                         await log(`   1. Edit the PR description at: ${prUrl}`, { level: 'warning' });
                         await log(`   2. Ensure it contains: Fixes #${issueNumber}`, { level: 'warning' });
                       }
-                      await log(``);
+                      await log('');
                     }
                   } else {
                     // Could not verify but show what should have been used
                     const expectedRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
-                    await log(`⚠️ Could not verify issue link (API error)`, { level: 'warning' });
+                    await log('⚠️ Could not verify issue link (API error)', { level: 'warning' });
                     await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
                     await log(`   Please verify manually at: ${prUrl}`, { level: 'warning' });
                   }
@@ -1058,7 +1061,7 @@ ${prBody}`, { verbose: true });
               
               // CLAUDE.md will be removed after Claude command completes
             } else {
-              await log(`⚠️ Draft pull request created but URL could not be determined`, { level: 'warning' });
+              await log('⚠️ Draft pull request created but URL could not be determined', { level: 'warning' });
             }
           } catch (prCreateError) {
             const errorMsg = prCreateError.message || '';
@@ -1093,75 +1096,75 @@ ${prBody}`, { verbose: true });
                 }
               } else {
                 // PR creation actually failed
-                await log(``);
+                await log('');
                 await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
-                await log(``);
-                await log(`  🔍 What happened:`);
-                await log(`     Failed to create pull request after pushing branch.`);
-                await log(``);
-                await log(`  📦 Error details:`);
+                await log('');
+                await log('  🔍 What happened:');
+                await log('     Failed to create pull request after pushing branch.');
+                await log('');
+                await log('  📦 Error details:');
                 for (const line of cleanError.split('\n')) {
                   if (line.trim()) await log(`     ${line.trim()}`);
                 }
-                await log(``);
-                await log(`  🔧 How to fix:`);
-                await log(`     1. Check GitHub to see if PR was partially created`);
-                await log(`     2. Try creating PR manually: gh pr create`);
+                await log('');
+                await log('  🔧 How to fix:');
+                await log('     1. Check GitHub to see if PR was partially created');
+                await log('     2. Try creating PR manually: gh pr create');
                 await log(`     3. Verify branch was pushed: git push -u origin ${branchName}`);
-                await log(``);
+                await log('');
                 process.exit(1);
               }
             } else if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'t be blank')) {
               // Empty PR error
-              await log(``);
+              await log('');
               await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
-              await log(``);
-              await log(`  🔍 What happened:`);
-              await log(`     Cannot create PR - no commits between branches.`);
-              await log(``);
-              await log(`  📦 Error details:`);
+              await log('');
+              await log('  🔍 What happened:');
+              await log('     Cannot create PR - no commits between branches.');
+              await log('');
+              await log('  📦 Error details:');
               for (const line of cleanError.split('\n')) {
                 if (line.trim()) await log(`     ${line.trim()}`);
               }
-              await log(``);
-              await log(`  💡 Possible causes:`);
-              await log(`     • The branch wasn't pushed properly`);
-              await log(`     • The commit wasn't created`);
-              await log(`     • GitHub sync issue`);
-              await log(``);
-              await log(`  🔧 How to fix:`);
-              await log(`     1. Verify commit exists:`);
+              await log('');
+              await log('  💡 Possible causes:');
+              await log('     • The branch wasn\'t pushed properly');
+              await log('     • The commit wasn\'t created');
+              await log('     • GitHub sync issue');
+              await log('');
+              await log('  🔧 How to fix:');
+              await log('     1. Verify commit exists:');
               await log(`        cd ${tempDir} && git log --format="%h %s" -5`);
-              await log(`     2. Push again with tracking:`);
+              await log('     2. Push again with tracking:');
               await log(`        cd ${tempDir} && git push -u origin ${branchName}`);
-              await log(`     3. Create PR manually:`);
+              await log('     3. Create PR manually:');
               await log(`        cd ${tempDir} && gh pr create --draft`);
-              await log(``);
+              await log('');
               await log(`  📂 Working directory: ${tempDir}`);
               await log(`  🌿 Current branch: ${branchName}`);
-              await log(``);
+              await log('');
               process.exit(1);
             } else {
               // Generic PR creation error
-              await log(``);
+              await log('');
               await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
-              await log(``);
-              await log(`  🔍 What happened:`);
-              await log(`     Failed to create pull request.`);
-              await log(``);
-              await log(`  📦 Error details:`);
+              await log('');
+              await log('  🔍 What happened:');
+              await log('     Failed to create pull request.');
+              await log('');
+              await log('  📦 Error details:');
               for (const line of cleanError.split('\n')) {
                 if (line.trim()) await log(`     ${line.trim()}`);
               }
-              await log(``);
-              await log(`  🔧 How to fix:`);
-              await log(`     1. Try creating PR manually:`);
+              await log('');
+              await log('  🔧 How to fix:');
+              await log('     1. Try creating PR manually:');
               await log(`        cd ${tempDir} && gh pr create --draft`);
-              await log(`     2. Check branch status:`);
+              await log('     2. Check branch status:');
               await log(`        cd ${tempDir} && git status`);
-              await log(`     3. Verify GitHub authentication:`);
-              await log(`        gh auth status`);
-              await log(``);
+              await log('     3. Verify GitHub authentication:');
+              await log('        gh auth status');
+              await log('');
               process.exit(1);
             }
           }
@@ -1169,7 +1172,7 @@ ${prBody}`, { verbose: true });
       }
     } catch (prError) {
       await log(`Warning: Error during auto PR creation: ${prError.message}`, { level: 'warning' });
-      await log(`   Continuing without PR...`);
+      await log('   Continuing without PR...');
     }
   } else if (isContinueMode) {
     await log(`\n${formatAligned('🔄', 'Continue mode:', 'ACTIVE')}`);
@@ -1245,19 +1248,19 @@ ${prBody}`, { verbose: true });
   const prompt = promptLines.join('\n');
   
   if (argv.verbose) {
-    await log(`\n📝 Final prompt structure:`, { verbose: true });
+    await log('\n📝 Final prompt structure:', { verbose: true });
     await log(`   Lines: ${promptLines.length}`, { verbose: true });
     await log(`   Characters: ${prompt.length}`, { verbose: true });
     if (feedbackLines && feedbackLines.length > 0) {
-      await log(`   Feedback info: Included`, { verbose: true });
+      await log('   Feedback info: Included', { verbose: true });
     }
 
     // In dry-run mode, output the actual prompt for debugging
     if (argv.dryRun) {
-      await log(`\n📋 User prompt content:`, { verbose: true });
-      await log(`---BEGIN USER PROMPT---`, { verbose: true });
+      await log('\n📋 User prompt content:', { verbose: true });
+      await log('---BEGIN USER PROMPT---', { verbose: true });
       await log(prompt, { verbose: true });
-      await log(`---END USER PROMPT---`, { verbose: true });
+      await log('---END USER PROMPT---', { verbose: true });
     }
   }
 
@@ -1429,7 +1432,8 @@ Self review.
     $
   });
 
-  const { success, sessionId, limitReached, messageCount, toolUseCount } = claudeResult;
+  const { success, sessionId, messageCount, toolUseCount } = claudeResult;
+  limitReached = claudeResult.limitReached;
 
   if (!success) {
     process.exit(1);
@@ -1441,17 +1445,18 @@ Self review.
   await cleanupClaudeFile(tempDir, branchName);
 
   // Show summary of session and log file
-  await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir);
+  await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
 
   // Search for newly created pull requests and comments
-  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs); 
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
+} catch (error) {
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
-  
+
   // If --attach-logs is enabled, try to attach failure logs
   if (shouldAttachLogs && getLogFile()) {
     await log('\n📄 Attempting to attach failure logs...');
-    
+
     // Try to attach to existing PR first
     if (global.createdPR && global.createdPR.number) {
       try {
@@ -1467,7 +1472,7 @@ Self review.
           verbose: argv.verbose,
           errorMessage: cleanErrorMessage(error)
         });
-        
+
         if (logUploadSuccess) {
           await log('📎 Failure log attached to Pull Request');
         }
@@ -1476,7 +1481,7 @@ Self review.
       }
     }
   }
-  
+
   process.exit(1);
 } finally {
   // Clean up temporary directory using repository module

@@ -35,13 +35,13 @@ export const executeClaudeCommand = async (params) => {
     if (feedbackLines && feedbackLines.length > 0) {
       await log(`   Feedback info included: Yes (${feedbackLines.length} lines)`, { verbose: true });
     } else {
-      await log(`   Feedback info included: No`, { verbose: true });
+      await log('   Feedback info included: No', { verbose: true });
     }
   }
 
   // Take resource snapshot before execution
   const resourcesBefore = await getResourceSnapshot();
-  await log(`📈 System resources before execution:`, { verbose: true });
+  await log('📈 System resources before execution:', { verbose: true });
   await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
   await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
 
@@ -93,20 +93,20 @@ export const executeClaudeCommand = async (params) => {
             lastMessage.includes('You have exceeded your rate limit') ||
             lastMessage.includes('rate limit')) {
           limitReached = true;
-          await log(`\n\n⏳ Rate limit reached. The session can be resumed later.`, { level: 'warning' });
+          await log('\n\n⏳ Rate limit reached. The session can be resumed later.', { level: 'warning' });
 
           if (sessionId) {
             await log(`📌 Session ID for resuming: ${sessionId}`);
-            await log(`\nTo continue when the rate limit resets, run:`);
+            await log('\nTo continue when the rate limit resets, run:');
             await log(`   ${process.argv[0]} ${process.argv[1]} --auto-continue ${argv.url}`);
           }
         } else if (lastMessage.includes('context_length_exceeded')) {
-          await log(`\n\n❌ Context length exceeded. Try with a smaller issue or split the work.`, { level: 'error' });
+          await log('\n\n❌ Context length exceeded. Try with a smaller issue or split the work.', { level: 'error' });
         } else {
           await log(`\n\n❌ Claude command failed with exit code ${chunk.code}${exitReason}`, { level: 'error' });
           if (sessionId && !argv.resume) {
             await log(`📌 Session ID for resuming: ${sessionId}`);
-            await log(`\nTo resume this session, run:`);
+            await log('\nTo resume this session, run:');
             await log(`   ${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}`);
           }
         }
@@ -198,7 +198,7 @@ export const executeClaudeCommand = async (params) => {
   if (commandFailed) {
     // Take resource snapshot after failure
     const resourcesAfter = await getResourceSnapshot();
-    await log(`\n📈 System resources after execution:`, { verbose: true });
+    await log('\n📈 System resources after execution:', { verbose: true });
     await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`, { verbose: true });
     await log(`   Load: ${resourcesAfter.load}`, { verbose: true });
 
@@ -251,7 +251,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
 
         const addResult = await $({ cwd: tempDir })`git add -A`;
         if (addResult.code === 0) {
-          const commitMessage = `Auto-commit: Changes made by Claude during problem-solving session`;
+          const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
           const commitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}"`;
 
           if (commitResult.code === 0) {

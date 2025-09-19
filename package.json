@@ -11,7 +11,9 @@
     "review": "./review.mjs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint hive.mjs solve.mjs solve.*.lib.mjs lib.mjs claude.lib.mjs github.lib.mjs memory-check.mjs",
+    "lint:fix": "eslint hive.mjs solve.mjs solve.*.lib.mjs lib.mjs claude.lib.mjs github.lib.mjs memory-check.mjs --fix"
   },
   "repository": {
     "type": "git",
@@ -52,5 +54,8 @@
     "github.lib.mjs",
     "memory-check.mjs",
     "*.md"
-  ]
+  ],
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
 }

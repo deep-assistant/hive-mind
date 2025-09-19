@@ -48,7 +48,7 @@ export const checkDiskSpace = async (minSpaceMB = 500, options = {}) => {
     }
     
     if (isNaN(availableMB)) {
-      await log(`❌ Failed to parse disk space information`);
+      await log('❌ Failed to parse disk space information');
       return { success: false, availableMB: 0, error: 'Failed to parse disk space' };
     }
     

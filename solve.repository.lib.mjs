@@ -140,33 +140,33 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
   // Verify clone was successful
   if (cloneResult.code !== 0) {
     const errorOutput = (cloneResult.stderr || cloneResult.stdout || 'Unknown error').toString().trim();
-    await log(``);
+    await log('');
     await log(`${formatAligned('❌', 'CLONE FAILED', '')}`, { level: 'error' });
-    await log(``);
-    await log(`  🔍 What happened:`);
+    await log('');
+    await log('  🔍 What happened:');
     await log(`     Failed to clone repository ${repoToClone}`);
-    await log(``);
-    await log(`  📦 Error details:`);
+    await log('');
+    await log('  📦 Error details:');
     for (const line of errorOutput.split('\n')) {
       if (line.trim()) await log(`     ${line}`);
     }
-    await log(``);
-    await log(`  💡 Common causes:`);
-    await log(`     • Repository doesn't exist or is private`);
-    await log(`     • No GitHub authentication`);
-    await log(`     • Network connectivity issues`);
+    await log('');
+    await log('  💡 Common causes:');
+    await log('     • Repository doesn\'t exist or is private');
+    await log('     • No GitHub authentication');
+    await log('     • Network connectivity issues');
     if (argv.fork) {
-      await log(`     • Fork not ready yet (try again in a moment)`);
+      await log('     • Fork not ready yet (try again in a moment)');
     }
-    await log(``);
-    await log(`  🔧 How to fix:`);
-    await log(`     1. Check authentication: gh auth status`);
-    await log(`     2. Login if needed: gh auth login`);
+    await log('');
+    await log('  🔧 How to fix:');
+    await log('     1. Check authentication: gh auth status');
+    await log('     2. Login if needed: gh auth login');
     await log(`     3. Verify access: gh repo view ${owner}/${repo}`);
     if (argv.fork) {
       await log(`     4. Check fork: gh repo view ${repoToClone}`);
     }
-    await log(``);
+    await log('');
     process.exit(1);
   }
 
@@ -175,7 +175,7 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
   // Verify and fix remote configuration
   const remoteCheckResult = await $({ cwd: tempDir })`git remote -v 2>&1`;
   if (!remoteCheckResult.stdout || !remoteCheckResult.stdout.toString().includes('origin')) {
-    await log(`   Setting up git remote...`, { verbose: true });
+    await log('   Setting up git remote...', { verbose: true });
     // Add origin remote manually
     await $({ cwd: tempDir })`git remote add origin https://github.com/${repoToClone}.git 2>&1`;
   }

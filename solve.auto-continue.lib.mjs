@@ -59,7 +59,7 @@ export const autoContinueWhenLimitResets = async (issueUrl, sessionId, argv, sho
     await new Promise(resolve => setTimeout(resolve, waitMs));
     clearInterval(countdownTimer);
 
-    await log(`\n✅ Limit reset time reached! Resuming session...`);
+    await log('\n✅ Limit reset time reached! Resuming session...');
     await log(`   Current time: ${new Date().toLocaleTimeString()}`);
 
     // Recursively call the solve script with --resume
@@ -94,7 +94,7 @@ export const autoContinueWhenLimitResets = async (issueUrl, sessionId, argv, sho
 
   } catch (error) {
     await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    await log(`\n🔄 Manual resume command:`);
+    await log('\n🔄 Manual resume command:');
     await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
     process.exit(1);
   }
@@ -144,7 +144,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
                 prNumber = pr.number;
                 prBranch = pr.headRefName;
                 if (argv.verbose) {
-                  await log(`   Continue mode activated: Auto-continue (CLAUDE.md missing)`, { verbose: true });
+                  await log('   Continue mode activated: Auto-continue (CLAUDE.md missing)', { verbose: true });
                   await log(`   PR Number: ${prNumber}`, { verbose: true });
                   await log(`   PR Branch: ${prBranch}`, { verbose: true });
                 }
@@ -157,7 +157,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
                 prNumber = pr.number;
                 prBranch = pr.headRefName;
                 if (argv.verbose) {
-                  await log(`   Continue mode activated: Auto-continue (24h+ old PR)`, { verbose: true });
+                  await log('   Continue mode activated: Auto-continue (24h+ old PR)', { verbose: true });
                   await log(`   PR Number: ${prNumber}`, { verbose: true });
                   await log(`   PR Branch: ${prBranch}`, { verbose: true });
                   await log(`   PR Age: ${ageHours} hours`, { verbose: true });
@@ -170,7 +170,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
           }
 
           if (!isContinueMode) {
-            await log(`⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual`);
+            await log('⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual');
           }
         } else {
           await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
@@ -178,7 +178,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
       }
     } catch (prSearchError) {
       await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
-      await log(`   Continuing with normal flow...`);
+      await log('   Continuing with normal flow...');
     }
   }
 
@@ -200,9 +200,9 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
     await log(`🔄 Continue mode: Working with PR #${prNumber}`);
     if (argv.verbose) {
-      await log(`   Continue mode activated: PR URL provided directly`, { verbose: true });
+      await log('   Continue mode activated: PR URL provided directly', { verbose: true });
       await log(`   PR Number set to: ${prNumber}`, { verbose: true });
-      await log(`   Will fetch PR details and linked issue`, { verbose: true });
+      await log('   Will fetch PR details and linked issue', { verbose: true });
     }
 
     // Get PR details to find the linked issue and branch

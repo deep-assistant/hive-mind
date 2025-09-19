@@ -17,7 +17,7 @@ import { log, cleanErrorMessage } from './lib.mjs';
 // Function to validate Claude CLI connection
 export const validateClaudeConnection = async () => {
   try {
-    await log(`🔍 Validating Claude CLI connection...`);
+    await log('🔍 Validating Claude CLI connection...');
     
     // First try a quick validation approach
     try {
@@ -43,9 +43,9 @@ export const validateClaudeConnection = async () => {
         result = await $`timeout 60 claude --model sonnet -p hi`;
       } catch (timeoutError) {
         if (timeoutError.code === 124) {
-          await log(`❌ Claude CLI timed out after 60 seconds`, { level: 'error' });
-          await log(`   💡 This may indicate Claude CLI is taking too long to respond`, { level: 'error' });
-          await log(`   💡 Try running 'claude --model sonnet -p hi' manually to verify it works`, { level: 'error' });
+          await log('❌ Claude CLI timed out after 60 seconds', { level: 'error' });
+          await log('   💡 This may indicate Claude CLI is taking too long to respond', { level: 'error' });
+          await log('   💡 Try running \'claude --model sonnet -p hi\' manually to verify it works', { level: 'error' });
           return false;
         }
         // Re-throw if it's not a timeout error
@@ -105,7 +105,7 @@ export const validateClaudeConnection = async () => {
     }
     
     // Success - Claude responded (LLM responses are probabilistic, so any response is good)
-    await log(`✅ Claude CLI connection validated successfully`);
+    await log('✅ Claude CLI connection validated successfully');
     return true;
     
   } catch (error) {
@@ -118,14 +118,14 @@ export const validateClaudeConnection = async () => {
 // Function to handle Claude runtime switching between Node.js and Bun
 export const handleClaudeRuntimeSwitch = async (argv) => {
   if (argv['force-claude-bun-run']) {
-    await log(`\n🔧 Switching Claude runtime to bun...`);
+    await log('\n🔧 Switching Claude runtime to bun...');
     try {
       // Check if bun is available
       try {
         await $`which bun`;
-        await log(`   ✅ Bun runtime found`);
+        await log('   ✅ Bun runtime found');
       } catch (bunError) {
-        await log(`❌ Bun runtime not found. Please install bun first: https://bun.sh/`, { level: 'error' });
+        await log('❌ Bun runtime not found. Please install bun first: https://bun.sh/', { level: 'error' });
         process.exit(1);
       }
       
@@ -134,7 +134,7 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       const claudePath = claudePathResult.stdout.toString().trim();
       
       if (!claudePath) {
-        await log(`❌ Claude executable not found`, { level: 'error' });
+        await log('❌ Claude executable not found', { level: 'error' });
         process.exit(1);
       }
       
@@ -144,8 +144,8 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
-        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
-        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
+        await log('❌ Cannot write to Claude executable (permission denied)', { level: 'error' });
+        await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
       
@@ -155,7 +155,7 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       await log(`   Current shebang: ${currentShebang}`);
       
       if (currentShebang.includes('bun')) {
-        await log(`   ✅ Claude is already configured to use bun`);
+        await log('   ✅ Claude is already configured to use bun');
         process.exit(0);
       }
       
@@ -169,14 +169,14 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       const newContent = content.replace(/^#!.*node.*$/m, '#!/usr/bin/env bun');
       
       if (content === newContent) {
-        await log(`⚠️  No Node.js shebang found to replace`, { level: 'warning' });
+        await log('⚠️  No Node.js shebang found to replace', { level: 'warning' });
         await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
         process.exit(0);
       }
       
       await fs.writeFile(claudePath, newContent);
-      await log(`   ✅ Claude shebang updated to use bun`);
-      await log(`   🔄 Claude will now run with bun runtime`);
+      await log('   ✅ Claude shebang updated to use bun');
+      await log('   🔄 Claude will now run with bun runtime');
       
     } catch (error) {
       await log(`❌ Failed to switch Claude to bun: ${cleanErrorMessage(error)}`, { level: 'error' });
@@ -188,14 +188,14 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
   }
   
   if (argv['force-claude-nodejs-run']) {
-    await log(`\n🔧 Restoring Claude runtime to Node.js...`);
+    await log('\n🔧 Restoring Claude runtime to Node.js...');
     try {
       // Check if Node.js is available
       try {
         await $`which node`;
-        await log(`   ✅ Node.js runtime found`);
+        await log('   ✅ Node.js runtime found');
       } catch (nodeError) {
-        await log(`❌ Node.js runtime not found. Please install Node.js first`, { level: 'error' });
+        await log('❌ Node.js runtime not found. Please install Node.js first', { level: 'error' });
         process.exit(1);
       }
       
@@ -204,7 +204,7 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       const claudePath = claudePathResult.stdout.toString().trim();
       
       if (!claudePath) {
-        await log(`❌ Claude executable not found`, { level: 'error' });
+        await log('❌ Claude executable not found', { level: 'error' });
         process.exit(1);
       }
       
@@ -214,8 +214,8 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
-        await log(`❌ Cannot write to Claude executable (permission denied)`, { level: 'error' });
-        await log(`   Try running with sudo or changing file permissions`, { level: 'error' });
+        await log('❌ Cannot write to Claude executable (permission denied)', { level: 'error' });
+        await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
       
@@ -225,7 +225,7 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       await log(`   Current shebang: ${currentShebang}`);
       
       if (currentShebang.includes('node') && !currentShebang.includes('bun')) {
-        await log(`   ✅ Claude is already configured to use Node.js`);
+        await log('   ✅ Claude is already configured to use Node.js');
         process.exit(0);
       }
       
@@ -238,21 +238,21 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await log(`   ✅ Restored Claude from backup: ${backupPath}`);
       } catch (backupError) {
         // No backup available, manually update shebang
-        await log(`   📝 No backup found, manually updating shebang...`);
+        await log('   📝 No backup found, manually updating shebang...');
         const content = await fs.readFile(claudePath, 'utf8');
         const newContent = content.replace(/^#!.*bun.*$/m, '#!/usr/bin/env node');
         
         if (content === newContent) {
-          await log(`⚠️  No bun shebang found to replace`, { level: 'warning' });
+          await log('⚠️  No bun shebang found to replace', { level: 'warning' });
           await log(`   Current shebang: ${currentShebang}`, { level: 'warning' });
           process.exit(0);
         }
         
         await fs.writeFile(claudePath, newContent);
-        await log(`   ✅ Claude shebang updated to use Node.js`);
+        await log('   ✅ Claude shebang updated to use Node.js');
       }
       
-      await log(`   🔄 Claude will now run with Node.js runtime`);
+      await log('   🔄 Claude will now run with Node.js runtime');
       
     } catch (error) {
       await log(`❌ Failed to restore Claude to Node.js: ${cleanErrorMessage(error)}`, { level: 'error' });

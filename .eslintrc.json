@@ -1,0 +1,25 @@
+{
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-undef": "error",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": "off",
+    "semi": ["error", "always"],
+    "quotes": ["error", "single", { "avoidEscape": true }]
+  },
+  "globals": {
+    "use": "readonly",
+    "globalThis": "readonly",
+    "process": "readonly",
+    "global": "readonly",
+    "fetch": "readonly"
+  }
+}
