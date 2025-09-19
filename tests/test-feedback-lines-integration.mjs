@@ -122,16 +122,17 @@ async function createTestRepository() {
     throw new Error(`Failed to commit: ${commitResult.stderr}`);
   }
 
-  // Use gh CLI URL which includes authentication
-  $(`git remote add origin https://github.com/${username}/${testRepo}.git`);
-  $('git branch -M main');
-
-  // Configure git to use the GitHub token for authentication
+  // Set up git remote with authentication
   const token = process.env.GITHUB_TOKEN || process.env.TEST_GITHUB_USER_TOKEN;
   if (token) {
-    // Set up authentication for this repository
-    $(`git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${token}"`);
+    // Use token in URL for authentication
+    $(`git remote add origin https://x-access-token:${token}@github.com/${username}/${testRepo}.git`);
+  } else {
+    // Fall back to regular URL (will work for local development with gh auth)
+    $(`git remote add origin https://github.com/${username}/${testRepo}.git`);
   }
+
+  $('git branch -M main');
 
   const pushResult = $('git push -u origin main');
   if (pushResult.code !== 0) {
