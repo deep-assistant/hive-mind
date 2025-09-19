@@ -11,7 +11,7 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const solvePath = join(__dirname, '..', 'solve.mjs');
+const solvePath = join(__dirname, '..', 'src', 'solve.mjs');
 
 let testsPassed = 0;
 let testsFailed = 0;

@@ -201,19 +201,25 @@ jobs:
     - name: Test solve.mjs compilation
       run: |
         echo "Testing solve.mjs compilation..."
-        timeout 30s node --check solve.mjs
+        timeout 30s node --check src/solve.mjs
         echo "✅ solve.mjs compiles successfully"
         
     - name: Test hive.mjs compilation
       run: |
         echo "Testing hive.mjs compilation..."
-        timeout 30s node --check hive.mjs
+        timeout 30s node --check src/hive.mjs
         echo "✅ hive.mjs compiles successfully"
         
     - name: Check Node.js syntax for all .mjs files
       run: |
         echo "Checking syntax for all .mjs files..."
         for file in *.mjs; do
+          if [ -f "$file" ]; then
+            echo "Checking $file..."
+            timeout 10s node --check "$file"
+          fi
+        done
+        for file in src/*.mjs; do
           if [ -f "$file" ]; then
             echo "Checking $file..."
             timeout 10s node --check "$file"
@@ -357,21 +363,43 @@ jobs:
     - name: Test solve.mjs execution
       run: |
         echo "Testing solve.mjs basic execution..."
-        timeout 10s ./solve.mjs --help || echo "Help command completed"
+        timeout 10s ./src/solve.mjs --help || echo "Help command completed"
         echo "✅ solve.mjs executes without critical errors"
-        timeout 10s ./solve.mjs --version || true
+        timeout 10s ./src/solve.mjs --version || true
     
     - name: Test hive.mjs execution
       run: |
         echo "Testing hive.mjs basic execution..."
-        timeout 10s ./hive.mjs --help || echo "Help command completed"
+        timeout 10s ./src/hive.mjs --help || echo "Help command completed"
         echo "✅ hive.mjs executes without critical errors"
-        timeout 10s ./hive.mjs --version || true
+        timeout 10s ./src/hive.mjs --version || true
     
     - name: Test memory-check.mjs execution
       run: |
-        ./memory-check.mjs --help
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --help
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+
+    - name: Test global command installation
+      run: |
+        echo "Testing npm global command installation from local folder..."
+        npm link
+        echo "✅ npm link completed successfully"
+
+        echo ""
+        echo "Testing 'hive' global command..."
+        timeout 10s hive --version || true
+        timeout 10s hive --help || echo "Help command completed"
+        echo "✅ 'hive' global command works"
+
+        echo ""
+        echo "Testing 'solve' global command..."
+        timeout 10s solve --version || true
+        timeout 10s solve --help || echo "Help command completed"
+        echo "✅ 'solve' global command works"
+
+        echo ""
+        echo "Cleaning up global link..."
+        npm unlink || true
 
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:
@@ -409,20 +437,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -431,7 +459,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -478,20 +506,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -500,7 +528,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -510,7 +538,7 @@ jobs:
     - name: Test macOS-specific features
       run: |
         echo "Testing macOS swap detection..."
-        output=$(./memory-check.mjs --min-memory 10 --quiet --json)
+        output=$(./src/memory-check.mjs --min-memory 10 --quiet --json)
         if echo "$output" | grep -q '"swap"'; then
           echo "✅ Swap information detected in output"
         else
@@ -552,11 +580,11 @@ jobs:
       run: |
         echo "Node version: $(node --version)"
         echo "Testing memory-check.mjs on Windows..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing with JSON output..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
 
   # === DOCUMENTATION VALIDATION ===
   validate-docs:
@@ -611,8 +639,8 @@ jobs:
         echo "✓ New version detected, proceeding with publish"
         
         # Make scripts executable
-        chmod +x hive.mjs
-        chmod +x solve.mjs
+        chmod +x src/hive.mjs
+        chmod +x src/solve.mjs
         
         # Publish to NPM
         npm publish --access public

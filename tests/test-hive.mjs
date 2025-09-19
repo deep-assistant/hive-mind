@@ -11,7 +11,7 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const hivePath = join(__dirname, '..', 'hive.mjs');
+const hivePath = join(__dirname, '..', 'src', 'hive.mjs');
 
 let testsPassed = 0;
 let testsFailed = 0;

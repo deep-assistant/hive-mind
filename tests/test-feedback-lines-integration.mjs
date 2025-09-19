@@ -232,7 +232,7 @@ function testSolveFeedbackLines(prUrl) {
   console.log(`🔍 Testing solve.mjs with PR: ${prUrl}`);
 
   // Run solve.mjs with --dry-run and --verbose to see the prompt
-  const solvePath = path.join(__dirname, '..', 'solve.mjs');
+  const solvePath = path.join(__dirname, '..', 'src', 'solve.mjs');
 
   // Debug: Show what command we're running
   console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose`);
