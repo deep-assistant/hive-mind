@@ -48,14 +48,31 @@ export const detectAndCountFeedback = async (params) => {
       }
 
       // Get the last commit timestamp from the PR branch
+      let lastCommitTime = null;
       let lastCommitResult = await $`git log -1 --format="%aI" origin/${branchName}`;
       if (lastCommitResult.code !== 0) {
         // Fallback to local branch if remote doesn't exist
         lastCommitResult = await $`git log -1 --format="%aI" ${branchName}`;
       }
+
       if (lastCommitResult.code === 0) {
-        const lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
+        lastCommitTime = new Date(lastCommitResult.stdout.toString().trim());
         await log(formatAligned('📅', 'Last commit time:', lastCommitTime.toISOString(), 2));
+      } else {
+        // Fallback: Get last commit time from GitHub API
+        try {
+          const prCommitsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/commits --jq 'last.commit.author.date'`;
+          if (prCommitsResult.code === 0 && prCommitsResult.stdout) {
+            lastCommitTime = new Date(prCommitsResult.stdout.toString().trim());
+            await log(formatAligned('📅', 'Last commit time (from API):', lastCommitTime.toISOString(), 2));
+          }
+        } catch (error) {
+          await log(`Warning: Could not get last commit time: ${cleanErrorMessage(error)}`, { level: 'warning' });
+        }
+      }
+
+      // Only proceed if we have a last commit time
+      if (lastCommitTime) {
 
         // Count new PR comments after last commit (both code review comments and conversation comments)
         let prReviewComments = [];
@@ -293,6 +310,8 @@ export const detectAndCountFeedback = async (params) => {
         } else if (argv.verbose) {
           await log(`   No feedback info to add (0 new items, saving tokens)`, { verbose: true });
         }
+      } else {
+        await log(`Warning: Could not determine last commit time, skipping comment counting`, { level: 'warning' });
       }
     } catch (error) {
       await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });

@@ -1250,6 +1250,14 @@ ${prBody}`, { verbose: true });
     if (feedbackLines && feedbackLines.length > 0) {
       await log(`   Feedback info: Included`, { verbose: true });
     }
+
+    // In dry-run mode, output the actual prompt for debugging
+    if (argv.dryRun) {
+      await log(`\n📋 User prompt content:`, { verbose: true });
+      await log(`---BEGIN USER PROMPT---`, { verbose: true });
+      await log(prompt, { verbose: true });
+      await log(`---END USER PROMPT---`, { verbose: true });
+    }
   }
 
   const systemPrompt = `You are AI issue solver.
