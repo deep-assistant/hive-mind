@@ -65,7 +65,12 @@ export const executeClaudeCommand = async (params) => {
 
   // Print the command being executed (with cd for reproducibility)
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  await log(`\n${formatAligned('📋', 'Command details:', '')}`);
+
+  // Log the raw command for debugging and reproducibility
+  await log(`\n${formatAligned('📝', 'Raw command:', '')}`);
+  await log(`${fullCommand}\n`);
+
+  await log(`${formatAligned('📋', 'Command details:', '')}`);
   await log(formatAligned('📂', 'Working directory:', tempDir, 2));
   await log(formatAligned('🌿', 'Branch:', branchName, 2));
   await log(formatAligned('🤖', 'Model:', `Claude ${argv.model.toUpperCase()}`, 2));
