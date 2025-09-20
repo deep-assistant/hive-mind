@@ -51,8 +51,8 @@ async function testJqPipe() {
   const testData = [
     '{"type": "text", "text": "Hello from Claude"}',
     '{"type": "tool_use", "name": "bash", "input": {"command": "ls"}}',
-    '{"type": "tool_result", "output": "file1.txt\\nfile2.txt"}'
-  ].join('\n');
+    '{"type": "tool_result", "output": "file1.txt file2.txt"}'
+  ].join('\\n');
 
   return new Promise((resolve) => {
     const command = `echo '${testData}' | jq -c .`;
