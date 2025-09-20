@@ -130,6 +130,7 @@ const {
 const claudeExecution = await import('./solve.claude-execution.lib.mjs');
 const {
   executeClaudeCommand,
+  buildSystemPrompt,
   checkForUncommittedChanges
 } = claudeExecution;
 
@@ -1242,88 +1243,19 @@ ${prBody}`, { verbose: true });
     }
   }
 
-  const systemPrompt = `You are AI issue solver.
-
-General guidelines.
-   - When you execute commands, always save their logs to files for easy reading if the output gets large.
-   - When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
-   - When CI is failing, make sure you download the logs locally and carefully investigate them.
-   - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
-   - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
-   - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples or/and experiments folders so you can reuse them later.
-   - When testing your assumptions, use the experiment scripts, and add it to experiments folder.
-   - When your experiments can show real world use case of the software, add it to examples folder.
-   - When you face something extremely hard, use divide and conquer — it always helps.${isContinueMode ? `
-
-Continue mode.
-   - When you are working on existing pull request #${prNumber}:
-     * Review the pull request title and description to understand the current approach, and continue building upon existing work.
-     * Make sure you use gh pr diff to see actual changes.
-     * Make sure you use gh pr view with mergeStateStatus to check if pull requests has any merge conflicts.
-     * Look at the issue context of that pull request and any linked discussions.
-     * When pull request is out of sync with default branch, make sure you resolve any conflicts to apply original changes.
-     * Look at the issue context and any linked discussions.
-     * Explore codebase for best coding style and practices on similar changes.
-     * Check all changes from the last commit to understand current progress.
-     * Check for new comments on the pull request for additional feedback or requirements.
-     * Look for any explicit feedback from users in PR comments or issue updates.
-     * Consider what has already been implemented vs what still needs to be done.
-     * Consider any mismatch in requirements with original issue or the pull request description.
-     * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
-
-Initial research.
-   - When you read issue, read all details and comments thoroughly.
-   - When you need issue details, use gh issue view ${isContinueMode && issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : issueUrl}.
-   - When you need related code, use gh search code --owner ${owner} [keywords].
-   - When you need repo context, read files in ${tempDir}.
-   - When you study related work, study related previous latest pull requests.
-   - When issue is not defined enough, write a comment to ask clarifying questions.
-   - When accessing GitHub Gists (especially private ones), use gh gist view command instead of direct URL fetching to ensure proper authentication.
-   - When you are fixing a bug, please make sure you first find the actual root cause, do as much experiments as needed.
-   - When you are fixing a bug and code does not have enough tracing/logs, add them and make sure they stay in the code, but are switched off by default.
-   - When you need latest comments on pull request (sorted newest first), use:
-     * For PR conversation comments: gh api repos/${owner}/${repo}/issues/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
-     * For PR code review comments: gh api repos/${owner}/${repo}/pulls/{pr_number}/comments --jq 'sort_by(.created_at) | reverse'
-   - When you need latest comments on issue (sorted newest first), use: gh api repos/${owner}/${repo}/issues/{issue_number}/comments --jq 'sort_by(.created_at) | reverse'  
-
-Solution development and testing.  
-   - When issue is solvable, implement code with tests.  
-   - When you test, start from small functions.  
-   - When you test, write unit tests with mocks.  
-   - When you test integrations, use existing framework.  
-   - When you test solution draft, include automated checks in pr.  
-   - When issue is unclear, write comment on issue asking questions.  
-   - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
-   - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
-
-Preparing pull request.  
-   - When you finalize the pull request, follow style from merged prs for code, title, and description, and double-check the logic of all conditions and statements.  
-   - When you code, follow contributing guidelines.  
-   - When you commit, write clear message.
-   - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].
-   - When you open pr, describe solution draft and include tests.
-   - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.${prUrl ? `
-   - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
-   - When you finish implementation, use gh pr ready ${prNumber || prUrl}.` : ''}  
-
-Workflow and collaboration.  
-   - When you check branch, verify with git branch --show-current.  
-   - When you push, push only to branch ${branchName}.${argv.fork && forkedRepo ? `
-   - When you push, remember you're pushing to fork ${forkedRepo}, not ${owner}/${repo}.` : ''}  
-   - When you finish, create a pull request from branch ${branchName}.${prUrl ? ` (Note: PR ${prNumber || prUrl} already exists, update it instead)` : ''}${argv.fork && forkedRepo ? `
-   - When you create pr, use --repo ${owner}/${repo} to create PR against original repo.` : ''}  
-   - When you organize workflow, use pull requests instead of direct merges to default branch (main or master).  
-   - When you manage commits, preserve commit history for later analysis.  
-   - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
-   - When you face conflict, ask for help.  
-   - When you collaborate, respect branch protections by working only on ${branchName}.  
-   - When you mention result, include pull request url or comment url.${prUrl ? `
-   - When you need to create pr, remember pr ${prNumber || prUrl} already exists for this branch.` : ''}  
-
-Self review.
-   - When you check your solution draft, run all tests locally.  
-   - When you compare with repo style, use gh pr diff [number].  
-   - When you finalize, confirm code, tests, and description are consistent.`;
+  const systemPrompt = buildSystemPrompt({
+    owner,
+    repo,
+    issueNumber,
+    issueUrl,
+    prNumber,
+    prUrl,
+    branchName,
+    tempDir,
+    isContinueMode,
+    forkedRepo,
+    argv
+  });
 
   // Properly escape prompts for shell usage - escape quotes and preserve newlines
   const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
