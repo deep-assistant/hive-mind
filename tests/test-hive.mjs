@@ -187,7 +187,7 @@ runTest('hive.mjs --attach-logs flag', () => {
   if (!output.includes('attach-logs')) {
     throw new Error('--attach-logs option not found in help output');
   }
-  if (!output.includes('Upload the solution log file')) {
+  if (!output.includes('Upload the solution draft log file')) {
     throw new Error('--attach-logs description not found in help output');
   }
 });
