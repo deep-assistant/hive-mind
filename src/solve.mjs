@@ -129,8 +129,10 @@ const {
 // Import Claude execution functions
 const claudeExecution = await import('./solve.claude-execution.lib.mjs');
 const {
+  executeClaude,
   executeClaudeCommand,
   buildSystemPrompt,
+  buildUserPrompt,
   checkForUncommittedChanges
 } = claudeExecution;
 
@@ -1180,87 +1182,6 @@ ${prBody}`, { verbose: true });
     $
   });
 
-  // Now build the final prompt with all collected information
-  const promptLines = [];
-  
-  // Issue or PR reference
-  if (isContinueMode) {
-    promptLines.push(`Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}`);
-  } else {
-    promptLines.push(`Issue to solve: ${issueUrl}`);
-  }
-  
-  // Basic info
-  promptLines.push(`Your prepared branch: ${branchName}`);
-  promptLines.push(`Your prepared working directory: ${tempDir}`);
-  
-  // PR info if available
-  if (prUrl) {
-    promptLines.push(`Your prepared Pull Request: ${prUrl}`);
-  }
-  
-  // Merge state for continue mode
-  if (isContinueMode && mergeStateStatus) {
-    promptLines.push(`Existing pull request's merge state status: ${mergeStateStatus}`);
-  }
-  
-  // Fork info if applicable
-  if (argv.fork && forkedRepo) {
-    promptLines.push(`Your forked repository: ${forkedRepo}`);
-    promptLines.push(`Original repository (upstream): ${owner}/${repo}`);
-  }
-  
-  // Add blank line
-  promptLines.push('');
-  
-  // Add feedback info if in continue mode and there are feedback items
-  if (isContinueMode && feedbackLines && feedbackLines.length > 0) {
-    // Add each feedback line directly
-    feedbackLines.forEach(line => promptLines.push(line));
-    promptLines.push('');
-  }
-  
-  // Final instruction
-  promptLines.push(isContinueMode ? 'Continue.' : 'Proceed.');
-  
-  // Build the final prompt as a const
-  const prompt = promptLines.join('\n');
-  
-  if (argv.verbose) {
-    await log('\n📝 Final prompt structure:', { verbose: true });
-    await log(`   Lines: ${promptLines.length}`, { verbose: true });
-    await log(`   Characters: ${prompt.length}`, { verbose: true });
-    if (feedbackLines && feedbackLines.length > 0) {
-      await log('   Feedback info: Included', { verbose: true });
-    }
-
-    // In dry-run mode, output the actual prompt for debugging
-    if (argv.dryRun) {
-      await log('\n📋 User prompt content:', { verbose: true });
-      await log('---BEGIN USER PROMPT---', { verbose: true });
-      await log(prompt, { verbose: true });
-      await log('---END USER PROMPT---', { verbose: true });
-    }
-  }
-
-  const systemPrompt = buildSystemPrompt({
-    owner,
-    repo,
-    issueNumber,
-    issueUrl,
-    prNumber,
-    prUrl,
-    branchName,
-    tempDir,
-    isContinueMode,
-    forkedRepo,
-    argv
-  });
-
-  // Properly escape prompts for shell usage - escape quotes and preserve newlines
-  const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-  const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-
   // Get timestamps from GitHub servers before executing the command
   await log(`${formatAligned('📅', 'Getting timestamps:', 'From GitHub servers...')}`);
 
@@ -1325,20 +1246,24 @@ ${prBody}`, { verbose: true });
     await log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
   }
 
-  // Execute Claude command
-  const claudeResult = await executeClaudeCommand({
-    tempDir,
+  // Execute Claude command with all prompts and settings
+  const claudeResult = await executeClaude({
+    issueUrl,
+    issueNumber,
+    prNumber,
+    prUrl,
     branchName,
-    prompt,
-    systemPrompt,
-    escapedPrompt,
-    escapedSystemPrompt,
+    tempDir,
+    isContinueMode,
+    mergeStateStatus,
+    forkedRepo,
+    feedbackLines,
+    owner,
+    repo,
     argv,
     log,
     formatAligned,
     getResourceSnapshot,
-    forkedRepo,
-    feedbackLines,
     claudePath,
     $
   });
