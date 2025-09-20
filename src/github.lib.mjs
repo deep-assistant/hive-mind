@@ -342,7 +342,7 @@ ${logContent}
           }
         } catch (visibilityError) {
           // Default to public if we can't determine visibility
-          await log(`  ⚠️  Could not determine repository visibility, defaulting to public gist`, { verbose: true });
+          await log('  ⚠️  Could not determine repository visibility, defaulting to public gist', { verbose: true });
         }
 
         // Create gist with appropriate visibility
