@@ -329,11 +329,35 @@ ${logContent}
       await log('  📎 Uploading log as GitHub Gist instead...');
 
       try {
-        // Create gist
+        // Check if repository is public or private
+        let isPublicRepo = true;
+        try {
+          const repoVisibilityResult = await $`gh api repos/${owner}/${repo} --jq .visibility`;
+          if (repoVisibilityResult.code === 0) {
+            const visibility = repoVisibilityResult.stdout.toString().trim();
+            isPublicRepo = visibility === 'public';
+            if (verbose) {
+              await log(`  🔍 Repository visibility: ${visibility}`, { verbose: true });
+            }
+          }
+        } catch (visibilityError) {
+          // Default to public if we can't determine visibility
+          await log('  ⚠️  Could not determine repository visibility, defaulting to public gist', { verbose: true });
+        }
+
+        // Create gist with appropriate visibility
         const tempLogFile = `/tmp/solution-draft-log-${targetType}-${Date.now()}.txt`;
         await fs.writeFile(tempLogFile, logContent);
 
-        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`;
+        const gistCommand = isPublicRepo
+          ? `gh gist create "${tempLogFile}" --public --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`
+          : `gh gist create "${tempLogFile}" --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`;
+
+        if (verbose) {
+          await log(`  🔐 Creating ${isPublicRepo ? 'public' : 'private'} gist...`, { verbose: true });
+        }
+
+        const gistResult = await $(gistCommand);
 
         await fs.unlink(tempLogFile).catch(() => {});
 
@@ -377,7 +401,7 @@ This log file contains the complete execution trace of the AI ${targetType === '
           await fs.unlink(tempGistCommentFile).catch(() => {});
 
           if (commentResult.code === 0) {
-            await log(`  ✅ Solution draft log uploaded to ${targetName} as Gist`);
+            await log(`  ✅ Solution draft log uploaded to ${targetName} as ${isPublicRepo ? 'public' : 'private'} Gist`);
             await log(`  🔗 Gist URL: ${gistUrl}`);
             await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
             return true;

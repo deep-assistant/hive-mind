@@ -1303,13 +1303,14 @@ Continue mode.
      * Consider any mismatch in requirements with original issue or the pull request description.
      * When you need human feedback, do it by creating comment using gh tool in Pull Request or Issue to continue conversation.` : ''}
 
-Initial research.  
-   - When you read issue, read all details and comments thoroughly.  
-   - When you need issue details, use gh issue view ${isContinueMode && issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : issueUrl}.  
-   - When you need related code, use gh search code --owner ${owner} [keywords].  
-   - When you need repo context, read files in ${tempDir}.  
-   - When you study related work, study related previous latest pull requests.  
+Initial research.
+   - When you read issue, read all details and comments thoroughly.
+   - When you need issue details, use gh issue view ${isContinueMode && issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : issueUrl}.
+   - When you need related code, use gh search code --owner ${owner} [keywords].
+   - When you need repo context, read files in ${tempDir}.
+   - When you study related work, study related previous latest pull requests.
    - When issue is not defined enough, write a comment to ask clarifying questions.
+   - When accessing GitHub Gists (especially private ones), use gh gist view command instead of direct URL fetching to ensure proper authentication.
    - When you are fixing a bug, please make sure you first find the actual root cause, do as much experiments as needed.
    - When you are fixing a bug and code does not have enough tracing/logs, add them and make sure they stay in the code, but are switched off by default.
    - When you need latest comments on pull request (sorted newest first), use:
