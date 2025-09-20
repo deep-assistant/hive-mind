@@ -8,6 +8,74 @@ import path from 'path';
 import os from 'os';
 
 /**
+ * Build the user prompt for Claude
+ * @param {Object} params - Parameters for building the user prompt
+ * @returns {string} The formatted user prompt
+ */
+export const buildUserPrompt = (params) => {
+  const {
+    issueUrl,
+    issueNumber,
+    prNumber,
+    prUrl,
+    branchName,
+    tempDir,
+    isContinueMode,
+    mergeStateStatus,
+    forkedRepo,
+    feedbackLines,
+    owner,
+    repo,
+    argv
+  } = params;
+
+  const promptLines = [];
+
+  // Issue or PR reference
+  if (isContinueMode) {
+    promptLines.push(`Issue to solve: ${issueNumber ? `https://github.com/${owner}/${repo}/issues/${issueNumber}` : `Issue linked to PR #${prNumber}`}`);
+  } else {
+    promptLines.push(`Issue to solve: ${issueUrl}`);
+  }
+
+  // Basic info
+  promptLines.push(`Your prepared branch: ${branchName}`);
+  promptLines.push(`Your prepared working directory: ${tempDir}`);
+
+  // PR info if available
+  if (prUrl) {
+    promptLines.push(`Your prepared Pull Request: ${prUrl}`);
+  }
+
+  // Merge state for continue mode
+  if (isContinueMode && mergeStateStatus) {
+    promptLines.push(`Existing pull request's merge state status: ${mergeStateStatus}`);
+  }
+
+  // Fork info if applicable
+  if (argv && argv.fork && forkedRepo) {
+    promptLines.push(`Your forked repository: ${forkedRepo}`);
+    promptLines.push(`Original repository (upstream): ${owner}/${repo}`);
+  }
+
+  // Add blank line
+  promptLines.push('');
+
+  // Add feedback info if in continue mode and there are feedback items
+  if (isContinueMode && feedbackLines && feedbackLines.length > 0) {
+    // Add each feedback line directly
+    feedbackLines.forEach(line => promptLines.push(line));
+    promptLines.push('');
+  }
+
+  // Final instruction
+  promptLines.push(isContinueMode ? 'Continue.' : 'Proceed.');
+
+  // Build the final prompt
+  return promptLines.join('\n');
+};
+
+/**
  * Build the system prompt for Claude - simplified to avoid shell escaping issues
  * @param {Object} params - Parameters for building the prompt
  * @returns {string} The formatted system prompt
@@ -80,6 +148,111 @@ Self review.
    - When you finalize, confirm code, tests, and description are consistent.`;
 };
 
+/**
+ * Execute Claude with all prompts and settings
+ * This is the main entry point that handles all prompt building and execution
+ * @param {Object} params - Parameters for Claude execution
+ * @returns {Object} Result of the execution including success status and session info
+ */
+export const executeClaude = async (params) => {
+  const {
+    issueUrl,
+    issueNumber,
+    prNumber,
+    prUrl,
+    branchName,
+    tempDir,
+    isContinueMode,
+    mergeStateStatus,
+    forkedRepo,
+    feedbackLines,
+    owner,
+    repo,
+    argv,
+    log,
+    formatAligned,
+    getResourceSnapshot,
+    claudePath,
+    $
+  } = params;
+
+  // Build the user prompt
+  const prompt = buildUserPrompt({
+    issueUrl,
+    issueNumber,
+    prNumber,
+    prUrl,
+    branchName,
+    tempDir,
+    isContinueMode,
+    mergeStateStatus,
+    forkedRepo,
+    feedbackLines,
+    owner,
+    repo,
+    argv
+  });
+
+  // Build the system prompt
+  const systemPrompt = buildSystemPrompt({
+    owner,
+    repo,
+    issueNumber,
+    issueUrl,
+    prNumber,
+    prUrl,
+    branchName,
+    tempDir,
+    isContinueMode,
+    forkedRepo,
+    argv
+  });
+
+  // Log prompt details in verbose mode
+  if (argv.verbose) {
+    await log('\n📝 Final prompt structure:', { verbose: true });
+    await log(`   Characters: ${prompt.length}`, { verbose: true });
+    await log(`   System prompt characters: ${systemPrompt.length}`, { verbose: true });
+    if (feedbackLines && feedbackLines.length > 0) {
+      await log('   Feedback info: Included', { verbose: true });
+    }
+
+    // In dry-run mode, output the actual prompts for debugging
+    if (argv.dryRun) {
+      await log('\n📋 User prompt content:', { verbose: true });
+      await log('---BEGIN USER PROMPT---', { verbose: true });
+      await log(prompt, { verbose: true });
+      await log('---END USER PROMPT---', { verbose: true });
+      await log('\n📋 System prompt content:', { verbose: true });
+      await log('---BEGIN SYSTEM PROMPT---', { verbose: true });
+      await log(systemPrompt, { verbose: true });
+      await log('---END SYSTEM PROMPT---', { verbose: true });
+    }
+  }
+
+  // Escape prompts for shell usage
+  const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+  const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+
+  // Execute the Claude command
+  return await executeClaudeCommand({
+    tempDir,
+    branchName,
+    prompt,
+    systemPrompt,
+    escapedPrompt,
+    escapedSystemPrompt,
+    argv,
+    log,
+    formatAligned,
+    getResourceSnapshot,
+    forkedRepo,
+    feedbackLines,
+    claudePath,
+    $
+  });
+};
+
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -133,9 +306,40 @@ export const executeClaudeCommand = async (params) => {
   // Build claude command with optional resume flag
   let execCommand;
 
+  // Build claude command arguments
+  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
+
+  if (argv.resume) {
+    await log(`🔄 Resuming from session: ${argv.resume}`);
+    claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
+  }
+
+  claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
+
+  // Build the full command for display (with jq for formatting as in v0.3.2)
+  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
+
+  // Print the actual raw command being executed
+  await log(`\n${formatAligned('📝', 'Raw command:', '')}`);
+  await log(`${fullCommand}`);
+  await log('');
+
+  // Output prompts in verbose mode for debugging
+  if (argv.verbose) {
+    await log('📋 User prompt:', { verbose: true });
+    await log('---BEGIN USER PROMPT---', { verbose: true });
+    await log(prompt, { verbose: true });
+    await log('---END USER PROMPT---', { verbose: true });
+    await log('', { verbose: true });
+    await log('📋 System prompt:', { verbose: true });
+    await log('---BEGIN SYSTEM PROMPT---', { verbose: true });
+    await log(systemPrompt, { verbose: true });
+    await log('---END SYSTEM PROMPT---', { verbose: true });
+    await log('', { verbose: true });
+  }
+
   try {
     if (argv.resume) {
-      await log(`🔄 Resuming from session: ${argv.resume}`);
       // When resuming, pass prompt directly with -p flag
       // Use simpler escaping - just escape double quotes
       const simpleEscapedPrompt = prompt.replace(/"/g, '\\"');
@@ -155,14 +359,6 @@ export const executeClaudeCommand = async (params) => {
         stdin: prompt,
         mirror: false
       })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} --append-system-prompt "${simpleEscapedSystem}"`;
-    }
-
-    // Print the command being executed (with cd for reproducibility)
-    await log(`\n${formatAligned('📝', 'Raw command:', '')}`);
-    if (argv.resume) {
-      await log(`(cd "${tempDir}" && ${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p '...' --append-system-prompt '...')\n`);
-    } else {
-      await log(`(cd "${tempDir}" && echo '...' | ${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} --append-system-prompt '...')\n`);
     }
 
     await log(`${formatAligned('📋', 'Command details:', '')}`);
@@ -191,10 +387,13 @@ export const executeClaudeCommand = async (params) => {
           try {
             const data = JSON.parse(line);
 
+            // Output formatted JSON as in v0.3.2
+            await log(JSON.stringify(data, null, 2));
+
             // Capture session ID from the first message
             if (!sessionId && data.session_id) {
               sessionId = data.session_id;
-              await log(`📌 Session ID: ${sessionId}`, { verbose: true });
+              await log(`📌 Session ID: ${sessionId}`);
             }
 
             // Track message and tool use counts
@@ -204,43 +403,11 @@ export const executeClaudeCommand = async (params) => {
               toolUseCount++;
             }
 
-            // Format the output nicely
-            if (data.type === 'text') {
-              // Text from assistant
-              if (data.text) {
-                await log(data.text, { stream: 'claude' });
-                lastMessage = data.text;
-              }
-            } else if (data.type === 'tool_use' && data.name) {
-              // Tool use - show a concise summary
-              await log(`🔧 Using tool: ${data.name}`, { stream: 'tool', verbose: true });
-
-              // For key tools, show their input in verbose mode
-              if (argv.verbose && data.input) {
-                if (data.name === 'bash' && data.input.command) {
-                  await log(`   $ ${data.input.command}`, { stream: 'tool-detail', verbose: true });
-                } else if (data.name === 'write' && data.input.path) {
-                  await log(`   Writing to: ${data.input.path}`, { stream: 'tool-detail', verbose: true });
-                } else if (data.name === 'read' && data.input.path) {
-                  await log(`   Reading: ${data.input.path}`, { stream: 'tool-detail', verbose: true });
-                }
-              }
-            } else if (data.type === 'tool_result' && argv.verbose) {
-              // Tool result in verbose mode - show if it's an error
-              if (data.error) {
-                await log(`   ⚠️  Tool error: ${data.error}`, { stream: 'tool-error', verbose: true });
-              } else if (data.output && data.output.length < 200) {
-                // Only show short outputs in verbose mode
-                const output = data.output.replace(/\n/g, '\n   ');
-                await log(`   Result: ${output}`, { stream: 'tool-result', verbose: true });
-              }
+            // Store last message for error detection
+            if (data.type === 'text' && data.text) {
+              lastMessage = data.text;
             } else if (data.type === 'error') {
-              // Error from Claude
-              await log(`❌ Error: ${data.error || JSON.stringify(data)}`, { stream: 'error', level: 'error' });
               lastMessage = data.error || JSON.stringify(data);
-            } else if (data.type === 'message' && data.role === 'assistant' && argv.verbose) {
-              // Message metadata
-              await log(`📨 Message ${messageCount} from assistant`, { stream: 'meta', verbose: true });
             }
 
           } catch {
