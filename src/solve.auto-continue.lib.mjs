@@ -246,3 +246,88 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
   return { isContinueMode, prNumber, prBranch, issueNumber, mergeStateStatus, isForkPR };
 };
+
+// Process auto-continue logic for issue URLs
+export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, owner, repo) => {
+  if (!argv.autoContinue || !isIssueUrl) {
+    return { isContinueMode: false };
+  }
+
+  const issueNumber = urlNumber;
+  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
+
+  try {
+    // Get all PRs linked to this issue
+    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
+
+    if (prListResult.code === 0) {
+      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
+
+      if (prs.length > 0) {
+        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
+
+        // Find PRs that are older than 24 hours
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+        for (const pr of prs) {
+          const createdAt = new Date(pr.createdAt);
+          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
+
+          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
+
+          // Check if PR is open (not closed)
+          if (pr.state === 'OPEN') {
+            // Check if CLAUDE.md exists in this PR branch
+            const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
+
+            if (!claudeMdExists) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
+
+              // Switch to continue mode immediately (don't wait 24 hours if CLAUDE.md is missing)
+              if (argv.verbose) {
+                await log('   Continue mode activated: Auto-continue (CLAUDE.md missing)', { verbose: true });
+                await log(`   PR Number: ${pr.number}`, { verbose: true });
+                await log(`   PR Branch: ${pr.headRefName}`, { verbose: true });
+              }
+
+              return {
+                isContinueMode: true,
+                prNumber: pr.number,
+                prBranch: pr.headRefName,
+                issueNumber
+              };
+            } else if (createdAt < twentyFourHoursAgo) {
+              await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
+
+              if (argv.verbose) {
+                await log('   Continue mode activated: Auto-continue (24h+ old PR)', { verbose: true });
+                await log(`   PR Number: ${pr.number}`, { verbose: true });
+                await log(`   PR Branch: ${pr.headRefName}`, { verbose: true });
+                await log(`   PR Age: ${ageHours} hours`, { verbose: true });
+              }
+
+              return {
+                isContinueMode: true,
+                prNumber: pr.number,
+                prBranch: pr.headRefName,
+                issueNumber
+              };
+            } else {
+              await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
+            }
+          }
+        }
+
+        await log('⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual');
+      } else {
+        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
+      }
+    }
+  } catch (prSearchError) {
+    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
+    await log('   Continuing with normal flow...');
+  }
+
+  return { isContinueMode: false, issueNumber };
+};

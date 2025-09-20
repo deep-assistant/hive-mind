@@ -103,7 +103,8 @@ const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const {
   autoContinueWhenLimitResets,
   checkExistingPRsForAutoContinue,
-  processPRMode
+  processPRMode,
+  processAutoContinueForIssue
 } = autoContinue;
 
 // Import repository management functions
@@ -137,6 +138,14 @@ const feedback = await import('./solve.feedback.lib.mjs');
 const {
   detectAndCountFeedback
 } = feedback;
+
+// Import error handling functions
+const errorHandlers = await import('./solve.error-handlers.lib.mjs');
+const {
+  createUncaughtExceptionHandler,
+  createUnhandledRejectionHandler,
+  handleMainExecutionError
+} = errorHandlers;
 
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
@@ -173,17 +182,23 @@ const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 
 // Setup unhandled error handlers to ensure log path is always shown
-process.on('uncaughtException', async (error) => {
-  await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
-});
+const errorHandlerOptions = {
+  log,
+  cleanErrorMessage,
+  absoluteLogPath,
+  shouldAttachLogs,
+  argv,
+  global,
+  owner: null, // Will be set later when parsed
+  repo: null,  // Will be set later when parsed
+  getLogFile,
+  attachLogToGitHub,
+  sanitizeLogContent,
+  $
+};
 
-process.on('unhandledRejection', async (reason, promise) => {
-  await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
-});
+process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptions));
+process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
 
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
@@ -214,6 +229,10 @@ const claudePath = process.env.CLAUDE_PATH || 'claude';
 // Parse URL components using validation module
 const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 
+// Store owner and repo globally for error handlers
+global.owner = owner;
+global.repo = repo;
+
 // Determine mode and get issue details
 let issueNumber;
 let prNumber;
@@ -223,85 +242,24 @@ let isForkPR = false;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
-if (argv.autoContinue && isIssueUrl) {
-  issueNumber = urlNumber;
-  await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
-  
-  try {
-    // Get all PRs linked to this issue
-    const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
-    
-    if (prListResult.code === 0) {
-      const prs = JSON.parse(prListResult.stdout.toString().trim() || '[]');
-      
-      if (prs.length > 0) {
-        await log(`📋 Found ${prs.length} existing PR(s) linked to issue #${issueNumber}`);
-        
-        // Find PRs that are older than 24 hours
-        const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        
-        for (const pr of prs) {
-          const createdAt = new Date(pr.createdAt);
-          const ageHours = Math.floor((now - createdAt) / (1000 * 60 * 60));
-          
-          await log(`  PR #${pr.number}: created ${ageHours}h ago (${pr.state}, ${pr.isDraft ? 'draft' : 'ready'})`);
-          
-          // Check if PR is open (not closed)
-          if (pr.state === 'OPEN') {
-            // Check if CLAUDE.md exists in this PR branch
-            const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
-            
-            if (!claudeMdExists) {
-              await log(`✅ Auto-continue: Using PR #${pr.number} (CLAUDE.md missing - work completed, branch: ${pr.headRefName})`);
-              
-              // Switch to continue mode immediately (don't wait 24 hours if CLAUDE.md is missing)
-              isContinueMode = true;
-              prNumber = pr.number;
-              prBranch = pr.headRefName;
-              if (argv.verbose) {
-                await log('   Continue mode activated: Auto-continue (CLAUDE.md missing)', { verbose: true });
-                await log(`   PR Number: ${prNumber}`, { verbose: true });
-                await log(`   PR Branch: ${prBranch}`, { verbose: true });
-              }
-              break;
-            } else if (createdAt < twentyFourHoursAgo) {
-              await log(`✅ Auto-continue: Using PR #${pr.number} (created ${ageHours}h ago, branch: ${pr.headRefName})`);
-              
-              // Switch to continue mode
-              isContinueMode = true;
-              prNumber = pr.number;
-              prBranch = pr.headRefName;
-              if (argv.verbose) {
-                await log('   Continue mode activated: Auto-continue (24h+ old PR)', { verbose: true });
-                await log(`   PR Number: ${prNumber}`, { verbose: true });
-                await log(`   PR Branch: ${prBranch}`, { verbose: true });
-                await log(`   PR Age: ${ageHours} hours`, { verbose: true });
-              }
-              break;
-            } else {
-              await log(`  PR #${pr.number}: CLAUDE.md exists, age ${ageHours}h < 24h - skipping`);
-            }
-          }
-        }
-        
-        if (!isContinueMode) {
-          await log('⏭️  No suitable PRs found (missing CLAUDE.md or older than 24h) - creating new PR as usual');
-        }
-      } else {
-        await log(`📝 No existing PRs found for issue #${issueNumber} - creating new PR`);
-      }
-    }
-  } catch (prSearchError) {
-    await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
-    await log('   Continuing with normal flow...');
-  }
+const autoContinueResult = await processAutoContinueForIssue(argv, isIssueUrl, urlNumber, owner, repo);
+if (autoContinueResult.isContinueMode) {
+  isContinueMode = true;
+  prNumber = autoContinueResult.prNumber;
+  prBranch = autoContinueResult.prBranch;
+  issueNumber = autoContinueResult.issueNumber;
+  // Store PR info globally for error handlers
+  global.createdPR = { number: prNumber };
+} else if (isIssueUrl) {
+  issueNumber = autoContinueResult.issueNumber || urlNumber;
 }
 
 if (isPrUrl) {
   isContinueMode = true;
   prNumber = urlNumber;
-  
+  // Store PR info globally for error handlers
+  global.createdPR = { number: prNumber, url: issueUrl };
+
   await log(`🔄 Continue mode: Working with PR #${prNumber}`);
   if (argv.verbose) {
     await log('   Continue mode activated: PR URL provided directly', { verbose: true });
@@ -983,6 +941,8 @@ ${prBody}`, { verbose: true });
               const prMatch = prUrl.match(/\/pull\/(\d+)/);
               if (prMatch) {
                 prNumber = prMatch[1];
+                // Store PR info globally for error handlers
+                global.createdPR = { number: prNumber, url: prUrl };
                 await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
                 if (currentUser && canAssign) {
@@ -1098,6 +1058,8 @@ ${prBody}`, { verbose: true });
                   const prData = JSON.parse(prListResult.stdout.toString().trim());
                   prUrl = prData.url;
                   prNumber = prData.number;
+                  // Store PR info globally for error handlers
+                  global.createdPR = { number: prNumber, url: prUrl };
                   await log(formatAligned('✅', 'PR created:', `#${prNumber} (without assignee)`));
                   await log(formatAligned('📍', 'PR URL:', prUrl));
                 } catch (parseErr) {
@@ -1461,40 +1423,21 @@ Self review.
   // Search for newly created pull requests and comments
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 } catch (error) {
-  await log('Error executing command:', cleanErrorMessage(error));
-  await log(`Stack trace: ${error.stack}`, { verbose: true });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-
-  // If --attach-logs is enabled, try to attach failure logs
-  if (shouldAttachLogs && getLogFile()) {
-    await log('\n📄 Attempting to attach failure logs...');
-
-    // Try to attach to existing PR first
-    if (global.createdPR && global.createdPR.number) {
-      try {
-        const logUploadSuccess = await attachLogToGitHub({
-          logFile: getLogFile(),
-          targetType: 'pr',
-          targetNumber: global.createdPR.number,
-          owner,
-          repo,
-          $,
-          log,
-          sanitizeLogContent,
-          verbose: argv.verbose,
-          errorMessage: cleanErrorMessage(error)
-        });
-
-        if (logUploadSuccess) {
-          await log('📎 Failure log attached to Pull Request');
-        }
-      } catch (attachError) {
-        await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
-      }
-    }
-  }
-
-  process.exit(1);
+  await handleMainExecutionError({
+    error,
+    log,
+    cleanErrorMessage,
+    absoluteLogPath,
+    shouldAttachLogs,
+    argv,
+    global,
+    owner,
+    repo,
+    getLogFile,
+    attachLogToGitHub,
+    sanitizeLogContent,
+    $
+  });
 } finally {
   // Clean up temporary directory using repository module
   await cleanupTempDirectory(tempDir, argv, limitReached);
