@@ -1,0 +1,13 @@
+title:	Update README.md and FLOW.md
+state:	OPEN
+author:	konard
+labels:	documentation, enhancement
+comments:	0
+assignees:	
+projects:	
+milestone:	
+number:	246
+--
+* Remove High-Level System Architecture from README.md
+* In both README.md and FLOW.md change horizontal order in the sequence diagram. It should be like this: Human - GitHub - Agent - Hive. So GitHub is in the middle.
+* Also double check these sequence diagrams correctly represent basic flows in the code.

@@ -148,14 +148,14 @@ graph TD
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant HM as Hive Mind
-    participant AI as AI Agent
     participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
 
     H->>GH: Creates Issue
     Note over H,GH: Primary human input
 
-    HM->>GH: Detects Issue
+    GH->>HM: Issue Available
     HM->>AI: Assigns Issue
     AI->>GH: Analyzes Issue
     AI->>AI: Develops Solution
@@ -201,15 +201,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant HM as Hive Mind
-    participant AI as AI Agent
     participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
 
     Note over GH: Existing PR
     H->>GH: Adds Comment
     Note over H,GH: Primary human input
 
-    HM->>GH: Detects New Comment
+    GH->>HM: New Comment Available
     HM->>AI: Processes Comment
     AI->>GH: Analyzes Feedback
     AI->>AI: Updates Solution
