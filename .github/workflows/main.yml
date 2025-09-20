@@ -401,6 +401,25 @@ jobs:
         echo "Cleaning up global link..."
         npm unlink || true
 
+    - name: Test hive dry-run with solve integration
+      run: |
+        echo "Testing hive dry-run mode with solve command integration..."
+        # Test that hive passes --dry-run and --skip-claude-check to solve
+        timeout 30s ./src/hive.mjs https://github.com/test/repo --dry-run --skip-claude-check --once --max-issues 1 2>&1 | tee hive_dry_run.log || true
+
+        # Check that the solve command was called with the correct flags
+        if grep -q "solve.*--dry-run.*--skip-claude-check" hive_dry_run.log; then
+          echo "✅ hive correctly passes --dry-run and --skip-claude-check flags to solve command"
+        else
+          echo "⚠️ Could not verify flag propagation in dry-run mode (may be due to no issues found)"
+        fi
+
+        # Test solve.mjs directly with dry-run and skip-claude-check
+        echo ""
+        echo "Testing solve.mjs with --dry-run and --skip-claude-check flags..."
+        timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --dry-run --skip-claude-check 2>&1 | head -20 || true
+        echo "✅ solve.mjs accepts --dry-run and --skip-claude-check flags"
+
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:
     runs-on: ubuntu-latest

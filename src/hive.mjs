@@ -196,6 +196,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'List issues that would be processed without actually processing them',
       default: false
     })
+    .option('skip-claude-check', {
+      type: 'boolean',
+      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      default: false
+    })
     .option('verbose', {
       type: 'boolean',
       description: 'Enable verbose logging',
@@ -533,55 +538,59 @@ async function worker(workerId) {
       }
       
       try {
+        // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
         if (argv.dryRun) {
-          const forkFlag = argv.fork ? ' --fork' : '';
-          const verboseFlag = argv.verbose ? ' --verbose' : '';
-          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
-          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
-          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`);
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
+          await log(`   🧪 [DRY RUN] Executing ${solveCommand} in dry-run mode for ${issueUrl}...`);
         } else {
-          // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
           await log(`   🚀 Executing ${solveCommand} for ${issueUrl}...`);
-          
-          const startTime = Date.now();
-          const forkFlag = argv.fork ? ' --fork' : '';
-          const verboseFlag = argv.verbose ? ' --verbose' : '';
-          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
-          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+        }
 
-          // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
-          const { spawn } = await import('child_process');
+        const startTime = Date.now();
+        const forkFlag = argv.fork ? ' --fork' : '';
+        const verboseFlag = argv.verbose ? ' --verbose' : '';
+        const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+        const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+        const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
+        const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
 
-          // Build arguments array to avoid shell parsing issues
-          const args = [issueUrl, '--model', argv.model];
-          if (argv.fork) {
-            args.push('--fork');
-          }
-          if (argv.verbose) {
-            args.push('--verbose');
-          }
-          if (argv.attachLogs) {
-            args.push('--attach-logs');
-          }
-          if (argv.logDir) {
-            args.push('--log-dir', argv.logDir);
-          }
+        // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
+        const { spawn } = await import('child_process');
 
-          // Log the actual command being executed so users can investigate/reproduce
-          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`;
-          await log(`   📋 Command: ${command}`);
+        // Build arguments array to avoid shell parsing issues
+        const args = [issueUrl, '--model', argv.model];
+        if (argv.fork) {
+          args.push('--fork');
+        }
+        if (argv.verbose) {
+          args.push('--verbose');
+        }
+        if (argv.attachLogs) {
+          args.push('--attach-logs');
+        }
+        if (argv.logDir) {
+          args.push('--log-dir', argv.logDir);
+        }
+        if (argv.dryRun) {
+          args.push('--dry-run');
+        }
+        if (argv.skipClaudeCheck) {
+          args.push('--skip-claude-check');
+        }
 
-          let exitCode = 0;
+        // Log the actual command being executed so users can investigate/reproduce
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}`;
+        await log(`   📋 Command: ${command}`);
 
-          // Create promise to handle async spawn process
-          await new Promise((resolve, reject) => {
-            const child = spawn(solveCommand, args, {
-              stdio: ['pipe', 'pipe', 'pipe']
-            });
-            
-            // Handle stdout data - stream output in real-time
-            child.stdout.on('data', (data) => {
+        let exitCode = 0;
+
+        // Create promise to handle async spawn process
+        await new Promise((resolve, reject) => {
+          const child = spawn(solveCommand, args, {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          // Handle stdout data - stream output in real-time
+          child.stdout.on('data', (data) => {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
@@ -615,13 +624,12 @@ async function worker(workerId) {
           });
           
           const duration = Math.round((Date.now() - startTime) / 1000);
-          
+
           if (exitCode === 0) {
             await log(`   ✅ Worker ${workerId} completed ${issueUrl} (${duration}s)`);
           } else {
             throw new Error(`${solveCommand} exited with code ${exitCode}`);
           }
-        }
         
         // Small delay between multiple PRs for same issue
         if (prNum < argv.pullRequestsPerIssue) {
