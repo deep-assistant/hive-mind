@@ -3,6 +3,8 @@
  * Handles the actual execution of Claude commands and processing of output
  */
 
+import { spawn } from 'child_process';
+
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -17,8 +19,7 @@ export const executeClaudeCommand = async (params) => {
     getResourceSnapshot,
     forkedRepo,
     feedbackLines,
-    claudePath,
-    $
+    claudePath
   } = params;
 
   // Execute claude command from the cloned repository directory
@@ -80,29 +81,36 @@ export const executeClaudeCommand = async (params) => {
 
   await log(`\n${formatAligned('▶️', 'Streaming output:', '')}\n`);
 
-  // Execute the Claude command
-  const claudeCommand = $({
-    cwd: tempDir,
-    shell: true,
-    exitOnError: false
-  })`${claudePath} ${claudeArgs} | jq -c .`;
+  // Use spawn instead of command-stream for more reliable execution
+  // Build the full command as a shell command
+  const shellCommand = `${claudePath} ${claudeArgs} | jq -c .`;
 
-  // Stream the output
-  for await (const chunk of claudeCommand.stream()) {
-    // Process streaming output
-    const output = chunk.type === 'stdout' ? chunk.data.toString() : '';
-    const errorOutput = chunk.type === 'stderr' ? chunk.data.toString() : '';
+  // Create a promise to handle the spawn process
+  const executeCommand = () => new Promise((resolve, reject) => {
+    const child = spawn('sh', ['-c', shellCommand], {
+      cwd: tempDir,
+      env: process.env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
 
-    // Log stderr if present
-    if (errorOutput) {
-      await log(errorOutput, { stream: 'stderr' });
-    }
+    let stdoutBuffer = '';
+    let stderrBuffer = '';
+    let exitCode = null;
+    let exitSignal = null;
 
-    // Process each line of stdout
-    if (output) {
-      const lines = output.split('\n').filter(line => line.trim());
+    // Handle stdout
+    child.stdout.on('data', async (data) => {
+      const output = data.toString();
+      stdoutBuffer += output;
+
+      // Process complete lines from stdout
+      const lines = stdoutBuffer.split('\n');
+      // Keep the last incomplete line in buffer
+      stdoutBuffer = lines.pop() || '';
 
       for (const line of lines) {
+        if (!line.trim()) continue;
+
         try {
           const data = JSON.parse(line);
 
@@ -158,7 +166,7 @@ export const executeClaudeCommand = async (params) => {
             await log(`📨 Message ${messageCount} from assistant`, { stream: 'meta', verbose: true });
           }
 
-        } catch (parseError) {
+        } catch {
           // Not JSON or parsing failed, output as-is if it's not empty
           if (line.trim() && !line.includes('node:internal')) {
             await log(line, { stream: 'raw' });
@@ -166,11 +174,68 @@ export const executeClaudeCommand = async (params) => {
           }
         }
       }
-    }
-  }
+    });
 
-  // After the stream ends, get the command result to check exit code
-  const commandResult = await claudeCommand;
+    // Handle stderr
+    child.stderr.on('data', async (data) => {
+      const errorOutput = data.toString();
+      stderrBuffer += errorOutput;
+
+      // Log stderr immediately
+      if (errorOutput) {
+        await log(errorOutput, { stream: 'stderr' });
+      }
+    });
+
+    // Handle process exit
+    child.on('exit', (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+    });
+
+    child.on('close', async () => {
+      // Process any remaining buffered stdout
+      if (stdoutBuffer.trim()) {
+        try {
+          const data = JSON.parse(stdoutBuffer);
+
+          if (data.type === 'text' && data.text) {
+            await log(data.text, { stream: 'claude' });
+            lastMessage = data.text;
+          } else if (data.type === 'error') {
+            await log(`❌ Error: ${data.error || JSON.stringify(data)}`, { stream: 'error', level: 'error' });
+            lastMessage = data.error || JSON.stringify(data);
+          }
+        } catch {
+          if (stdoutBuffer.trim() && !stdoutBuffer.includes('node:internal')) {
+            await log(stdoutBuffer, { stream: 'raw' });
+            lastMessage = stdoutBuffer;
+          }
+        }
+      }
+
+      resolve({ code: exitCode, signal: exitSignal, stdout: stdoutBuffer, stderr: stderrBuffer });
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+  });
+
+  // Execute the command and wait for it to complete
+  let commandResult;
+  try {
+    commandResult = await executeCommand();
+  } catch (error) {
+    await log(`\n\n❌ Failed to execute Claude command: ${error.message}`, { level: 'error' });
+    return {
+      success: false,
+      sessionId,
+      limitReached,
+      messageCount,
+      toolUseCount
+    };
+  }
 
   if (commandResult.code !== 0) {
     commandFailed = true;
@@ -235,15 +300,45 @@ export const executeClaudeCommand = async (params) => {
   };
 };
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log) => {
+// Helper function to execute a simple command using spawn
+const execCommand = (command, cwd) => {
+  return new Promise((resolve) => {
+    const child = spawn('sh', ['-c', command], {
+      cwd,
+      env: process.env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      resolve({ code, stdout, stderr });
+    });
+
+    child.on('error', (err) => {
+      resolve({ code: 1, stdout: '', stderr: err.message });
+    });
+  });
+};
+
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, _$, log) => {
   // Check for and commit any uncommitted changes made by Claude
   await log('\n🔍 Checking for uncommitted changes...');
   try {
     // Check git status to see if there are any uncommitted changes
-    const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+    const gitStatusResult = await execCommand('git status --porcelain 2>&1', tempDir);
 
     if (gitStatusResult.code === 0) {
-      const statusOutput = gitStatusResult.stdout.toString().trim();
+      const statusOutput = gitStatusResult.stdout.trim();
 
       if (statusOutput) {
         await log('📝 Found uncommitted changes');
@@ -255,34 +350,34 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
         // Auto-commit the changes
         await log('💾 Committing changes automatically...');
 
-        const addResult = await $({ cwd: tempDir })`git add -A`;
+        const addResult = await execCommand('git add -A', tempDir);
         if (addResult.code === 0) {
           const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
-          const commitResult = await $({ cwd: tempDir })`git commit -m "${commitMessage}"`;
+          const commitResult = await execCommand(`git commit -m "${commitMessage}"`, tempDir);
 
           if (commitResult.code === 0) {
             await log('✅ Changes committed successfully');
 
             // Push the changes
             await log('📤 Pushing changes to remote...');
-            const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+            const pushResult = await execCommand(`git push origin ${branchName}`, tempDir);
 
             if (pushResult.code === 0) {
               await log('✅ Changes pushed successfully');
             } else {
-              await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr.toString().trim()}`, { level: 'warning' });
+              await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr.trim()}`, { level: 'warning' });
             }
           } else {
-            await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr.toString().trim()}`, { level: 'warning' });
+            await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr.trim()}`, { level: 'warning' });
           }
         } else {
-          await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr.toString().trim()}`, { level: 'warning' });
+          await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr.trim()}`, { level: 'warning' });
         }
       } else {
         await log('✅ No uncommitted changes found');
       }
     } else {
-      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.toString().trim()}`, { level: 'warning' });
+      await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr.trim()}`, { level: 'warning' });
     }
   } catch (gitError) {
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
