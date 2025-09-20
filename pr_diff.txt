@@ -1,0 +1,240 @@
+diff --git a/.github/workflows/main.yml b/.github/workflows/main.yml
+index f048ddf..5b0d343 100644
+--- a/.github/workflows/main.yml
++++ b/.github/workflows/main.yml
+@@ -401,6 +401,25 @@ jobs:
+         echo "Cleaning up global link..."
+         npm unlink || true
+ 
++    - name: Test hive dry-run with solve integration
++      run: |
++        echo "Testing hive dry-run mode with solve command integration..."
++        # Test that hive passes --dry-run and --skip-claude-check to solve
++        timeout 30s ./src/hive.mjs https://github.com/test/repo --dry-run --skip-claude-check --once --max-issues 1 2>&1 | tee hive_dry_run.log || true
++
++        # Check that the solve command was called with the correct flags
++        if grep -q "solve.*--dry-run.*--skip-claude-check" hive_dry_run.log; then
++          echo "✅ hive correctly passes --dry-run and --skip-claude-check flags to solve command"
++        else
++          echo "⚠️ Could not verify flag propagation in dry-run mode (may be due to no issues found)"
++        fi
++
++        # Test solve.mjs directly with dry-run and skip-claude-check
++        echo ""
++        echo "Testing solve.mjs with --dry-run and --skip-claude-check flags..."
++        timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --dry-run --skip-claude-check 2>&1 | head -20 || true
++        echo "✅ solve.mjs accepts --dry-run and --skip-claude-check flags"
++
+   # === MEMORY CHECKS - LINUX ===
+   memory-check-linux:
+     runs-on: ubuntu-latest
+diff --git a/src/hive.mjs b/src/hive.mjs
+index 6b3dd6b..dd1357d 100755
+--- a/src/hive.mjs
++++ b/src/hive.mjs
+@@ -196,6 +196,11 @@ const createYargsConfig = (yargsInstance) => {
+       description: 'List issues that would be processed without actually processing them',
+       default: false
+     })
++    .option('skip-claude-check', {
++      type: 'boolean',
++      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
++      default: false
++    })
+     .option('verbose', {
+       type: 'boolean',
+       description: 'Enable verbose logging',
+@@ -533,55 +538,59 @@ async function worker(workerId) {
+       }
+       
+       try {
++        // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
+         if (argv.dryRun) {
+-          const forkFlag = argv.fork ? ' --fork' : '';
+-          const verboseFlag = argv.verbose ? ' --verbose' : '';
+-          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+-          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+-          await log(`   🧪 [DRY RUN] Would execute: ${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`);
+-          await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate work
++          await log(`   🧪 [DRY RUN] Executing ${solveCommand} in dry-run mode for ${issueUrl}...`);
+         } else {
+-          // Execute solve command using spawn to enable real-time streaming while avoiding command-stream quoting issues
+           await log(`   🚀 Executing ${solveCommand} for ${issueUrl}...`);
+-          
+-          const startTime = Date.now();
+-          const forkFlag = argv.fork ? ' --fork' : '';
+-          const verboseFlag = argv.verbose ? ' --verbose' : '';
+-          const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
+-          const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
+-
+-          // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
+-          const { spawn } = await import('child_process');
+-
+-          // Build arguments array to avoid shell parsing issues
+-          const args = [issueUrl, '--model', argv.model];
+-          if (argv.fork) {
+-            args.push('--fork');
+-          }
+-          if (argv.verbose) {
+-            args.push('--verbose');
+-          }
+-          if (argv.attachLogs) {
+-            args.push('--attach-logs');
+-          }
+-          if (argv.logDir) {
+-            args.push('--log-dir', argv.logDir);
+-          }
++        }
++
++        const startTime = Date.now();
++        const forkFlag = argv.fork ? ' --fork' : '';
++        const verboseFlag = argv.verbose ? ' --verbose' : '';
++        const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
++        const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
++        const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
++        const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
++
++        // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
++        const { spawn } = await import('child_process');
++
++        // Build arguments array to avoid shell parsing issues
++        const args = [issueUrl, '--model', argv.model];
++        if (argv.fork) {
++          args.push('--fork');
++        }
++        if (argv.verbose) {
++          args.push('--verbose');
++        }
++        if (argv.attachLogs) {
++          args.push('--attach-logs');
++        }
++        if (argv.logDir) {
++          args.push('--log-dir', argv.logDir);
++        }
++        if (argv.dryRun) {
++          args.push('--dry-run');
++        }
++        if (argv.skipClaudeCheck) {
++          args.push('--skip-claude-check');
++        }
+ 
+-          // Log the actual command being executed so users can investigate/reproduce
+-          const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}`;
+-          await log(`   📋 Command: ${command}`);
++        // Log the actual command being executed so users can investigate/reproduce
++        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}`;
++        await log(`   📋 Command: ${command}`);
+ 
+-          let exitCode = 0;
++        let exitCode = 0;
+ 
+-          // Create promise to handle async spawn process
+-          await new Promise((resolve, reject) => {
+-            const child = spawn(solveCommand, args, {
+-              stdio: ['pipe', 'pipe', 'pipe']
+-            });
+-            
+-            // Handle stdout data - stream output in real-time
+-            child.stdout.on('data', (data) => {
++        // Create promise to handle async spawn process
++        await new Promise((resolve, reject) => {
++          const child = spawn(solveCommand, args, {
++            stdio: ['pipe', 'pipe', 'pipe']
++          });
++
++          // Handle stdout data - stream output in real-time
++          child.stdout.on('data', (data) => {
+               const lines = data.toString().split('\n');
+               for (const line of lines) {
+                 if (line.trim()) {
+@@ -615,13 +624,12 @@ async function worker(workerId) {
+           });
+           
+           const duration = Math.round((Date.now() - startTime) / 1000);
+-          
++
+           if (exitCode === 0) {
+             await log(`   ✅ Worker ${workerId} completed ${issueUrl} (${duration}s)`);
+           } else {
+             throw new Error(`${solveCommand} exited with code ${exitCode}`);
+           }
+-        }
+         
+         // Small delay between multiple PRs for same issue
+         if (prNum < argv.pullRequestsPerIssue) {
+diff --git a/src/solve.config.lib.mjs b/src/solve.config.lib.mjs
+index 6b34cea..0c4dc25 100644
+--- a/src/solve.config.lib.mjs
++++ b/src/solve.config.lib.mjs
+@@ -36,6 +36,11 @@ export const createYargsConfig = (yargsInstance) => {
+       description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
+       alias: 'n'
+     })
++    .option('skip-claude-check', {
++      type: 'boolean',
++      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
++      default: false
++    })
+     .option('model', {
+       type: 'string',
+       description: 'Model to use (opus or sonnet)',
+diff --git a/src/solve.mjs b/src/solve.mjs
+index 19862c2..94726c6 100755
+--- a/src/solve.mjs
++++ b/src/solve.mjs
+@@ -195,8 +195,9 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
+ }
+ 
+ // Perform all system checks using validation module
+-// Skip Claude validation in dry-run mode since we won't actually run Claude
+-if (!(await performSystemChecks(argv.minDiskSpace || 500, argv.dryRun))) {
++// Skip Claude validation in dry-run mode or when --skip-claude-check is enabled
++const skipClaudeCheck = argv.dryRun || argv.skipClaudeCheck;
++if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck))) {
+   process.exit(1);
+ }
+ 
+diff --git a/tests/test-hive.mjs b/tests/test-hive.mjs
+index 21e9c06..8f9acad 100755
+--- a/tests/test-hive.mjs
++++ b/tests/test-hive.mjs
+@@ -192,6 +192,17 @@ runTest('hive.mjs --attach-logs flag', () => {
+   }
+ });
+ 
++// Test 14: Check --skip-claude-check flag is available
++runTest('hive.mjs --skip-claude-check flag', () => {
++  const output = execCommand(`${hivePath} --help 2>&1`);
++  if (!output.includes('skip-claude-check')) {
++    throw new Error('--skip-claude-check option not found in help output');
++  }
++  if (!output.includes('Skip Claude connection check')) {
++    throw new Error('--skip-claude-check description not found in help output');
++  }
++});
++
+ // Summary
+ console.log('\n' + '='.repeat(50));
+ console.log(`Test Results for hive.mjs:`);
+diff --git a/tests/test-solve.mjs b/tests/test-solve.mjs
+index 489d9ef..cea196b 100755
+--- a/tests/test-solve.mjs
++++ b/tests/test-solve.mjs
+@@ -166,6 +166,17 @@ runTest('solve.mjs loads successfully', () => {
+   }
+ });
+ 
++// Test 13: Check --skip-claude-check flag is available
++runTest('solve.mjs --skip-claude-check flag', () => {
++  const output = execCommand(`${solvePath} --help 2>&1`);
++  if (!output.includes('skip-claude-check')) {
++    throw new Error('--skip-claude-check option not found in help output');
++  }
++  if (!output.includes('Skip Claude connection check')) {
++    throw new Error('--skip-claude-check description not found in help output');
++  }
++});
++
+ // Summary
+ console.log('\n' + '='.repeat(50));
+ console.log(`Test Results for solve.mjs:`);

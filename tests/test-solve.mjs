@@ -166,6 +166,17 @@ runTest('solve.mjs loads successfully', () => {
   }
 });
 
+// Test 13: Check --skip-claude-check flag is available
+runTest('solve.mjs --skip-claude-check flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('skip-claude-check')) {
+    throw new Error('--skip-claude-check option not found in help output');
+  }
+  if (!output.includes('Skip Claude connection check')) {
+    throw new Error('--skip-claude-check description not found in help output');
+  }
+});
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`Test Results for solve.mjs:`);

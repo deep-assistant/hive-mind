@@ -36,6 +36,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
       alias: 'n'
     })
+    .option('skip-claude-check', {
+      type: 'boolean',
+      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      default: false
+    })
     .option('model', {
       type: 'string',
       description: 'Model to use (opus or sonnet)',
