@@ -1,0 +1,381 @@
+verify-version-bump	Set up job	﻿2025-09-20T06:49:42.4110729Z Current runner version: '2.328.0'
+verify-version-bump	Set up job	2025-09-20T06:49:42.4133681Z ##[group]Runner Image Provisioner
+verify-version-bump	Set up job	2025-09-20T06:49:42.4134491Z Hosted Compute Agent
+verify-version-bump	Set up job	2025-09-20T06:49:42.4134982Z Version: 20250829.383
+verify-version-bump	Set up job	2025-09-20T06:49:42.4135698Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+verify-version-bump	Set up job	2025-09-20T06:49:42.4136418Z Build Date: 2025-08-29T13:48:48Z
+verify-version-bump	Set up job	2025-09-20T06:49:42.4136997Z ##[endgroup]
+verify-version-bump	Set up job	2025-09-20T06:49:42.4137589Z ##[group]Operating System
+verify-version-bump	Set up job	2025-09-20T06:49:42.4138107Z Ubuntu
+verify-version-bump	Set up job	2025-09-20T06:49:42.4138557Z 24.04.3
+verify-version-bump	Set up job	2025-09-20T06:49:42.4139039Z LTS
+verify-version-bump	Set up job	2025-09-20T06:49:42.4139519Z ##[endgroup]
+verify-version-bump	Set up job	2025-09-20T06:49:42.4139957Z ##[group]Runner Image
+verify-version-bump	Set up job	2025-09-20T06:49:42.4140754Z Image: ubuntu-24.04
+verify-version-bump	Set up job	2025-09-20T06:49:42.4141221Z Version: 20250907.24.1
+verify-version-bump	Set up job	2025-09-20T06:49:42.4142223Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250907.24/images/ubuntu/Ubuntu2404-Readme.md
+verify-version-bump	Set up job	2025-09-20T06:49:42.4143695Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250907.24
+verify-version-bump	Set up job	2025-09-20T06:49:42.4144817Z ##[endgroup]
+verify-version-bump	Set up job	2025-09-20T06:49:42.4145933Z ##[group]GITHUB_TOKEN Permissions
+verify-version-bump	Set up job	2025-09-20T06:49:42.4147641Z Contents: read
+verify-version-bump	Set up job	2025-09-20T06:49:42.4148270Z Metadata: read
+verify-version-bump	Set up job	2025-09-20T06:49:42.4148821Z Packages: read
+verify-version-bump	Set up job	2025-09-20T06:49:42.4149265Z ##[endgroup]
+verify-version-bump	Set up job	2025-09-20T06:49:42.4151682Z Secret source: Actions
+verify-version-bump	Set up job	2025-09-20T06:49:42.4152367Z Prepare workflow directory
+verify-version-bump	Set up job	2025-09-20T06:49:42.4469884Z Prepare all required actions
+verify-version-bump	Set up job	2025-09-20T06:49:42.4526271Z Getting action download info
+verify-version-bump	Set up job	2025-09-20T06:49:42.8969937Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+verify-version-bump	Set up job	2025-09-20T06:49:43.0715867Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+verify-version-bump	Set up job	2025-09-20T06:49:43.2551134Z Complete job name: verify-version-bump
+verify-version-bump	Checkout PR branch	﻿2025-09-20T06:49:43.3226820Z ##[group]Run actions/checkout@v4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3227659Z with:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3228028Z   fetch-depth: 0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3228460Z   repository: deep-assistant/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3229133Z   token: ***
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3229505Z   ssh-strict: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3229874Z   ssh-user: git
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3230261Z   persist-credentials: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3230874Z   clean: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3231265Z   sparse-checkout-cone-mode: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3231737Z   fetch-tags: false
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3232125Z   show-progress: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3232518Z   lfs: false
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3232862Z   submodules: false
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3233248Z   set-safe-directory: true
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.3233910Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4388756Z Syncing repository: deep-assistant/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4390994Z ##[group]Getting Git version info
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4391728Z Working directory is '/home/runner/work/hive-mind/hive-mind'
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4392837Z [command]/usr/bin/git version
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4797086Z git version 2.51.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4836797Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4854619Z Temporarily overriding HOME='/home/runner/work/_temp/31a3f7e3-aa17-4b41-a3bd-144386214082' before making global git config changes
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4856381Z Adding repository directory to the temporary git global config as a safe directory
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4862824Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hive-mind/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4908234Z Deleting the contents of '/home/runner/work/hive-mind/hive-mind'
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4912877Z ##[group]Initializing the repository
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.4918696Z [command]/usr/bin/git init /home/runner/work/hive-mind/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5043163Z hint: Using 'master' as the name for the initial branch. This default branch name
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5044225Z hint: is subject to change. To configure the initial branch name to use in all
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5045337Z hint: of your new repositories, which will suppress this warning, call:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5046508Z hint:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5047289Z hint: 	git config --global init.defaultBranch <name>
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5048521Z hint:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5049392Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5050910Z hint: 'development'. The just-created branch can be renamed via this command:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5051633Z hint:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5052007Z hint: 	git branch -m <name>
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5052436Z hint:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5053009Z hint: Disable this message with "git config set advice.defaultBranchName false"
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5053987Z Initialized empty Git repository in /home/runner/work/hive-mind/hive-mind/.git/
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5064505Z [command]/usr/bin/git remote add origin https://github.com/deep-assistant/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5113090Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5115565Z ##[group]Disabling automatic garbage collection
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5116995Z [command]/usr/bin/git config --local gc.auto 0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5148762Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5150833Z ##[group]Setting up auth
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5155713Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5187182Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5538714Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5567701Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5797294Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5831873Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5832980Z ##[group]Fetching the repository
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:43.5842422Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +1d7fc1e83a63d65e336b564f6ac9264888dcd2b6:refs/remotes/pull/240/merge
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5831822Z From https://github.com/deep-assistant/hive-mind
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5833838Z  * [new branch]      dockerize-claude-code                    -> origin/dockerize-claude-code
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5835812Z  * [new branch]      issue-1-0596ba61                         -> origin/issue-1-0596ba61
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5841373Z  * [new branch]      issue-1-5251c297                         -> origin/issue-1-5251c297
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5848878Z  * [new branch]      issue-1-606bfad6                         -> origin/issue-1-606bfad6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5850694Z  * [new branch]      issue-10-c0ca07d1                        -> origin/issue-10-c0ca07d1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5854148Z  * [new branch]      issue-101-2579944d                       -> origin/issue-101-2579944d
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5855845Z  * [new branch]      issue-103-f2ace4c7                       -> origin/issue-103-f2ace4c7
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5857461Z  * [new branch]      issue-105-c470c833                       -> origin/issue-105-c470c833
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5859026Z  * [new branch]      issue-107-727bbefe                       -> origin/issue-107-727bbefe
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5860797Z  * [new branch]      issue-107-da9f66d5                       -> origin/issue-107-da9f66d5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5862412Z  * [new branch]      issue-107-ffe58b65                       -> origin/issue-107-ffe58b65
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5864063Z  * [new branch]      issue-108-33029b6d                       -> origin/issue-108-33029b6d
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5865937Z  * [new branch]      issue-11-9f0014ca                        -> origin/issue-11-9f0014ca
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5867855Z  * [new branch]      issue-110-0aee8df9                       -> origin/issue-110-0aee8df9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5869859Z  * [new branch]      issue-110-3abd51b4                       -> origin/issue-110-3abd51b4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5871891Z  * [new branch]      issue-110-5db43e39                       -> origin/issue-110-5db43e39
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5874027Z  * [new branch]      issue-110-7556b140                       -> origin/issue-110-7556b140
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5875850Z  * [new branch]      issue-110-7d817089                       -> origin/issue-110-7d817089
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5877655Z  * [new branch]      issue-110-c3bb5bad                       -> origin/issue-110-c3bb5bad
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5879486Z  * [new branch]      issue-110-dc56cec1                       -> origin/issue-110-dc56cec1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5881450Z  * [new branch]      issue-110-e19ccdc1                       -> origin/issue-110-e19ccdc1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5883192Z  * [new branch]      issue-12-016317fd                        -> origin/issue-12-016317fd
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5884916Z  * [new branch]      issue-124-43dcc83a                       -> origin/issue-124-43dcc83a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5886684Z  * [new branch]      issue-126-83a009e9                       -> origin/issue-126-83a009e9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5888452Z  * [new branch]      issue-127-77157b26                       -> origin/issue-127-77157b26
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5890185Z  * [new branch]      issue-129-eedb3d27                       -> origin/issue-129-eedb3d27
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5892128Z  * [new branch]      issue-131-84895788                       -> origin/issue-131-84895788
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5893910Z  * [new branch]      issue-132-ba104fe5                       -> origin/issue-132-ba104fe5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5895776Z  * [new branch]      issue-132-c48ad165                       -> origin/issue-132-c48ad165
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5897669Z  * [new branch]      issue-137-8f611c04                       -> origin/issue-137-8f611c04
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5899415Z  * [new branch]      issue-139-07192172                       -> origin/issue-139-07192172
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5901581Z  * [new branch]      issue-141-dfa6be40                       -> origin/issue-141-dfa6be40
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5903351Z  * [new branch]      issue-143-70ae7212                       -> origin/issue-143-70ae7212
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5905107Z  * [new branch]      issue-144-0d07e5e3                       -> origin/issue-144-0d07e5e3
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5906850Z  * [new branch]      issue-145-cea37c66                       -> origin/issue-145-cea37c66
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5908583Z  * [new branch]      issue-146-05906414                       -> origin/issue-146-05906414
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5910275Z  * [new branch]      issue-147-1f1e98a8                       -> origin/issue-147-1f1e98a8
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5912152Z  * [new branch]      issue-148-ecc674ac                       -> origin/issue-148-ecc674ac
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5913841Z  * [new branch]      issue-155-5439babd                       -> origin/issue-155-5439babd
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5915528Z  * [new branch]      issue-157-154a072a                       -> origin/issue-157-154a072a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5917267Z  * [new branch]      issue-159-64d50000                       -> origin/issue-159-64d50000
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5918965Z  * [new branch]      issue-159-d0e57a9f                       -> origin/issue-159-d0e57a9f
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5920822Z  * [new branch]      issue-162-3eb0c720                       -> origin/issue-162-3eb0c720
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5922519Z  * [new branch]      issue-163-219b7547                       -> origin/issue-163-219b7547
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5924194Z  * [new branch]      issue-166-ffe782f0                       -> origin/issue-166-ffe782f0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5925876Z  * [new branch]      issue-168-113ce685                       -> origin/issue-168-113ce685
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5927553Z  * [new branch]      issue-170-13dc08f1                       -> origin/issue-170-13dc08f1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5929236Z  * [new branch]      issue-171-ee7e5df9                       -> origin/issue-171-ee7e5df9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5931115Z  * [new branch]      issue-172-7b94f3c2                       -> origin/issue-172-7b94f3c2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5932832Z  * [new branch]      issue-178-393f128a                       -> origin/issue-178-393f128a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5934761Z  * [new branch]      issue-18-d10b6877                        -> origin/issue-18-d10b6877
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5936487Z  * [new branch]      issue-180-2ab155b0                       -> origin/issue-180-2ab155b0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5938241Z  * [new branch]      issue-181-a1e1bca2                       -> origin/issue-181-a1e1bca2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5939986Z  * [new branch]      issue-182-82427d86                       -> origin/issue-182-82427d86
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5941955Z  * [new branch]      issue-183-fe6ea7cc                       -> origin/issue-183-fe6ea7cc
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5943718Z  * [new branch]      issue-184-5f675129                       -> origin/issue-184-5f675129
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5945474Z  * [new branch]      issue-185-ed3ffc40                       -> origin/issue-185-ed3ffc40
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5947256Z  * [new branch]      issue-186-97d42e2c                       -> origin/issue-186-97d42e2c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5949002Z  * [new branch]      issue-19-89d34aa9                        -> origin/issue-19-89d34aa9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5950926Z  * [new branch]      issue-194-e491ea7e                       -> origin/issue-194-e491ea7e
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5952708Z  * [new branch]      issue-195-0244d8e6                       -> origin/issue-195-0244d8e6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5954452Z  * [new branch]      issue-195-b5b77408                       -> origin/issue-195-b5b77408
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5956211Z  * [new branch]      issue-197-a466395c                       -> origin/issue-197-a466395c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5957970Z  * [new branch]      issue-202-c8363bfa                       -> origin/issue-202-c8363bfa
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5959736Z  * [new branch]      issue-202-edecc051                       -> origin/issue-202-edecc051
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5962030Z  * [new branch]      issue-204-58fafd12                       -> origin/issue-204-58fafd12
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5963905Z  * [new branch]      issue-204-c87af62e                       -> origin/issue-204-c87af62e
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5965763Z  * [new branch]      issue-204-f37ae53d                       -> origin/issue-204-f37ae53d
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5967613Z  * [new branch]      issue-205-969dce1d                       -> origin/issue-205-969dce1d
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5969449Z  * [new branch]      issue-209-0cf6eeb4                       -> origin/issue-209-0cf6eeb4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5971448Z  * [new branch]      issue-209-1a540117                       -> origin/issue-209-1a540117
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5973275Z  * [new branch]      issue-209-a1153107                       -> origin/issue-209-a1153107
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5975142Z  * [new branch]      issue-210-2d51011e                       -> origin/issue-210-2d51011e
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5976957Z  * [new branch]      issue-210-600e04b1                       -> origin/issue-210-600e04b1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5978819Z  * [new branch]      issue-210-634e697c                       -> origin/issue-210-634e697c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5980831Z  * [new branch]      issue-211-42542166                       -> origin/issue-211-42542166
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5982631Z  * [new branch]      issue-211-819a38f5                       -> origin/issue-211-819a38f5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5984470Z  * [new branch]      issue-211-908a53a1                       -> origin/issue-211-908a53a1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5986287Z  * [new branch]      issue-212-0e43ecdf                       -> origin/issue-212-0e43ecdf
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5988116Z  * [new branch]      issue-212-466e0fb1                       -> origin/issue-212-466e0fb1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5989948Z  * [new branch]      issue-216-104c2d99                       -> origin/issue-216-104c2d99
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5992002Z  * [new branch]      issue-217-561df850                       -> origin/issue-217-561df850
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5993860Z  * [new branch]      issue-217-70787d0b                       -> origin/issue-217-70787d0b
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5995798Z  * [new branch]      issue-22-0176893b                        -> origin/issue-22-0176893b
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5997857Z  * [new branch]      issue-22-d850e880                        -> origin/issue-22-d850e880
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.5999696Z  * [new branch]      issue-224-a5d3057a                       -> origin/issue-224-a5d3057a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6001744Z  * [new branch]      issue-226-96c97d88                       -> origin/issue-226-96c97d88
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6003611Z  * [new branch]      issue-226-fe53bce4                       -> origin/issue-226-fe53bce4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6005506Z  * [new branch]      issue-227-4c4c6dd6                       -> origin/issue-227-4c4c6dd6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6007373Z  * [new branch]      issue-235-737cfb20                       -> origin/issue-235-737cfb20
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6009209Z  * [new branch]      issue-25-0a0348b2                        -> origin/issue-25-0a0348b2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6011291Z  * [new branch]      issue-27-ee05e990                        -> origin/issue-27-ee05e990
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6013187Z  * [new branch]      issue-28-648c48ab                        -> origin/issue-28-648c48ab
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6015047Z  * [new branch]      issue-29-66f135d6                        -> origin/issue-29-66f135d6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6016895Z  * [new branch]      issue-30-34574b59                        -> origin/issue-30-34574b59
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6018722Z  * [new branch]      issue-30-80afb12c                        -> origin/issue-30-80afb12c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6020774Z  * [new branch]      issue-31-3877df14                        -> origin/issue-31-3877df14
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6022642Z  * [new branch]      issue-32-137a71b8                        -> origin/issue-32-137a71b8
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6024480Z  * [new branch]      issue-33-20cededb                        -> origin/issue-33-20cededb
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6026324Z  * [new branch]      issue-33-e7258f3c                        -> origin/issue-33-e7258f3c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6028412Z  * [new branch]      issue-34-3af5eda0                        -> origin/issue-34-3af5eda0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6030319Z  * [new branch]      issue-34-8ec11228                        -> origin/issue-34-8ec11228
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6032445Z  * [new branch]      issue-35-a8a31cd8                        -> origin/issue-35-a8a31cd8
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6034341Z  * [new branch]      issue-35-e9a78c06                        -> origin/issue-35-e9a78c06
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6036213Z  * [new branch]      issue-48-b5c56870                        -> origin/issue-48-b5c56870
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6038077Z  * [new branch]      issue-49-2f1d52c6                        -> origin/issue-49-2f1d52c6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6039953Z  * [new branch]      issue-5-1836843a                         -> origin/issue-5-1836843a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6042106Z  * [new branch]      issue-51-a3b0ebb2                        -> origin/issue-51-a3b0ebb2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6044018Z  * [new branch]      issue-52-8dec70fa                        -> origin/issue-52-8dec70fa
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6045876Z  * [new branch]      issue-54-826f837c                        -> origin/issue-54-826f837c
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6047761Z  * [new branch]      issue-55-dbd1a6dd                        -> origin/issue-55-dbd1a6dd
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6049614Z  * [new branch]      issue-6-f93e5123                         -> origin/issue-6-f93e5123
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6051673Z  * [new branch]      issue-65-3408ebd0                        -> origin/issue-65-3408ebd0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6053546Z  * [new branch]      issue-66-08bd4e27                        -> origin/issue-66-08bd4e27
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6055415Z  * [new branch]      issue-7-df36d075                         -> origin/issue-7-df36d075
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6057255Z  * [new branch]      issue-70-38ad0fd6                        -> origin/issue-70-38ad0fd6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6059106Z  * [new branch]      issue-71-145a3af2                        -> origin/issue-71-145a3af2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6061154Z  * [new branch]      issue-73-879e42eb                        -> origin/issue-73-879e42eb
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6063197Z  * [new branch]      issue-76-15469630                        -> origin/issue-76-15469630
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6065041Z  * [new branch]      issue-77-cb85705a                        -> origin/issue-77-cb85705a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6066888Z  * [new branch]      issue-79-3e7d742a                        -> origin/issue-79-3e7d742a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6068728Z  * [new branch]      issue-79-82c251ff                        -> origin/issue-79-82c251ff
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6070799Z  * [new branch]      issue-84-4eeaa00e                        -> origin/issue-84-4eeaa00e
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6072024Z  * [new branch]      issue-84-bbf405d4                        -> origin/issue-84-bbf405d4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6073139Z  * [new branch]      issue-85-c46a294a                        -> origin/issue-85-c46a294a
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6074289Z  * [new branch]      issue-88-1b2f0813                        -> origin/issue-88-1b2f0813
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6075479Z  * [new branch]      issue-9-d11b7360                         -> origin/issue-9-d11b7360
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6076593Z  * [new branch]      issue-90-cc02bea4                        -> origin/issue-90-cc02bea4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6077670Z  * [new branch]      issue-94-37533683                        -> origin/issue-94-37533683
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6078766Z  * [new branch]      issue-94-a9039c87                        -> origin/issue-94-a9039c87
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6079839Z  * [new branch]      issue-96-23d6fff5                        -> origin/issue-96-23d6fff5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6081193Z  * [new branch]      issue-98-2311d116                        -> origin/issue-98-2311d116
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6082184Z  * [new branch]      main                                     -> origin/main
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6083010Z  * [new tag]         v0.0.10                                  -> v0.0.10
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6083994Z  * [new tag]         v0.0.12                                  -> v0.0.12
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6084750Z  * [new tag]         v0.0.13                                  -> v0.0.13
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6085545Z  * [new tag]         v0.0.14                                  -> v0.0.14
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6086312Z  * [new tag]         v0.0.15                                  -> v0.0.15
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6087123Z  * [new tag]         v0.0.5                                   -> v0.0.5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6087910Z  * [new tag]         v0.0.6                                   -> v0.0.6
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6088686Z  * [new tag]         v0.0.7                                   -> v0.0.7
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6089441Z  * [new tag]         v0.0.8                                   -> v0.0.8
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6090203Z  * [new tag]         v0.0.9                                   -> v0.0.9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6091191Z  * [new tag]         v0.1.0                                   -> v0.1.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6091969Z  * [new tag]         v0.1.1                                   -> v0.1.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6092708Z  * [new tag]         v0.1.2                                   -> v0.1.2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6093460Z  * [new tag]         v0.2.0                                   -> v0.2.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6094201Z  * [new tag]         v0.2.1                                   -> v0.2.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6094945Z  * [new tag]         v0.2.2                                   -> v0.2.2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6095688Z  * [new tag]         v0.3.0                                   -> v0.3.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6096425Z  * [new tag]         v0.3.1                                   -> v0.3.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6097159Z  * [new tag]         v0.3.2                                   -> v0.3.2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6097905Z  * [new tag]         v0.4.0                                   -> v0.4.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6098643Z  * [new tag]         v0.4.1                                   -> v0.4.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6099424Z  * [new tag]         v0.4.2                                   -> v0.4.2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6100160Z  * [new tag]         v0.5.0                                   -> v0.5.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6101255Z  * [new tag]         v0.5.1                                   -> v0.5.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6102018Z  * [new tag]         v0.6.0                                   -> v0.6.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6102767Z  * [new tag]         v0.6.1                                   -> v0.6.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6103527Z  * [new tag]         v0.7.0                                   -> v0.7.0
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6104266Z  * [new tag]         v0.7.1                                   -> v0.7.1
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6105011Z  * [new tag]         v0.7.2                                   -> v0.7.2
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6105759Z  * [new tag]         v0.7.3                                   -> v0.7.3
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6106491Z  * [new tag]         v0.7.4                                   -> v0.7.4
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6107277Z  * [new tag]         v0.7.5                                   -> v0.7.5
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6108178Z  * [new ref]         1d7fc1e83a63d65e336b564f6ac9264888dcd2b6 -> pull/240/merge
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6139231Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6140817Z ##[group]Determining the checkout info
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6142289Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6146847Z [command]/usr/bin/git sparse-checkout disable
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6190692Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6217370Z ##[group]Checking out the ref
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6221739Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/240/merge
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6414553Z Note: switching to 'refs/remotes/pull/240/merge'.
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6415307Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6415720Z You are in 'detached HEAD' state. You can look around, make experimental
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6416738Z changes and commit them, and you can discard any commits you make in this
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6417763Z state without impacting any branches by switching back to a branch.
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6418586Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6418964Z If you want to create a new branch to retain commits you create, you may
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6419905Z do so (now or later) by using -c with the switch command. Example:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6421055Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6421519Z   git switch -c <new-branch-name>
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6422243Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6422617Z Or undo this operation with:
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6423264Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6423588Z   git switch -
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6424035Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6424806Z Turn off this advice by setting config variable advice.detachedHead to false
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6425986Z 
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6427303Z HEAD is now at 1d7fc1e Merge 045147cb5aef3fdb0957c3802593217588a03380 into 44e6e6956af856f0a7ee2add97a212b0d3e2f5f9
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6431067Z ##[endgroup]
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6461206Z [command]/usr/bin/git log -1 --format=%H
+verify-version-bump	Checkout PR branch	2025-09-20T06:49:44.6482562Z 1d7fc1e83a63d65e336b564f6ac9264888dcd2b6
+verify-version-bump	Setup Node.js	﻿2025-09-20T06:49:44.6729450Z ##[group]Run actions/setup-node@v4
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6730020Z with:
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6730605Z   node-version: 20.x
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6731075Z   always-auth: false
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6731496Z   check-latest: false
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6732103Z   token: ***
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.6732474Z ##[endgroup]
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.8703340Z Found in cache @ /opt/hostedtoolcache/node/20.19.5/x64
+verify-version-bump	Setup Node.js	2025-09-20T06:49:44.8708205Z ##[group]Environment details
+verify-version-bump	Setup Node.js	2025-09-20T06:49:47.2343050Z node: v20.19.5
+verify-version-bump	Setup Node.js	2025-09-20T06:49:47.2343525Z npm: 10.8.2
+verify-version-bump	Setup Node.js	2025-09-20T06:49:47.2343744Z yarn: 1.22.22
+verify-version-bump	Setup Node.js	2025-09-20T06:49:47.2345128Z ##[endgroup]
+verify-version-bump	Verify version bump	﻿2025-09-20T06:49:47.2481463Z ##[group]Run echo "=== Version Bump Verification ==="
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2482006Z [36;1mecho "=== Version Bump Verification ==="[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2482343Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2482565Z [36;1m# Get base and head refs[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2482843Z [36;1mBASE_REF="main"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2483105Z [36;1mHEAD_REF="issue-226-96c97d88"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2483461Z [36;1mBASE_SHA="44e6e6956af856f0a7ee2add97a212b0d3e2f5f9"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2483858Z [36;1mHEAD_SHA="045147cb5aef3fdb0957c3802593217588a03380"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2484428Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2484689Z [36;1mecho "Base branch: $BASE_REF ($BASE_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2485030Z [36;1mecho "Head branch: $HEAD_REF ($HEAD_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2485334Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2485539Z [36;1m# Fetch the base branch[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2485828Z [36;1mgit fetch origin $BASE_REF:$BASE_REF[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2486103Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2486345Z [36;1m# Get current version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2486695Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2487015Z [36;1m  echo "❌ No package.json found in PR"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2487312Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2487524Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2487719Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2488026Z [36;1mCURRENT_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2488458Z [36;1mecho "Current version in PR: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2488777Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2489010Z [36;1m# Get base version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2489400Z [36;1mgit checkout $BASE_SHA -- package.json 2>/dev/null || {[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2489852Z [36;1m  echo "❌ Could not get package.json from base branch"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2490188Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2490589Z [36;1m}[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2490800Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2491015Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2491375Z [36;1m  echo "❌ No package.json found in base branch"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2491683Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2491904Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2492096Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2492386Z [36;1mBASE_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2492760Z [36;1mecho "Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2493040Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2493248Z [36;1m# Restore current package.json[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2493582Z [36;1mgit checkout $HEAD_SHA -- package.json[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2493873Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2494077Z [36;1m# Compare versions[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2494379Z [36;1mif [ "$CURRENT_VERSION" = "$BASE_VERSION" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2494723Z [36;1m  echo "❌ Version has not been bumped!"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2495058Z [36;1m  echo "   Current version: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2495384Z [36;1m  echo "   Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2495693Z [36;1m  echo ""[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2496033Z [36;1m  echo "💡 Please bump the version in package.json before merging this PR."[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2496452Z [36;1m  echo "   You can use semantic versioning:"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2496803Z [36;1m  echo "   - Patch (bug fixes): npm version patch"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2497164Z [36;1m  echo "   - Minor (new features): npm version minor"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2497547Z [36;1m  echo "   - Major (breaking changes): npm version major"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2497888Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2498102Z [36;1melse[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2498424Z [36;1m  echo "✅ Version has been bumped from $BASE_VERSION to $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2498793Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2634480Z shell: /usr/bin/bash -e {0}
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2634815Z ##[endgroup]
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2711056Z === Version Bump Verification ===
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2711654Z Base branch: main (44e6e6956af856f0a7ee2add97a212b0d3e2f5f9)
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.2712544Z Head branch: issue-226-96c97d88 (045147cb5aef3fdb0957c3802593217588a03380)
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.6365461Z From https://github.com/deep-assistant/hive-mind
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.6366093Z  * [new branch]      main       -> main
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.6685196Z Current version in PR: 0.7.5
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7024463Z Base version: 0.7.5
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7047779Z ❌ Version has not been bumped!
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7048236Z    Current version: 0.7.5
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7048706Z    Base version: 0.7.5
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7049130Z 
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7049553Z 💡 Please bump the version in package.json before merging this PR.
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7050045Z    You can use semantic versioning:
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7050991Z    - Patch (bug fixes): npm version patch
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7051530Z    - Minor (new features): npm version minor
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7052051Z    - Major (breaking changes): npm version major
+verify-version-bump	Verify version bump	2025-09-20T06:49:47.7064929Z ##[error]Process completed with exit code 1.
+verify-version-bump	Post Checkout PR branch	﻿2025-09-20T06:49:47.7163190Z Post job cleanup.
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8090814Z [command]/usr/bin/git version
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8131635Z git version 2.51.0
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8175372Z Temporarily overriding HOME='/home/runner/work/_temp/b427c128-b600-4d65-87cd-350e3caba1e2' before making global git config changes
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8176918Z Adding repository directory to the temporary git global config as a safe directory
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8181447Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/hive-mind/hive-mind
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8214756Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8247257Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8473090Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8492325Z http.https://github.com/.extraheader
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8504621Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+verify-version-bump	Post Checkout PR branch	2025-09-20T06:49:47.8534621Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+verify-version-bump	Complete job	﻿2025-09-20T06:49:47.8844871Z Cleaning up orphan processes
