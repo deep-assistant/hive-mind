@@ -319,13 +319,29 @@ setLogFile(logFile);
 
 // Create the log file immediately
 await fs.writeFile(logFile, `# Hive.mjs Log - ${new Date().toISOString()}\n\n`);
-await log(`📁 Log file: ${logFile}`);
+// Always use absolute path for log file display
+const absoluteLogPath = path.resolve(logFile);
+await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
+
+// Setup unhandled error handlers to ensure log path is always shown
+process.on('uncaughtException', async (error) => {
+  await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
 
 // Validate GitHub URL requirement
 if (!githubUrl) {
   await log('❌ GitHub URL is required', { level: 'error' });
   await log('   Usage: hive <github-url> [options]', { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   process.exit(1);
 }
 
@@ -1008,5 +1024,6 @@ try {
   await monitor();
 } catch (error) {
   await log(`\n❌ Fatal error: ${cleanErrorMessage(error)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   process.exit(1);
 }

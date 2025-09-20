@@ -175,6 +175,20 @@ if (argv.verbose) {
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
+const absoluteLogPath = path.resolve(logFile);
+
+// Setup unhandled error handlers to ensure log path is always shown
+process.on('uncaughtException', async (error) => {
+  await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
 
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
@@ -1452,6 +1466,7 @@ Self review.
 } catch (error) {
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
 
   // If --attach-logs is enabled, try to attach failure logs
   if (shouldAttachLogs && getLogFile()) {

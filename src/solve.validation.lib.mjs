@@ -129,7 +129,9 @@ export const initializeLogFile = async (logDir = null) => {
 
   // Create the log file immediately
   await fs.writeFile(logFile, `# Solve.mjs Log - ${new Date().toISOString()}\n\n`);
-  await log(`📁 Log file: ${getLogFile()}`);
+  // Always use absolute path for log file display
+  const absoluteLogPath = path.resolve(logFile);
+  await log(`📁 Log file: ${absoluteLogPath}`);
   await log('   (All output will be logged here)');
 
   return logFile;
