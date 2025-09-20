@@ -280,7 +280,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                   await log(`${formatAligned('', 'Push error:', errorMsg)}`);
                 }
                 await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
-                await log(`${formatAligned('', 'Solution:', 'Fork sync is required for proper workflow')}`);
+                await log(`${formatAligned('', 'Solution draft:', 'Fork sync is required for proper workflow')}`);
                 await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
                 await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
                 await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);

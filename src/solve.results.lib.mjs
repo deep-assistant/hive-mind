@@ -196,7 +196,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
         // Upload log file to PR if requested
         let logUploadSuccess = false;
         if (shouldAttachLogs) {
-          await log('\n📎 Uploading solution log to Pull Request...');
+          await log('\n📎 Uploading solution draft log to Pull Request...');
           logUploadSuccess = await attachLogToGitHub({
             logFile: getLogFile(),
             targetType: 'pr',
@@ -210,14 +210,14 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           });
         }
 
-        await log('\n🎉 SUCCESS: A solution has been prepared as a pull request');
+        await log('\n🎉 SUCCESS: A solution draft has been prepared as a pull request');
         await log(`📍 URL: ${pr.url}`);
         if (shouldAttachLogs && logUploadSuccess) {
-          await log('📎 Solution log has been attached to the Pull Request');
+          await log('📎 Solution draft log has been attached to the Pull Request');
         } else if (shouldAttachLogs && !logUploadSuccess) {
-          await log('⚠️  Solution log upload was requested but failed');
+          await log('⚠️  Solution draft log upload was requested but failed');
         }
-        await log('\n✨ Please review the pull request for the proposed solution.');
+        await log('\n✨ Please review the pull request for the proposed solution draft.');
         process.exit(0);
       } else {
         await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
@@ -250,7 +250,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
 
       // Upload log file to issue if requested
       if (shouldAttachLogs) {
-        await log('\n📎 Uploading solution log to issue...');
+        await log('\n📎 Uploading solution draft log to issue...');
         await attachLogToGitHub({
           logFile: getLogFile(),
           targetType: 'issue',
@@ -267,7 +267,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
       await log('\n💬 SUCCESS: Comment posted on issue');
       await log(`📍 URL: ${lastComment.html_url}`);
       if (shouldAttachLogs) {
-        await log('📎 Solution log has been attached to the issue');
+        await log('📎 Solution draft log has been attached to the issue');
       }
       await log('\n✨ A clarifying comment has been added to the issue.');
       process.exit(0);

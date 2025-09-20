@@ -902,7 +902,7 @@ Issue: ${issueUrl}`;
           // Use full repository reference for cross-repo PRs (forks)
           const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
           
-          const prBody = `## 🤖 AI-Powered Solution
+          const prBody = `## 🤖 AI-Powered Solution Draft
 
 This pull request is being automatically generated to solve issue ${issueRef}.
 
@@ -910,10 +910,10 @@ This pull request is being automatically generated to solve issue ${issueRef}.
 Fixes ${issueRef}
 
 ### 🚧 Status
-**Work in Progress** - The AI assistant is currently analyzing and implementing the solution.
+**Work in Progress** - The AI assistant is currently analyzing and implementing the solution draft.
 
 ### 📝 Implementation Details
-_Details will be added as the solution is developed..._
+_Details will be added as the solution draft is developed..._
 
 ---
 *This PR was created automatically by the AI issue solver*`;
@@ -1321,7 +1321,7 @@ Solution development and testing.
    - When you test, start from small functions.  
    - When you test, write unit tests with mocks.  
    - When you test integrations, use existing framework.  
-   - When you test solution, include automated checks in pr.  
+   - When you test solution draft, include automated checks in pr.  
    - When issue is unclear, write comment on issue asking questions.  
    - When you encounter any problems that you unable to solve yourself (any human feedback or help), write a comment to the pull request asking for help.${prUrl ? `  
    - When you need human help, use gh pr comment ${prNumber || prUrl} --body "your message" to comment on existing PR.` : ''}
@@ -1331,7 +1331,7 @@ Preparing pull request.
    - When you code, follow contributing guidelines.  
    - When you commit, write clear message.
    - When you need examples of style, use gh pr list --repo ${owner}/${repo} --state merged --search [keywords].
-   - When you open pr, describe solution and include tests.
+   - When you open pr, describe solution draft and include tests.
    - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.${prUrl ? `
    - When you update existing pr ${prNumber || prUrl}, use gh pr edit to modify title and description.
    - When you finish implementation, use gh pr ready ${prNumber || prUrl}.` : ''}  
@@ -1351,7 +1351,7 @@ Workflow and collaboration.
    - When you need to create pr, remember pr ${prNumber || prUrl} already exists for this branch.` : ''}  
 
 Self review.
-   - When you check your solution, run all tests locally.  
+   - When you check your solution draft, run all tests locally.  
    - When you compare with repo style, use gh pr diff [number].  
    - When you finalize, confirm code, tests, and description are consistent.`;
 
