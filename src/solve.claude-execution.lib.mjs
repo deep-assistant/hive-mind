@@ -87,40 +87,8 @@ export const executeClaudeCommand = async (params) => {
     exitOnError: false
   })`${claudePath} ${claudeArgs} | jq -c .`;
 
+  // Stream the output
   for await (const chunk of claudeCommand.stream()) {
-
-    // Handle command exit
-    if (chunk.type === 'exit') {
-      if (chunk.code !== 0) {
-        commandFailed = true;
-        const exitReason = chunk.signal ? ` (signal: ${chunk.signal})` : '';
-
-        // Check if we hit a rate limit
-        if (lastMessage.includes('rate_limit_exceeded') ||
-            lastMessage.includes('You have exceeded your rate limit') ||
-            lastMessage.includes('rate limit')) {
-          limitReached = true;
-          await log('\n\n⏳ Rate limit reached. The session can be resumed later.', { level: 'warning' });
-
-          if (sessionId) {
-            await log(`📌 Session ID for resuming: ${sessionId}`);
-            await log('\nTo continue when the rate limit resets, run:');
-            await log(`   ${process.argv[0]} ${process.argv[1]} --auto-continue ${argv.url}`);
-          }
-        } else if (lastMessage.includes('context_length_exceeded')) {
-          await log('\n\n❌ Context length exceeded. Try with a smaller issue or split the work.', { level: 'error' });
-        } else {
-          await log(`\n\n❌ Claude command failed with exit code ${chunk.code}${exitReason}`, { level: 'error' });
-          if (sessionId && !argv.resume) {
-            await log(`📌 Session ID for resuming: ${sessionId}`);
-            await log('\nTo resume this session, run:');
-            await log(`   ${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}`);
-          }
-        }
-      }
-      break;
-    }
-
     // Process streaming output
     const output = chunk.type === 'stdout' ? chunk.data.toString() : '';
     const errorOutput = chunk.type === 'stderr' ? chunk.data.toString() : '';
@@ -197,6 +165,37 @@ export const executeClaudeCommand = async (params) => {
             lastMessage = line;
           }
         }
+      }
+    }
+  }
+
+  // After the stream ends, get the command result to check exit code
+  const commandResult = await claudeCommand;
+
+  if (commandResult.code !== 0) {
+    commandFailed = true;
+    const exitReason = commandResult.signal ? ` (signal: ${commandResult.signal})` : '';
+
+    // Check if we hit a rate limit
+    if (lastMessage.includes('rate_limit_exceeded') ||
+        lastMessage.includes('You have exceeded your rate limit') ||
+        lastMessage.includes('rate limit')) {
+      limitReached = true;
+      await log('\n\n⏳ Rate limit reached. The session can be resumed later.', { level: 'warning' });
+
+      if (sessionId) {
+        await log(`📌 Session ID for resuming: ${sessionId}`);
+        await log('\nTo continue when the rate limit resets, run:');
+        await log(`   ${process.argv[0]} ${process.argv[1]} --auto-continue ${argv.url}`);
+      }
+    } else if (lastMessage.includes('context_length_exceeded')) {
+      await log('\n\n❌ Context length exceeded. Try with a smaller issue or split the work.', { level: 'error' });
+    } else {
+      await log(`\n\n❌ Claude command failed with exit code ${commandResult.code}${exitReason}`, { level: 'error' });
+      if (sessionId && !argv.resume) {
+        await log(`📌 Session ID for resuming: ${sessionId}`);
+        await log('\nTo resume this session, run:');
+        await log(`   ${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}`);
       }
     }
   }
