@@ -177,6 +177,29 @@ runTest('solve.mjs --skip-claude-check flag', () => {
   }
 });
 
+// Test 14: Check --auto-close-pull-request-on-fail flag is available
+runTest('solve.mjs --auto-close-pull-request-on-fail flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('auto-close-pull-request-on-fail')) {
+    throw new Error('--auto-close-pull-request-on-fail option not found in help output');
+  }
+  // Check for the description (may be split across lines)
+  if (!output.includes('Automatically close the pull request') && !output.includes('if execution fails')) {
+    throw new Error('--auto-close-pull-request-on-fail description not found in help output');
+  }
+});
+
+// Test 15: Check --attach-logs flag is available
+runTest('solve.mjs --attach-logs flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('attach-logs')) {
+    throw new Error('--attach-logs option not found in help output');
+  }
+  if (!output.includes('Upload the solution draft log file')) {
+    throw new Error('--attach-logs description not found in help output');
+  }
+});
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`Test Results for solve.mjs:`);

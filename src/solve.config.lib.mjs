@@ -70,6 +70,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
       default: false
     })
+    .option('auto-close-pull-request-on-fail', {
+      type: 'boolean',
+      description: 'Automatically close the pull request if execution fails',
+      default: false
+    })
     .option('auto-continue', {
       type: 'boolean',
       description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',

@@ -327,5 +327,20 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
     }
   }
 
+  // If --auto-close-pull-request-on-fail is enabled, close the PR
+  if (argv.autoClosePullRequestOnFail && global.createdPR && global.createdPR.number) {
+    await log('\n🔒 Auto-closing pull request due to failure...');
+    try {
+      const result = await $`gh pr close ${global.createdPR.number} --repo ${owner}/${repo} --comment "Auto-closed due to execution failure. Logs have been attached for debugging."`;
+      if (result.exitCode === 0) {
+        await log('✅ Pull request closed successfully');
+      } else {
+        await log(`⚠️  Could not close pull request: ${result.stderr}`, { level: 'warning' });
+      }
+    } catch (closeError) {
+      await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
+    }
+  }
+
   process.exit(1);
 };

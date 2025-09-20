@@ -176,12 +176,88 @@ const absoluteLogPath = path.resolve(logFile);
 process.on('uncaughtException', async (error) => {
   await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+
+  // If --attach-logs is enabled, try to attach failure logs
+  if (shouldAttachLogs && getLogFile() && global.createdPR && global.createdPR.number) {
+    await log('\n📄 Attempting to attach failure logs...');
+    try {
+      const logUploadSuccess = await attachLogToGitHub({
+        logFile: getLogFile(),
+        targetType: 'pr',
+        targetNumber: global.createdPR.number,
+        owner: global.owner,
+        repo: global.repo,
+        $,
+        log,
+        sanitizeLogContent,
+        verbose: argv.verbose,
+        errorMessage: cleanErrorMessage(error)
+      });
+      if (logUploadSuccess) {
+        await log('📎 Failure log attached to Pull Request');
+      }
+    } catch (attachError) {
+      await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
+    }
+  }
+
+  // If --auto-close-pull-request-on-fail is enabled, close the PR
+  if (argv.autoClosePullRequestOnFail && global.createdPR && global.createdPR.number) {
+    await log('\n🔒 Auto-closing pull request due to failure...');
+    try {
+      const result = await $`gh pr close ${global.createdPR.number} --repo ${global.owner}/${global.repo} --comment "Auto-closed due to uncaught exception. Logs have been attached for debugging."`;
+      if (result.exitCode === 0) {
+        await log('✅ Pull request closed successfully');
+      }
+    } catch (closeError) {
+      await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
+    }
+  }
+
   process.exit(1);
 });
 
 process.on('unhandledRejection', async (reason, promise) => {
   await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+
+  // If --attach-logs is enabled, try to attach failure logs
+  if (shouldAttachLogs && getLogFile() && global.createdPR && global.createdPR.number) {
+    await log('\n📄 Attempting to attach failure logs...');
+    try {
+      const logUploadSuccess = await attachLogToGitHub({
+        logFile: getLogFile(),
+        targetType: 'pr',
+        targetNumber: global.createdPR.number,
+        owner: global.owner,
+        repo: global.repo,
+        $,
+        log,
+        sanitizeLogContent,
+        verbose: argv.verbose,
+        errorMessage: cleanErrorMessage(reason)
+      });
+      if (logUploadSuccess) {
+        await log('📎 Failure log attached to Pull Request');
+      }
+    } catch (attachError) {
+      await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
+    }
+  }
+
+  // If --auto-close-pull-request-on-fail is enabled, close the PR
+  if (argv.autoClosePullRequestOnFail && global.createdPR && global.createdPR.number) {
+    await log('\n🔒 Auto-closing pull request due to failure...');
+    try {
+      const result = await $`gh pr close ${global.createdPR.number} --repo ${global.owner}/${global.repo} --comment "Auto-closed due to unhandled rejection. Logs have been attached for debugging."`;
+      if (result.exitCode === 0) {
+        await log('✅ Pull request closed successfully');
+      }
+    } catch (closeError) {
+      await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
+    }
+  }
+
   process.exit(1);
 });
 
@@ -213,6 +289,10 @@ const claudePath = process.env.CLAUDE_PATH || 'claude';
 
 // Parse URL components using validation module
 const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
+
+// Store owner and repo globally for error handlers
+global.owner = owner;
+global.repo = repo;
 
 // Determine mode and get issue details
 let issueNumber;
@@ -259,6 +339,8 @@ if (argv.autoContinue && isIssueUrl) {
               isContinueMode = true;
               prNumber = pr.number;
               prBranch = pr.headRefName;
+              // Store PR info globally for error handlers
+              global.createdPR = { number: prNumber, url: pr.url };
               if (argv.verbose) {
                 await log('   Continue mode activated: Auto-continue (CLAUDE.md missing)', { verbose: true });
                 await log(`   PR Number: ${prNumber}`, { verbose: true });
@@ -272,6 +354,8 @@ if (argv.autoContinue && isIssueUrl) {
               isContinueMode = true;
               prNumber = pr.number;
               prBranch = pr.headRefName;
+              // Store PR info globally for error handlers
+              global.createdPR = { number: prNumber, url: pr.url };
               if (argv.verbose) {
                 await log('   Continue mode activated: Auto-continue (24h+ old PR)', { verbose: true });
                 await log(`   PR Number: ${prNumber}`, { verbose: true });
@@ -301,7 +385,9 @@ if (argv.autoContinue && isIssueUrl) {
 if (isPrUrl) {
   isContinueMode = true;
   prNumber = urlNumber;
-  
+  // Store PR info globally for error handlers
+  global.createdPR = { number: prNumber, url: issueUrl };
+
   await log(`🔄 Continue mode: Working with PR #${prNumber}`);
   if (argv.verbose) {
     await log('   Continue mode activated: PR URL provided directly', { verbose: true });
@@ -983,6 +1069,8 @@ ${prBody}`, { verbose: true });
               const prMatch = prUrl.match(/\/pull\/(\d+)/);
               if (prMatch) {
                 prNumber = prMatch[1];
+                // Store PR info globally for error handlers
+                global.createdPR = { number: prNumber, url: prUrl };
                 await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
                 if (currentUser && canAssign) {
@@ -1098,6 +1186,8 @@ ${prBody}`, { verbose: true });
                   const prData = JSON.parse(prListResult.stdout.toString().trim());
                   prUrl = prData.url;
                   prNumber = prData.number;
+                  // Store PR info globally for error handlers
+                  global.createdPR = { number: prNumber, url: prUrl };
                   await log(formatAligned('✅', 'PR created:', `#${prNumber} (without assignee)`));
                   await log(formatAligned('📍', 'PR URL:', prUrl));
                 } catch (parseErr) {
@@ -1491,6 +1581,21 @@ Self review.
       } catch (attachError) {
         await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
       }
+    }
+  }
+
+  // If --auto-close-pull-request-on-fail is enabled, close the PR
+  if (argv.autoClosePullRequestOnFail && global.createdPR && global.createdPR.number) {
+    await log('\n🔒 Auto-closing pull request due to failure...');
+    try {
+      const result = await $`gh pr close ${global.createdPR.number} --repo ${owner}/${repo} --comment "Auto-closed due to execution failure. Logs have been attached for debugging."`;
+      if (result.exitCode === 0) {
+        await log('✅ Pull request closed successfully');
+      } else {
+        await log(`⚠️  Could not close pull request: ${result.stderr}`, { level: 'warning' });
+      }
+    } catch (closeError) {
+      await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
     }
   }
 
