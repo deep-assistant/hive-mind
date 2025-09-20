@@ -38,6 +38,12 @@ const {
   autoContinueWhenLimitResets
 } = autoContinue;
 
+// Import error handling functions
+const errorHandlers = await import('./solve.error-handlers.lib.mjs');
+const {
+  handleFailure
+} = errorHandlers;
+
 // Remove CLAUDE.md and commit the deletion
 export const cleanupClaudeFile = async (tempDir, branchName) => {
   try {
