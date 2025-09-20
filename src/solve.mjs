@@ -147,6 +147,12 @@ const {
   handleMainExecutionError
 } = errorHandlers;
 
+// Import watch mode functions
+const watchLib = await import('./solve.watch.lib.mjs');
+const {
+  startWatchMode
+} = watchLib;
+
 // solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
 
 // Global log file reference (will be passed to lib.mjs)
@@ -1422,6 +1428,19 @@ Self review.
 
   // Search for newly created pull requests and comments
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
+
+  // Start watch mode if enabled
+  await startWatchMode({
+    issueUrl,
+    owner,
+    repo,
+    issueNumber,
+    prNumber,
+    prBranch,
+    branchName,
+    tempDir,
+    argv
+  });
 } catch (error) {
   await handleMainExecutionError({
     error,

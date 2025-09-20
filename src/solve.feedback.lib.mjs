@@ -281,6 +281,27 @@ export const detectAndCountFeedback = async (params) => {
             }
           }
 
+          // 6. Check for review requests with changes requested
+          try {
+            const reviewsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/reviews`;
+            if (reviewsResult.code === 0) {
+              const reviews = JSON.parse(reviewsResult.stdout.toString());
+              const changesRequestedReviews = reviews.filter(review =>
+                review.state === 'CHANGES_REQUESTED' && new Date(review.submitted_at) > lastCommitTime
+              );
+
+              if (changesRequestedReviews.length > 0) {
+                feedbackLines.push(`Changes requested in reviews: ${changesRequestedReviews.length}`);
+                feedbackDetected = true;
+                feedbackSources.push(`Changes requested (${changesRequestedReviews.length})`);
+              }
+            }
+          } catch (error) {
+            if (argv.verbose) {
+              await log(`Warning: Could not check PR reviews: ${cleanErrorMessage(error)}`, { level: 'warning' });
+            }
+          }
+
           // Handle --continue-only-on-feedback option
           if (argv.continueOnlyOnFeedback) {
             if (feedbackDetected) {
@@ -292,8 +313,9 @@ export const detectAndCountFeedback = async (params) => {
               await log('   • New comments (excluding solve.mjs logs)');
               await log('   • Edited issue/PR descriptions');
               await log('   • New commits on default branch');
-              await log('   • Merge status dirty');
+              await log('   • Merge status dirty (conflicts detected)');
               await log('   • Failed pull request checks');
+              await log('   • Changes requested via review');
               process.exit(1);
             }
           }

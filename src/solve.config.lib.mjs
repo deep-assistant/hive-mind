@@ -96,6 +96,17 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
       default: false
     })
+    .option('watch', {
+      type: 'boolean',
+      description: 'Monitor continuously for feedback and auto-restart when detected (stops when PR is merged)',
+      alias: 'w',
+      default: false
+    })
+    .option('watch-interval', {
+      type: 'number',
+      description: 'Interval in seconds for checking feedback in watch mode (default: 60)',
+      default: 60
+    })
     .option('min-disk-space', {
       type: 'number',
       description: 'Minimum required disk space in MB (default: 500)',
