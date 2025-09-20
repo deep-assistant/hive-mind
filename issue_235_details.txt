@@ -1,0 +1,15 @@
+title:	Streaming of solve commands stopped working in hive command
+state:	OPEN
+author:	konard
+labels:	bug
+comments:	0
+assignees:	
+projects:	
+milestone:	
+number:	235
+--
+The last time it was working is 0.3.2 version, may be that will help.
+
+Now instead of streaming hive command just waits for the entire output of solve commands.
+
+https://github.com/deep-assistant/hive-mind/pull/232#issuecomment-3313027351 - here for example we got no output at all for claude command, but it was expected it will be streaming, so there is no way find out what exactly went wrong.
