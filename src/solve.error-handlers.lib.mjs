@@ -51,10 +51,10 @@ export const handleFailure = async (options) => {
     await log('\n🔒 Auto-closing pull request due to failure...');
     try {
       const closeMessage = errorType === 'uncaughtException'
-        ? "Auto-closed due to uncaught exception. Logs have been attached for debugging."
+        ? 'Auto-closed due to uncaught exception. Logs have been attached for debugging.'
         : errorType === 'unhandledRejection'
-        ? "Auto-closed due to unhandled rejection. Logs have been attached for debugging."
-        : "Auto-closed due to execution failure. Logs have been attached for debugging.";
+        ? 'Auto-closed due to unhandled rejection. Logs have been attached for debugging.'
+        : 'Auto-closed due to execution failure. Logs have been attached for debugging.';
 
       const result = await $`gh pr close ${global.createdPR.number} --repo ${global.owner || owner}/${global.repo || repo} --comment ${closeMessage}`;
       if (result.exitCode === 0) {
@@ -128,7 +128,7 @@ export const createUnhandledRejectionHandler = (options) => {
     $
   } = options;
 
-  return async (reason, promise) => {
+  return async (reason, _promise) => {
     await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
     await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
 
