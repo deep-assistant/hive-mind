@@ -124,14 +124,141 @@ The Hive Mind operates on three layers:
 3. **Human Interface Layer** - Enables human-AI collaboration
 
 ### Data Flow
+
+#### High-Level System Architecture
 ```mermaid
-graph TD
-    A[Human Input] --> B[Hive Mind Orchestrator]
-    B --> C[AI Agent Pool]
-    C --> D[Task Execution]
-    D --> E[Human Feedback Loop]
-    E --> B
+graph TB
+    subgraph "Human Interaction Layer"
+        H1[Human Developer]
+        H2[GitHub Interface]
+    end
+
+    subgraph "GitHub Platform"
+        GI[GitHub Issues]
+        GP[GitHub Pull Requests]
+        GC[GitHub Comments]
+        GA[GitHub Actions/Webhooks]
+    end
+
+    subgraph "Hive Mind Core"
+        HM[Hive Mind Controller]
+        AM[Agent Manager]
+        FM[Feedback Monitor]
+        SM[State Manager]
+    end
+
+    subgraph "AI Processing Layer"
+        AI[AI Agent Claude/GPT]
+        CD[Code Developer]
+        CR[Code Reviewer]
+        TG[Test Generator]
+    end
+
+    H1 -->|Creates/Comments| H2
+    H2 --> GI
+    H2 --> GP
+    H2 --> GC
+
+    GA -->|Triggers| HM
+    HM -->|Monitors| FM
+    FM -->|Detects Changes| GI
+    FM -->|Detects Changes| GP
+    FM -->|Detects Changes| GC
+
+    HM -->|Assigns Tasks| AM
+    AM -->|Coordinates| AI
+    AI --> CD
+    AI --> CR
+    AI --> TG
+
+    CD -->|Pushes Code| GP
+    CR -->|Adds Reviews| GP
+    TG -->|Adds Tests| GP
+
+    SM -->|Tracks State| HM
+
+    style H1 fill:#e1f5fe
+    style H2 fill:#e1f5fe
+    style GI fill:#fff3e0
+    style GP fill:#fff3e0
+    style GC fill:#fff3e0
+    style HM fill:#e8f5e9
+    style FM fill:#e8f5e9
+    style AI fill:#f3e5f5
 ```
+
+#### Mode 1: Issue → Pull Request Flow
+```mermaid
+sequenceDiagram
+    participant H as Human
+    participant HM as Hive Mind
+    participant AI as AI Agent
+    participant GH as GitHub
+
+    H->>GH: Creates Issue
+    Note over H,GH: Primary human input
+
+    HM->>GH: Detects Issue
+    HM->>AI: Assigns Issue
+    AI->>GH: Analyzes Issue
+    AI->>AI: Develops Solution
+    AI->>GH: Creates Draft PR
+
+    Note over H,GH: Human decision point
+    GH->>H: Notifies PR Created
+    H->>GH: Reviews PR
+
+    alt Approve & Merge
+        H->>GH: Merges PR
+        GH->>HM: PR Merged
+    else Request Changes
+        H->>GH: Adds Comments
+        Note over H,GH: Secondary human input
+        GH->>HM: Comments Added
+        HM->>AI: Process Feedback
+        AI->>GH: Updates PR
+    else Close PR
+        H->>GH: Closes PR
+        GH->>HM: PR Closed
+    end
+```
+
+#### Mode 2: Pull Request → Comments Flow
+```mermaid
+sequenceDiagram
+    participant H as Human
+    participant HM as Hive Mind
+    participant AI as AI Agent
+    participant GH as GitHub
+
+    Note over GH: Existing PR
+    H->>GH: Adds Comment
+    Note over H,GH: Primary human input
+
+    HM->>GH: Detects New Comment
+    HM->>AI: Processes Comment
+    AI->>GH: Analyzes Feedback
+    AI->>AI: Updates Solution
+    AI->>GH: Pushes Changes
+
+    Note over H,GH: Human decision point
+    GH->>H: Notifies Changes
+    H->>GH: Reviews Updates
+
+    alt Approve & Merge
+        H->>GH: Merges PR
+        GH->>HM: PR Merged
+    else More Changes Needed
+        H->>GH: Adds More Comments
+        Note over H,GH: Continued human input
+        GH->>HM: Comments Added
+    else Close PR
+        H->>GH: Closes PR
+        GH->>HM: PR Closed
+    end
+```
+
+📖 **For comprehensive data flow documentation including human feedback integration points, see [docs/flow.md](./docs/flow.md)**
 
 ## 📊 Usage Examples
 
