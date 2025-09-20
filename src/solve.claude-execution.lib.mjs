@@ -88,7 +88,6 @@ export const executeClaudeCommand = async (params) => {
   await log(`\n${formatAligned('▶️', 'Streaming output:', '')}\n`);
 
   // Use command-stream's async iteration for real-time streaming
-  let commandFailed = false;
   let exitCode = 0;
 
   for await (const chunk of execCommand.stream()) {
