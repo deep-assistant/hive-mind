@@ -24,6 +24,13 @@ export const getLogFile = () => {
   return logFile;
 };
 
+// Function to get the absolute log file path
+export const getAbsoluteLogPath = async () => {
+  if (!logFile) return null;
+  const path = (await use('path'));
+  return path.resolve(logFile);
+};
+
 // Helper function to log to both console and file
 export const log = async (message, options = {}) => {
   const { level = 'info', verbose = false } = options;
@@ -193,13 +200,13 @@ export const displayFormattedError = async (options) => {
   await logFn('');
   await logFn(`❌ ${title}`, { level });
   await logFn('');
-  
+
   if (what) {
     await logFn('  🔍 What happened:');
     await logFn(`     ${what}`);
     await logFn('');
   }
-  
+
   if (details) {
     await logFn('  📦 Error details:');
     const detailLines = Array.isArray(details) ? details : details.split('\n');
@@ -208,7 +215,7 @@ export const displayFormattedError = async (options) => {
     }
     await logFn('');
   }
-  
+
   if (causes && causes.length > 0) {
     await logFn('  💡 Possible causes:');
     for (const cause of causes) {
@@ -216,7 +223,7 @@ export const displayFormattedError = async (options) => {
     }
     await logFn('');
   }
-  
+
   if (fixes && fixes.length > 0) {
     await logFn('  🔧 How to fix:');
     for (let i = 0; i < fixes.length; i++) {
@@ -224,9 +231,17 @@ export const displayFormattedError = async (options) => {
     }
     await logFn('');
   }
-  
+
   if (workDir) {
     await logFn(`  📂 Working directory: ${workDir}`);
+    await logFn('');
+  }
+
+  // Always show the log file path if it exists - using absolute path
+  if (logFile) {
+    const path = (await use('path'));
+    const absoluteLogPath = path.resolve(logFile);
+    await logFn(`  📁 Full log file: ${absoluteLogPath}`);
     await logFn('');
   }
 };
@@ -275,6 +290,7 @@ export default {
   log,
   setLogFile,
   getLogFile,
+  getAbsoluteLogPath,
   maskToken,
   formatTimestamp,
   sanitizeFileName,

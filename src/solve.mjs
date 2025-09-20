@@ -1,15 +1,12 @@
 #!/usr/bin/env node
-
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
-
 // Handle version early
 if (earlyArgs.includes('--version')) {
   // Quick version output without loading modules
   console.log('0.3.1');
   process.exit(0);
 }
-
 // Handle help early
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
@@ -22,7 +19,6 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   createYargsConfig(yargs(rawArgs)).showHelp();
   process.exit(0);
 }
-
 // Handle no arguments early
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
@@ -30,7 +26,6 @@ if (earlyArgs.length === 0) {
   console.error('\nRun "solve.mjs --help" for more information');
   process.exit(1);
 }
-
 // Handle invalid URL format early (basic check)
 const firstArg = earlyArgs[0];
 if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/')) {
@@ -175,6 +170,20 @@ if (argv.verbose) {
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
+const absoluteLogPath = path.resolve(logFile);
+
+// Setup unhandled error handlers to ensure log path is always shown
+process.on('uncaughtException', async (error) => {
+  await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+});
 
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
@@ -1452,6 +1461,7 @@ Self review.
 } catch (error) {
   await log('Error executing command:', cleanErrorMessage(error));
   await log(`Stack trace: ${error.stack}`, { verbose: true });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
 
   // If --attach-logs is enabled, try to attach failure logs
   if (shouldAttachLogs && getLogFile()) {
