@@ -125,80 +125,18 @@ The Hive Mind operates on three layers:
 
 ### Data Flow
 
-#### High-Level System Architecture
-```mermaid
-graph TB
-    subgraph "Human Interaction Layer"
-        H1[Human Developer]
-        H2[GitHub Interface]
-    end
-
-    subgraph "GitHub Platform"
-        GI[GitHub Issues]
-        GP[GitHub Pull Requests]
-        GC[GitHub Comments]
-        GA[GitHub Actions/Webhooks]
-    end
-
-    subgraph "Hive Mind Core"
-        HM[Hive Mind Controller]
-        AM[Agent Manager]
-        FM[Feedback Monitor]
-        SM[State Manager]
-    end
-
-    subgraph "AI Processing Layer"
-        AI[AI Agent Claude/GPT]
-        CD[Code Developer]
-        CR[Code Reviewer]
-        TG[Test Generator]
-    end
-
-    H1 -->|Creates/Comments| H2
-    H2 --> GI
-    H2 --> GP
-    H2 --> GC
-
-    GA -->|Triggers| HM
-    HM -->|Monitors| FM
-    FM -->|Detects Changes| GI
-    FM -->|Detects Changes| GP
-    FM -->|Detects Changes| GC
-
-    HM -->|Assigns Tasks| AM
-    AM -->|Coordinates| AI
-    AI --> CD
-    AI --> CR
-    AI --> TG
-
-    CD -->|Pushes Code| GP
-    CR -->|Adds Reviews| GP
-    TG -->|Adds Tests| GP
-
-    SM -->|Tracks State| HM
-
-    style H1 fill:#e1f5fe
-    style H2 fill:#e1f5fe
-    style GI fill:#fff3e0
-    style GP fill:#fff3e0
-    style GC fill:#fff3e0
-    style HM fill:#e8f5e9
-    style FM fill:#e8f5e9
-    style AI fill:#f3e5f5
-```
-
 #### Mode 1: Issue → Pull Request Flow
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant HM as Hive Mind
-    participant AI as AI Agent
     participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
 
     H->>GH: Creates Issue
     Note over H,GH: Primary human input
 
-    HM->>GH: Detects Issue
+    GH->>HM: Issue Available
     HM->>AI: Assigns Issue
     AI->>GH: Analyzes Issue
     AI->>AI: Develops Solution
@@ -227,15 +165,15 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant HM as Hive Mind
-    participant AI as AI Agent
     participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
 
     Note over GH: Existing PR
     H->>GH: Adds Comment
     Note over H,GH: Primary human input
 
-    HM->>GH: Detects New Comment
+    GH->>HM: New Comment Available
     HM->>AI: Processes Comment
     AI->>GH: Analyzes Feedback
     AI->>AI: Updates Solution
