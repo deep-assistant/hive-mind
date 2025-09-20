@@ -79,7 +79,7 @@ export const showAttachLogsWarning = async (shouldAttachLogs) => {
   await log('');
   await log('⚠️  SECURITY WARNING: --attach-logs is ENABLED', { level: 'warning' });
   await log('');
-  await log('   This option will upload the complete solution log file to the Pull Request.');
+  await log('   This option will upload the complete solution draft log file to the Pull Request.');
   await log('   The log may contain sensitive information such as:');
   await log('   • API keys, tokens, or secrets');
   await log('   • File paths and directory structures');

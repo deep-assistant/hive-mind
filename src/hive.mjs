@@ -225,7 +225,7 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('attach-logs', {
       type: 'boolean',
-      description: 'Upload the solution log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+      description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
       default: false
     })
     .option('project-number', {

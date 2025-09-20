@@ -153,7 +153,7 @@ export const detectAndCountFeedback = async (params) => {
 
           // Filter out comments that contain logs from solve.mjs
           const logPatterns = [
-            /📊.*Log file|solution.*log/i,
+            /📊.*Log file|solution\s+draft.*log/i,
             /🔗.*Link:|💻.*Session:/i,
             /Generated with.*solve\.mjs/i,
             /Session ID:|Log file available:/i

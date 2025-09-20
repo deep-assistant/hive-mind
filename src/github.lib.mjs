@@ -239,7 +239,7 @@ export const checkGitHubPermissions = async () => {
  * @param {Function} options.sanitizeLogContent - Function to sanitize log content
  * @param {boolean} [options.verbose=false] - Enable verbose logging
  * @param {string} [options.errorMessage] - Error message to include in comment (for failure logs)
- * @param {string} [options.customTitle] - Custom title for the comment (defaults to "🤖 Solution Log")
+ * @param {string} [options.customTitle] - Custom title for the comment (defaults to "🤖 Solution Draft Log")
  * @returns {Promise<boolean>} - True if upload succeeded
  */
 export async function attachLogToGitHub(options) {
@@ -255,7 +255,7 @@ export async function attachLogToGitHub(options) {
     sanitizeLogContent,
     verbose = false,
     errorMessage,
-    customTitle = '🤖 Solution Log'
+    customTitle = '🤖 Solution Draft Log'
   } = options;
 
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
@@ -283,9 +283,9 @@ export async function attachLogToGitHub(options) {
     let logComment;
     if (errorMessage) {
       // Failure log format
-      logComment = `## 🚨 Solution Failed
+      logComment = `## 🚨 Solution Draft Failed
 
-The automated solution encountered an error:
+The automated solution draft encountered an error:
 \`\`\`
 ${errorMessage}
 \`\`\`
@@ -305,10 +305,10 @@ ${logContent}
       // Success log format
       logComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
 
 <details>
-<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB)</summary>
+<summary>Click to expand solution draft log (${Math.round(logStats.size / 1024)}KB)</summary>
 
 \`\`\`
 ${logContent}
@@ -330,10 +330,10 @@ ${logContent}
 
       try {
         // Create gist
-        const tempLogFile = `/tmp/solution-log-${targetType}-${Date.now()}.txt`;
+        const tempLogFile = `/tmp/solution-draft-log-${targetType}-${Date.now()}.txt`;
         await fs.writeFile(tempLogFile, logContent);
 
-        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-log.txt"`;
+        const gistResult = await $`gh gist create "${tempLogFile}" --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`;
 
         await fs.unlink(tempLogFile).catch(() => {});
 
@@ -344,9 +344,9 @@ ${logContent}
           let gistComment;
           if (errorMessage) {
             // Failure log gist format
-            gistComment = `## 🚨 Solution Failed
+            gistComment = `## 🚨 Solution Draft Failed
 
-The automated solution encountered an error:
+The automated solution draft encountered an error:
 \`\`\`
 ${errorMessage}
 \`\`\`
@@ -360,10 +360,10 @@ ${errorMessage}
             // Success log gist format
             gistComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
 
 📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
-🔗 [View complete solution log](${gistUrl})
+🔗 [View complete solution draft log](${gistUrl})
 
 ---
 *Log automatically attached by solve.mjs with --attach-logs option*`;
@@ -377,7 +377,7 @@ This log file contains the complete execution trace of the AI ${targetType === '
           await fs.unlink(tempGistCommentFile).catch(() => {});
 
           if (commentResult.code === 0) {
-            await log(`  ✅ Solution log uploaded to ${targetName} as Gist`);
+            await log(`  ✅ Solution draft log uploaded to ${targetName} as Gist`);
             await log(`  🔗 Gist URL: ${gistUrl}`);
             await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
             return true;
@@ -425,13 +425,13 @@ async function attachTruncatedLog(options) {
   const maxContentLength = GITHUB_COMMENT_LIMIT - 500;
   const truncatedContent = logContent.substring(0, maxContentLength) + '\n\n[... Log truncated due to length ...]';
   
-  const truncatedComment = `## 🤖 Solution Log (Truncated)
+  const truncatedComment = `## 🤖 Solution Draft Log (Truncated)
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
 ⚠️ **Log was truncated** due to GitHub comment size limits.
 
 <details>
-<summary>Click to expand solution log (${Math.round(logStats.size / 1024)}KB, truncated)</summary>
+<summary>Click to expand solution draft log (${Math.round(logStats.size / 1024)}KB, truncated)</summary>
 
 \`\`\`
 ${truncatedContent}
@@ -450,7 +450,7 @@ ${truncatedContent}
   await fs.unlink(tempFile).catch(() => {});
   
   if (result.code === 0) {
-    await log(`  ✅ Truncated solution log uploaded to ${targetName}`);
+    await log(`  ✅ Truncated solution draft log uploaded to ${targetName}`);
     await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB (truncated)`);
     return true;
   } else {
@@ -478,7 +478,7 @@ async function attachRegularComment(options, logComment) {
   await fs.unlink(tempFile).catch(() => {});
   
   if (result.code === 0) {
-    await log(`  ✅ Solution log uploaded to ${targetName} as comment`);
+    await log(`  ✅ Solution draft log uploaded to ${targetName} as comment`);
     await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
     return true;
   } else {
