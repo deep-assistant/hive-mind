@@ -102,6 +102,12 @@ try {
   
   // Filter for test repositories matching the pattern with valid UUIDv7
   const allTestRepos = repos.filter(repo => {
+    const matchFeedbackLines = repo.name.match(/^test-feedback-lines-([0-9a-z]+)$/);
+
+    if (matchFeedbackLines) {
+      return true;
+    }
+
     // Check basic pattern first
     const match = repo.name.match(/^test-hello-world-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
     if (!match) return false;
@@ -113,17 +119,8 @@ try {
     // and variant bits (8, 9, a, or b) in the 17th position (xxxxxxxx-xxxx-7xxx-[89ab]xxx-xxxxxxxxxxxx)
     const uuidv7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
     if (!uuidv7Pattern.test(uuid)) return false;
-    
-    // Additional UUIDv7 validation: timestamp should be reasonable
-    // First 48 bits (12 hex chars) represent Unix timestamp in milliseconds
-    const timestampHex = uuid.replace(/-/g, '').substring(0, 12);
-    const timestamp = parseInt(timestampHex, 16);
-    
-    // Check if timestamp is reasonable (between 2020 and 2030)
-    const minTimestamp = new Date('2020-01-01').getTime();
-    const maxTimestamp = new Date('2030-01-01').getTime();
-    
-    return timestamp >= minTimestamp && timestamp <= maxTimestamp;
+
+    return true;
   });
   
   // Filter out archived repos if --skip-archived flag is set
