@@ -1405,71 +1405,50 @@ ${prBody}`, { verbose: true });
   // Check for uncommitted changes
   const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, argv['auto-commit-uncommitted-changes']);
 
-  // If uncommitted changes detected and auto-commit is disabled, restart Claude once
-  if (shouldRestart) {
-    await log('🔄 Triggering auto-restart to handle uncommitted changes...');
+  // Remove CLAUDE.md now that Claude command has finished
+  await cleanupClaudeFile(tempDir, branchName);
 
-    // Spawn a new solve process with continue mode
-    const { spawn } = await import('child_process');
-    const restartArgs = [
-      process.argv[1], // solve.mjs path
-      prUrl || issueUrl, // Use PR URL if available, otherwise issue URL
-      '--continue' // Use continue mode for the restart
-    ];
+  // Show summary of session and log file
+  await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
 
-    // Pass through relevant options
-    if (argv.fork) restartArgs.push('--fork');
-    if (argv.attachLogs) restartArgs.push('--attach-logs');
-    if (argv['auto-commit-uncommitted-changes']) restartArgs.push('--auto-commit-uncommitted-changes');
-    if (argv.verbose) restartArgs.push('--verbose');
-    if (argv.model !== 'sonnet') restartArgs.push('--model', argv.model);
+  // Search for newly created pull requests and comments
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 
-    await log(formatAligned('', 'Command:', restartArgs.slice(1).join(' '), 2));
+  // Start watch mode if enabled OR if we need to handle uncommitted changes
+  if (argv.verbose) {
     await log('');
-
-    const child = spawn(process.argv[0], restartArgs, {
-      stdio: 'inherit',
-      env: process.env
-    });
-
-    await new Promise((resolve) => {
-      child.on('exit', (code) => {
-        process.exit(code || 0);
-      });
-    });
-  } else {
-    // Remove CLAUDE.md now that Claude command has finished
-    await cleanupClaudeFile(tempDir, branchName);
-
-    // Show summary of session and log file
-    await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
-
-    // Search for newly created pull requests and comments
-    await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
-
-    // Start watch mode if enabled
-    if (argv.verbose) {
-      await log('');
-      await log('🔍 Watch mode debug:', { verbose: true });
-      await log(`   argv.watch: ${argv.watch}`, { verbose: true });
-      await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
-      await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
-      await log(`   branchName: ${branchName}`, { verbose: true });
-      await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
-    }
-
-    await startWatchMode({
-      issueUrl,
-      owner,
-      repo,
-      issueNumber,
-      prNumber,
-      prBranch,
-      branchName,
-      tempDir,
-      argv
-    });
+    await log('🔍 Watch mode debug:', { verbose: true });
+    await log(`   argv.watch: ${argv.watch}`, { verbose: true });
+    await log(`   shouldRestart: ${shouldRestart}`, { verbose: true });
+    await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
+    await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
+    await log(`   branchName: ${branchName}`, { verbose: true });
+    await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
   }
+
+  // If uncommitted changes detected and auto-commit is disabled, enter temporary watch mode
+  const temporaryWatchMode = shouldRestart && !argv.watch;
+  if (temporaryWatchMode) {
+    await log('');
+    await log('🔄 Uncommitted changes detected - entering temporary watch mode to handle them...');
+    await log('   Watch mode will exit automatically once changes are committed.');
+  }
+
+  await startWatchMode({
+    issueUrl,
+    owner,
+    repo,
+    issueNumber,
+    prNumber,
+    prBranch,
+    branchName,
+    tempDir,
+    argv: {
+      ...argv,
+      watch: argv.watch || shouldRestart, // Enable watch if uncommitted changes
+      temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
+    }
+  });
 } catch (error) {
   await handleMainExecutionError({
     error,
