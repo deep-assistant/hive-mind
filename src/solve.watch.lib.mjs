@@ -179,7 +179,17 @@ export const watchForFeedback = async (params) => {
 export const startWatchMode = async (params) => {
   const { argv } = params;
 
+  if (argv.verbose) {
+    await log('');
+    await log('📊 startWatchMode called with:', { verbose: true });
+    await log(`   argv.watch: ${argv.watch}`, { verbose: true });
+    await log(`   params.prNumber: ${params.prNumber || 'null'}`, { verbose: true });
+  }
+
   if (!argv.watch) {
+    if (argv.verbose) {
+      await log('   Watch mode not enabled - exiting startWatchMode', { verbose: true });
+    }
     return; // Watch mode not enabled
   }
 
@@ -187,6 +197,9 @@ export const startWatchMode = async (params) => {
     await log('');
     await log(formatAligned('⚠️', 'Watch mode:', 'Requires a pull request'));
     await log(formatAligned('', 'Note:', 'Watch mode only works with existing PRs', 2));
+    if (argv.verbose) {
+      await log('   prNumber is missing - cannot start watch mode', { verbose: true });
+    }
     return;
   }
 

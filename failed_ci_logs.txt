@@ -1,0 +1,75 @@
+verify-version-bump	Verify version bump	﻿2025-09-21T09:57:59.5937412Z ##[group]Run echo "=== Version Bump Verification ==="
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5937905Z [36;1mecho "=== Version Bump Verification ==="[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5938193Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5938374Z [36;1m# Get base and head refs[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5938611Z [36;1mBASE_REF="main"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5938996Z [36;1mHEAD_REF="issue-258-187873d7"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5939328Z [36;1mBASE_SHA="c2034f413afc9896b88a002f14a1b22d88fac9c6"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5939686Z [36;1mHEAD_SHA="09a1edd28015b00c760bac4e3b4e3abe81098820"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5939973Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5940206Z [36;1mecho "Base branch: $BASE_REF ($BASE_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5940493Z [36;1mecho "Head branch: $HEAD_REF ($HEAD_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5940739Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5940905Z [36;1m# Fetch the base branch[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5941158Z [36;1mgit fetch origin $BASE_REF:$BASE_REF[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5941399Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5941608Z [36;1m# Get current version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5941930Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5942208Z [36;1m  echo "❌ No package.json found in PR"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5942473Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5942649Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5942806Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5943068Z [36;1mCURRENT_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5943711Z [36;1mecho "Current version in PR: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5944006Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5944207Z [36;1m# Get base version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5944548Z [36;1mgit checkout $BASE_SHA -- package.json 2>/dev/null || {[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5944962Z [36;1m  echo "❌ Could not get package.json from base branch"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5945259Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5945439Z [36;1m}[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5945596Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5945783Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5946088Z [36;1m  echo "❌ No package.json found in base branch"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5946352Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5946524Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5946681Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5946938Z [36;1mBASE_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5947276Z [36;1mecho "Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5947532Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5947709Z [36;1m# Restore current package.json[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5947985Z [36;1mgit checkout $HEAD_SHA -- package.json[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5948238Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5948403Z [36;1m# Compare versions[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5948665Z [36;1mif [ "$CURRENT_VERSION" = "$BASE_VERSION" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5949090Z [36;1m  echo "❌ Version has not been bumped!"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5949388Z [36;1m  echo "   Current version: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5949674Z [36;1m  echo "   Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5949943Z [36;1m  echo ""[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5950239Z [36;1m  echo "💡 Please bump the version in package.json before merging this PR."[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5950627Z [36;1m  echo "   You can use semantic versioning:"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5950945Z [36;1m  echo "   - Patch (bug fixes): npm version patch"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5951324Z [36;1m  echo "   - Minor (new features): npm version minor"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5951665Z [36;1m  echo "   - Major (breaking changes): npm version major"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5951951Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5952122Z [36;1melse[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5952400Z [36;1m  echo "✅ Version has been bumped from $BASE_VERSION to $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.5952727Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.6019477Z shell: /usr/bin/bash -e {0}
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.6019751Z ##[endgroup]
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.6094861Z === Version Bump Verification ===
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.6095376Z Base branch: main (c2034f413afc9896b88a002f14a1b22d88fac9c6)
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.6096209Z Head branch: issue-258-187873d7 (09a1edd28015b00c760bac4e3b4e3abe81098820)
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.7614439Z From https://github.com/deep-assistant/hive-mind
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.7614930Z  * [new branch]      main       -> main
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.7930593Z Current version in PR: 0.8.8
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8276091Z Base version: 0.8.8
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8299494Z ❌ Version has not been bumped!
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8299984Z    Current version: 0.8.8
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8300407Z    Base version: 0.8.8
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8300665Z 
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8301455Z 💡 Please bump the version in package.json before merging this PR.
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8302149Z    You can use semantic versioning:
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8302509Z    - Patch (bug fixes): npm version patch
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8302873Z    - Minor (new features): npm version minor
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8303212Z    - Major (breaking changes): npm version major
+verify-version-bump	Verify version bump	2025-09-21T09:57:59.8316150Z ##[error]Process completed with exit code 1.

@@ -689,12 +689,12 @@ try {
   
   // Don't build the prompt yet - we'll build it after we have all the information
   // This includes PR URL (if created) and comment info (if in continue mode)
-  
+
   if (argv.autoPullRequestCreation && !isContinueMode) {
     await log(`\n${formatAligned('🚀', 'Auto PR creation:', 'ENABLED')}`);
     await log('     Creating:               Initial commit and draft PR...');
     await log('');
-    
+
     try {
       // Create CLAUDE.md file with the task details
       await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
@@ -1377,6 +1377,16 @@ ${prBody}`, { verbose: true });
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 
   // Start watch mode if enabled
+  if (argv.verbose) {
+    await log('');
+    await log('🔍 Watch mode debug:', { verbose: true });
+    await log(`   argv.watch: ${argv.watch}`, { verbose: true });
+    await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
+    await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
+    await log(`   branchName: ${branchName}`, { verbose: true });
+    await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
+  }
+
   await startWatchMode({
     issueUrl,
     owner,

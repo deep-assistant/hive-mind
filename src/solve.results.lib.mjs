@@ -224,7 +224,11 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           await log('⚠️  Solution draft log upload was requested but failed');
         }
         await log('\n✨ Please review the pull request for the proposed solution draft.');
-        process.exit(0);
+        // Don't exit if watch mode is enabled - it needs to continue monitoring
+        if (!argv.watch) {
+          process.exit(0);
+        }
+        return; // Return normally for watch mode
       } else {
         await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
       }
@@ -276,7 +280,11 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
         await log('📎 Solution draft log has been attached to the issue');
       }
       await log('\n✨ A clarifying comment has been added to the issue.');
-      process.exit(0);
+      // Don't exit if watch mode is enabled - it needs to continue monitoring
+      if (!argv.watch) {
+        process.exit(0);
+      }
+      return; // Return normally for watch mode
     } else if (allComments.length > 0) {
       await log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
     } else {
@@ -288,13 +296,21 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
     await log('   The issue may have been resolved differently or required no action.');
     await log('\n💡 Review the session log for details:');
     await log(`   ${getLogFile()}`);
-    process.exit(0);
+    // Don't exit if watch mode is enabled - it needs to continue monitoring
+    if (!argv.watch) {
+      process.exit(0);
+    }
+    return; // Return normally for watch mode
 
   } catch (searchError) {
     await log('\n⚠️  Could not verify results:', searchError.message);
     await log('\n💡 Check the log file for details:');
     await log(`   ${getLogFile()}`);
-    process.exit(0);
+    // Don't exit if watch mode is enabled - it needs to continue monitoring
+    if (!argv.watch) {
+      process.exit(0);
+    }
+    return; // Return normally for watch mode
   }
 };
 
