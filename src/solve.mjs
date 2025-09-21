@@ -20,14 +20,14 @@ if (earlyArgs.includes('--version')) {
 
     // Check if this is a release version (has a git tag)
     try {
-      const gitTag = execSync(`git describe --exact-match --tags HEAD 2>/dev/null`, { encoding: 'utf8' }).trim();
+      const gitTag = execSync('git describe --exact-match --tags HEAD 2>/dev/null', { encoding: 'utf8' }).trim();
       // It's a tagged release, use the version from package.json
       console.log(currentVersion);
     } catch {
       // Not a tagged release, get the latest tag and commit SHA
       try {
-        const latestTag = execSync(`git describe --tags --abbrev=0 2>/dev/null`, { encoding: 'utf8' }).trim().replace(/^v/, '');
-        const commitSha = execSync(`git rev-parse --short HEAD`, { encoding: 'utf8' }).trim();
+        const latestTag = execSync('git describe --tags --abbrev=0 2>/dev/null', { encoding: 'utf8' }).trim().replace(/^v/, '');
+        const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
         console.log(`${latestTag}.${commitSha}`);
       } catch {
         // Fallback to package.json version if git commands fail
@@ -212,7 +212,7 @@ const absoluteLogPath = path.resolve(logFile);
 // Get version information for logging
 const getVersionInfo = async () => {
   try {
-    const packagePath = path.join(path.dirname(path.dirname(new URL(import.meta.url).pathname)), 'package.json');
+    const packagePath = path.join(path.dirname(path.dirname(new globalThis.URL(import.meta.url).pathname)), 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
     const currentVersion = packageJson.version;
 
@@ -223,7 +223,9 @@ const getVersionInfo = async () => {
         // It's a tagged release, use the version from package.json
         return currentVersion;
       }
-    } catch {}
+    } catch {
+      // Ignore error - will try next method
+    }
 
     // Not a tagged release, get the latest tag and commit SHA
     try {
@@ -235,7 +237,9 @@ const getVersionInfo = async () => {
         const commitSha = commitShaResult.stdout.toString().trim();
         return `${latestTag}.${commitSha}`;
       }
-    } catch {}
+    } catch {
+      // Ignore error - will use fallback
+    }
 
     // Fallback to package.json version if git commands fail
     return currentVersion;
