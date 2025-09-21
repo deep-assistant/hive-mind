@@ -61,10 +61,15 @@ runTest('solve.mjs usage without args', () => {
 
 // Test 3: Check --version output
 runTest('solve.mjs --version', () => {
-  const output = execCommand(`${solvePath} --version 2>&1`);
-  // Version should be a number like 1.0.0
-  if (!output.match(/\d+\.\d+\.\d+/)) {
-    throw new Error('Version output not in expected format');
+  const output = execCommand(`${solvePath} --version 2>&1`).trim();
+  // Version should be either x.y.z or x.y.z.commitSha format
+  if (!output.match(/^\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?$/)) {
+    throw new Error(`Version output not in expected format: ${output}`);
+  }
+  // Should output only the version, no extra text
+  const lines = output.trim().split('\n');
+  if (lines.length !== 1) {
+    throw new Error(`--version should output only the version, found ${lines.length} lines`);
   }
 });
 
@@ -223,6 +228,41 @@ runTest('solve.mjs raw command logging', () => {
     execCommand(`rm -f ${tempLogFile}`);
   } catch {
     // Ignore cleanup errors
+  }
+});
+
+// Test 17: Check version logging at startup (Issue #260)
+runTest('solve.mjs version logging at startup', () => {
+  // Run solve.mjs with an invalid URL to trigger early exit but still see initial logs
+  const output = execCommand(`${solvePath} invalid-url 2>&1`);
+
+  // Check if version is logged at the beginning
+  const versionLineRegex = /🚀 solve v\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?/;
+  if (!versionLineRegex.test(output)) {
+    throw new Error('Version not logged at startup');
+  }
+
+  // Version should appear before error messages
+  const lines = output.split('\n');
+  let versionLineIndex = -1;
+  let errorLineIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (versionLineRegex.test(lines[i])) {
+      versionLineIndex = i;
+    }
+    if (lines[i].includes('Error:') || lines[i].includes('Invalid')) {
+      errorLineIndex = i;
+      break; // Stop at first error
+    }
+  }
+
+  if (versionLineIndex === -1) {
+    throw new Error('Version line not found');
+  }
+
+  if (errorLineIndex !== -1 && versionLineIndex > errorLineIndex) {
+    throw new Error('Version should be logged before any error messages');
   }
 });
 

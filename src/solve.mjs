@@ -4,7 +4,40 @@ const earlyArgs = process.argv.slice(2);
 // Handle version early
 if (earlyArgs.includes('--version')) {
   // Quick version output without loading modules
-  console.log('0.3.1');
+  // Get version from package.json or use dev version format
+  const { execSync } = await import('child_process');
+  const { readFileSync } = await import('fs');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const packagePath = join(__dirname, '..', 'package.json');
+
+  try {
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+
+    // Check if this is a release version (has a git tag)
+    try {
+      const gitTag = execSync(`git describe --exact-match --tags HEAD 2>/dev/null`, { encoding: 'utf8' }).trim();
+      // It's a tagged release, use the version from package.json
+      console.log(currentVersion);
+    } catch {
+      // Not a tagged release, get the latest tag and commit SHA
+      try {
+        const latestTag = execSync(`git describe --tags --abbrev=0 2>/dev/null`, { encoding: 'utf8' }).trim().replace(/^v/, '');
+        const commitSha = execSync(`git rev-parse --short HEAD`, { encoding: 'utf8' }).trim();
+        console.log(`${latestTag}.${commitSha}`);
+      } catch {
+        // Fallback to package.json version if git commands fail
+        console.log(currentVersion);
+      }
+    }
+  } catch {
+    // Fallback to hardcoded version if all else fails
+    console.log('0.8.7');
+  }
   process.exit(0);
 }
 // Handle help early
@@ -19,18 +52,11 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   createYargsConfig(yargs(rawArgs)).showHelp();
   process.exit(0);
 }
-// Handle no arguments early
+// Handle no arguments early (must exit before loading modules)
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
   console.error('\nError: Missing required github issue or pull request URL');
   console.error('\nRun "solve.mjs --help" for more information');
-  process.exit(1);
-}
-// Handle invalid URL format early (basic check)
-const firstArg = earlyArgs[0];
-if (!firstArg.startsWith('-') && !firstArg.startsWith('https://github.com/')) {
-  console.error(`Error: Invalid GitHub URL format: ${firstArg}`);
-  console.error('Expected format: https://github.com/{owner}/{repo}/issues/{number} or https://github.com/{owner}/{repo}/pull/{number}');
   process.exit(1);
 }
 
@@ -166,17 +192,10 @@ const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 // Parse command line arguments using the config module
 const argv = await parseArguments(yargs, hideBin);
 
-const issueUrl = argv._[0];
-
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
 
-// Validate GitHub URL using validation module (more thorough check)
-const urlValidation = validateGitHubUrl(issueUrl);
-if (issueUrl && !urlValidation.isValid) {
-  process.exit(1);
-}
-const { isIssueUrl, isPrUrl } = urlValidation;
+// URL validation will be done after version logging
 
 // Debug logging for attach-logs option
 if (argv.verbose) {
@@ -190,12 +209,72 @@ await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 
+// Get version information for logging
+const getVersionInfo = async () => {
+  try {
+    const packagePath = path.join(path.dirname(path.dirname(new URL(import.meta.url).pathname)), 'package.json');
+    const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+
+    // Check if this is a release version (has a git tag)
+    try {
+      const gitTagResult = await $({ silent: true })`git describe --exact-match --tags HEAD 2>/dev/null`;
+      if (gitTagResult.code === 0) {
+        // It's a tagged release, use the version from package.json
+        return currentVersion;
+      }
+    } catch {}
+
+    // Not a tagged release, get the latest tag and commit SHA
+    try {
+      const latestTagResult = await $({ silent: true })`git describe --tags --abbrev=0 2>/dev/null`;
+      const commitShaResult = await $({ silent: true })`git rev-parse --short HEAD`;
+
+      if (latestTagResult.code === 0 && commitShaResult.code === 0) {
+        const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
+        const commitSha = commitShaResult.stdout.toString().trim();
+        return `${latestTag}.${commitSha}`;
+      }
+    } catch {}
+
+    // Fallback to package.json version if git commands fail
+    return currentVersion;
+  } catch {
+    // Fallback to hardcoded version if all else fails
+    return '0.8.7';
+  }
+};
+
+// Log version and raw command at the start
+const versionInfo = await getVersionInfo();
+await log('');
+await log(`🚀 solve v${versionInfo}`);
+await log('');
+
 // Log the raw command that was executed (for better bug reporting)
 const rawCommand = process.argv.join(' ');
-await log('');
 await log('🔧 Raw command executed:');
 await log(`   ${rawCommand}`);
 await log('');
+
+// Now handle argument validation that was moved from early checks
+const issueUrl = argv._[0];
+
+if (!issueUrl) {
+  await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
+  await log('');
+  await log('Error: Missing required github issue or pull request URL', { level: 'error' });
+  await log('');
+  await log('Run "solve.mjs --help" for more information', { level: 'error' });
+  process.exit(1);
+}
+
+// Validate GitHub URL using validation module (more thorough check)
+const urlValidation = validateGitHubUrl(issueUrl);
+if (!urlValidation.isValid) {
+  process.exit(1);
+}
+const { isIssueUrl, isPrUrl } = urlValidation;
 
 // Setup unhandled error handlers to ensure log path is always shown
 const errorHandlerOptions = {
