@@ -506,8 +506,8 @@ export const executeClaudeCommand = async (params) => {
 };
 
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log) => {
-  // Check for and commit any uncommitted changes made by Claude
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
+  // Check for uncommitted changes made by Claude
   await log('\n🔍 Checking for uncommitted changes...');
   try {
     // Check git status to see if there are any uncommitted changes
@@ -518,36 +518,52 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
 
       if (statusOutput) {
         await log('📝 Found uncommitted changes');
-        await log('Changes:', { verbose: true });
+        await log('Changes:');
         for (const line of statusOutput.split('\n')) {
-          await log(`   ${line}`, { verbose: true });
+          await log(`   ${line}`);
         }
 
-        // Auto-commit the changes
-        await log('💾 Committing changes automatically...');
+        if (autoCommit) {
+          // Auto-commit the changes if option is enabled
+          await log('💾 Auto-committing changes (--auto-commit-uncommitted-changes is enabled)...');
 
-        const addResult = await $({ cwd: tempDir })`git add -A`;
-        if (addResult.code === 0) {
-          const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
-          const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
+          const addResult = await $({ cwd: tempDir })`git add -A`;
+          if (addResult.code === 0) {
+            const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
+            const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
 
-          if (commitResult.code === 0) {
-            await log('✅ Changes committed successfully');
+            if (commitResult.code === 0) {
+              await log('✅ Changes committed successfully');
 
-            // Push the changes
-            await log('📤 Pushing changes to remote...');
-            const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+              // Push the changes
+              await log('📤 Pushing changes to remote...');
+              const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
 
-            if (pushResult.code === 0) {
-              await log('✅ Changes pushed successfully');
+              if (pushResult.code === 0) {
+                await log('✅ Changes pushed successfully');
+              } else {
+                await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr?.toString().trim()}`, { level: 'warning' });
+              }
             } else {
-              await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr?.toString().trim()}`, { level: 'warning' });
+              await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr?.toString().trim()}`, { level: 'warning' });
             }
           } else {
-            await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr?.toString().trim()}`, { level: 'warning' });
+            await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
         } else {
-          await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
+          // When auto-commit is disabled, just inform about uncommitted changes
+          await log('');
+          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
+          await log('   Claude made changes that were not committed.');
+          await log('   These changes will be used as feedback if you run the claude command again.');
+          await log('');
+          await log('   To commit these changes manually:');
+          await log('   1. cd to the working directory');
+          await log('   2. Review the changes with: git diff');
+          await log('   3. Commit with: git add -A && git commit -m "Your message"');
+          await log('   4. Push with: git push');
+          await log('');
+          await log('   Or re-run with --auto-commit-uncommitted-changes to auto-commit.');
         }
       } else {
         await log('✅ No uncommitted changes found');
