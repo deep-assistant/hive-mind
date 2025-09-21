@@ -190,6 +190,13 @@ await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 
+// Log the raw command that was executed (for better bug reporting)
+const rawCommand = process.argv.join(' ');
+await log('');
+await log('🔧 Raw command executed:');
+await log(`   ${rawCommand}`);
+await log('');
+
 // Setup unhandled error handlers to ensure log path is always shown
 const errorHandlerOptions = {
   log,
