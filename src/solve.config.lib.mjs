@@ -91,6 +91,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
       default: false
     })
+    .option('auto-commit-uncommitted-changes', {
+      type: 'boolean',
+      description: 'Automatically commit and push uncommitted changes made by Claude (disabled by default)',
+      default: false
+    })
     .option('continue-only-on-feedback', {
       type: 'boolean',
       description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',

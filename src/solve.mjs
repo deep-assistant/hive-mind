@@ -1257,7 +1257,7 @@ ${prBody}`, { verbose: true });
   // Now we have the PR URL if one was created
 
   // Count new comments and detect feedback
-  const { newPrComments, newIssueComments, commentInfo, feedbackLines } = await detectAndCountFeedback({
+  let { newPrComments, newIssueComments, commentInfo, feedbackLines } = await detectAndCountFeedback({
     prNumber,
     branchName,
     owner,
@@ -1336,6 +1336,43 @@ ${prBody}`, { verbose: true });
     await log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
   }
 
+  // Check for uncommitted changes before running Claude
+  // Only add to feedback if auto-commit is disabled
+  if (!argv['auto-commit-uncommitted-changes']) {
+    await log('\n🔍 Checking for uncommitted changes to include as feedback...');
+    try {
+      const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+      if (gitStatusResult.code === 0) {
+        const statusOutput = gitStatusResult.stdout.toString().trim();
+        if (statusOutput) {
+          await log('📝 Found uncommitted changes - adding to feedback');
+
+          // Add uncommitted changes info to feedbackLines
+          if (!feedbackLines) {
+            feedbackLines = [];
+          }
+
+          feedbackLines.push('');
+          feedbackLines.push('⚠️ UNCOMMITTED CHANGES DETECTED:');
+          feedbackLines.push('The following uncommitted changes were found in the repository:');
+          feedbackLines.push('');
+
+          for (const line of statusOutput.split('\n')) {
+            feedbackLines.push(`  ${line}`);
+          }
+
+          feedbackLines.push('');
+          feedbackLines.push('Please review and handle these changes appropriately.');
+          feedbackLines.push('Consider committing important changes or cleaning up unnecessary files.');
+        } else {
+          await log('✅ No uncommitted changes found');
+        }
+      }
+    } catch (gitError) {
+      await log(`⚠️ Warning: Could not check git status: ${gitError.message}`, { level: 'warning' });
+    }
+  }
+
   // Execute Claude command with all prompts and settings
   const claudeResult = await executeClaude({
     issueUrl,
@@ -1366,7 +1403,8 @@ ${prBody}`, { verbose: true });
   }
 
   // Check for uncommitted changes
-  await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log);
+  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, argv['auto-commit-uncommitted-changes']);
+
   // Remove CLAUDE.md now that Claude command has finished
   await cleanupClaudeFile(tempDir, branchName);
 
@@ -1376,15 +1414,24 @@ ${prBody}`, { verbose: true });
   // Search for newly created pull requests and comments
   await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
 
-  // Start watch mode if enabled
+  // Start watch mode if enabled OR if we need to handle uncommitted changes
   if (argv.verbose) {
     await log('');
     await log('🔍 Watch mode debug:', { verbose: true });
     await log(`   argv.watch: ${argv.watch}`, { verbose: true });
+    await log(`   shouldRestart: ${shouldRestart}`, { verbose: true });
     await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
     await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
     await log(`   branchName: ${branchName}`, { verbose: true });
     await log(`   isContinueMode: ${isContinueMode}`, { verbose: true });
+  }
+
+  // If uncommitted changes detected and auto-commit is disabled, enter temporary watch mode
+  const temporaryWatchMode = shouldRestart && !argv.watch;
+  if (temporaryWatchMode) {
+    await log('');
+    await log('🔄 Uncommitted changes detected - entering temporary watch mode to handle them...');
+    await log('   Watch mode will exit automatically once changes are committed.');
   }
 
   await startWatchMode({
@@ -1396,7 +1443,11 @@ ${prBody}`, { verbose: true });
     prBranch,
     branchName,
     tempDir,
-    argv
+    argv: {
+      ...argv,
+      watch: argv.watch || shouldRestart, // Enable watch if uncommitted changes
+      temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
+    }
   });
 } catch (error) {
   await handleMainExecutionError({

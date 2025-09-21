@@ -506,8 +506,8 @@ export const executeClaudeCommand = async (params) => {
 };
 
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log) => {
-  // Check for and commit any uncommitted changes made by Claude
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
+  // Check for uncommitted changes made by Claude
   await log('\n🔍 Checking for uncommitted changes...');
   try {
     // Check git status to see if there are any uncommitted changes
@@ -518,44 +518,60 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
 
       if (statusOutput) {
         await log('📝 Found uncommitted changes');
-        await log('Changes:', { verbose: true });
+        await log('Changes:');
         for (const line of statusOutput.split('\n')) {
-          await log(`   ${line}`, { verbose: true });
+          await log(`   ${line}`);
         }
 
-        // Auto-commit the changes
-        await log('💾 Committing changes automatically...');
+        if (autoCommit) {
+          // Auto-commit the changes if option is enabled
+          await log('💾 Auto-committing changes (--auto-commit-uncommitted-changes is enabled)...');
 
-        const addResult = await $({ cwd: tempDir })`git add -A`;
-        if (addResult.code === 0) {
-          const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
-          const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
+          const addResult = await $({ cwd: tempDir })`git add -A`;
+          if (addResult.code === 0) {
+            const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
+            const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
 
-          if (commitResult.code === 0) {
-            await log('✅ Changes committed successfully');
+            if (commitResult.code === 0) {
+              await log('✅ Changes committed successfully');
 
-            // Push the changes
-            await log('📤 Pushing changes to remote...');
-            const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+              // Push the changes
+              await log('📤 Pushing changes to remote...');
+              const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
 
-            if (pushResult.code === 0) {
-              await log('✅ Changes pushed successfully');
+              if (pushResult.code === 0) {
+                await log('✅ Changes pushed successfully');
+              } else {
+                await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr?.toString().trim()}`, { level: 'warning' });
+              }
             } else {
-              await log(`⚠️ Warning: Could not push changes: ${pushResult.stderr?.toString().trim()}`, { level: 'warning' });
+              await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr?.toString().trim()}`, { level: 'warning' });
             }
           } else {
-            await log(`⚠️ Warning: Could not commit changes: ${commitResult.stderr?.toString().trim()}`, { level: 'warning' });
+            await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
+          return false; // No restart needed when auto-commit is enabled
         } else {
-          await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
+          // When auto-commit is disabled, trigger auto-restart
+          await log('');
+          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
+          await log('   Claude made changes that were not committed.');
+          await log('');
+          await log('🔄 AUTO-RESTART: Restarting Claude to handle uncommitted changes...');
+          await log('   Claude will review the changes and decide what to commit.');
+          await log('');
+          return true; // Return true to indicate restart is needed
         }
       } else {
         await log('✅ No uncommitted changes found');
+        return false; // No restart needed
       }
     } else {
       await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr?.toString().trim()}`, { level: 'warning' });
+      return false; // No restart needed on error
     }
   } catch (gitError) {
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+    return false; // No restart needed on error
   }
 };
