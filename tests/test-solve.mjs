@@ -200,6 +200,32 @@ runTest('solve.mjs --attach-logs flag', () => {
   }
 });
 
+// Test 16: Check raw command logging (Issue #209)
+runTest('solve.mjs raw command logging', () => {
+  // Create a temp file to capture log output
+  const tempLogFile = `/tmp/test-solve-log-${Date.now()}.log`;
+
+  // Run solve.mjs with a mock issue URL and capture output
+  const output = execCommand(`LOG_FILE=${tempLogFile} ${solvePath} https://github.com/test/test/issues/1 --dry-run 2>&1`);
+
+  // Check that raw command is logged to console output
+  if (!output.includes('Raw command executed:')) {
+    throw new Error('Raw command not logged to console output');
+  }
+
+  // The raw command should include the full command line
+  if (!output.includes('solve.mjs') || !output.includes('github.com')) {
+    throw new Error('Raw command log should include full command line');
+  }
+
+  // Clean up temp file if created
+  try {
+    execCommand(`rm -f ${tempLogFile}`);
+  } catch {
+    // Ignore cleanup errors
+  }
+});
+
 // Summary
 console.log('\n' + '='.repeat(50));
 console.log(`Test Results for solve.mjs:`);
