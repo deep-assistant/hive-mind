@@ -132,7 +132,7 @@ export const watchForFeedback = async (params) => {
       const mergeStateStatus = prStateResult.code === 0 ? prStateResult.stdout.toString().trim() : null;
 
       // Detect feedback using existing function
-      const { feedbackLines } = await detectAndCountFeedback({
+      let { feedbackLines } = await detectAndCountFeedback({
         prNumber,
         branchName: prBranch || branchName,
         owner,
