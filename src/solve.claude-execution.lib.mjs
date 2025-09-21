@@ -550,28 +550,28 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           } else {
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
+          return false; // No restart needed when auto-commit is enabled
         } else {
-          // When auto-commit is disabled, just inform about uncommitted changes
+          // When auto-commit is disabled, trigger auto-restart
           await log('');
           await log('⚠️  IMPORTANT: Uncommitted changes detected!');
           await log('   Claude made changes that were not committed.');
-          await log('   These changes will be used as feedback if you run the claude command again.');
           await log('');
-          await log('   To commit these changes manually:');
-          await log('   1. cd to the working directory');
-          await log('   2. Review the changes with: git diff');
-          await log('   3. Commit with: git add -A && git commit -m "Your message"');
-          await log('   4. Push with: git push');
+          await log('🔄 AUTO-RESTART: Restarting Claude to handle uncommitted changes...');
+          await log('   Claude will review the changes and decide what to commit.');
           await log('');
-          await log('   Or re-run with --auto-commit-uncommitted-changes to auto-commit.');
+          return true; // Return true to indicate restart is needed
         }
       } else {
         await log('✅ No uncommitted changes found');
+        return false; // No restart needed
       }
     } else {
       await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr?.toString().trim()}`, { level: 'warning' });
+      return false; // No restart needed on error
     }
   } catch (gitError) {
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
+    return false; // No restart needed on error
   }
 };
