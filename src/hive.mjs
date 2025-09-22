@@ -260,6 +260,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Directory to save log files (defaults to current working directory)',
       alias: 'l'
     })
+    .option('auto-continue', {
+      type: 'boolean',
+      description: 'Automatically continue with existing PRs for issues if they are older than 24 hours',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -471,6 +476,9 @@ await log(`   🤖 Model: ${argv.model}`);
 if (argv.fork) {
   await log('   🍴 Fork: ENABLED (will fork repos if no write access)');
 }
+if (argv.autoContinue) {
+  await log('   🔄 Auto-Continue: ENABLED (will continue with existing PRs older than 24 hours)');
+}
 if (!argv.once) {
   await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
 }
@@ -591,6 +599,7 @@ async function worker(workerId) {
         const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
         const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
+        const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
         const { spawn } = await import('child_process');
@@ -615,9 +624,12 @@ async function worker(workerId) {
         if (argv.skipClaudeCheck) {
           args.push('--skip-claude-check');
         }
+        if (argv.autoContinue) {
+          args.push('--auto-continue');
+        }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;
