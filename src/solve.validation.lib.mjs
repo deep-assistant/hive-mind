@@ -61,6 +61,28 @@ export const validateGitHubUrl = (issueUrl) => {
   // Remove trailing slashes
   normalizedUrl = normalizedUrl.replace(/\/+$/, '');
 
+  // Check if this looks like a valid GitHub-related input for issues/PRs
+  // Allow: URLs with protocols, github.com paths, or org/repo/issues|pull/number format
+  const isValidInput =
+    normalizedUrl.startsWith('http://') ||
+    normalizedUrl.startsWith('https://') ||
+    normalizedUrl.startsWith('github.com/') ||
+    /^[a-zA-Z0-9][\w.-]*\/[a-zA-Z0-9][\w.-]*\/(issues|pull)\/\d+$/.test(normalizedUrl); // org/repo/issues|pull/number
+
+  if (!isValidInput) {
+    // This doesn't look like a valid GitHub issue/PR URL or shorthand
+    console.error('Error: Invalid GitHub URL format');
+    console.error('  Please provide a valid GitHub issue or pull request URL');
+    console.error('  Examples:');
+    console.error('    https://github.com/owner/repo/issues/123 (issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    console.error('  You can also use:');
+    console.error('    http://github.com/owner/repo/issues/123 (will be converted to https)');
+    console.error('    github.com/owner/repo/issues/123 (will add https://)');
+    console.error('    owner/repo/issues/123 (will be converted to full URL)');
+    return { isValid: false, isIssueUrl: null, isPrUrl: null };
+  }
+
   // If no protocol, assume https
   if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
     // Handle cases like "github.com/owner/repo/issues/123"

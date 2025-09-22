@@ -286,6 +286,29 @@ if (githubUrl) {
   // Remove trailing slashes
   githubUrl = githubUrl.replace(/\/+$/, '');
 
+  // Check if this looks like a valid GitHub-related input
+  // Allow: URLs with protocols, github.com paths, or alphanumeric org/repo names
+  const isValidInput =
+    githubUrl.startsWith('http://') ||
+    githubUrl.startsWith('https://') ||
+    githubUrl.startsWith('github.com/') ||
+    /^[a-zA-Z0-9][\w.-]*$/.test(githubUrl) || // Single org/user name
+    /^[a-zA-Z0-9][\w.-]*\/[a-zA-Z0-9][\w.-]*$/.test(githubUrl); // org/repo format
+
+  if (!isValidInput) {
+    // This doesn't look like a valid GitHub URL or shorthand
+    console.error('Error: Invalid GitHub URL format');
+    console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    console.error('You can use any of these formats:');
+    console.error('  - https://github.com/owner');
+    console.error('  - https://github.com/owner/repo');
+    console.error('  - http://github.com/owner (will be converted to https)');
+    console.error('  - github.com/owner (will add https://)');
+    console.error('  - owner (will be converted to https://github.com/owner)');
+    console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
+    process.exit(1);
+  }
+
   // If no protocol, assume https
   if (!githubUrl.startsWith('http://') && !githubUrl.startsWith('https://')) {
     // Handle cases like "github.com/owner" or just "owner/repo"
