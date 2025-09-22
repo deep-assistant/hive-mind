@@ -865,7 +865,7 @@ export function parseGitHubUrl(url) {
 
   // Check if this looks like a valid GitHub-related input
   // Reject clearly invalid inputs (spaces in the URL, special chars at the start, etc.)
-  if (/\s/.test(normalizedUrl) || /^[!@#$%^&*()\[\]{}|\\:;"'<>,?`~]/.test(normalizedUrl)) {
+  if (/\s/.test(normalizedUrl) || /^[!@#$%^&*()[\]{}|\\:;"'<>,?`~]/.test(normalizedUrl)) {
     return {
       valid: false,
       error: 'Invalid GitHub URL format'
@@ -897,7 +897,7 @@ export function parseGitHubUrl(url) {
   // Parse the URL
   let urlObj;
   try {
-    urlObj = new URL(normalizedUrl);
+    urlObj = new globalThis.URL(normalizedUrl);
   } catch (e) {
     return {
       valid: false,
@@ -916,7 +916,7 @@ export function parseGitHubUrl(url) {
   // Normalize hostname
   if (urlObj.hostname === 'www.github.com') {
     normalizedUrl = normalizedUrl.replace('www.github.com', 'github.com');
-    urlObj = new URL(normalizedUrl);
+    urlObj = new globalThis.URL(normalizedUrl);
   }
 
   // Parse the pathname
