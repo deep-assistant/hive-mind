@@ -170,7 +170,11 @@ async function createTestRepository() {
     throw new Error(`Failed to push test-branch: ${branchPushResult.stderr}`);
   }
 
-  const prResult = $(`gh pr create --title "Test PR for feedback lines" --body "This PR is for testing comment detection"`, { silent: true });
+  // Use escaped quotes or a different approach to ensure title and body are properly passed
+  // Also explicitly specify the base branch since we renamed it to 'main'
+  const prTitle = 'Test PR for feedback lines';
+  const prBody = 'This PR is for testing comment detection';
+  const prResult = $(`gh pr create --base main --title '${prTitle}' --body '${prBody}'`, { silent: true });
   if (prResult.code !== 0) {
     throw new Error(`Failed to create PR: ${prResult.stderr}`);
   }
@@ -235,9 +239,9 @@ function testSolveFeedbackLines(prUrl) {
   const solvePath = path.join(__dirname, '..', 'src', 'solve.mjs');
 
   // Debug: Show what command we're running
-  console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose`);
+  console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose --skip-claude-check`);
 
-  const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose 2>&1`, { silent: true });
+  const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose --skip-claude-check 2>&1`, { silent: true });
 
   if (solveResult.code !== 0) {
     console.log(`   ⚠️  solve.mjs exited with code ${solveResult.code} (expected for --dry-run)`);
