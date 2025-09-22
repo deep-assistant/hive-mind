@@ -598,7 +598,8 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
       return issues;
     } catch (fallbackError) {
       await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
-      return [];
+      // Re-throw the error so the caller can handle rate limiting appropriately
+      throw fallbackError;
     }
   }
 }
