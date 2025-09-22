@@ -87,54 +87,99 @@ export const setupRepository = async (argv, owner, repo) => {
       forkedRepo = `${currentUser}/${repo}`;
       upstreamRemote = `${owner}/${repo}`;
     } else {
-      // Need to create fork
+      // Need to create fork with retry logic for concurrent scenarios
       await log(`${formatAligned('🔄', 'Creating fork...', '')}`);
-      const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false`;
 
-      // Check if fork creation failed or if fork already exists
-      if (forkResult.code !== 0) {
-        await log(`${formatAligned('❌', 'Error:', 'Failed to create fork')}`);
-        await log(forkResult.stderr ? forkResult.stderr.toString() : 'Unknown error');
-        process.exit(1);
+      const maxForkRetries = 5;
+      const baseDelay = 2000; // Start with 2 seconds
+      let forkCreated = false;
+      let forkExists = false;
+
+      for (let attempt = 1; attempt <= maxForkRetries; attempt++) {
+        // Try to create fork
+        const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false 2>&1`;
+
+        if (forkResult.code === 0) {
+          // Fork successfully created
+          await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
+          forkCreated = true;
+          forkExists = true;
+          break;
+        } else {
+          // Fork creation failed - check if it's because fork already exists
+          const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
+                            (forkResult.stdout ? forkResult.stdout.toString() : '');
+
+          if (forkOutput.includes('already exists') ||
+              forkOutput.includes('Name already exists') ||
+              forkOutput.includes('fork of') ||
+              forkOutput.includes('HTTP 422')) {
+            // Fork already exists (likely created by another concurrent worker)
+            await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created (likely by another worker)')}`);
+            forkExists = true;
+            break;
+          }
+
+          // Check if fork was created by another worker even if error message doesn't explicitly say so
+          await log(`${formatAligned('🔍', 'Checking:', 'If fork exists after failed creation attempt...')}`);
+          const checkResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+
+          if (checkResult.code === 0) {
+            // Fork exists now (created by another worker during our attempt)
+            await log(`${formatAligned('✅', 'Fork found:', 'Created by another concurrent worker')}`);
+            forkExists = true;
+            break;
+          }
+
+          // Fork still doesn't exist and creation failed
+          if (attempt < maxForkRetries) {
+            const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+            await log(`${formatAligned('⏳', 'Retry:', `Attempt ${attempt}/${maxForkRetries} failed, waiting ${delay/1000}s before retry...`)}`);
+            await log(`   Error: ${forkOutput.split('\n')[0]}`); // Show first line of error
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            // All retries exhausted
+            await log(`${formatAligned('❌', 'Error:', 'Failed to create fork after all retries')}`);
+            await log(forkOutput);
+            process.exit(1);
+          }
+        }
       }
 
-      // Check if the output indicates the fork already exists (from parallel worker)
-      const forkOutput = forkResult.stderr ? forkResult.stderr.toString() : '';
-      if (forkOutput.includes('already exists')) {
-        // Fork was created by another worker - treat as if fork already existed
-        await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created by another worker')}`);
-        await log(`${formatAligned('✅', 'Using existing fork:', `${currentUser}/${repo}`)}`);
+      // If fork exists (either created or already existed), verify it's accessible
+      if (forkExists) {
+        await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
 
-        // Retry verification with exponential backoff
-        // GitHub may need time to propagate the fork visibility across their infrastructure
-        const maxRetries = 5;
-        const baseDelay = 2000; // Start with 2 seconds
+        // Verify fork with retries (GitHub may need time to propagate)
+        const maxVerifyRetries = 5;
         let forkVerified = false;
 
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          const delay = baseDelay * Math.pow(2, attempt - 1); // 2s, 4s, 8s, 16s, 32s
-          await log(`${formatAligned('⏳', 'Verifying fork:', `Attempt ${attempt}/${maxRetries} (waiting ${delay/1000}s)...`)}`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        for (let attempt = 1; attempt <= maxVerifyRetries; attempt++) {
+          const delay = baseDelay * Math.pow(2, attempt - 1);
+          if (attempt > 1) {
+            await log(`${formatAligned('⏳', 'Verifying fork:', `Attempt ${attempt}/${maxVerifyRetries} (waiting ${delay/1000}s)...`)}`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
 
-          const reCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
-          if (reCheckResult.code === 0) {
+          const verifyResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          if (verifyResult.code === 0) {
             forkVerified = true;
-            await log(`${formatAligned('✅', 'Fork verified:', 'Successfully confirmed fork exists')}`);
+            await log(`${formatAligned('✅', 'Fork verified:', `${currentUser}/${repo} is accessible`)}`);
             break;
           }
         }
 
         if (!forkVerified) {
-          await log(`${formatAligned('❌', 'Error:', 'Fork reported as existing but not found after multiple retries')}`);
+          await log(`${formatAligned('❌', 'Error:', 'Fork exists but not accessible after multiple retries')}`);
           await log(`${formatAligned('', 'Suggestion:', 'GitHub may be experiencing delays - try running the command again in a few minutes')}`);
           process.exit(1);
         }
-      } else {
-        await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
 
-        // Wait a moment for fork to be ready
-        await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be ready...')}`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Wait a moment for fork to be fully ready
+        if (forkCreated) {
+          await log(`${formatAligned('⏳', 'Waiting:', 'For fork to be fully ready...')}`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
       }
 
       repoToClone = `${currentUser}/${repo}`;
