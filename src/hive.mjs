@@ -23,7 +23,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, normalizeGitHubUrl } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -275,10 +275,42 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
 // Configure command line arguments - GitHub URL as positional argument
 const argv = createYargsConfig(yargs(rawArgs)).argv;
 
-const githubUrl = argv['github-url'];
+let githubUrl = argv['github-url'];
 
 // Set global verbose mode
 global.verboseMode = argv.verbose;
+
+// Use the universal GitHub URL parser
+if (githubUrl) {
+  const parsedUrl = parseGitHubUrl(githubUrl);
+
+  if (!parsedUrl.valid) {
+    console.error('Error: Invalid GitHub URL format');
+    if (parsedUrl.error) {
+      console.error(`  ${parsedUrl.error}`);
+    }
+    console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    console.error('You can use any of these formats:');
+    console.error('  - https://github.com/owner');
+    console.error('  - https://github.com/owner/repo');
+    console.error('  - http://github.com/owner (will be converted to https)');
+    console.error('  - github.com/owner (will add https://)');
+    console.error('  - owner (will be converted to https://github.com/owner)');
+    console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
+    process.exit(1);
+  }
+
+  // Check if it's a valid type for hive (user or repo)
+  if (parsedUrl.type !== 'user' && parsedUrl.type !== 'repo') {
+    console.error('Error: Invalid GitHub URL for monitoring');
+    console.error(`  URL type '${parsedUrl.type}' is not supported`);
+    console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    process.exit(1);
+  }
+
+  // Use the normalized URL
+  githubUrl = parsedUrl.normalized;
+}
 
 // Validate GitHub URL format ONCE AND FOR ALL at the beginning
 // Parse URL format: https://github.com/owner or https://github.com/owner/repo
@@ -293,6 +325,13 @@ if (needsUrlValidation) {
   if (!urlMatch) {
     console.error('Error: Invalid GitHub URL format');
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    console.error('You can use any of these formats:');
+    console.error('  - https://github.com/owner');
+    console.error('  - https://github.com/owner/repo');
+    console.error('  - http://github.com/owner (will be converted to https)');
+    console.error('  - github.com/owner (will add https://)');
+    console.error('  - owner (will be converted to https://github.com/owner)');
+    console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
     process.exit(1);
   }
 }

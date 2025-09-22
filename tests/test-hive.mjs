@@ -114,7 +114,7 @@ runTest('hive.mjs requires GitHub URL', () => {
 
 // Test 7: Check that it validates URL format
 runTest('hive.mjs validates URL format', () => {
-  const output = execCommand(`${hivePath} not-a-url 2>&1`);
+  const output = execCommand(`${hivePath} "not a valid url!" 2>&1`);
   if (!output.toLowerCase().includes('invalid') && !output.toLowerCase().includes('url')) {
     throw new Error('Should indicate invalid URL format');
   }

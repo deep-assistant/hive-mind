@@ -28,7 +28,9 @@ const {
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
-  checkGitHubPermissions
+  checkGitHubPermissions,
+  parseGitHubUrl,
+  isGitHubUrlType
 } = githubLib;
 
 // Import Claude-related functions
@@ -55,13 +57,32 @@ export const validateGitHubUrl = (issueUrl) => {
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
-  // Do the regex matching ONCE - these results will be used everywhere
-  const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/);
-  const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/);
+  // Use the universal GitHub URL parser
+  const parsedUrl = parseGitHubUrl(issueUrl);
 
-  // Fail fast if URL is invalid
-  if (!isIssueUrl && !isPrUrl) {
+  if (!parsedUrl.valid) {
     console.error('Error: Invalid GitHub URL format');
+    if (parsedUrl.error) {
+      console.error(`  ${parsedUrl.error}`);
+    }
+    console.error('  Please provide a valid GitHub issue or pull request URL');
+    console.error('  Examples:');
+    console.error('    https://github.com/owner/repo/issues/123 (issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    console.error('  You can also use:');
+    console.error('    http://github.com/owner/repo/issues/123 (will be converted to https)');
+    console.error('    github.com/owner/repo/issues/123 (will add https://)');
+    console.error('    owner/repo/issues/123 (will be converted to full URL)');
+    return { isValid: false, isIssueUrl: null, isPrUrl: null };
+  }
+
+  // Check if it's an issue or pull request
+  const isIssueUrl = parsedUrl.type === 'issue';
+  const isPrUrl = parsedUrl.type === 'pull';
+
+  if (!isIssueUrl && !isPrUrl) {
+    console.error('Error: Invalid GitHub URL for solve command');
+    console.error(`  URL type '${parsedUrl.type}' is not supported`);
     console.error('  Please provide a valid GitHub issue or pull request URL');
     console.error('  Examples:');
     console.error('    https://github.com/owner/repo/issues/123 (issue)');
@@ -69,7 +90,15 @@ export const validateGitHubUrl = (issueUrl) => {
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
-  return { isValid: true, isIssueUrl, isPrUrl };
+  return {
+    isValid: true,
+    isIssueUrl,
+    isPrUrl,
+    normalizedUrl: parsedUrl.normalized,
+    owner: parsedUrl.owner,
+    repo: parsedUrl.repo,
+    number: parsedUrl.number
+  };
 };
 
 // Show security warning for attach-logs option
