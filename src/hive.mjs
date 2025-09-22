@@ -262,7 +262,7 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: 'Automatically continue with existing PRs for issues if they are older than 24 hours',
+      description: 'Automatically continue working on issues with existing PRs (older than 24 hours)',
       default: false
     })
     .help('h')
@@ -414,6 +414,15 @@ if (argv.projectMode) {
   }
 }
 
+// Validate conflicting options
+if (argv.skipIssuesWithPrs && argv.autoContinue) {
+  await log('❌ Conflicting options: --skip-issues-with-prs and --auto-continue cannot be used together', { level: 'error' });
+  await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
+  await log('   --auto-continue: Works on issues with existing PRs (older than 24 hours)', { level: 'error' });
+  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+  process.exit(1);
+}
+
 // Helper function to check GitHub permissions - moved to github.lib.mjs
 
 // Check GitHub permissions early in the process
@@ -477,7 +486,7 @@ if (argv.fork) {
   await log('   🍴 Fork: ENABLED (will fork repos if no write access)');
 }
 if (argv.autoContinue) {
-  await log('   🔄 Auto-Continue: ENABLED (will continue with existing PRs older than 24 hours)');
+  await log('   🔄 Auto-Continue: ENABLED (will work on issues with existing PRs)');
 }
 if (!argv.once) {
   await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
