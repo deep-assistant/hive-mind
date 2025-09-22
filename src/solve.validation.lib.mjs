@@ -28,7 +28,9 @@ const {
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
-  checkGitHubPermissions
+  checkGitHubPermissions,
+  parseGitHubUrl,
+  isGitHubUrlType
 } = githubLib;
 
 // Import Claude-related functions
@@ -55,57 +57,14 @@ export const validateGitHubUrl = (issueUrl) => {
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
-  // Normalize the URL first - handle http://, missing protocols, etc.
-  let normalizedUrl = issueUrl;
+  // Use the universal GitHub URL parser
+  const parsedUrl = parseGitHubUrl(issueUrl);
 
-  // Remove trailing slashes
-  normalizedUrl = normalizedUrl.replace(/\/+$/, '');
-
-  // Check if this looks like a valid GitHub-related input for issues/PRs
-  // Allow: URLs with protocols, github.com paths, or org/repo/issues|pull/number format
-  const isValidInput =
-    normalizedUrl.startsWith('http://') ||
-    normalizedUrl.startsWith('https://') ||
-    normalizedUrl.startsWith('github.com/') ||
-    /^[a-zA-Z0-9][\w.-]*\/[a-zA-Z0-9][\w.-]*\/(issues|pull)\/\d+$/.test(normalizedUrl); // org/repo/issues|pull/number
-
-  if (!isValidInput) {
-    // This doesn't look like a valid GitHub issue/PR URL or shorthand
+  if (!parsedUrl.valid) {
     console.error('Error: Invalid GitHub URL format');
-    console.error('  Please provide a valid GitHub issue or pull request URL');
-    console.error('  Examples:');
-    console.error('    https://github.com/owner/repo/issues/123 (issue)');
-    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
-    console.error('  You can also use:');
-    console.error('    http://github.com/owner/repo/issues/123 (will be converted to https)');
-    console.error('    github.com/owner/repo/issues/123 (will add https://)');
-    console.error('    owner/repo/issues/123 (will be converted to full URL)');
-    return { isValid: false, isIssueUrl: null, isPrUrl: null };
-  }
-
-  // If no protocol, assume https
-  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-    // Handle cases like "github.com/owner/repo/issues/123"
-    if (normalizedUrl.startsWith('github.com/')) {
-      normalizedUrl = 'https://' + normalizedUrl;
-    } else if (!normalizedUrl.includes('github.com')) {
-      // Assume it's just owner/repo/issues/123 without the github.com part
-      normalizedUrl = 'https://github.com/' + normalizedUrl;
+    if (parsedUrl.error) {
+      console.error(`  ${parsedUrl.error}`);
     }
-  }
-
-  // Convert http to https
-  if (normalizedUrl.startsWith('http://')) {
-    normalizedUrl = normalizedUrl.replace(/^http:\/\//, 'https://');
-  }
-
-  // Do the regex matching ONCE - these results will be used everywhere
-  const isIssueUrl = normalizedUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/);
-  const isPrUrl = normalizedUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/);
-
-  // Fail fast if URL is invalid
-  if (!isIssueUrl && !isPrUrl) {
-    console.error('Error: Invalid GitHub URL format');
     console.error('  Please provide a valid GitHub issue or pull request URL');
     console.error('  Examples:');
     console.error('    https://github.com/owner/repo/issues/123 (issue)');
@@ -117,7 +76,29 @@ export const validateGitHubUrl = (issueUrl) => {
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
-  return { isValid: true, isIssueUrl, isPrUrl, normalizedUrl };
+  // Check if it's an issue or pull request
+  const isIssueUrl = parsedUrl.type === 'issue';
+  const isPrUrl = parsedUrl.type === 'pull';
+
+  if (!isIssueUrl && !isPrUrl) {
+    console.error('Error: Invalid GitHub URL for solve command');
+    console.error(`  URL type '${parsedUrl.type}' is not supported`);
+    console.error('  Please provide a valid GitHub issue or pull request URL');
+    console.error('  Examples:');
+    console.error('    https://github.com/owner/repo/issues/123 (issue)');
+    console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    return { isValid: false, isIssueUrl: null, isPrUrl: null };
+  }
+
+  return {
+    isValid: true,
+    isIssueUrl,
+    isPrUrl,
+    normalizedUrl: parsedUrl.normalized,
+    owner: parsedUrl.owner,
+    repo: parsedUrl.repo,
+    number: parsedUrl.number
+  };
 };
 
 // Show security warning for attach-logs option

@@ -23,7 +23,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, normalizeGitHubUrl } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -280,24 +280,15 @@ let githubUrl = argv['github-url'];
 // Set global verbose mode
 global.verboseMode = argv.verbose;
 
-// Normalize the GitHub URL to handle different formats
-// Convert http to https and add protocol if missing
+// Use the universal GitHub URL parser
 if (githubUrl) {
-  // Remove trailing slashes
-  githubUrl = githubUrl.replace(/\/+$/, '');
+  const parsedUrl = parseGitHubUrl(githubUrl);
 
-  // Check if this looks like a valid GitHub-related input
-  // Allow: URLs with protocols, github.com paths, or alphanumeric org/repo names
-  const isValidInput =
-    githubUrl.startsWith('http://') ||
-    githubUrl.startsWith('https://') ||
-    githubUrl.startsWith('github.com/') ||
-    /^[a-zA-Z0-9][\w.-]*$/.test(githubUrl) || // Single org/user name
-    /^[a-zA-Z0-9][\w.-]*\/[a-zA-Z0-9][\w.-]*$/.test(githubUrl); // org/repo format
-
-  if (!isValidInput) {
-    // This doesn't look like a valid GitHub URL or shorthand
+  if (!parsedUrl.valid) {
     console.error('Error: Invalid GitHub URL format');
+    if (parsedUrl.error) {
+      console.error(`  ${parsedUrl.error}`);
+    }
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
     console.error('You can use any of these formats:');
     console.error('  - https://github.com/owner');
@@ -309,21 +300,16 @@ if (githubUrl) {
     process.exit(1);
   }
 
-  // If no protocol, assume https
-  if (!githubUrl.startsWith('http://') && !githubUrl.startsWith('https://')) {
-    // Handle cases like "github.com/owner" or just "owner/repo"
-    if (githubUrl.startsWith('github.com/')) {
-      githubUrl = 'https://' + githubUrl;
-    } else if (!githubUrl.includes('github.com')) {
-      // Assume it's just owner or owner/repo without the github.com part
-      githubUrl = 'https://github.com/' + githubUrl;
-    }
+  // Check if it's a valid type for hive (user or repo)
+  if (parsedUrl.type !== 'user' && parsedUrl.type !== 'repo') {
+    console.error('Error: Invalid GitHub URL for monitoring');
+    console.error(`  URL type '${parsedUrl.type}' is not supported`);
+    console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    process.exit(1);
   }
 
-  // Convert http to https
-  if (githubUrl.startsWith('http://')) {
-    githubUrl = githubUrl.replace(/^http:\/\//, 'https://');
-  }
+  // Use the normalized URL
+  githubUrl = parsedUrl.normalized;
 }
 
 // Validate GitHub URL format ONCE AND FOR ALL at the beginning
