@@ -275,10 +275,33 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
 // Configure command line arguments - GitHub URL as positional argument
 const argv = createYargsConfig(yargs(rawArgs)).argv;
 
-const githubUrl = argv['github-url'];
+let githubUrl = argv['github-url'];
 
 // Set global verbose mode
 global.verboseMode = argv.verbose;
+
+// Normalize the GitHub URL to handle different formats
+// Convert http to https and add protocol if missing
+if (githubUrl) {
+  // Remove trailing slashes
+  githubUrl = githubUrl.replace(/\/+$/, '');
+
+  // If no protocol, assume https
+  if (!githubUrl.startsWith('http://') && !githubUrl.startsWith('https://')) {
+    // Handle cases like "github.com/owner" or just "owner/repo"
+    if (githubUrl.startsWith('github.com/')) {
+      githubUrl = 'https://' + githubUrl;
+    } else if (!githubUrl.includes('github.com')) {
+      // Assume it's just owner or owner/repo without the github.com part
+      githubUrl = 'https://github.com/' + githubUrl;
+    }
+  }
+
+  // Convert http to https
+  if (githubUrl.startsWith('http://')) {
+    githubUrl = githubUrl.replace(/^http:\/\//, 'https://');
+  }
+}
 
 // Validate GitHub URL format ONCE AND FOR ALL at the beginning
 // Parse URL format: https://github.com/owner or https://github.com/owner/repo
@@ -293,6 +316,13 @@ if (needsUrlValidation) {
   if (!urlMatch) {
     console.error('Error: Invalid GitHub URL format');
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
+    console.error('You can use any of these formats:');
+    console.error('  - https://github.com/owner');
+    console.error('  - https://github.com/owner/repo');
+    console.error('  - http://github.com/owner (will be converted to https)');
+    console.error('  - github.com/owner (will add https://)');
+    console.error('  - owner (will be converted to https://github.com/owner)');
+    console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
     process.exit(1);
   }
 }

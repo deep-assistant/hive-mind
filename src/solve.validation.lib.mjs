@@ -55,9 +55,31 @@ export const validateGitHubUrl = (issueUrl) => {
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
+  // Normalize the URL first - handle http://, missing protocols, etc.
+  let normalizedUrl = issueUrl;
+
+  // Remove trailing slashes
+  normalizedUrl = normalizedUrl.replace(/\/+$/, '');
+
+  // If no protocol, assume https
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    // Handle cases like "github.com/owner/repo/issues/123"
+    if (normalizedUrl.startsWith('github.com/')) {
+      normalizedUrl = 'https://' + normalizedUrl;
+    } else if (!normalizedUrl.includes('github.com')) {
+      // Assume it's just owner/repo/issues/123 without the github.com part
+      normalizedUrl = 'https://github.com/' + normalizedUrl;
+    }
+  }
+
+  // Convert http to https
+  if (normalizedUrl.startsWith('http://')) {
+    normalizedUrl = normalizedUrl.replace(/^http:\/\//, 'https://');
+  }
+
   // Do the regex matching ONCE - these results will be used everywhere
-  const isIssueUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/);
-  const isPrUrl = issueUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/);
+  const isIssueUrl = normalizedUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/);
+  const isPrUrl = normalizedUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/);
 
   // Fail fast if URL is invalid
   if (!isIssueUrl && !isPrUrl) {
@@ -66,10 +88,14 @@ export const validateGitHubUrl = (issueUrl) => {
     console.error('  Examples:');
     console.error('    https://github.com/owner/repo/issues/123 (issue)');
     console.error('    https://github.com/owner/repo/pull/456 (pull request)');
+    console.error('  You can also use:');
+    console.error('    http://github.com/owner/repo/issues/123 (will be converted to https)');
+    console.error('    github.com/owner/repo/issues/123 (will add https://)');
+    console.error('    owner/repo/issues/123 (will be converted to full URL)');
     return { isValid: false, isIssueUrl: null, isPrUrl: null };
   }
 
-  return { isValid: true, isIssueUrl, isPrUrl };
+  return { isValid: true, isIssueUrl, isPrUrl, normalizedUrl };
 };
 
 // Show security warning for attach-logs option

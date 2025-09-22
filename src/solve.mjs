@@ -262,7 +262,7 @@ await log(`   ${rawCommand}`);
 await log('');
 
 // Now handle argument validation that was moved from early checks
-const issueUrl = argv._[0];
+let issueUrl = argv._[0];
 
 if (!issueUrl) {
   await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
@@ -278,7 +278,10 @@ const urlValidation = validateGitHubUrl(issueUrl);
 if (!urlValidation.isValid) {
   process.exit(1);
 }
-const { isIssueUrl, isPrUrl } = urlValidation;
+const { isIssueUrl, isPrUrl, normalizedUrl } = urlValidation;
+
+// Use the normalized URL for all subsequent operations
+issueUrl = normalizedUrl || issueUrl;
 
 // Setup unhandled error handlers to ensure log path is always shown
 const errorHandlerOptions = {
