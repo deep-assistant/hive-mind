@@ -586,8 +586,15 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     return issues;
   } catch (error) {
     await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    
-    // Fallback to original behavior with 100 limit
+
+    // Check if this is a rate limit error - if so, don't try fallback with the same command
+    if (isRateLimitError(error)) {
+      await log('   ⚠️  Rate limit detected - not attempting fallback with same command', { verbose: true });
+      // Re-throw the error so the caller can handle rate limiting appropriately
+      throw error;
+    }
+
+    // Only try fallback for non-rate-limit errors
     try {
       await log('   🔄 Falling back to default behavior...', { verbose: true });
       const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
@@ -598,7 +605,8 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
       return issues;
     } catch (fallbackError) {
       await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
-      return [];
+      // Re-throw the error so the caller can handle rate limiting appropriately
+      throw fallbackError;
     }
   }
 }
