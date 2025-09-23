@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
-// Handle version early
 if (earlyArgs.includes('--version')) {
   // Quick version output without loading modules
   // Get version from package.json or use dev version format
@@ -26,7 +25,6 @@ if (earlyArgs.includes('--version')) {
   }
   process.exit(0);
 }
-// Handle help early
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
   const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
@@ -38,159 +36,54 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   createYargsConfig(yargs(rawArgs)).showHelp();
   process.exit(0);
 }
-// Handle no arguments early (must exit before loading modules)
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
   console.error('\nError: Missing required github issue or pull request URL');
   console.error('\nRun "solve.mjs --help" for more information');
   process.exit(1);
 }
-
 // Now load all modules for normal operation
-// Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-
-// Set use globally so imported modules can access it
 globalThis.use = use;
-
-// Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
-
-// Import CLI configuration module
 const config = await import('./solve.config.lib.mjs');
 const { initializeConfig, parseArguments, createYargsConfig } = config;
-
-// Initialize yargs and hideBin using the shared 'use' function
 const { yargs, hideBin } = await initializeConfig(use);
-
 const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
-
-// Import memory check functions (RAM, swap, disk)
 const memoryCheck = await import('./memory-check.mjs');
-
-// Import shared library functions
 const lib = await import('./lib.mjs');
-const {
-  log,
-  setLogFile,
-  getLogFile,
-  cleanErrorMessage,
-  formatAligned,
-  getVersionInfo
-} = lib;
-
-// Import GitHub-related functions
+const { log, setLogFile, getLogFile, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
-const {
-  sanitizeLogContent,
-  checkFileInBranch,
-  checkGitHubPermissions,
-  attachLogToGitHub
-} = githubLib;
-
-// Import Claude-related functions
+const { sanitizeLogContent, checkFileInBranch, checkGitHubPermissions, attachLogToGitHub } = githubLib;
 const claudeLib = await import('./claude.lib.mjs');
-const {
-  validateClaudeConnection
-} = claudeLib;
-
-// Import validation functions
+const { validateClaudeConnection } = claudeLib;
 const validation = await import('./solve.validation.lib.mjs');
-const {
-  validateGitHubUrl,
-  showAttachLogsWarning,
-  initializeLogFile,
-  validateUrlRequirement,
-  validateContinueOnlyOnFeedback,
-  performSystemChecks,
-  parseUrlComponents,
-  parseResetTime,
-  calculateWaitTime
-} = validation;
-
-// Import auto-continue functions
+const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents, parseResetTime, calculateWaitTime } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
-const {
-  autoContinueWhenLimitResets,
-  checkExistingPRsForAutoContinue,
-  processPRMode,
-  processAutoContinueForIssue
-} = autoContinue;
-
-// Import repository management functions
+const { autoContinueWhenLimitResets, checkExistingPRsForAutoContinue, processPRMode, processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
-const {
-  setupTempDirectory,
-  setupRepository,
-  cloneRepository,
-  setupUpstreamAndSync,
-  cleanupTempDirectory
-} = repository;
-
-// Import results processing functions
+const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, cleanupTempDirectory } = repository;
 const results = await import('./solve.results.lib.mjs');
-const {
-  cleanupClaudeFile,
-  showSessionSummary,
-  verifyResults,
-  handleExecutionError
-} = results;
-
-// Import Claude execution functions
+const { cleanupClaudeFile, showSessionSummary, verifyResults, handleExecutionError } = results;
 const claudeExecution = await import('./solve.claude-execution.lib.mjs');
-const {
-  executeClaude,
-  executeClaudeCommand,
-  buildSystemPrompt,
-  buildUserPrompt,
-  checkForUncommittedChanges
-} = claudeExecution;
-
-// Import feedback detection functions
+const { executeClaude, executeClaudeCommand, buildSystemPrompt, buildUserPrompt, checkForUncommittedChanges } = claudeExecution;
 const feedback = await import('./solve.feedback.lib.mjs');
-const {
-  detectAndCountFeedback
-} = feedback;
-
-// Import error handling functions
+const { detectAndCountFeedback } = feedback;
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
-const {
-  createUncaughtExceptionHandler,
-  createUnhandledRejectionHandler,
-  handleMainExecutionError
-} = errorHandlers;
-
-// Import watch mode functions
+const { createUncaughtExceptionHandler, createUnhandledRejectionHandler, handleMainExecutionError } = errorHandlers;
 const watchLib = await import('./solve.watch.lib.mjs');
-const {
-  startWatchMode
-} = watchLib;
-
-// solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
-
-// Global log file reference (will be passed to lib.mjs)
-
-// Use getResourceSnapshot from memory-check module
+const { startWatchMode } = watchLib;
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
-// Parse command line arguments using the config module
 const argv = await parseArguments(yargs, hideBin);
-
-// Set global verbose mode for log function
 global.verboseMode = argv.verbose;
-
-// URL validation will be done after version logging
-
-// Debug logging for attach-logs option
 if (argv.verbose) {
   await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
   await log(`Debug: argv["attach-logs"] = ${argv['attach-logs']}`, { verbose: true });
 }
-
-// Show security warning and initialize log file using validation module
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
@@ -571,7 +464,7 @@ try {
         if (userHasFork) {
           await log(`    ✓ Use your existing fork (${forkOwner}/${repo})`);
         } else if (isForkPR && forkOwner) {
-          await log(`    ✓ Work with the fork that contains the PR branch`);
+          await log('    ✓ Work with the fork that contains the PR branch');
         } else {
           await log('    ✓ Create or use a fork of the repository');
         }
