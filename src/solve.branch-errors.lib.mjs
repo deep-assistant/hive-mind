@@ -24,6 +24,7 @@ export async function handleBranchCheckoutError({
   let forkOwner = null;
   let userHasFork = false;
   let suggestForkOption = false;
+  let branchExistsInFork = false;
 
   if (prNumber) {
     try {
@@ -34,6 +35,16 @@ export async function handleBranchCheckoutError({
           isForkPR = true;
           forkOwner = prData.headRepositoryOwner.login;
           suggestForkOption = true;
+
+          // Check if the branch exists in the fork
+          try {
+            const branchCheckResult = await $`gh api repos/${forkOwner}/${repo}/git/ref/heads/${branchName} 2>/dev/null`;
+            if (branchCheckResult.code === 0) {
+              branchExistsInFork = true;
+            }
+          } catch (e) {
+            // Branch doesn't exist in fork or can't access it
+          }
         }
       }
     } catch (e) {
@@ -50,8 +61,21 @@ export async function handleBranchCheckoutError({
           const forkData = JSON.parse(forkCheckResult.stdout.toString());
           if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
             userHasFork = true;
-            forkOwner = currentUser;
+            if (!forkOwner) forkOwner = currentUser;
             suggestForkOption = true;
+
+            // Check if the branch exists in user's fork
+            if (!branchExistsInFork) {
+              try {
+                const branchCheckResult = await $`gh api repos/${currentUser}/${repo}/git/ref/heads/${branchName} 2>/dev/null`;
+                if (branchCheckResult.code === 0) {
+                  branchExistsInFork = true;
+                  forkOwner = currentUser;
+                }
+              } catch (e) {
+                // Branch doesn't exist in user's fork
+              }
+            }
           }
         }
       }
@@ -69,7 +93,7 @@ export async function handleBranchCheckoutError({
   await log(`     Repository: https://github.com/${owner}/${repo}`);
   await log(`     Pull Request: https://github.com/${owner}/${repo}/pull/${prNumber}`);
   if (errorOutput.includes('is not a commit')) {
-    await log('     The branch doesn\'t exist in the current repository.');
+    await log(`     The branch doesn't exist in the main repository (https://github.com/${owner}/${repo}).`);
   } else {
     await log('     Git was unable to find or access the branch.');
   }
@@ -87,16 +111,32 @@ export async function handleBranchCheckoutError({
   // Explain why this happened
   await log('  💡 Why this happened:');
   if (isForkPR && forkOwner) {
-    await log(`     The PR branch exists in the fork: https://github.com/${forkOwner}/${repo}`);
-    await log(`     but you're trying to access it from the main repository: https://github.com/${owner}/${repo}`);
+    if (branchExistsInFork) {
+      await log(`     The PR branch '${branchName}' exists in the fork repository:`);
+      await log(`       https://github.com/${forkOwner}/${repo}`);
+      await log('     but you\'re trying to access it from the main repository:');
+      await log(`       https://github.com/${owner}/${repo}`);
+      await log('     This branch does NOT exist in the main repository.');
+    } else {
+      await log(`     The PR is from a fork (https://github.com/${forkOwner}/${repo})`);
+      await log(`     but the branch '${branchName}' could not be found there either.`);
+      await log('     The branch may have been deleted or renamed.');
+    }
     await log('     This is a common issue with pull requests from forks.');
+  } else if (userHasFork && branchExistsInFork) {
+    await log(`     The branch '${branchName}' exists in your fork:`);
+    await log(`       https://github.com/${forkOwner}/${repo}`);
+    await log('     but NOT in the main repository:');
+    await log(`       https://github.com/${owner}/${repo}`);
+    await log('     You need to use --fork to work with your fork.');
   } else if (userHasFork) {
     await log('     You have a fork of this repository, but the PR branch');
-    await log('     might be in your fork rather than the main repository.');
+    await log(`     '${branchName}' doesn't exist in either the main repository`);
+    await log('     or your fork. It may have been deleted or renamed.');
   } else {
-    await log('     • The PR branch may not exist on the remote');
-    await log('     • There might be network connectivity issues');
-    await log('     • You might not have permission to access the branch');
+    await log(`     • The branch '${branchName}' doesn't exist in https://github.com/${owner}/${repo}`);
+    await log('     • This might be a PR from a fork (use --fork option)');
+    await log('     • Or the branch may have been deleted/renamed');
   }
   await log('');
 
