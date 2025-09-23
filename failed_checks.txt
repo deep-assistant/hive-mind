@@ -1,0 +1,509 @@
+verify-version-bump	Verify version bump	﻿2025-09-23T02:27:32.8489814Z ##[group]Run echo "=== Version Bump Verification ==="
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8491587Z [36;1mecho "=== Version Bump Verification ==="[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8492955Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8493883Z [36;1m# Get base and head refs[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8495064Z [36;1mBASE_REF="main"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8496189Z [36;1mHEAD_REF="issue-277-3df2d002"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8497656Z [36;1mBASE_SHA="0c09019b622f51ebeed2d9573414f35d8d4d776b"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8499473Z [36;1mHEAD_SHA="d1f92e9d91106ce51c575b4aadc726a106008824"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8500882Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8501864Z [36;1mecho "Base branch: $BASE_REF ($BASE_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8503263Z [36;1mecho "Head branch: $HEAD_REF ($HEAD_SHA)"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8504502Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8505343Z [36;1m# Fetch the base branch[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8506534Z [36;1mgit fetch origin $BASE_REF:$BASE_REF[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8507739Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8508742Z [36;1m# Get current version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8510070Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8511358Z [36;1m  echo "❌ No package.json found in PR"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8512553Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8513383Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8514163Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8515349Z [36;1mCURRENT_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8517071Z [36;1mecho "Current version in PR: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8518334Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8519312Z [36;1m# Get base version from package.json[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8520803Z [36;1mgit checkout $BASE_SHA -- package.json 2>/dev/null || {[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8522458Z [36;1m  echo "❌ Could not get package.json from base branch"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8523807Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8524633Z [36;1m}[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8525410Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8526282Z [36;1mif [ ! -f "package.json" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8527624Z [36;1m  echo "❌ No package.json found in base branch"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8529135Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8529999Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8530801Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8531980Z [36;1mBASE_VERSION=$(node -p "require('./package.json').version")[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8533562Z [36;1mecho "Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8534727Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8535606Z [36;1m# Restore current package.json[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8536887Z [36;1mgit checkout $HEAD_SHA -- package.json[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8538102Z [36;1m[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8539031Z [36;1m# Compare versions[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8540241Z [36;1mif [ "$CURRENT_VERSION" = "$BASE_VERSION" ]; then[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8541661Z [36;1m  echo "❌ Version has not been bumped!"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8543025Z [36;1m  echo "   Current version: $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8544419Z [36;1m  echo "   Base version: $BASE_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8545633Z [36;1m  echo ""[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8547030Z [36;1m  echo "💡 Please bump the version in package.json before merging this PR."[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8548923Z [36;1m  echo "   You can use semantic versioning:"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8550376Z [36;1m  echo "   - Patch (bug fixes): npm version patch"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8551893Z [36;1m  echo "   - Minor (new features): npm version minor"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8553491Z [36;1m  echo "   - Major (breaking changes): npm version major"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8554882Z [36;1m  exit 1[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8555732Z [36;1melse[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8557050Z [36;1m  echo "✅ Version has been bumped from $BASE_VERSION to $CURRENT_VERSION"[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8558722Z [36;1mfi[0m
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8614388Z shell: /usr/bin/bash -e {0}
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8615491Z ##[endgroup]
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8707944Z === Version Bump Verification ===
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8710050Z Base branch: main (0c09019b622f51ebeed2d9573414f35d8d4d776b)
+verify-version-bump	Verify version bump	2025-09-23T02:27:32.8712347Z Head branch: issue-277-3df2d002 (d1f92e9d91106ce51c575b4aadc726a106008824)
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.0387717Z From https://github.com/deep-assistant/hive-mind
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.0389436Z  * [new branch]      main       -> main
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.0713427Z Current version in PR: 0.10.2
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1069348Z Base version: 0.10.2
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1093284Z ❌ Version has not been bumped!
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1094552Z    Current version: 0.10.2
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1096129Z    Base version: 0.10.2
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1096958Z 
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1098094Z 💡 Please bump the version in package.json before merging this PR.
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1099868Z    You can use semantic versioning:
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1101033Z    - Patch (bug fixes): npm version patch
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1102265Z    - Minor (new features): npm version minor
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1103539Z    - Major (breaking changes): npm version major
+verify-version-bump	Verify version bump	2025-09-23T02:27:33.1118516Z ##[error]Process completed with exit code 1.
+check-file-line-limits	Check .mjs file line limits	﻿2025-09-23T02:27:36.8941226Z ##[group]Run echo "Checking that all .mjs files are under 1500 lines..."
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8942694Z [36;1mecho "Checking that all .mjs files are under 1500 lines..."[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8943455Z [36;1m[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8943927Z [36;1m# Create a temporary file to track failures[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8944578Z [36;1mFAILURES_FILE=$(mktemp)[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8945087Z [36;1m[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8945531Z [36;1m# Check all .mjs files in the repository[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8946282Z [36;1mfind . -name "*.mjs" -type f | while read -r file; do[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8947012Z [36;1m  line_count=$(wc -l < "$file")[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8947611Z [36;1m  echo "📄 $file: $line_count lines"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8948183Z [36;1m[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8948600Z [36;1m  if [ $line_count -gt 1500 ]; then[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8949446Z [36;1m    echo "❌ ERROR: $file has $line_count lines, which exceeds the 1500 line limit!"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8950493Z [36;1m    echo "::error file=$file::File has $line_count lines (limit: 1500)"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8951364Z [36;1m    echo "$file" >> "$FAILURES_FILE"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8952171Z [36;1m  else[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8952667Z [36;1m    echo "✅ $file is within the 1500 line limit"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8953301Z [36;1m  fi[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8953688Z [36;1mdone[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8954077Z [36;1m[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8954484Z [36;1m# Check if any failures occurred[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8955090Z [36;1mif [ -s "$FAILURES_FILE" ]; then[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8955648Z [36;1m  echo ""[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8956247Z [36;1m  echo "❌ The following .mjs files exceed the 1500 line limit:"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8957001Z [36;1m  cat "$FAILURES_FILE"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8957494Z [36;1m  echo ""[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8958219Z [36;1m  echo "Please reorganize the code to split large files into smaller modules."[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8959280Z [36;1m  echo "Each .mjs file should have no more than 1500 lines of code."[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8960071Z [36;1m  rm -f "$FAILURES_FILE"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8960588Z [36;1m  exit 1[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8960984Z [36;1melse[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8961375Z [36;1m  echo ""[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8962146Z [36;1m  echo "✅ All .mjs files are within the 1500 line limit!"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8962866Z [36;1m  rm -f "$FAILURES_FILE"[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.8963370Z [36;1mfi[0m
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9018038Z shell: /usr/bin/bash -e {0}
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9018625Z ##[endgroup]
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9090793Z Checking that all .mjs files are under 1500 lines...
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9304556Z 📄 ./claude-runtime.mjs: 142 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9306083Z ✅ ./claude-runtime.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9320199Z 📄 ./cleanup-test-repos.mjs: 293 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9321267Z ✅ ./cleanup-test-repos.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9335868Z 📄 ./reviewers-hive.mjs: 636 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9336659Z ✅ ./reviewers-hive.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9351307Z 📄 ./tests/test-rate-limit-fallback.mjs: 54 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9353218Z ✅ ./tests/test-rate-limit-fallback.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9367613Z 📄 ./tests/test-memory-check.mjs: 268 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9383141Z ✅ ./tests/test-memory-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9384376Z 📄 ./tests/docs-validation.mjs: 124 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9385717Z ✅ ./tests/docs-validation.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9398397Z 📄 ./tests/test-hive-auto-continue.mjs: 56 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9414299Z ✅ ./tests/test-hive-auto-continue.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9415860Z 📄 ./tests/test-feedback-lines.mjs: 244 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9417308Z ✅ ./tests/test-feedback-lines.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9429439Z 📄 ./tests/test-solve.mjs: 276 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9430476Z ✅ ./tests/test-solve.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9445301Z 📄 ./tests/test-feedback-lines-integration.mjs: 415 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9460668Z ✅ ./tests/test-feedback-lines-integration.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9462426Z 📄 ./tests/test-hive.mjs: 213 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9463626Z ✅ ./tests/test-hive.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9476137Z 📄 ./tests/test-user-fallback-integration.mjs: 59 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9491414Z ✅ ./tests/test-user-fallback-integration.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9493329Z 📄 ./tests/test-feedback-lines-simple.mjs: 183 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9494972Z ✅ ./tests/test-feedback-lines-simple.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9507216Z 📄 ./create-test-repo.mjs: 409 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9508297Z ✅ ./create-test-repo.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9522988Z 📄 ./eslint.config.mjs: 43 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9537881Z ✅ ./eslint.config.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9539002Z 📄 ./do.mjs: 31 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9539895Z ✅ ./do.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9553765Z 📄 ./src/solve.execution.lib.mjs: 255 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9555047Z ✅ ./src/solve.execution.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9568982Z 📄 ./src/memory-check.mjs: 461 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9570086Z ✅ ./src/memory-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9584393Z 📄 ./src/solve.validation.lib.mjs: 274 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9585664Z ✅ ./src/solve.validation.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9600279Z 📄 ./src/solve.claude-execution.lib.mjs: 576 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9601986Z ✅ ./src/solve.claude-execution.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9615599Z 📄 ./src/solve.feedback.lib.mjs: 350 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9616745Z ✅ ./src/solve.feedback.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9630976Z 📄 ./src/solve.auto-continue.lib.mjs: 332 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9632546Z ✅ ./src/solve.auto-continue.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9646494Z 📄 ./src/solve.error-handlers.lib.mjs: 195 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9647916Z ✅ ./src/solve.error-handlers.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9662020Z 📄 ./src/solve.watch.lib.mjs: 298 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9663395Z ✅ ./src/solve.watch.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9677822Z 📄 ./src/github.lib.mjs: 1132 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9678870Z ✅ ./src/github.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9693020Z 📄 ./src/solve.config.lib.mjs: 132 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9708037Z ✅ ./src/solve.config.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9709342Z 📄 ./src/hive.mjs: 1096 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9710421Z ✅ ./src/hive.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9723391Z 📄 ./src/claude.lib.mjs: 270 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9738359Z ✅ ./src/claude.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9739587Z 📄 ./src/solve.repository.lib.mjs: 385 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9741038Z ✅ ./src/solve.repository.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9753720Z 📄 ./src/task.mjs: 267 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9754671Z ✅ ./src/task.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9769318Z 📄 ./src/lib.mjs: 307 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9770196Z ✅ ./src/lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9784612Z 📄 ./src/solve.mjs: 1507 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9785503Z ❌ ERROR: ./src/solve.mjs has 1507 lines, which exceeds the 1500 line limit!
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9807723Z ##[error]File has 1507 lines (limit: 1500)
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9817002Z 📄 ./src/solve.results.lib.mjs: 367 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9818358Z ✅ ./src/solve.results.lib.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9819774Z 📄 ./src/review.mjs: 496 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9820799Z ✅ ./src/review.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9833748Z 📄 ./protect-branch.mjs: 158 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9849088Z ✅ ./protect-branch.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9850116Z 📄 ./solve-with-opencode.mjs: 374 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9864462Z ✅ ./solve-with-opencode.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9865305Z 📄 ./examples/test-comment-counting.mjs: 98 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9880054Z ✅ ./examples/test-comment-counting.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9882115Z 📄 ./examples/test-auto-continue-only-on-new-comments-usage.mjs: 46 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9884325Z ✅ ./examples/test-auto-continue-only-on-new-comments-usage.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9895597Z 📄 ./examples/test-auto-continue.mjs: 69 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9896834Z ✅ ./examples/test-auto-continue.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9910924Z 📄 ./examples/test-edge-cases.mjs: 83 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9927532Z ✅ ./examples/test-edge-cases.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9928764Z 📄 ./examples/test-large-log-handling.mjs: 26 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9930376Z ✅ ./examples/test-large-log-handling.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9943846Z 📄 ./examples/test-regular-prompt.mjs: 39 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9958944Z ✅ ./examples/test-regular-prompt.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9960341Z 📄 ./examples/test-claude-md-timing.mjs: 24 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9974740Z ✅ ./examples/test-claude-md-timing.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9975683Z 📄 ./examples/test-hive-changes.mjs: 103 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9976519Z ✅ ./examples/test-hive-changes.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:36.9989315Z 📄 ./examples/test-args.mjs: 18 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0004832Z ✅ ./examples/test-args.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0006009Z 📄 ./examples/test-pagination.mjs: 72 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0007389Z ✅ ./examples/test-pagination.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0020333Z 📄 ./examples/test-claude-md-check.mjs: 118 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0022085Z ✅ ./examples/test-claude-md-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0035893Z 📄 ./examples/test-limit-patterns.mjs: 60 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0037152Z ✅ ./examples/test-limit-patterns.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0051336Z 📄 ./examples/test-claude-validation-mock.mjs: 124 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0053224Z ✅ ./examples/test-claude-validation-mock.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0066731Z 📄 ./examples/test-auto-cleanup.mjs: 40 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0068011Z ✅ ./examples/test-auto-cleanup.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0082239Z 📄 ./examples/test-integration.mjs: 139 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0083434Z ✅ ./examples/test-integration.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0097972Z 📄 ./examples/test-disk-space-failure.mjs: 26 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0099408Z ✅ ./examples/test-disk-space-failure.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0113386Z 📄 ./examples/test-claude-validation.mjs: 64 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0128487Z ✅ ./examples/test-claude-validation.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0129930Z 📄 ./examples/agent-config.mjs: 98 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0131338Z ✅ ./examples/agent-config.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0144100Z 📄 ./examples/test-output-improvements.mjs: 71 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0145484Z ✅ ./examples/test-output-improvements.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0159603Z 📄 ./examples/test-auto-continue-limit.mjs: 83 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0161065Z ✅ ./examples/test-auto-continue-limit.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0175585Z 📄 ./examples/test-continue-prompt.mjs: 42 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0176924Z ✅ ./examples/test-continue-prompt.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0190949Z 📄 ./examples/test-uncommitted-changes.mjs: 119 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0192609Z ✅ ./examples/test-uncommitted-changes.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0206571Z 📄 ./examples/test-error-handling.mjs: 98 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0207899Z ✅ ./examples/test-error-handling.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0222016Z 📄 ./examples/test-limit-fix.mjs: 73 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0222987Z ✅ ./examples/test-limit-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0237817Z 📄 ./examples/test-claude-validation-fix.mjs: 95 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0239393Z ✅ ./examples/test-claude-validation-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0253835Z 📄 ./examples/test-token-masking.mjs: 108 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0268972Z ✅ ./examples/test-token-masking.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0270380Z 📄 ./examples/test-disk-space-check.mjs: 39 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0284811Z ✅ ./examples/test-disk-space-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0286209Z 📄 ./examples/test-comment-prompt.mjs: 30 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0301084Z ✅ ./examples/test-comment-prompt.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0302885Z 📄 ./examples/test-attach-logs-feature.mjs: 142 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0316882Z ✅ ./examples/test-attach-logs-feature.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0318506Z 📄 ./examples/demo-output-improvements.mjs: 52 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0320160Z ✅ ./examples/demo-output-improvements.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0332189Z 📄 ./examples/test-forced-linking.mjs: 46 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0333533Z ✅ ./examples/test-forced-linking.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0348072Z 📄 ./dependencies-research/claude-pipe/test-echo-pipe.mjs: 24 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0350096Z ✅ ./dependencies-research/claude-pipe/test-echo-pipe.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0363627Z 📄 ./dependencies-research/claude-pipe/test-pipe.mjs: 73 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0379163Z ✅ ./dependencies-research/claude-pipe/test-pipe.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0381132Z 📄 ./dependencies-research/claude-logs/test-streaming-logs.mjs: 80 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0383566Z ✅ ./dependencies-research/claude-logs/test-streaming-logs.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0395230Z 📄 ./dependencies-research/use-m-issues/issue-02-module-format-detection.mjs: 68 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0396786Z ✅ ./dependencies-research/use-m-issues/issue-02-module-format-detection.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0410309Z 📄 ./dependencies-research/use-m-issues/issue-04-windows-fetch-undefined.mjs: 84 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0412054Z ✅ ./dependencies-research/use-m-issues/issue-04-windows-fetch-undefined.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0425554Z 📄 ./dependencies-research/use-m-issues/issue-01-subpath-imports.mjs: 59 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0426965Z ✅ ./dependencies-research/use-m-issues/issue-01-subpath-imports.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0440624Z 📄 ./dependencies-research/use-m-issues/issue-03-eval-context.mjs: 73 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0442462Z ✅ ./dependencies-research/use-m-issues/issue-03-eval-context.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0456716Z 📄 ./dependencies-research/command-stream-issues/issue-03-json-escaping.mjs: 139 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0458275Z ✅ ./dependencies-research/command-stream-issues/issue-03-json-escaping.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0471955Z 📄 ./dependencies-research/command-stream-issues/issue-11-gh-pr-create-output.mjs: 217 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0473622Z ✅ ./dependencies-research/command-stream-issues/issue-11-gh-pr-create-output.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0487105Z 📄 ./dependencies-research/command-stream-issues/issue-17-trace-logs-in-ci.mjs: 233 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0488681Z ✅ ./dependencies-research/command-stream-issues/issue-17-trace-logs-in-ci.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0502735Z 📄 ./dependencies-research/command-stream-issues/issue-08-getcwd-error.mjs: 146 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0504595Z ✅ ./dependencies-research/command-stream-issues/issue-08-getcwd-error.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0518002Z 📄 ./dependencies-research/command-stream-issues/issue-15-timeout-claude-cli.mjs: 87 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0519673Z ✅ ./dependencies-research/command-stream-issues/issue-15-timeout-claude-cli.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0533376Z 📄 ./dependencies-research/command-stream-issues/issue-16-unwanted-stdout.mjs: 66 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0535146Z ✅ ./dependencies-research/command-stream-issues/issue-16-unwanted-stdout.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0548629Z 📄 ./dependencies-research/command-stream-issues/issue-05-paths-with-spaces.mjs: 119 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0550423Z ✅ ./dependencies-research/command-stream-issues/issue-05-paths-with-spaces.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0563801Z 📄 ./dependencies-research/command-stream-issues/issue-14-cwd-with-cd-pattern.mjs: 233 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0565847Z ✅ ./dependencies-research/command-stream-issues/issue-14-cwd-with-cd-pattern.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0579405Z 📄 ./dependencies-research/command-stream-issues/issue-12-github-search-escaping.mjs: 119 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0581308Z ✅ ./dependencies-research/command-stream-issues/issue-12-github-search-escaping.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0594983Z 📄 ./dependencies-research/command-stream-issues/issue-01-multiline-strings.mjs: 167 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0596787Z ✅ ./dependencies-research/command-stream-issues/issue-01-multiline-strings.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0610727Z 📄 ./dependencies-research/command-stream-issues/issue-10-git-push-silent-failure.mjs: 215 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0613039Z ✅ ./dependencies-research/command-stream-issues/issue-10-git-push-silent-failure.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0626549Z 📄 ./dependencies-research/command-stream-issues/issue-06-bun-shell-path.mjs: 131 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0628447Z ✅ ./dependencies-research/command-stream-issues/issue-06-bun-shell-path.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0643218Z 📄 ./dependencies-research/command-stream-issues/issue-02-error-handling.mjs: 116 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0646012Z ✅ ./dependencies-research/command-stream-issues/issue-02-error-handling.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0660428Z 📄 ./dependencies-research/command-stream-issues/issue-13-complex-shell-escaping.mjs: 194 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0663599Z ✅ ./dependencies-research/command-stream-issues/issue-13-complex-shell-escaping.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0677141Z 📄 ./dependencies-research/command-stream-issues/issue-07-stream-output.mjs: 135 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0678735Z ✅ ./dependencies-research/command-stream-issues/issue-07-stream-output.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0692247Z 📄 ./dependencies-research/command-stream-issues/issue-04-github-cli-body.mjs: 136 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0694819Z ✅ ./dependencies-research/command-stream-issues/issue-04-github-cli-body.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0709409Z 📄 ./dependencies-research/command-stream-issues/issue-09-auto-quoting.mjs: 167 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0725807Z ✅ ./dependencies-research/command-stream-issues/issue-09-auto-quoting.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0727208Z 📄 ./dependencies-research/claude-sessions/test-session.mjs: 97 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0728411Z ✅ ./dependencies-research/claude-sessions/test-session.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0740092Z 📄 ./experiments/test-version-output.mjs: 119 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0741394Z ✅ ./experiments/test-version-output.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0756232Z 📄 ./experiments/test_solve_url_normalization.mjs: 63 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0772193Z ✅ ./experiments/test_solve_url_normalization.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0773306Z 📄 ./experiments/test-concurrent-fork.mjs: 80 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0774677Z ✅ ./experiments/test-concurrent-fork.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0787967Z 📄 ./experiments/verify-actual-behavior.mjs: 136 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0803771Z ✅ ./experiments/verify-actual-behavior.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0805442Z 📄 ./experiments/test-fork-retry-logic.mjs: 91 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0819642Z ✅ ./experiments/test-fork-retry-logic.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0820768Z 📄 ./experiments/debug-issue-159.mjs: 55 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0822027Z ✅ ./experiments/debug-issue-159.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0834788Z 📄 ./experiments/debug-comment-display-issue.mjs: 74 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0850591Z ✅ ./experiments/debug-comment-display-issue.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0851951Z 📄 ./experiments/test-fork-detection.mjs: 57 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0852944Z ✅ ./experiments/test-fork-detection.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0865353Z 📄 ./experiments/test-simple-flags.mjs: 52 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0866678Z ✅ ./experiments/test-simple-flags.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0880879Z 📄 ./experiments/test-simple-command.mjs: 34 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0896243Z ✅ ./experiments/test-simple-command.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0897370Z 📄 ./experiments/test-fix.mjs: 116 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0898202Z ✅ ./experiments/test-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0911020Z 📄 ./experiments/memory-check.mjs: 89 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0912574Z ✅ ./experiments/memory-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0927352Z 📄 ./experiments/test-command-complete.mjs: 71 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0928702Z ✅ ./experiments/test-command-complete.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0942890Z 📄 ./experiments/test-comment-counting-fix.mjs: 190 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0944735Z ✅ ./experiments/test-comment-counting-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0958684Z 📄 ./experiments/test_universal_parser.mjs: 158 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0974162Z ✅ ./experiments/test_universal_parser.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0975350Z 📄 ./experiments/test-once-option.mjs: 76 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0976339Z ✅ ./experiments/test-once-option.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0988756Z 📄 ./experiments/verify-final-fix.mjs: 91 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.0989988Z ✅ ./experiments/verify-final-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1004583Z 📄 ./experiments/test-enhanced-fork-sync.mjs: 59 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1006130Z ✅ ./experiments/test-enhanced-fork-sync.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1020012Z 📄 ./experiments/debug-integration-test.mjs: 102 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1021710Z ✅ ./experiments/debug-integration-test.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1036025Z 📄 ./experiments/test-fork-sync.mjs: 53 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1051109Z ✅ ./experiments/test-fork-sync.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1052493Z 📄 ./experiments/debug-args.mjs: 60 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1053392Z ✅ ./experiments/debug-args.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1066939Z 📄 ./experiments/test-auto-continue-only-on-new-comments.mjs: 71 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1068591Z ✅ ./experiments/test-auto-continue-only-on-new-comments.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1082387Z 📄 ./experiments/test-command-stream-cwd.mjs: 62 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1084066Z ✅ ./experiments/test-command-stream-cwd.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1097721Z 📄 ./experiments/test-gist-visibility.mjs: 78 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1099204Z ✅ ./experiments/test-gist-visibility.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1113859Z 📄 ./experiments/test-hive-error.mjs: 53 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1115258Z ✅ ./experiments/test-hive-error.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1129457Z 📄 ./experiments/test-command-await.mjs: 57 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1130750Z ✅ ./experiments/test-command-await.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1144966Z 📄 ./experiments/test-streaming-fix.mjs: 145 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1146504Z ✅ ./experiments/test-streaming-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1161321Z 📄 ./experiments/test-npm-files.mjs: 85 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1162830Z ✅ ./experiments/test-npm-files.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1177287Z 📄 ./experiments/test-simple-detection.mjs: 35 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1178609Z ✅ ./experiments/test-simple-detection.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1192562Z 📄 ./experiments/debug-comment-detection.mjs: 119 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1193932Z ✅ ./experiments/debug-comment-detection.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1207674Z 📄 ./experiments/test-pr-checking-comparison.mjs: 123 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1222985Z ✅ ./experiments/test-pr-checking-comparison.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1224093Z 📄 ./experiments/test-fork-fix.mjs: 89 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1238319Z ✅ ./experiments/test-fork-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1239642Z 📄 ./experiments/test-loadavg.mjs: 23 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1241029Z ✅ ./experiments/test-loadavg.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1253875Z 📄 ./experiments/comprehensive-test.mjs: 144 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1269240Z ✅ ./experiments/comprehensive-test.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1270457Z 📄 ./experiments/test-claude-execution-fix.mjs: 84 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1271946Z ✅ ./experiments/test-claude-execution-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1284133Z 📄 ./experiments/test_url_normalization.mjs: 49 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1299469Z ✅ ./experiments/test_url_normalization.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1301234Z 📄 ./experiments/debug-args-no-strict.mjs: 54 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1315355Z ✅ ./experiments/debug-args-no-strict.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1317358Z 📄 ./experiments/test-graphql-batch-pr-query-v2.mjs: 169 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1319500Z ✅ ./experiments/test-graphql-batch-pr-query-v2.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1331295Z 📄 ./experiments/test-log-file-content.mjs: 81 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1332818Z ✅ ./experiments/test-log-file-content.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1346336Z 📄 ./experiments/test-timestamps.mjs: 87 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1347606Z ✅ ./experiments/test-timestamps.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1361231Z 📄 ./experiments/test-full-fix.mjs: 98 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1362559Z ✅ ./experiments/test-full-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1377406Z 📄 ./experiments/test-feedback-lines-bug.mjs: 95 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1393194Z ✅ ./experiments/test-feedback-lines-bug.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1394965Z 📄 ./experiments/test-continue-only-on-feedback.mjs: 70 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1396878Z ✅ ./experiments/test-continue-only-on-feedback.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1408726Z 📄 ./experiments/debug-missing-conditions.mjs: 110 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1410019Z ✅ ./experiments/debug-missing-conditions.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1423981Z 📄 ./experiments/test-version-bump-verification.mjs: 153 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1425716Z ✅ ./experiments/test-version-bump-verification.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1439442Z 📄 ./experiments/debug-issue-159-fix.mjs: 88 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1440906Z ✅ ./experiments/debug-issue-159-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1506250Z 📄 ./experiments/test-rate-limits.mjs: 156 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1507899Z ✅ ./experiments/test-rate-limits.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1509501Z 📄 ./experiments/test-uptime.mjs: 23 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1510980Z ✅ ./experiments/test-uptime.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1512127Z 📄 ./experiments/test-git-error.mjs: 55 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1512998Z ✅ ./experiments/test-git-error.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1513947Z 📄 ./experiments/test-project-fetch.mjs: 34 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1514841Z ✅ ./experiments/test-project-fetch.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1519088Z 📄 ./experiments/integration-test-fork-fix.mjs: 112 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1520872Z ✅ ./experiments/integration-test-fork-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1535760Z 📄 ./experiments/test-memory-check.mjs: 80 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1537107Z ✅ ./experiments/test-memory-check.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1551388Z 📄 ./experiments/test-command-logging.mjs: 53 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1552925Z ✅ ./experiments/test-command-logging.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1566650Z 📄 ./experiments/test-raw-command-log.mjs: 94 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1568061Z ✅ ./experiments/test-raw-command-log.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1581993Z 📄 ./experiments/test-feedback-lines-fix.mjs: 102 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1583433Z ✅ ./experiments/test-feedback-lines-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1597220Z 📄 ./experiments/debug-full-comment-flow.mjs: 161 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1598538Z ✅ ./experiments/debug-full-comment-flow.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1612569Z 📄 ./experiments/test-fork-error-recovery.mjs: 70 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1613893Z ✅ ./experiments/test-fork-error-recovery.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1627502Z 📄 ./experiments/test-hive-args.mjs: 69 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1628743Z ✅ ./experiments/test-hive-args.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1643039Z 📄 ./experiments/test-worker-prefix.mjs: 37 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1644386Z ✅ ./experiments/test-worker-prefix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1658427Z 📄 ./experiments/test-fork-sync-fix.mjs: 41 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1659706Z ✅ ./experiments/test-fork-sync-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1673599Z 📄 ./experiments/test-comment-display.mjs: 91 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1674930Z ✅ ./experiments/test-comment-display.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1689189Z 📄 ./experiments/debug-fork-sync-issue.mjs: 41 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1690499Z ✅ ./experiments/debug-fork-sync-issue.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1704673Z 📄 ./experiments/test-silent-command.mjs: 29 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1706096Z ✅ ./experiments/test-silent-command.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1719769Z 📄 ./experiments/test-log-no-truncation.mjs: 89 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1721219Z ✅ ./experiments/test-log-no-truncation.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1735035Z 📄 ./experiments/test-memory-lowthreshold.mjs: 62 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1736525Z ✅ ./experiments/test-memory-lowthreshold.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1749985Z 📄 ./experiments/test-watch-mode.mjs: 62 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1751338Z ✅ ./experiments/test-watch-mode.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1765588Z 📄 ./experiments/test-error-message.mjs: 121 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1766854Z ✅ ./experiments/test-error-message.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1780603Z 📄 ./experiments/test-command-stream.mjs: 76 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1782125Z ✅ ./experiments/test-command-stream.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1796158Z 📄 ./experiments/test-simple.mjs: 58 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1797352Z ✅ ./experiments/test-simple.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1812089Z 📄 ./experiments/test-graphql-batch-pr-query.mjs: 132 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1813540Z ✅ ./experiments/test-graphql-batch-pr-query.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1827585Z 📄 ./experiments/test-direct-command.mjs: 71 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1829192Z ✅ ./experiments/test-direct-command.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1842972Z 📄 ./experiments/test-implementation.mjs: 184 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1844598Z ✅ ./experiments/test-implementation.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1858445Z 📄 ./experiments/test-batch-pr-implementation.mjs: 87 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1859873Z ✅ ./experiments/test-batch-pr-implementation.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1873581Z 📄 ./experiments/analyze-push-issue.mjs: 60 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1874851Z ✅ ./experiments/analyze-push-issue.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1888505Z 📄 ./experiments/test-memory-fix.mjs: 30 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1889735Z ✅ ./experiments/test-memory-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1904186Z 📄 ./experiments/test-spawn-fix.mjs: 221 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1905320Z ✅ ./experiments/test-spawn-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1919108Z 📄 ./experiments/test-import-fix.mjs: 24 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1920345Z ✅ ./experiments/test-import-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1934518Z 📄 ./experiments/debug-no-command.mjs: 55 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1935799Z ✅ ./experiments/debug-no-command.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1949442Z 📄 ./experiments/debug-memory.mjs: 18 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1950663Z ✅ ./experiments/debug-memory.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1964865Z 📄 ./experiments/test-memory-monitoring-fix.mjs: 65 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1966234Z ✅ ./experiments/test-memory-monitoring-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1979829Z 📄 ./experiments/test-fork-retry-fix.mjs: 90 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1981080Z ✅ ./experiments/test-fork-retry-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1995294Z 📄 ./experiments/test-error-handling.mjs: 95 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.1996435Z ✅ ./experiments/test-error-handling.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2010293Z 📄 ./experiments/debug-strict.mjs: 73 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2011499Z ✅ ./experiments/debug-strict.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2026191Z 📄 ./experiments/simulate-workflow-failure.mjs: 77 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2027597Z ✅ ./experiments/simulate-workflow-failure.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2041789Z 📄 ./experiments/analyze-rate-limit-findings.mjs: 102 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2043207Z ✅ ./experiments/analyze-rate-limit-findings.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2056626Z 📄 ./experiments/test-feedback-detection.mjs: 88 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2057944Z ✅ ./experiments/test-feedback-detection.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2071514Z 📄 ./experiments/validate-fix.mjs: 89 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2073153Z ✅ ./experiments/validate-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2087872Z 📄 ./experiments/test-undefined-vars.mjs: 105 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2089113Z ✅ ./experiments/test-undefined-vars.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2102538Z 📄 ./experiments/test-claude-sonnet.mjs: 25 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2103952Z ✅ ./experiments/test-claude-sonnet.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2118005Z 📄 ./experiments/test-comment-limit-fix.mjs: 158 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2119373Z ✅ ./experiments/test-comment-limit-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2133094Z 📄 ./experiments/test-hive-worker-output.mjs: 55 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2134469Z ✅ ./experiments/test-hive-worker-output.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2148066Z 📄 ./experiments/test-issue-159-fix.mjs: 123 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2149396Z ✅ ./experiments/test-issue-159-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2163916Z 📄 ./experiments/test-fail-fast-fork-sync.mjs: 76 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2165291Z ✅ ./experiments/test-fail-fast-fork-sync.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2179223Z 📄 ./experiments/test-error-log-path.mjs: 84 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2180553Z ✅ ./experiments/test-error-log-path.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2194377Z 📄 ./experiments/test-error-with-log.mjs: 64 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2195799Z ✅ ./experiments/test-error-with-log.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2209742Z 📄 ./experiments/test-actual-solve-behavior.mjs: 121 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2211254Z ✅ ./experiments/test-actual-solve-behavior.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2225864Z 📄 ./experiments/debug-pr-url-parsing.mjs: 137 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2227311Z ✅ ./experiments/debug-pr-url-parsing.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2240785Z 📄 ./experiments/debug-real-execution.mjs: 130 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2242430Z ✅ ./experiments/debug-real-execution.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2255891Z 📄 ./experiments/test-attach-logs.mjs: 50 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2257397Z ✅ ./experiments/test-attach-logs.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2271149Z 📄 ./experiments/test-hive-streaming-fix.mjs: 137 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2272814Z ✅ ./experiments/test-hive-streaming-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2286211Z 📄 ./experiments/validate-issue-159-fix.mjs: 79 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2287648Z ✅ ./experiments/validate-issue-159-fix.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2301190Z 📄 ./experiments/test-rate-limit-errors.mjs: 250 lines
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2303011Z ✅ ./experiments/test-rate-limit-errors.mjs is within the 1500 line limit
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2304065Z 
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2304476Z ❌ The following .mjs files exceed the 1500 line limit:
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2314037Z ./src/solve.mjs
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2315210Z 
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2315779Z Please reorganize the code to split large files into smaller modules.
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2316837Z Each .mjs file should have no more than 1500 lines of code.
+check-file-line-limits	Check .mjs file line limits	2025-09-23T02:27:37.2337072Z ##[error]Process completed with exit code 1.

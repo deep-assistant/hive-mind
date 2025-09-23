@@ -306,3 +306,22 @@ export default {
   displayFormattedError,
   cleanupTempDirectories
 };
+
+// Get version information for logging
+export const getVersionInfo = async () => {
+  const path = (await use('path'));
+  const $ = (await use('zx')).$;
+  const { getGitVersionAsync } = await import('./git.lib.mjs');
+
+  try {
+    const packagePath = path.join(path.dirname(path.dirname(new globalThis.URL(import.meta.url).pathname)), 'package.json');
+    const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+
+    // Use git.lib.mjs to get version with proper git error handling
+    return await getGitVersionAsync($, currentVersion);
+  } catch {
+    // Fallback to hardcoded version if all else fails
+    return '0.10.4';
+  }
+};
