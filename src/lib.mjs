@@ -311,54 +311,17 @@ export default {
 export const getVersionInfo = async () => {
   const path = (await use('path'));
   const $ = (await use('zx')).$;
+  const { getGitVersionAsync } = await import('./git.lib.mjs');
 
   try {
     const packagePath = path.join(path.dirname(path.dirname(new globalThis.URL(import.meta.url).pathname)), 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
     const currentVersion = packageJson.version;
 
-    // First check if we're in a git repository to avoid "fatal: not a git repository" errors
-    try {
-      const gitCheckResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --git-dir`;
-      if (gitCheckResult.code !== 0) {
-        // Not in a git repository, use package.json version
-        return currentVersion;
-      }
-    } catch {
-      // Not in a git repository, use package.json version
-      return currentVersion;
-    }
-
-    // We're in a git repo, proceed with version detection
-    // Check if this is a release version (has a git tag)
-    try {
-      const gitTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --exact-match --tags HEAD`;
-      if (gitTagResult.code === 0) {
-        // It's a tagged release, use the version from package.json
-        return currentVersion;
-      }
-    } catch {
-      // Ignore error - will try next method
-    }
-
-    // Not a tagged release, get the latest tag and commit SHA
-    try {
-      const latestTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --tags --abbrev=0`;
-      const commitShaResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --short HEAD`;
-
-      if (latestTagResult.code === 0 && commitShaResult.code === 0) {
-        const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
-        const commitSha = commitShaResult.stdout.toString().trim();
-        return `${latestTag}.${commitSha}`;
-      }
-    } catch {
-      // Ignore error - will use fallback
-    }
-
-    // Fallback to package.json version if git commands fail
-    return currentVersion;
+    // Use git.lib.mjs to get version with proper git error handling
+    return await getGitVersionAsync($, currentVersion);
   } catch {
     // Fallback to hardcoded version if all else fails
-    return '0.10.3';
+    return '0.10.4';
   }
 };

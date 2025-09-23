@@ -9,6 +9,7 @@ if (earlyArgs.includes('--version')) {
   const { readFileSync } = await import('fs');
   const { dirname, join } = await import('path');
   const { fileURLToPath } = await import('url');
+  const { getGitVersion } = await import('./git.lib.mjs');
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
@@ -17,47 +18,11 @@ if (earlyArgs.includes('--version')) {
   try {
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
     const currentVersion = packageJson.version;
-
-    // First check if we're in a git repository to avoid "fatal: not a git repository" errors
-    try {
-      execSync('git rev-parse --git-dir', {
-        encoding: 'utf8',
-        stdio: ['pipe', 'ignore', 'ignore']  // Suppress both stdout and stderr
-      });
-
-      // We're in a git repo, proceed with version detection
-      try {
-        // Check if this is a release version (has a git tag)
-        const gitTag = execSync('git describe --exact-match --tags HEAD', {
-          encoding: 'utf8',
-          stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
-        }).trim();
-        // It's a tagged release, use the version from package.json
-        console.log(currentVersion);
-      } catch {
-        // Not a tagged release, get the latest tag and commit SHA
-        try {
-          const latestTag = execSync('git describe --tags --abbrev=0', {
-            encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
-          }).trim().replace(/^v/, '');
-          const commitSha = execSync('git rev-parse --short HEAD', {
-            encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
-          }).trim();
-          console.log(`${latestTag}.${commitSha}`);
-        } catch {
-          // Git commands failed, use package.json version
-          console.log(currentVersion);
-        }
-      }
-    } catch {
-      // Not in a git repository, use package.json version
-      console.log(currentVersion);
-    }
+    const version = await getGitVersion(execSync, currentVersion);
+    console.log(version);
   } catch {
     // Fallback to hardcoded version if all else fails
-    console.log('0.10.3');
+    console.log('0.10.4');
   }
   process.exit(0);
 }
