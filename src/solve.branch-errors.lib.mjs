@@ -66,6 +66,8 @@ export async function handleBranchCheckoutError({
   // Provide a clearer explanation of what happened
   await log('  🔍 What happened:');
   await log(`     Failed to checkout the branch '${branchName}' for PR #${prNumber}.`);
+  await log(`     Repository: https://github.com/${owner}/${repo}`);
+  await log(`     Pull Request: https://github.com/${owner}/${repo}/pull/${prNumber}`);
   if (errorOutput.includes('is not a commit')) {
     await log('     The branch doesn\'t exist in the current repository.');
   } else {
@@ -85,8 +87,8 @@ export async function handleBranchCheckoutError({
   // Explain why this happened
   await log('  💡 Why this happened:');
   if (isForkPR && forkOwner) {
-    await log(`     The PR branch exists in the fork (${forkOwner}/${repo})`);
-    await log(`     but you're trying to access it from the main repository (${owner}/${repo}).`);
+    await log(`     The PR branch exists in the fork: https://github.com/${forkOwner}/${repo}`);
+    await log(`     but you're trying to access it from the main repository: https://github.com/${owner}/${repo}`);
     await log('     This is a common issue with pull requests from forks.');
   } else if (userHasFork) {
     await log('     You have a fork of this repository, but the PR branch');
@@ -108,7 +110,8 @@ export async function handleBranchCheckoutError({
     await log('  └──────────────────────────────────────────────────────────┘');
     await log('');
     await log('  Run this command:');
-    await log(`    ./solve.mjs "${issueUrl}" --fork`);
+    const fullUrl = prNumber ? `https://github.com/${owner}/${repo}/pull/${prNumber}` : issueUrl;
+    await log(`    ./solve.mjs "${fullUrl}" --fork`);
     await log('');
     await log('  This will automatically:');
     if (userHasFork) {
@@ -133,7 +136,8 @@ export async function handleBranchCheckoutError({
     await log('');
     await log('     If you don\'t have write access to this repository,');
     await log('     consider using the --fork option:');
-    await log(`       ./solve.mjs "${issueUrl}" --fork`);
+    const altFullUrl = prNumber ? `https://github.com/${owner}/${repo}/pull/${prNumber}` : issueUrl;
+    await log(`       ./solve.mjs "${altFullUrl}" --fork`);
   }
 }
 
@@ -141,6 +145,8 @@ export async function handleBranchCreationError({
   branchName,
   errorOutput,
   tempDir,
+  owner,
+  repo,
   formatAligned,
   log
 }) {
@@ -148,6 +154,9 @@ export async function handleBranchCreationError({
   await log('');
   await log('  🔍 What happened:');
   await log(`     Unable to create branch '${branchName}'.`);
+  if (owner && repo) {
+    await log(`     Repository: https://github.com/${owner}/${repo}`);
+  }
   await log('');
   await log('  📦 Git output:');
   for (const line of errorOutput.split('\n')) {
@@ -185,6 +194,12 @@ export async function handleBranchVerificationError({
     await log('     Git checkout command didn\'t switch to the PR branch.');
   } else {
     await log('     Git checkout -b command didn\'t create or switch to the branch.');
+  }
+  if (owner && repo) {
+    await log(`     Repository: https://github.com/${owner}/${repo}`);
+    if (prNumber) {
+      await log(`     Pull Request: https://github.com/${owner}/${repo}/pull/${prNumber}`);
+    }
   }
   await log('');
   await log('  📊 Branch status:');
