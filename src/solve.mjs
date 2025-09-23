@@ -18,21 +18,42 @@ if (earlyArgs.includes('--version')) {
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
     const currentVersion = packageJson.version;
 
-    // Check if this is a release version (has a git tag)
+    // First check if we're in a git repository to avoid "fatal: not a git repository" errors
     try {
-      const gitTag = execSync('git describe --exact-match --tags HEAD 2>/dev/null', { encoding: 'utf8' }).trim();
-      // It's a tagged release, use the version from package.json
-      console.log(currentVersion);
-    } catch {
-      // Not a tagged release, get the latest tag and commit SHA
+      execSync('git rev-parse --git-dir', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'ignore', 'ignore']  // Suppress both stdout and stderr
+      });
+
+      // We're in a git repo, proceed with version detection
       try {
-        const latestTag = execSync('git describe --tags --abbrev=0 2>/dev/null', { encoding: 'utf8' }).trim().replace(/^v/, '');
-        const commitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-        console.log(`${latestTag}.${commitSha}`);
-      } catch {
-        // Fallback to package.json version if git commands fail
+        // Check if this is a release version (has a git tag)
+        const gitTag = execSync('git describe --exact-match --tags HEAD', {
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
+        }).trim();
+        // It's a tagged release, use the version from package.json
         console.log(currentVersion);
+      } catch {
+        // Not a tagged release, get the latest tag and commit SHA
+        try {
+          const latestTag = execSync('git describe --tags --abbrev=0', {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
+          }).trim().replace(/^v/, '');
+          const commitSha = execSync('git rev-parse --short HEAD', {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore']  // Suppress stderr
+          }).trim();
+          console.log(`${latestTag}.${commitSha}`);
+        } catch {
+          // Git commands failed, use package.json version
+          console.log(currentVersion);
+        }
       }
+    } catch {
+      // Not in a git repository, use package.json version
+      console.log(currentVersion);
     }
   } catch {
     // Fallback to hardcoded version if all else fails
@@ -216,9 +237,22 @@ const getVersionInfo = async () => {
     const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
     const currentVersion = packageJson.version;
 
+    // First check if we're in a git repository to avoid "fatal: not a git repository" errors
+    try {
+      const gitCheckResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --git-dir`;
+      if (gitCheckResult.code !== 0) {
+        // Not in a git repository, use package.json version
+        return currentVersion;
+      }
+    } catch {
+      // Not in a git repository, use package.json version
+      return currentVersion;
+    }
+
+    // We're in a git repo, proceed with version detection
     // Check if this is a release version (has a git tag)
     try {
-      const gitTagResult = await $({ silent: true })`git describe --exact-match --tags HEAD 2>/dev/null`;
+      const gitTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --exact-match --tags HEAD`;
       if (gitTagResult.code === 0) {
         // It's a tagged release, use the version from package.json
         return currentVersion;
@@ -229,8 +263,8 @@ const getVersionInfo = async () => {
 
     // Not a tagged release, get the latest tag and commit SHA
     try {
-      const latestTagResult = await $({ silent: true })`git describe --tags --abbrev=0 2>/dev/null`;
-      const commitShaResult = await $({ silent: true })`git rev-parse --short HEAD`;
+      const latestTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --tags --abbrev=0`;
+      const commitShaResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --short HEAD`;
 
       if (latestTagResult.code === 0 && commitShaResult.code === 0) {
         const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
