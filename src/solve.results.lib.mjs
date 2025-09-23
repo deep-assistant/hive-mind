@@ -77,7 +77,10 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
 
   if (sessionId) {
     await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${getLogFile()}`);
+    // Always use absolute path for log file display
+    const path = (await use('path'));
+    const absoluteLogPath = path.resolve(getLogFile());
+    await log(`✅ Complete log file: ${absoluteLogPath}`);
 
     if (limitReached) {
       await log('\n⏰ LIMIT REACHED DETECTED!');
@@ -106,7 +109,9 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
     // Don't show log preview, it's too technical
   } else {
     await log('❌ No session ID extracted');
-    await log(`📁 Log file available: ${getLogFile()}`);
+    // Always use absolute path for log file display
+    const logFilePath = path.resolve(getLogFile());
+    await log(`📁 Log file available: ${logFilePath}`);
   }
 };
 
@@ -295,7 +300,9 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
     await log('\n📋 No new pull request or comment was created.');
     await log('   The issue may have been resolved differently or required no action.');
     await log('\n💡 Review the session log for details:');
-    await log(`   ${getLogFile()}`);
+    // Always use absolute path for log file display
+    const reviewLogPath = path.resolve(getLogFile());
+    await log(`   ${reviewLogPath}`);
     // Don't exit if watch mode is enabled - it needs to continue monitoring
     if (!argv.watch) {
       process.exit(0);
@@ -305,7 +312,9 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
   } catch (searchError) {
     await log('\n⚠️  Could not verify results:', searchError.message);
     await log('\n💡 Check the log file for details:');
-    await log(`   ${getLogFile()}`);
+    // Always use absolute path for log file display
+    const checkLogPath = path.resolve(getLogFile());
+    await log(`   ${checkLogPath}`);
     // Don't exit if watch mode is enabled - it needs to continue monitoring
     if (!argv.watch) {
       process.exit(0);

@@ -249,6 +249,16 @@ const errorHandlerOptions = {
 process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptions));
 process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
 
+// Add graceful shutdown handlers for SIGINT and SIGTERM
+const gracefulShutdown = async (signal) => {
+  await log(`\n\n🛑 Received ${signal} signal, shutting down...`);
+  await log(`   📁 Full log file: ${absoluteLogPath}`);
+  process.exit(0);
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
   process.exit(1);
