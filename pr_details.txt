@@ -1,0 +1,40 @@
+title:	Fix: Properly handle git commands in non-git directories
+state:	OPEN
+author:	konard
+labels:	
+assignees:	konard
+reviewers:	
+projects:	
+milestone:	
+number:	278
+url:	https://github.com/deep-assistant/hive-mind/pull/278
+additions:	328
+deletions:	14
+auto-merge:	disabled
+--
+## Summary
+
+This PR fixes issue #277 by properly handling git commands when executed outside of git repositories, preventing confusing error messages like `fatal: not a git repository` from appearing in the output.
+
+## Changes Made
+
+1. **Added git repository checks**: Before executing any git commands, the code now first checks if we're in a git repository using `git rev-parse --git-dir`
+2. **Proper error suppression**: Replaced unreliable `2>/dev/null` with proper `stdio` options to suppress stderr
+3. **Improved version detection logic**: The version command now gracefully falls back to package.json version when not in a git repo
+4. **Added comprehensive tests**: Created test scripts to verify error handling works correctly
+
+## Testing
+
+Added test scripts in `experiments/` directory that verify:
+- Version command works without errors in non-git directories
+- Version command works without errors in git directories  
+- Help command doesn't show git errors
+- All error messages are properly suppressed
+
+## Files Changed
+
+- `src/solve.mjs`: Fixed version detection logic in two places (early version check and getVersionInfo function)
+- `experiments/test-error-handling.mjs`: Comprehensive test suite for error handling
+- `experiments/test-git-error.mjs`: Test script to demonstrate the issue and solution
+
+## Fixes #277

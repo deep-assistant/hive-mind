@@ -1,0 +1,16 @@
+title:	Find root cause of all confusing messages and handle them properly to make the output user-friendly
+state:	OPEN
+author:	konard
+labels:	bug, documentation
+comments:	0
+assignees:	
+projects:	
+milestone:	
+number:	277
+--
+```
+fatal: not a git repository (or any of the parent directories): .git
+```
+
+We sometimes get such messages. Looks like they commit from commands that are being executed - we need to understand which command it is, and in all cases where we do execute such command either add context (output which command is being executed), or we can just interpret result for the user and do not show the original output. Or we can do both or something else that is in the best practice.
+

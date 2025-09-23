@@ -57,7 +57,7 @@ if (earlyArgs.includes('--version')) {
     }
   } catch {
     // Fallback to hardcoded version if all else fails
-    console.log('0.8.7');
+    console.log('0.10.3');
   }
   process.exit(0);
 }
@@ -108,12 +108,13 @@ const memoryCheck = await import('./memory-check.mjs');
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
-const { 
-  log, 
+const {
+  log,
   setLogFile,
   getLogFile,
   cleanErrorMessage,
-  formatAligned
+  formatAligned,
+  getVersionInfo
 } = lib;
 
 // Import GitHub-related functions
@@ -229,59 +230,6 @@ const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
-
-// Get version information for logging
-const getVersionInfo = async () => {
-  try {
-    const packagePath = path.join(path.dirname(path.dirname(new globalThis.URL(import.meta.url).pathname)), 'package.json');
-    const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8'));
-    const currentVersion = packageJson.version;
-
-    // First check if we're in a git repository to avoid "fatal: not a git repository" errors
-    try {
-      const gitCheckResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --git-dir`;
-      if (gitCheckResult.code !== 0) {
-        // Not in a git repository, use package.json version
-        return currentVersion;
-      }
-    } catch {
-      // Not in a git repository, use package.json version
-      return currentVersion;
-    }
-
-    // We're in a git repo, proceed with version detection
-    // Check if this is a release version (has a git tag)
-    try {
-      const gitTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --exact-match --tags HEAD`;
-      if (gitTagResult.code === 0) {
-        // It's a tagged release, use the version from package.json
-        return currentVersion;
-      }
-    } catch {
-      // Ignore error - will try next method
-    }
-
-    // Not a tagged release, get the latest tag and commit SHA
-    try {
-      const latestTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --tags --abbrev=0`;
-      const commitShaResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --short HEAD`;
-
-      if (latestTagResult.code === 0 && commitShaResult.code === 0) {
-        const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
-        const commitSha = commitShaResult.stdout.toString().trim();
-        return `${latestTag}.${commitSha}`;
-      }
-    } catch {
-      // Ignore error - will use fallback
-    }
-
-    // Fallback to package.json version if git commands fail
-    return currentVersion;
-  } catch {
-    // Fallback to hardcoded version if all else fails
-    return '0.8.7';
-  }
-};
 
 // Log version and raw command at the start
 const versionInfo = await getVersionInfo();
