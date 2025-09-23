@@ -479,40 +479,118 @@ try {
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
     await log('');
-    
+
     if (isContinueMode) {
+      // Check if user has a fork that could be used
+      let userHasFork = false;
+      let forkOwner = null;
+      let suggestForkOption = false;
+
+      if (isForkPR) {
+        // This is already a forked PR, get the fork owner
+        try {
+          const prDataResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner --jq .headRepositoryOwner.login`;
+          if (prDataResult.code === 0) {
+            forkOwner = prDataResult.stdout.toString().trim();
+          }
+        } catch (e) {
+          // Ignore error
+        }
+      } else {
+        // Check if the current user has a fork of this repository
+        try {
+          const userResult = await $`gh api user --jq .login`;
+          if (userResult.code === 0) {
+            const currentUser = userResult.stdout.toString().trim();
+            const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json parent 2>/dev/null`;
+            if (forkCheckResult.code === 0) {
+              const forkData = JSON.parse(forkCheckResult.stdout.toString());
+              if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
+                userHasFork = true;
+                forkOwner = currentUser;
+                suggestForkOption = true;
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore error, proceed with default message
+        }
+      }
+
       await log(`${formatAligned('❌', 'BRANCH CHECKOUT FAILED', '')}`, { level: 'error' });
       await log('');
+
+      // Provide a clearer explanation of what happened
       await log('  🔍 What happened:');
-      await log(`     Unable to checkout PR branch '${branchName}'.`);
-      await log('');
-      await log('  📦 Git output:');
-      for (const line of errorOutput.split('\n')) {
-        await log(`     ${line}`);
+      await log(`     Failed to checkout the branch '${branchName}' for PR #${prNumber}.`);
+      if (errorOutput.includes('is not a commit')) {
+        await log('     The branch doesn\'t exist in the current repository.');
+      } else {
+        await log('     Git was unable to find or access the branch.');
       }
       await log('');
-      await log('  💡 Possible causes:');
-      await log('     • PR branch doesn\'t exist on remote');
-      await log('     • Network connectivity issues');
-      await log('     • Permission denied to fetch branches');
-      if (isForkPR) {
-        await log('     • This is a forked PR - branch is in the fork, not the main repo');
-      }
-      await log('');
-      await log('  🔧 How to fix:');
-      if (isForkPR) {
-        await log('     1. Use --fork option (RECOMMENDED for forked PRs):');
-        await log(`        ./solve.mjs "${issueUrl}" --fork`);
-        await log('        This will create a fork and work from there.');
+
+      // Only show git output if it's not the typical "not a commit" error
+      if (!errorOutput.includes('is not a commit') || argv.verbose) {
+        await log('  📦 Git error details:');
+        for (const line of errorOutput.split('\n')) {
+          await log(`     ${line}`);
+        }
         await log('');
-        await log('     2. Alternative diagnostic steps:');
-        await log(`        • Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
-        await log(`        • Check remote branches: cd ${tempDir} && git branch -r`);
-        await log(`        • Try fetching manually: cd ${tempDir} && git fetch origin`);
+      }
+
+      // Explain why this happened
+      await log('  💡 Why this happened:');
+      if (isForkPR && forkOwner) {
+        await log(`     The PR branch exists in the fork (${forkOwner}/${repo})`);
+        await log(`     but you're trying to access it from the main repository (${owner}/${repo}).`);
+        await log('     This is a common issue with pull requests from forks.');
+      } else if (userHasFork) {
+        await log('     You have a fork of this repository, but the PR branch');
+        await log('     might be in your fork rather than the main repository.');
+      } else {
+        await log('     • The PR branch may not exist on the remote');
+        await log('     • There might be network connectivity issues');
+        await log('     • You might not have permission to access the branch');
+      }
+      await log('');
+
+      // Provide clear solutions
+      await log('  🔧 How to fix this:');
+
+      if (isForkPR || suggestForkOption) {
+        await log('');
+        await log('  ┌──────────────────────────────────────────────────────────┐');
+        await log('  │  RECOMMENDED: Use the --fork option                     │');
+        await log('  └──────────────────────────────────────────────────────────┘');
+        await log('');
+        await log('  Run this command:');
+        await log(`    ./solve.mjs "${issueUrl}" --fork`);
+        await log('');
+        await log('  This will automatically:');
+        if (userHasFork) {
+          await log(`    ✓ Use your existing fork (${forkOwner}/${repo})`);
+        } else if (isForkPR && forkOwner) {
+          await log(`    ✓ Work with the fork that contains the PR branch`);
+        } else {
+          await log('    ✓ Create or use a fork of the repository');
+        }
+        await log('    ✓ Set up the correct remotes and branches');
+        await log('    ✓ Allow you to work on the PR without permission issues');
+        await log('');
+        await log('  ─────────────────────────────────────────────────────────');
+        await log('');
+        await log('  Alternative options:');
+        await log(`    • Verify PR details: gh pr view ${prNumber} --repo ${owner}/${repo}`);
+        await log(`    • Check your local setup: cd ${tempDir} && git remote -v`);
       } else {
         await log(`     1. Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
         await log(`     2. Check remote branches: cd ${tempDir} && git branch -r`);
         await log(`     3. Try fetching manually: cd ${tempDir} && git fetch origin`);
+        await log('');
+        await log('     If you don\'t have write access to this repository,');
+        await log('     consider using the --fork option:');
+        await log(`       ./solve.mjs "${issueUrl}" --fork`);
       }
     } else {
       await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
@@ -763,6 +841,25 @@ Issue: ${issueUrl}`;
           
           // Check for permission denied error
           if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {
+            // Check if user already has a fork
+            let userHasFork = false;
+            let currentUser = null;
+            try {
+              const userResult = await $`gh api user --jq .login`;
+              if (userResult.code === 0) {
+                currentUser = userResult.stdout.toString().trim();
+                const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json parent 2>/dev/null`;
+                if (forkCheckResult.code === 0) {
+                  const forkData = JSON.parse(forkCheckResult.stdout.toString());
+                  if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
+                    userHasFork = true;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore error
+            }
+
             await log(`\n${formatAligned('❌', 'PERMISSION DENIED:', 'Cannot push to repository')}`, { level: 'error' });
             await log('');
             await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -775,16 +872,28 @@ Issue: ${issueUrl}`;
             await log('');
             await log('  📋 HOW TO FIX THIS:');
             await log('');
-            await log('  Option 1: Use the --fork flag (RECOMMENDED)');
-            await log(`  ${'-'.repeat(40)}`);
+            await log('  ┌──────────────────────────────────────────────────────────┐');
+            await log('  │  RECOMMENDED: Use the --fork option                     │');
+            await log('  └──────────────────────────────────────────────────────────┘');
+            await log('');
             await log('  Run the command again with --fork:');
             await log('');
             await log(`    ./solve.mjs "${issueUrl}" --fork`);
             await log('');
-            await log('  This will:');
-            await log('    ✓ Fork the repository to your account');
+            await log('  This will automatically:');
+            if (userHasFork) {
+              await log(`    ✓ Use your existing fork (${currentUser}/${repo})`);
+              await log('    ✓ Sync your fork with the latest changes');
+            } else {
+              await log('    ✓ Fork the repository to your account');
+            }
             await log('    ✓ Push changes to your fork');
             await log('    ✓ Create a PR from your fork to the original repo');
+            await log('    ✓ Handle all the remote setup automatically');
+            await log('');
+            await log('  ─────────────────────────────────────────────────────────');
+            await log('');
+            await log('  Alternative options:');
             await log('');
             await log('  Option 2: Request collaborator access');
             await log(`  ${'-'.repeat(40)}`);
@@ -800,6 +909,9 @@ Issue: ${issueUrl}`;
             await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             await log('');
             await log('💡 Tip: The --fork option automates the entire fork workflow!');
+            if (userHasFork) {
+              await log(`   Note: We detected you already have a fork at ${currentUser}/${repo}`);
+            }
             await log('');
             process.exit(1);
           } else {
