@@ -990,7 +990,8 @@ async function monitor() {
       await log('\n✅ All issues processed!');
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
-      
+      await log(`   📁 Full log file: ${absoluteLogPath}`);
+
       // Perform cleanup if enabled and there were successful completions
       if (stats.completed > 0) {
         await cleanupTempDirectories(argv);
@@ -1014,6 +1015,7 @@ async function monitor() {
   }
   
   await log('\n👋 Hive Mind monitoring stopped');
+  await log(`   📁 Full log file: ${absoluteLogPath}`);
 }
 
 // Graceful shutdown handler
@@ -1022,18 +1024,18 @@ async function gracefulShutdown(signal) {
     return; // Prevent duplicate shutdown messages
   }
   isShuttingDown = true;
-  
+
   try {
     await log(`\n\n🛑 Received ${signal} signal, shutting down gracefully...`);
-    
+
     // Stop the queue and wait for workers to finish
     issueQueue.stop();
-    
+
     // Give workers a moment to finish their current tasks
     const stats = issueQueue.getStats();
     if (stats.processing > 0) {
       await log(`   ⏳ Waiting for ${stats.processing} worker(s) to finish current tasks...`);
-      
+
       // Wait up to 10 seconds for workers to finish
       const maxWaitTime = 10000;
       const startTime = Date.now();
@@ -1041,21 +1043,23 @@ async function gracefulShutdown(signal) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-    
+
     await Promise.all(issueQueue.workers);
-    
+
     // Perform cleanup if enabled and there were successful completions
     const finalStats = issueQueue.getStats();
     if (finalStats.completed > 0) {
       await cleanupTempDirectories(argv);
     }
-    
+
     await log('   ✅ Shutdown complete');
-    
+    await log(`   📁 Full log file: ${absoluteLogPath}`);
+
   } catch (error) {
     await log(`   ⚠️  Error during shutdown: ${cleanErrorMessage(error)}`, { level: 'error' });
+    await log(`   📁 Full log file: ${absoluteLogPath}`);
   }
-  
+
   process.exit(0);
 }
 
