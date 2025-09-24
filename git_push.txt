@@ -1,2 +1,0 @@
-To https://github.com/deep-assistant/hive-mind.git
-   6c06943..2858c15  issue-235-737cfb20 -> issue-235-737cfb20
