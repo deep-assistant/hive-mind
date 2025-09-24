@@ -1,0 +1,120 @@
+
+> @deep-assistant/hive-mind@0.12.1 lint
+> eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs
+
+
+/tmp/gh-issue-solver-1758726221332/src/claude.lib.mjs
+    8:7   warning  'use' is assigned a value but never used  no-unused-vars
+   85:18  warning  'e' is defined but never used             no-unused-vars
+  194:16  warning  'bunError' is defined but never used      no-unused-vars
+  213:16  warning  'accessError' is defined but never used   no-unused-vars
+  264:16  warning  'nodeError' is defined but never used     no-unused-vars
+  283:16  warning  'accessError' is defined but never used   no-unused-vars
+  306:16  warning  'backupError' is defined but never used   no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/github.lib.mjs
+    8:7   warning  'use' is assigned a value but never used     no-unused-vars
+   55:12  warning  'error' is defined but never used            no-unused-vars
+   90:12  warning  'error' is defined but never used            no-unused-vars
+  149:12  warning  'error' is defined but never used            no-unused-vars
+  343:18  warning  'visibilityError' is defined but never used  no-unused-vars
+  625:14  warning  'error' is defined but never used            no-unused-vars
+  909:12  warning  'e' is defined but never used                no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/hive.mjs
+   21:62   warning  'formatAligned' is assigned a value but never used                        no-unused-vars
+   21:77   warning  'displayFormattedError' is assigned a value but never used                no-unused-vars
+   29:150  warning  'normalizeGitHubUrl' is assigned a value but never used                   no-unused-vars
+   41:54   warning  'reportError' is assigned a value but never used                          no-unused-vars
+   41:67   warning  'flushSentry' is assigned a value but never used                          no-unused-vars
+   41:80   warning  'closeSentry' is assigned a value but never used                          no-unused-vars
+  373:10   warning  'error' is defined but never used                                         no-unused-vars
+  377:12   warning  'mkdirError' is defined but never used                                    no-unused-vars
+  497:12   warning  'e' is defined but never used                                             no-unused-vars
+  691:37   warning  'reject' is defined but never used. Allowed unused args must match /^_/u  no-unused-vars
+  935:19   warning  'repoKey' is assigned a value but never used                              no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/lib.mjs
+    9:7   warning  'use' is assigned a value but never used  no-unused-vars
+  113:12  warning  'error' is defined but never used         no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/memory-check.mjs
+  344:11  warning  'log' is assigned a value but never used  no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.branch-errors.lib.mjs
+  45:20  warning  'e' is defined but never used  no-unused-vars
+  50:14  warning  'e' is defined but never used  no-unused-vars
+  75:24  warning  'e' is defined but never used  no-unused-vars
+  82:14  warning  'e' is defined but never used  no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.claude-execution.lib.mjs
+  6:8  warning  'fs' is defined but never used    no-unused-vars
+  7:8  warning  'path' is defined but never used  no-unused-vars
+  8:8  warning  'os' is defined but never used    no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.execution.lib.mjs
+   20:7    warning  'crypto' is assigned a value but never used                                    no-unused-vars
+   60:14   warning  'err' is defined but never used                                                no-unused-vars
+  222:14   warning  'cleanupError' is defined but never used                                       no-unused-vars
+  235:67   warning  'claudePath' is defined but never used. Allowed unused args must match /^_/u   no-unused-vars
+  235:79   warning  'argv' is defined but never used. Allowed unused args must match /^_/u         no-unused-vars
+  235:85   warning  'issueUrl' is defined but never used. Allowed unused args must match /^_/u     no-unused-vars
+  235:95   warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u    no-unused-vars
+  235:106  warning  'owner' is defined but never used. Allowed unused args must match /^_/u        no-unused-vars
+  235:113  warning  'repo' is defined but never used. Allowed unused args must match /^_/u         no-unused-vars
+  235:119  warning  'issueNumber' is defined but never used. Allowed unused args must match /^_/u  no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.mjs
+    55:43   warning  'createYargsConfig' is assigned a value but never used                no-unused-vars
+    59:27   warning  'withSentry' is assigned a value but never used                       no-unused-vars
+    59:54   warning  'reportError' is assigned a value but never used                      no-unused-vars
+    59:67   warning  'flushSentry' is assigned a value but never used                      no-unused-vars
+    59:80   warning  'closeSentry' is assigned a value but never used                      no-unused-vars
+    61:7    warning  'os' is assigned a value but never used                               no-unused-vars
+    67:14   warning  'setLogFile' is assigned a value but never used                       no-unused-vars
+    69:29   warning  'checkFileInBranch' is assigned a value but never used                no-unused-vars
+    69:48   warning  'checkGitHubPermissions' is assigned a value but never used           no-unused-vars
+    71:9    warning  'validateClaudeConnection' is assigned a value but never used         no-unused-vars
+    73:167  warning  'parseResetTime' is assigned a value but never used                   no-unused-vars
+    73:183  warning  'calculateWaitTime' is assigned a value but never used                no-unused-vars
+    75:9    warning  'autoContinueWhenLimitResets' is assigned a value but never used      no-unused-vars
+    75:38   warning  'checkExistingPRsForAutoContinue' is assigned a value but never used  no-unused-vars
+    75:71   warning  'processPRMode' is assigned a value but never used                    no-unused-vars
+    79:63   warning  'handleExecutionError' is assigned a value but never used             no-unused-vars
+    81:24   warning  'executeClaudeCommand' is assigned a value but never used             no-unused-vars
+    81:46   warning  'buildSystemPrompt' is assigned a value but never used                no-unused-vars
+    81:65   warning  'buildUserPrompt' is assigned a value but never used                  no-unused-vars
+   266:5    warning  'isForkPR' is assigned a value but never used                         no-unused-vars
+   295:18   warning  'isResuming' is assigned a value but never used                       no-unused-vars
+   628:22   warning  'e' is defined but never used                                         no-unused-vars
+   779:22   warning  'e' is defined but never used                                         no-unused-vars
+  1005:26   warning  'parseErr' is defined but never used                                  no-unused-vars
+  1101:9    warning  'newPrComments' is assigned a value but never used                    no-unused-vars
+  1101:24   warning  'newIssueComments' is assigned a value but never used                 no-unused-vars
+  1101:42   warning  'commentInfo' is assigned a value but never used                      no-unused-vars
+  1239:31   warning  'messageCount' is assigned a value but never used                     no-unused-vars
+  1239:45   warning  'toolUseCount' is assigned a value but never used                     no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.repository.lib.mjs
+   50:14  warning  'err' is defined but never used           no-unused-vars
+  379:14  warning  'cleanupError' is defined but never used  no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.results.lib.mjs
+  47:3   warning  'handleFailure' is assigned a value but never used  no-unused-vars
+  71:12  warning  'e' is defined but never used                       no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.validation.lib.mjs
+   25:3   warning  'getLogFile' is assigned a value but never used       no-unused-vars
+   33:3   warning  'isGitHubUrlType' is assigned a value but never used  no-unused-vars
+  143:12  warning  'error' is defined but never used                     no-unused-vars
+  147:14  warning  'mkdirError' is defined but never used                no-unused-vars
+
+/tmp/gh-issue-solver-1758726221332/src/solve.watch.lib.mjs
+   35:12  warning  'error' is defined but never used                   no-unused-vars
+   52:12  warning  'error' is defined but never used                   no-unused-vars
+  166:20  warning  'e' is defined but never used                       no-unused-vars
+  192:20  warning  'e' is defined but never used                       no-unused-vars
+  243:9   warning  'lastCheckTime' is assigned a value but never used  no-unused-vars
+
+✖ 87 problems (0 errors, 87 warnings)
+
