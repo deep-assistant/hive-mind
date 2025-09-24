@@ -7,6 +7,7 @@
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,21 +49,18 @@ console.log('🧪 Running Sentry Integration Tests\n');
 
 // Test 1: Check if instrument.mjs exists
 runTest('instrument.mjs file exists', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   return fs.existsSync(instrumentPath);
 });
 
 // Test 2: Check if sentry.lib.mjs exists
 runTest('sentry.lib.mjs file exists', () => {
-  const fs = require('fs');
   const sentryLibPath = join(projectRoot, 'src', 'sentry.lib.mjs');
   return fs.existsSync(sentryLibPath);
 });
 
 // Test 3: Check if Sentry packages are installed
 runTest('Sentry packages in package.json', () => {
-  const fs = require('fs');
   const packagePath = join(projectRoot, 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 
@@ -107,7 +105,6 @@ runTest('solve.mjs supports --no-sentry flag', () => {
 
 // Test 6: Check if instrument.mjs imports are correct
 runTest('instrument.mjs has correct imports', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -117,7 +114,6 @@ runTest('instrument.mjs has correct imports', () => {
 
 // Test 7: Check if DSN is configured
 runTest('Sentry DSN is configured', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -127,7 +123,6 @@ runTest('Sentry DSN is configured', () => {
 
 // Test 8: Check environment variable support
 runTest('Supports HIVE_MIND_NO_SENTRY environment variable', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -136,7 +131,6 @@ runTest('Supports HIVE_MIND_NO_SENTRY environment variable', () => {
 
 // Test 9: Check CI environment detection
 runTest('Disables Sentry in CI environment', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -145,7 +139,6 @@ runTest('Disables Sentry in CI environment', () => {
 
 // Test 10: Test that hive.mjs imports instrument.mjs
 runTest('hive.mjs imports instrument.mjs', () => {
-  const fs = require('fs');
   const hivePath = join(projectRoot, 'src', 'hive.mjs');
   const content = fs.readFileSync(hivePath, 'utf8');
 
@@ -154,7 +147,6 @@ runTest('hive.mjs imports instrument.mjs', () => {
 
 // Test 11: Test that solve.mjs imports instrument.mjs
 runTest('solve.mjs imports instrument.mjs', () => {
-  const fs = require('fs');
   const solvePath = join(projectRoot, 'src', 'solve.mjs');
   const content = fs.readFileSync(solvePath, 'utf8');
 
@@ -163,7 +155,6 @@ runTest('solve.mjs imports instrument.mjs', () => {
 
 // Test 12: Check privacy settings
 runTest('Sentry has privacy protections', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -173,7 +164,6 @@ runTest('Sentry has privacy protections', () => {
 
 // Test 13: Verify export functions in sentry.lib.mjs
 runTest('sentry.lib.mjs exports required functions', () => {
-  const fs = require('fs');
   const sentryLibPath = join(projectRoot, 'src', 'sentry.lib.mjs');
   const content = fs.readFileSync(sentryLibPath, 'utf8');
 
@@ -190,7 +180,6 @@ runTest('sentry.lib.mjs exports required functions', () => {
 
 // Test 14: Check error filtering
 runTest('Sentry filters common network errors', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
@@ -201,7 +190,6 @@ runTest('Sentry filters common network errors', () => {
 
 // Test 15: Test version configuration
 runTest('Version is properly configured', () => {
-  const fs = require('fs');
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
