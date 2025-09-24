@@ -178,6 +178,8 @@ export const executeClaude = async (params) => {
     repo,
     argv,
     log,
+    setLogFile,
+    getLogFile,
     formatAligned,
     getResourceSnapshot,
     claudePath,
@@ -252,6 +254,8 @@ export const executeClaude = async (params) => {
     escapedSystemPrompt,
     argv,
     log,
+    setLogFile,
+    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -271,6 +275,8 @@ export const executeClaudeCommand = async (params) => {
     escapedSystemPrompt,
     argv,
     log,
+    setLogFile,
+    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -414,6 +420,28 @@ export const executeClaudeCommand = async (params) => {
             if (!sessionId && data.session_id) {
               sessionId = data.session_id;
               await log(`📌 Session ID: ${sessionId}`);
+
+              // Try to rename log file to include session ID
+              try {
+                const currentLogFile = getLogFile();
+                const logDir = path.dirname(currentLogFile);
+                const sessionLogFile = path.join(logDir, `${sessionId}.log`);
+
+                // Use fs.promises to rename the file
+                await fs.promises.rename(currentLogFile, sessionLogFile);
+
+                // Update the global log file reference
+                setLogFile(sessionLogFile);
+
+                // Update exit handler with new log path
+                const { initializeExitHandler } = await import('./exit-handler.lib.mjs');
+                initializeExitHandler(sessionLogFile, log);
+
+                await log(`📁 Log renamed to: ${sessionLogFile}`);
+              } catch (renameError) {
+                // If rename fails, keep original filename
+                await log(`⚠️ Could not rename log file: ${renameError.message}`, { verbose: true });
+              }
             }
 
             // Track message and tool use counts

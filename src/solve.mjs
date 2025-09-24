@@ -1230,6 +1230,8 @@ ${prBody}`, { verbose: true });
     repo,
     argv,
     log,
+    setLogFile,
+    getLogFile,
     formatAligned,
     getResourceSnapshot,
     claudePath,
