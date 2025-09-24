@@ -81,10 +81,13 @@ export const buildUserPrompt = (params) => {
  * @returns {string} The formatted system prompt
  */
 export const buildSystemPrompt = (params) => {
-  const { owner, repo, issueNumber, prNumber, branchName } = params;
+  const { owner, repo, issueNumber, prNumber, branchName, argv } = params;
+
+  // Check if think-ultra-hard option is enabled
+  const thinkUltraHardLine = argv && argv.thinkUltraHard ? '\nYou always think ultra hard on every step.\n' : '';
 
   // Use backticks for jq commands to avoid quote escaping issues
-  return `You are AI issue solver.
+  return `You are AI issue solver.${thinkUltraHardLine}
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
