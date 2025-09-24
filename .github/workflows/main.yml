@@ -308,15 +308,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation]
     if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js 20.x
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
-    
+
+    - name: Install dependencies
+      run: npm install
+
     - name: Run test suite for solve.mjs
       run: |
         echo "Running test suite for solve.mjs..."
@@ -346,20 +349,28 @@ jobs:
         echo "Running feedback lines integration test with real repository..."
         node tests/test-feedback-lines-integration.mjs
 
+    - name: Run Sentry integration test
+      run: |
+        echo "Running test suite for Sentry integration..."
+        node tests/test-sentry.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation]
     if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js 20.x
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
-    
+
+    - name: Install dependencies
+      run: npm install
+
     - name: Test solve.mjs execution
       run: |
         echo "Testing solve.mjs basic execution..."
