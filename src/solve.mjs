@@ -115,7 +115,7 @@ if (!argv.noSentry) {
     level: 'info',
     data: {
       model: argv.model,
-      issueUrl: issueUrl || 'not-set-yet'
+      issueUrl: argv._?.[0] || 'not-set-yet'
     }
   });
 }

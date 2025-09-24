@@ -119,7 +119,7 @@ if (!shouldDisableSentry()) {
 export default Sentry;
 
 // Export utility function to check if Sentry is enabled
-export const isSentryEnabled = () => !shouldDisableSentry() && Sentry.getCurrentHub().getClient() !== undefined;
+export const isSentryEnabled = () => !shouldDisableSentry() && Sentry.getClient() !== undefined;
 
 // Export function to safely capture exceptions
 export const captureException = (error, context = {}) => {
