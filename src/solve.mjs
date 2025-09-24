@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Import Sentry instrumentation first (must be before other imports)
+import './instrument.mjs';
+
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
@@ -48,6 +51,10 @@ globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
 const { initializeConfig, parseArguments, createYargsConfig } = config;
+
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { initializeSentry, withSentry, addBreadcrumb, reportError, flushSentry, closeSentry } = sentryLib;
 const { yargs, hideBin } = await initializeConfig(use);
 const os = (await use('os')).default;
 const path = (await use('path')).default;
@@ -93,7 +100,27 @@ await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 
-// Initialize the exit handler with log path
+// Initialize Sentry integration (unless disabled)
+if (!argv.noSentry) {
+  await initializeSentry({
+    noSentry: argv.noSentry,
+    debug: argv.verbose,
+    version: process.env.npm_package_version || '0.12.0'
+  });
+
+  // Add breadcrumb for solve operation
+  addBreadcrumb({
+    category: 'solve',
+    message: 'Started solving issue',
+    level: 'info',
+    data: {
+      model: argv.model,
+      issueUrl: issueUrl || 'not-set-yet'
+    }
+  });
+}
+
+// Initialize the exit handler with log path and Sentry cleanup
 initializeExitHandler(absoluteLogPath, log);
 installGlobalExitHandlers();
 

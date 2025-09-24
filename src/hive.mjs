@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Import Sentry instrumentation first (must be before other imports)
+import './instrument.mjs';
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
@@ -32,6 +35,10 @@ const { checkSystem } = memCheck;
 // Import exit handler
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
+
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { initializeSentry, withSentry, addBreadcrumb, reportError, flushSentry, closeSentry } = sentryLib;
 
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
@@ -274,6 +281,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Add "You always think ultra hard on every step" to system prompt',
       default: false
     })
+    .option('no-sentry', {
+      type: 'boolean',
+      description: 'Disable Sentry error tracking and monitoring',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -382,7 +394,28 @@ const absoluteLogPath = path.resolve(logFile);
 await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
 
-// Initialize the exit handler with log path
+// Initialize Sentry integration (unless disabled)
+if (!argv.noSentry) {
+  await initializeSentry({
+    noSentry: argv.noSentry,
+    debug: argv.verbose,
+    version: process.env.npm_package_version || '0.12.0'
+  });
+
+  // Add breadcrumb for monitoring configuration
+  addBreadcrumb({
+    category: 'hive',
+    message: 'Started monitoring',
+    level: 'info',
+    data: {
+      mode: argv.projectMode ? 'project' : (argv.allIssues ? 'all' : 'label'),
+      concurrency: argv.concurrency,
+      model: argv.model
+    }
+  });
+}
+
+// Initialize the exit handler with log path and Sentry cleanup
 initializeExitHandler(absoluteLogPath, log);
 installGlobalExitHandlers();
 
@@ -612,6 +645,7 @@ async function worker(workerId) {
         const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkUltraHardFlag = argv.thinkUltraHard ? ' --think-ultra-hard' : '';
+        const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
         const { spawn } = await import('child_process');
@@ -642,9 +676,12 @@ async function worker(workerId) {
         if (argv.thinkUltraHard) {
           args.push('--think-ultra-hard');
         }
+        if (argv.noSentry) {
+          args.push('--no-sentry');
+        }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}${noSentryFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;
@@ -1097,9 +1134,12 @@ if (!isClaudeConnected) {
   await safeExit(1, 'Error occurred');
 }
 
+// Wrap monitor function with Sentry error tracking
+const monitorWithSentry = argv.noSentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
+
 // Start monitoring
 try {
-  await monitor();
+  await monitorWithSentry();
 } catch (error) {
   await log(`\n❌ Fatal error: ${cleanErrorMessage(error)}`, { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
