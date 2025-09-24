@@ -122,6 +122,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Directory to save log files (defaults to current working directory)',
       alias: 'l'
     })
+    .option('think-ultra-hard', {
+      type: 'boolean',
+      description: 'Add "You always think ultra hard on every step" to system prompt',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };

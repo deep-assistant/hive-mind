@@ -265,6 +265,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Automatically continue working on issues with existing PRs (older than 24 hours)',
       default: false
     })
+    .option('think-ultra-hard', {
+      type: 'boolean',
+      description: 'Add "You always think ultra hard on every step" to system prompt',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -609,6 +614,7 @@ async function worker(workerId) {
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
         const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
+        const thinkUltraHardFlag = argv.thinkUltraHard ? ' --think-ultra-hard' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
         const { spawn } = await import('child_process');
@@ -636,9 +642,12 @@ async function worker(workerId) {
         if (argv.autoContinue) {
           args.push('--auto-continue');
         }
+        if (argv.thinkUltraHard) {
+          args.push('--think-ultra-hard');
+        }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;
