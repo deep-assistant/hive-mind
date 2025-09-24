@@ -23,7 +23,7 @@ if (earlyArgs.includes('--version')) {
     // Fallback to hardcoded version if all else fails
     console.log('0.10.4');
   }
-  await safeExit(0);
+  process.exit(0);
 }
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
@@ -34,13 +34,13 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   const { yargs, hideBin } = await initializeConfig(use);
   const rawArgs = hideBin(process.argv);
   createYargsConfig(yargs(rawArgs)).showHelp();
-  await safeExit(0);
+  process.exit(0);
 }
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
   console.error('\nError: Missing required github issue or pull request URL');
   console.error('\nRun "solve.mjs --help" for more information');
-  await safeExit(1, 'Missing required arguments');
+  process.exit(1);
 }
 // Now load all modules for normal operation
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
