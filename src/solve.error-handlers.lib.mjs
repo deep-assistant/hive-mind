@@ -2,6 +2,9 @@
  * Error handling utilities for solve.mjs
  */
 
+// Import exit handler
+import { safeExit } from './exit-handler.lib.mjs';
+
 /**
  * Handles log attachment and PR closing on failure
  */
@@ -105,7 +108,7 @@ export const createUncaughtExceptionHandler = (options) => {
       $
     });
 
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   };
 };
 
@@ -148,7 +151,7 @@ export const createUnhandledRejectionHandler = (options) => {
       $
     });
 
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   };
 };
 
@@ -192,5 +195,5 @@ export const handleMainExecutionError = async (options) => {
     $
   });
 
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 };

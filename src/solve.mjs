@@ -23,7 +23,7 @@ if (earlyArgs.includes('--version')) {
     // Fallback to hardcoded version if all else fails
     console.log('0.10.4');
   }
-  process.exit(0);
+  await safeExit(0);
 }
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
@@ -34,13 +34,13 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   const { yargs, hideBin } = await initializeConfig(use);
   const rawArgs = hideBin(process.argv);
   createYargsConfig(yargs(rawArgs)).showHelp();
-  process.exit(0);
+  await safeExit(0);
 }
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
   console.error('\nError: Missing required github issue or pull request URL');
   console.error('\nRun "solve.mjs --help" for more information');
-  process.exit(1);
+  await safeExit(1, 'Missing required arguments');
 }
 // Now load all modules for normal operation
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
@@ -78,6 +78,8 @@ const branchErrors = await import('./solve.branch-errors.lib.mjs');
 const { handleBranchCheckoutError, handleBranchCreationError, handleBranchVerificationError } = branchErrors;
 const watchLib = await import('./solve.watch.lib.mjs');
 const { startWatchMode } = watchLib;
+const exitHandler = await import('./exit-handler.lib.mjs');
+const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
 const argv = await parseArguments(yargs, hideBin);
@@ -90,6 +92,10 @@ const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
+
+// Initialize the exit handler with log path
+initializeExitHandler(absoluteLogPath, log);
+installGlobalExitHandlers();
 
 // Log version and raw command at the start
 const versionInfo = await getVersionInfo();
@@ -112,13 +118,13 @@ if (!issueUrl) {
   await log('Error: Missing required github issue or pull request URL', { level: 'error' });
   await log('');
   await log('Run "solve.mjs --help" for more information', { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Missing required GitHub URL');
 }
 
 // Validate GitHub URL using validation module (more thorough check)
 const urlValidation = validateGitHubUrl(issueUrl);
 if (!urlValidation.isValid) {
-  process.exit(1);
+  await safeExit(1, 'Invalid GitHub URL');
 }
 const { isIssueUrl, isPrUrl, normalizedUrl } = urlValidation;
 
@@ -144,30 +150,22 @@ const errorHandlerOptions = {
 process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptions));
 process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
 
-// Add graceful shutdown handlers for SIGINT and SIGTERM
-const gracefulShutdown = async (signal) => {
-  await log(`\n\n🛑 Received ${signal} signal, shutting down...`);
-  await log(`   📁 Full log file: ${absoluteLogPath}`);
-  process.exit(0);
-};
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+// Graceful shutdown handlers are now handled by exit-handler.lib.mjs
 
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
-  process.exit(1);
+  await safeExit(1, 'URL requirement validation failed');
 }
 
 if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
-  process.exit(1);
+  await safeExit(1, 'Feedback validation failed');
 }
 
 // Perform all system checks using validation module
 // Skip Claude validation in dry-run mode or when --skip-claude-check is enabled
 const skipClaudeCheck = argv.dryRun || argv.skipClaudeCheck;
 if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck))) {
-  process.exit(1);
+  await safeExit(1, 'System checks failed');
 }
 
 // URL validation debug logging
@@ -228,7 +226,7 @@ if (isPrUrl) {
     if (prResult.code !== 0) {
       await log('Error: Failed to get PR details', { level: 'error' });
       await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-      process.exit(1);
+      await safeExit(1, 'Failed to get PR details');
     }
     
     const prData = JSON.parse(prResult.stdout.toString());
@@ -256,7 +254,7 @@ if (isPrUrl) {
     }
   } catch (error) {
     await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
-    process.exit(1);
+    await safeExit(1, 'Failed to process PR');
   }
 } else {
   // Traditional issue mode
@@ -291,7 +289,7 @@ try {
   if (defaultBranchResult.code !== 0) {
     await log('Error: Failed to get current branch');
     await log(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
-    process.exit(1);
+    await safeExit(1, 'Failed to get current branch');
   }
 
   const defaultBranch = defaultBranchResult.stdout.toString().trim();
@@ -312,7 +310,7 @@ try {
     await log(`     2. Verify locally: cd ${tempDir} && git branch`);
     await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
     await log('');
-    process.exit(1);
+    await safeExit(1, 'Default branch detection failed');
   }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
 
@@ -322,7 +320,7 @@ try {
   if (statusResult.code !== 0) {
     await log('Error: Failed to check git status');
     await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
-    process.exit(1);
+    await safeExit(1, 'Failed to check git status');
   }
   
   // Note: Empty output means clean working directory
@@ -330,7 +328,7 @@ try {
   if (statusOutput) {
     await log('Error: Repository has uncommitted changes after clone');
     await log(`Status output: ${statusOutput}`);
-    process.exit(1);
+    await safeExit(1, 'Repository has uncommitted changes after clone');
   }
 
   // Create a branch for the issue or checkout existing PR branch
@@ -403,7 +401,7 @@ try {
     
     await log('');
     await log(`  📂 Working directory: ${tempDir}`);
-    process.exit(1);
+    await safeExit(1, 'Branch operation failed');
   }
   
   // CRITICAL: Verify the branch was checked out and we switched to it
@@ -421,7 +419,7 @@ try {
     await log(`     cd ${tempDir} && git branch -a`);
     await log(`     cd ${tempDir} && git status`);
     await log('');
-    process.exit(1);
+    await safeExit(1, 'Branch verification failed');
   }
   
   const actualBranch = verifyResult.stdout.toString().trim();
@@ -439,7 +437,7 @@ try {
       log,
       $
     });
-    process.exit(1);
+    await safeExit(1, 'Branch verification mismatch');
   }
   
   if (isContinueMode) {
@@ -499,7 +497,7 @@ Proceed.`;
       if (addResult.code !== 0) {
         await log('❌ Failed to add CLAUDE.md', { level: 'error' });
         await log(`   Error: ${addResult.stderr ? addResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-        process.exit(1);
+        await safeExit(1, 'Failed to add CLAUDE.md');
       }
       
       // Verify the file was actually staged
@@ -523,7 +521,7 @@ Issue: ${issueUrl}`;
         await log('❌ Failed to create initial commit', { level: 'error' });
         await log(`   Error: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
         await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
-        process.exit(1);
+        await safeExit(1, 'Failed to create initial commit');
       } else {
         await log(formatAligned('✅', 'Commit created:', 'Successfully with CLAUDE.md'));
         if (argv.verbose) {
@@ -655,12 +653,12 @@ Issue: ${issueUrl}`;
               await log(`   Note: We detected you already have a fork at ${currentUser}/${repo}`);
             }
             await log('');
-            process.exit(1);
+            await safeExit(1, 'Permission denied - need fork or collaborator access');
           } else {
             // Other push errors
             await log(`${formatAligned('❌', 'Failed to push:', 'See error below')}`, { level: 'error' });
             await log(`   Error: ${errorOutput}`, { level: 'error' });
-            process.exit(1);
+            await safeExit(1, 'Failed to push branch');
           }
         } else {
           await log(`${formatAligned('✅', 'Branch pushed:', 'Successfully to remote')}`);
@@ -997,7 +995,7 @@ ${prBody}`, { verbose: true });
                 await log('     2. Try creating PR manually: gh pr create');
                 await log(`     3. Verify branch was pushed: git push -u origin ${branchName}`);
                 await log('');
-                process.exit(1);
+                await safeExit(1, 'PR creation failed');
               }
             } else if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'t be blank')) {
               // Empty PR error
@@ -1028,7 +1026,7 @@ ${prBody}`, { verbose: true });
               await log(`  📂 Working directory: ${tempDir}`);
               await log(`  🌿 Current branch: ${branchName}`);
               await log('');
-              process.exit(1);
+              await safeExit(1, 'PR creation failed - no commits between branches');
             } else {
               // Generic PR creation error
               await log('');
@@ -1050,7 +1048,7 @@ ${prBody}`, { verbose: true });
               await log('     3. Verify GitHub authentication:');
               await log('        gh auth status');
               await log('');
-              process.exit(1);
+              await safeExit(1, 'PR creation failed');
             }
           }
         }
@@ -1213,7 +1211,7 @@ ${prBody}`, { verbose: true });
   limitReached = claudeResult.limitReached;
 
   if (!success) {
-    process.exit(1);
+    await safeExit(1, 'Claude execution failed');
   }
 
   // Check for uncommitted changes

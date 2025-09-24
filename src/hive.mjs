@@ -29,6 +29,10 @@ const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues
 const memCheck = await import('./memory-check.mjs');
 const { checkSystem } = memCheck;
 
+// Import exit handler
+const exitHandler = await import('./exit-handler.lib.mjs');
+const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
+
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
 // The cleanupTempDirectories function has been moved to lib.mjs
@@ -279,7 +283,7 @@ const rawArgs = hideBin(process.argv);
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   // Show help and exit
   createYargsConfig(yargs(rawArgs)).showHelp();
-  process.exit(0);
+  await safeExit(0, 'Process completed');
 }
 
 // Configure command line arguments - GitHub URL as positional argument
@@ -307,7 +311,7 @@ if (githubUrl) {
     console.error('  - github.com/owner (will add https://)');
     console.error('  - owner (will be converted to https://github.com/owner)');
     console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 
   // Check if it's a valid type for hive (user or repo)
@@ -315,7 +319,7 @@ if (githubUrl) {
     console.error('Error: Invalid GitHub URL for monitoring');
     console.error(`  URL type '${parsedUrl.type}' is not supported`);
     console.error('Expected: https://github.com/owner or https://github.com/owner/repo');
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 
   // Use the normalized URL
@@ -342,7 +346,7 @@ if (needsUrlValidation) {
     console.error('  - github.com/owner (will add https://)');
     console.error('  - owner (will be converted to https://github.com/owner)');
     console.error('  - owner/repo (will be converted to https://github.com/owner/repo)');
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 }
 
@@ -378,25 +382,18 @@ const absoluteLogPath = path.resolve(logFile);
 await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
 
-// Setup unhandled error handlers to ensure log path is always shown
-process.on('uncaughtException', async (error) => {
-  await log(`\n❌ Uncaught Exception: ${cleanErrorMessage(error)}`, { level: 'error' });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
-});
+// Initialize the exit handler with log path
+initializeExitHandler(absoluteLogPath, log);
+installGlobalExitHandlers();
 
-process.on('unhandledRejection', async (reason, promise) => {
-  await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
-});
+// Unhandled error handlers are now managed by exit-handler.lib.mjs
 
 // Validate GitHub URL requirement
 if (!githubUrl) {
   await log('❌ GitHub URL is required', { level: 'error' });
   await log('   Usage: hive <github-url> [options]', { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 // Validate project mode arguments
@@ -404,18 +401,18 @@ if (argv.projectMode) {
   if (!argv.projectNumber) {
     await log('❌ Project mode requires --project-number', { level: 'error' });
     await log('   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER', { level: 'error' });
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 
   if (!argv.projectOwner) {
     await log('❌ Project mode requires --project-owner', { level: 'error' });
     await log('   Usage: hive <github-url> --project-mode --project-number NUMBER --project-owner OWNER', { level: 'error' });
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 
   if (typeof argv.projectNumber !== 'number' || argv.projectNumber <= 0) {
     await log('❌ Project number must be a positive integer', { level: 'error' });
-    process.exit(1);
+    await safeExit(1, 'Error occurred');
   }
 }
 
@@ -425,7 +422,7 @@ if (argv.skipIssuesWithPrs && argv.autoContinue) {
   await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
   await log('   --auto-continue: Works on issues with existing PRs (older than 24 hours)', { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 // Helper function to check GitHub permissions - moved to github.lib.mjs
@@ -434,7 +431,7 @@ if (argv.skipIssuesWithPrs && argv.autoContinue) {
 const hasValidAuth = await checkGitHubPermissions();
 if (!hasValidAuth) {
   await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 // Parse GitHub URL to determine organization, repository, or user
@@ -448,7 +445,7 @@ if (githubUrl && urlMatch === null) {
   // This should never happen - it means our early validation was skipped incorrectly
   await log('Internal error: URL validation was not performed correctly', { level: 'error' });
   await log('This is a bug in the script logic', { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 if (urlMatch) {
@@ -1069,7 +1066,7 @@ async function gracefulShutdown(signal) {
     await log(`   📁 Full log file: ${absoluteLogPath}`);
   }
 
-  process.exit(0);
+  await safeExit(0, 'Process completed');
 }
 
 // Function to validate Claude CLI connection
@@ -1090,14 +1087,14 @@ const systemCheck = await checkSystem(
 );
 
 if (!systemCheck.success) {
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 // Validate Claude CLI connection before starting monitoring
 const isClaudeConnected = await validateClaudeConnection();
 if (!isClaudeConnected) {
   await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }
 
 // Start monitoring
@@ -1106,5 +1103,5 @@ try {
 } catch (error) {
   await log(`\n❌ Fatal error: ${cleanErrorMessage(error)}`, { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  process.exit(1);
+  await safeExit(1, 'Error occurred');
 }

@@ -25,6 +25,9 @@ const {
   formatAligned
 } = lib;
 
+// Import exit handler
+import { safeExit } from './exit-handler.lib.mjs';
+
 // Create or find temporary directory for cloning the repository
 export const setupTempDirectory = async (argv) => {
   let tempDir;
@@ -73,7 +76,7 @@ export const setupRepository = async (argv, owner, repo) => {
     const userResult = await $`gh api user --jq .login`;
     if (userResult.code !== 0) {
       await log(`${formatAligned('❌', 'Error:', 'Failed to get current user')}`);
-      process.exit(1);
+      await safeExit(1, 'Repository setup failed');
     }
     const currentUser = userResult.stdout.toString().trim();
 
@@ -141,7 +144,7 @@ export const setupRepository = async (argv, owner, repo) => {
             // All retries exhausted
             await log(`${formatAligned('❌', 'Error:', 'Failed to create fork after all retries')}`);
             await log(forkOutput);
-            process.exit(1);
+            await safeExit(1, 'Repository setup failed');
           }
         }
       }
@@ -172,7 +175,7 @@ export const setupRepository = async (argv, owner, repo) => {
         if (!forkVerified) {
           await log(`${formatAligned('❌', 'Error:', 'Fork exists but not accessible after multiple retries')}`);
           await log(`${formatAligned('', 'Suggestion:', 'GitHub may be experiencing delays - try running the command again in a few minutes')}`);
-          process.exit(1);
+          await safeExit(1, 'Repository setup failed');
         }
 
         // Wait a moment for fork to be fully ready
@@ -229,7 +232,7 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
       await log(`     4. Check fork: gh repo view ${repoToClone}`);
     }
     await log('');
-    process.exit(1);
+    await safeExit(1, 'Repository setup failed');
   }
 
   await log(`${formatAligned('✅', 'Cloned to:', tempDir)}`);
@@ -329,7 +332,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                 await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
                 await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
                 await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);
-                process.exit(1);
+                await safeExit(1, 'Repository setup failed');
               }
 
               // Step 4: Return to the original branch if it was different

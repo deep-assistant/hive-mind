@@ -1,0 +1,29 @@
+title:	[WIP] We need to make sure we always output the absolute path of the log at the end of solve/hive commands (even on fail or CTRL+C) for user to easily find the log file
+state:	DRAFT
+author:	konard
+labels:	
+assignees:	konard
+reviewers:	
+projects:	
+milestone:	
+number:	286
+url:	https://github.com/deep-assistant/hive-mind/pull/286
+additions:	5
+deletions:	0
+auto-merge:	disabled
+--
+## 🤖 AI-Powered Solution Draft
+
+This pull request is being automatically generated to solve issue #285.
+
+### 📋 Issue Reference
+Fixes #285
+
+### 🚧 Status
+**Work in Progress** - The AI assistant is currently analyzing and implementing the solution draft.
+
+### 📝 Implementation Details
+_Details will be added as the solution draft is developed..._
+
+---
+*This PR was created automatically by the AI issue solver*
