@@ -1128,8 +1128,8 @@ if (!systemCheck.success) {
   await safeExit(1, 'Error occurred');
 }
 
-// Validate Claude CLI connection before starting monitoring
-const isClaudeConnected = await validateClaudeConnection();
+// Validate Claude CLI connection before starting monitoring with the same model that will be used
+const isClaudeConnected = await validateClaudeConnection(argv.model);
 if (!isClaudeConnected) {
   await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
   await safeExit(1, 'Error occurred');

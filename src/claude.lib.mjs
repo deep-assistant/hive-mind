@@ -14,105 +14,172 @@ const fs = (await use('fs')).promises;
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
 
-// Function to validate Claude CLI connection
-export const validateClaudeConnection = async () => {
-  try {
-    await log('🔍 Validating Claude CLI connection...');
-    
-    // First try a quick validation approach
+// Function to validate Claude CLI connection with retry logic
+export const validateClaudeConnection = async (model = 'sonnet') => {
+  // Retry configuration for API overload errors
+  const maxRetries = 3;
+  const baseDelay = 5000; // Start with 5 seconds
+  let retryCount = 0;
+
+  const attemptValidation = async () => {
     try {
-      // Check if Claude CLI is installed and get version
-      const versionResult = await $`timeout 10 claude --version`;
-      if (versionResult.code === 0) {
-        const version = versionResult.stdout?.toString().trim();
-        await log(`📦 Claude CLI version: ${version}`);
+      if (retryCount === 0) {
+        await log('🔍 Validating Claude CLI connection...');
+      } else {
+        await log(`🔄 Retry attempt ${retryCount}/${maxRetries} for Claude CLI validation...`);
       }
-    } catch (versionError) {
-      // Version check failed, but we'll continue with the main validation
-      await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
-    }
-    
-    let result;
-    try {
-      // Primary validation: use printf piping with sonnet model (cheapest)
-      result = await $`printf hi | claude --model sonnet -p`;
-    } catch (pipeError) {
-      // If piping fails, fallback to the timeout approach as last resort
-      await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
+
+      // First try a quick validation approach
       try {
-        result = await $`timeout 60 claude --model sonnet -p hi`;
-      } catch (timeoutError) {
-        if (timeoutError.code === 124) {
-          await log('❌ Claude CLI timed out after 60 seconds', { level: 'error' });
-          await log('   💡 This may indicate Claude CLI is taking too long to respond', { level: 'error' });
-          await log('   💡 Try running \'claude --model sonnet -p hi\' manually to verify it works', { level: 'error' });
-          return false;
-        }
-        // Re-throw if it's not a timeout error
-        throw timeoutError;
-      }
-    }
-    
-    // Check for common error patterns
-    const stdout = result.stdout?.toString() || '';
-    const stderr = result.stderr?.toString() || '';
-    
-    // Check for JSON errors in stdout or stderr
-    const checkForJsonError = (text) => {
-      try {
-        // Look for JSON error patterns
-        if (text.includes('"error"') && text.includes('"type"')) {
-          const jsonMatch = text.match(/\{.*"error".*\}/);
-          if (jsonMatch) {
-            const errorObj = JSON.parse(jsonMatch[0]);
-            return errorObj.error;
+        // Check if Claude CLI is installed and get version
+        const versionResult = await $`timeout 10 claude --version`;
+        if (versionResult.code === 0) {
+          const version = versionResult.stdout?.toString().trim();
+          if (retryCount === 0) {
+            await log(`📦 Claude CLI version: ${version}`);
           }
         }
-      } catch (e) {
-        // Not valid JSON, continue with other checks
+      } catch (versionError) {
+        // Version check failed, but we'll continue with the main validation
+        if (retryCount === 0) {
+          await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
+        }
       }
-      return null;
-    };
+
+      let result;
+      try {
+        // Primary validation: use printf piping with specified model
+        result = await $`printf hi | claude --model ${model} -p`;
+      } catch (pipeError) {
+        // If piping fails, fallback to the timeout approach as last resort
+        await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
+        try {
+          result = await $`timeout 60 claude --model ${model} -p hi`;
+        } catch (timeoutError) {
+          if (timeoutError.code === 124) {
+            await log('❌ Claude CLI timed out after 60 seconds', { level: 'error' });
+            await log('   💡 This may indicate Claude CLI is taking too long to respond', { level: 'error' });
+            await log(`   💡 Try running 'claude --model ${model} -p hi' manually to verify it works`, { level: 'error' });
+            return false;
+          }
+          // Re-throw if it's not a timeout error
+          throw timeoutError;
+        }
+      }
     
-    const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
+      // Check for common error patterns
+      const stdout = result.stdout?.toString() || '';
+      const stderr = result.stderr?.toString() || '';
+
+      // Check for JSON errors in stdout or stderr
+      const checkForJsonError = (text) => {
+        try {
+          // Look for JSON error patterns
+          if (text.includes('"error"') && text.includes('"type"')) {
+            const jsonMatch = text.match(/\{.*"error".*\}/);
+            if (jsonMatch) {
+              const errorObj = JSON.parse(jsonMatch[0]);
+              return errorObj.error;
+            }
+          }
+        } catch (e) {
+          // Not valid JSON, continue with other checks
+        }
+        return null;
+      };
+
+      const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
+
+      // Check for API overload error pattern
+      const isOverloadError = (stdout.includes('API Error: 500') && stdout.includes('Overloaded')) ||
+                             (stderr.includes('API Error: 500') && stderr.includes('Overloaded')) ||
+                             (jsonError && jsonError.type === 'api_error' && jsonError.message === 'Overloaded');
     
-    // Use exitCode if code is undefined (Bun shell behavior)
-    const exitCode = result.code ?? result.exitCode ?? 0;
-    
-    if (exitCode !== 0) {
-      // Command failed
+      // Handle overload errors with retry
+      if (isOverloadError) {
+        if (retryCount < maxRetries) {
+          const delay = baseDelay * Math.pow(2, retryCount);
+          await log(`⚠️ API overload error during validation. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          retryCount++;
+          return await attemptValidation();
+        } else {
+          await log(`❌ API overload error persisted after ${maxRetries} retries during validation`, { level: 'error' });
+          await log('   The API appears to be heavily loaded. Please try again later.', { level: 'error' });
+          return false;
+        }
+      }
+
+      // Use exitCode if code is undefined (Bun shell behavior)
+      const exitCode = result.code ?? result.exitCode ?? 0;
+
+      if (exitCode !== 0) {
+        // Command failed
+        if (jsonError) {
+          await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+        } else {
+          await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
+          if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
+        }
+
+        if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
+          await log('   💡 Please run: claude login', { level: 'error' });
+        }
+
+        return false;
+      }
+
+      // Check for error patterns in successful response
       if (jsonError) {
-        await log(`❌ Claude CLI authentication failed: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
-      } else {
-        await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
-        if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
+        // Check if this is an overload error even with exit code 0
+        if (jsonError.type === 'api_error' && jsonError.message === 'Overloaded') {
+          if (retryCount < maxRetries) {
+            const delay = baseDelay * Math.pow(2, retryCount);
+            await log(`⚠️ API overload error in response. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retryCount++;
+            return await attemptValidation();
+          } else {
+            await log(`❌ API overload error persisted after ${maxRetries} retries`, { level: 'error' });
+            return false;
+          }
+        }
+
+        await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
+        if (jsonError.type === 'forbidden') {
+          await log('   💡 Please run: claude login', { level: 'error' });
+        }
+        return false;
       }
-      
-      if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
-        await log('   💡 Please run: claude login', { level: 'error' });
+
+      // Success - Claude responded (LLM responses are probabilistic, so any response is good)
+      await log('✅ Claude CLI connection validated successfully');
+      return true;
+    } catch (error) {
+      // Check if the error is an overload error
+      const errorStr = error.message || error.toString();
+      if ((errorStr.includes('API Error: 500') && errorStr.includes('Overloaded')) ||
+          (errorStr.includes('api_error') && errorStr.includes('Overloaded'))) {
+        if (retryCount < maxRetries) {
+          const delay = baseDelay * Math.pow(2, retryCount);
+          await log(`⚠️ API overload error during validation. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          retryCount++;
+          return await attemptValidation();
+        } else {
+          await log(`❌ API overload error persisted after ${maxRetries} retries`, { level: 'error' });
+          return false;
+        }
       }
-      
+
+      await log(`❌ Failed to validate Claude CLI connection: ${error.message}`, { level: 'error' });
+      await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
       return false;
     }
-    
-    // Check for error patterns in successful response
-    if (jsonError) {
-      await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
-      if (jsonError.type === 'forbidden') {
-        await log('   💡 Please run: claude login', { level: 'error' });
-      }
-      return false;
-    }
-    
-    // Success - Claude responded (LLM responses are probabilistic, so any response is good)
-    await log('✅ Claude CLI connection validated successfully');
-    return true;
-    
-  } catch (error) {
-    await log(`❌ Failed to validate Claude CLI connection: ${error.message}`, { level: 'error' });
-    await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
-    return false;
-  }
+  }; // End of attemptValidation function
+
+  // Start the validation with retry logic
+  return await attemptValidation();
 };
 
 // Function to handle Claude runtime switching between Node.js and Bun
