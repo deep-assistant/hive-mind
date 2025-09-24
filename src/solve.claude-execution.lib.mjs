@@ -68,6 +68,11 @@ export const buildUserPrompt = (params) => {
     promptLines.push('');
   }
 
+  // Add "Think ultra hard." if the option is enabled
+  if (argv && argv.thinkUltraHard) {
+    promptLines.push('Think ultra hard.');
+  }
+
   // Final instruction
   promptLines.push(isContinueMode ? 'Continue.' : 'Proceed.');
 
