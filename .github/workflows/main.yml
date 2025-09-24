@@ -644,17 +644,17 @@ jobs:
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
         registry-url: 'https://registry.npmjs.org'
-    
+
     - name: Publish
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -665,19 +665,28 @@ jobs:
           echo "  new-version output: ${{ needs.detect-changes.outputs.new-version }}"
           exit 0
         fi
-        
+
         echo "✓ New version detected, proceeding with publish"
-        
+
         # Make scripts executable
         chmod +x src/hive.mjs
         chmod +x src/solve.mjs
-        
+
         # Publish to NPM
         npm publish --access public
-        
+
         # Create GitHub Release
         VERSION=${{ needs.detect-changes.outputs.version }}
         PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
           --title "${VERSION}" \
           --notes "https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
+
+    - name: Upload Source Maps to Sentry
+      if: needs.detect-changes.outputs.new-version == 'true'
+      env:
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      run: |
+        echo "📤 Uploading source maps to Sentry for version ${{ needs.detect-changes.outputs.version }}"
+        chmod +x scripts/upload-sourcemaps.mjs
+        node scripts/upload-sourcemaps.mjs
