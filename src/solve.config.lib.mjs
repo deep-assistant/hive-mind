@@ -127,6 +127,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Add "You always think ultra hard on every step" to system prompt',
       default: false
     })
+    .option('no-sentry', {
+      type: 'boolean',
+      description: 'Disable Sentry error tracking and monitoring',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };
