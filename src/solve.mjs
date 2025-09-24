@@ -193,7 +193,7 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
 // Perform all system checks using validation module
 // Skip Claude validation in dry-run mode or when --skip-claude-check is enabled
 const skipClaudeCheck = argv.dryRun || argv.skipClaudeCheck;
-if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck))) {
+if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck, argv.model))) {
   await safeExit(1, 'System checks failed');
 }
 

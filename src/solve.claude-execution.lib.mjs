@@ -274,10 +274,21 @@ export const executeClaudeCommand = async (params) => {
     $  // Add command-stream $ to params
   } = params;
 
-  // Execute claude command from the cloned repository directory
-  await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
+  // Retry configuration for API overload errors
+  const maxRetries = 3;
+  const baseDelay = 5000; // Start with 5 seconds
+  let retryCount = 0;
 
-  if (argv.verbose) {
+  // Function to execute with retry logic
+  const executeWithRetry = async () => {
+    // Execute claude command from the cloned repository directory
+    if (retryCount === 0) {
+      await log(`\n${formatAligned('🤖', 'Executing Claude:', argv.model.toUpperCase())}`);
+    } else {
+      await log(`\n${formatAligned('🔄', 'Retry attempt:', `${retryCount}/${maxRetries}`)}`);
+    }
+
+    if (argv.verbose) {
     // Output the actual model being used
     const modelName = argv.model === 'opus' ? 'opus' : 'sonnet';
     await log(`   Model: ${modelName}`, { verbose: true });
@@ -298,13 +309,14 @@ export const executeClaudeCommand = async (params) => {
   await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
   await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
 
-  // Use command-stream's async iteration for real-time streaming with file logging
-  let commandFailed = false;
-  let sessionId = null;
-  let limitReached = false;
-  let messageCount = 0;
-  let toolUseCount = 0;
-  let lastMessage = '';
+    // Use command-stream's async iteration for real-time streaming with file logging
+    let commandFailed = false;
+    let sessionId = null;
+    let limitReached = false;
+    let messageCount = 0;
+    let toolUseCount = 0;
+    let lastMessage = '';
+    let isOverloadError = false;
 
   // Build claude command with optional resume flag
   let execCommand;
@@ -413,6 +425,23 @@ export const executeClaudeCommand = async (params) => {
               lastMessage = data.error || JSON.stringify(data);
             }
 
+            // Check for API overload error
+            if (data.type === 'assistant' && data.message && data.message.content) {
+              const content = Array.isArray(data.message.content) ? data.message.content : [data.message.content];
+              for (const item of content) {
+                if (item.type === 'text' && item.text) {
+                  // Check for the specific error pattern from the issue
+                  if (item.text.includes('API Error: 500') &&
+                      item.text.includes('api_error') &&
+                      item.text.includes('Overloaded')) {
+                    isOverloadError = true;
+                    lastMessage = item.text;
+                    await log('⚠️ Detected API overload error', { verbose: true });
+                  }
+                }
+              }
+            }
+
           } catch {
             // Not JSON or parsing failed, output as-is if it's not empty
             if (line.trim() && !line.includes('node:internal')) {
@@ -435,6 +464,37 @@ export const executeClaudeCommand = async (params) => {
           commandFailed = true;
         }
         // Don't break here - let the loop finish naturally to process all output
+      }
+    }
+
+    // Check if this is an overload error that should be retried
+    if ((commandFailed || isOverloadError) &&
+        (isOverloadError ||
+         (lastMessage.includes('API Error: 500') && lastMessage.includes('Overloaded')) ||
+         (lastMessage.includes('api_error') && lastMessage.includes('Overloaded')))) {
+
+      if (retryCount < maxRetries) {
+        // Calculate exponential backoff delay
+        const delay = baseDelay * Math.pow(2, retryCount);
+        await log(`\n⚠️ API overload error detected. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+        await log(`   Error: ${lastMessage.substring(0, 200)}`, { verbose: true });
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Increment retry count and retry
+        retryCount++;
+        return await executeWithRetry();
+      } else {
+        await log(`\n\n❌ API overload error persisted after ${maxRetries} retries`, { level: 'error' });
+        await log('   The API appears to be heavily loaded. Please try again later.', { level: 'error' });
+        return {
+          success: false,
+          sessionId,
+          limitReached: false,
+          messageCount,
+          toolUseCount
+        };
       }
     }
 
@@ -497,6 +557,25 @@ export const executeClaudeCommand = async (params) => {
       toolUseCount
     };
   } catch (error) {
+    // Check if this is an overload error in the exception
+    const errorStr = error.message || error.toString();
+    if ((errorStr.includes('API Error: 500') && errorStr.includes('Overloaded')) ||
+        (errorStr.includes('api_error') && errorStr.includes('Overloaded'))) {
+
+      if (retryCount < maxRetries) {
+        // Calculate exponential backoff delay
+        const delay = baseDelay * Math.pow(2, retryCount);
+        await log(`\n⚠️ API overload error in exception. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Increment retry count and retry
+        retryCount++;
+        return await executeWithRetry();
+      }
+    }
+
     await log(`\n\n❌ Error executing Claude command: ${error.message}`, { level: 'error' });
     return {
       success: false,
@@ -506,6 +585,10 @@ export const executeClaudeCommand = async (params) => {
       toolUseCount
     };
   }
+  }; // End of executeWithRetry function
+
+  // Start the execution with retry logic
+  return await executeWithRetry();
 };
 
 
