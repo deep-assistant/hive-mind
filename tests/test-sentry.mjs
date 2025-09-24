@@ -72,9 +72,11 @@ runTest('Sentry packages in package.json', () => {
 // Test 4: Test --no-sentry flag in hive.mjs
 runTest('hive.mjs supports --no-sentry flag', () => {
   try {
-    const output = execSync(`node ${join(projectRoot, 'src', 'hive.mjs')} --help`, {
+    // Capture both stdout and stderr since yargs might output to stderr
+    const output = execSync(`node ${join(projectRoot, 'src', 'hive.mjs')} --help 2>&1`, {
       encoding: 'utf8',
-      cwd: projectRoot
+      cwd: projectRoot,
+      stdio: 'pipe'
     });
     return output.includes('--no-sentry');
   } catch (error) {
@@ -89,9 +91,11 @@ runTest('hive.mjs supports --no-sentry flag', () => {
 // Test 5: Test --no-sentry flag in solve.mjs
 runTest('solve.mjs supports --no-sentry flag', () => {
   try {
-    const output = execSync(`node ${join(projectRoot, 'src', 'solve.mjs')} --help`, {
+    // Capture both stdout and stderr since yargs might output to stderr
+    const output = execSync(`node ${join(projectRoot, 'src', 'solve.mjs')} --help 2>&1`, {
       encoding: 'utf8',
-      cwd: projectRoot
+      cwd: projectRoot,
+      stdio: 'pipe'
     });
     return output.includes('--no-sentry');
   } catch (error) {

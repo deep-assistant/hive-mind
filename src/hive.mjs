@@ -293,8 +293,9 @@ const createYargsConfig = (yargsInstance) => {
 // Check for help flag before processing other arguments
 const rawArgs = hideBin(process.argv);
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit
-  createYargsConfig(yargs(rawArgs)).showHelp();
+  // Show help and exit - filter out help flags to avoid duplicate display
+  const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
+  createYargsConfig(yargs(argsWithoutHelp)).showHelp();
   await safeExit(0, 'Process completed');
 }
 

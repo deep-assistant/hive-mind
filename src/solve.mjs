@@ -36,7 +36,9 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   const { initializeConfig, createYargsConfig } = config;
   const { yargs, hideBin } = await initializeConfig(use);
   const rawArgs = hideBin(process.argv);
-  createYargsConfig(yargs(rawArgs)).showHelp();
+  // Filter out help flags to avoid duplicate display
+  const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
+  createYargsConfig(yargs(argsWithoutHelp)).showHelp();
   process.exit(0);
 }
 if (earlyArgs.length === 0) {
