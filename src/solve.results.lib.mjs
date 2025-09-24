@@ -25,6 +25,9 @@ const {
   formatAligned
 } = lib;
 
+// Import exit handler
+import { safeExit } from './exit-handler.lib.mjs';
+
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
@@ -231,7 +234,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
         await log('\n✨ Please review the pull request for the proposed solution draft.');
         // Don't exit if watch mode is enabled - it needs to continue monitoring
         if (!argv.watch) {
-          process.exit(0);
+          await safeExit(0, 'Process completed successfully');
         }
         return; // Return normally for watch mode
       } else {
@@ -287,7 +290,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
       await log('\n✨ A clarifying comment has been added to the issue.');
       // Don't exit if watch mode is enabled - it needs to continue monitoring
       if (!argv.watch) {
-        process.exit(0);
+        await safeExit(0, 'Process completed successfully');
       }
       return; // Return normally for watch mode
     } else if (allComments.length > 0) {
@@ -305,7 +308,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
     await log(`   ${reviewLogPath}`);
     // Don't exit if watch mode is enabled - it needs to continue monitoring
     if (!argv.watch) {
-      process.exit(0);
+      await safeExit(0, 'Process completed successfully');
     }
     return; // Return normally for watch mode
 
@@ -317,7 +320,7 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
     await log(`   ${checkLogPath}`);
     // Don't exit if watch mode is enabled - it needs to continue monitoring
     if (!argv.watch) {
-      process.exit(0);
+      await safeExit(0, 'Process completed successfully');
     }
     return; // Return normally for watch mode
   }
@@ -373,5 +376,5 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
     }
   }
 
-  process.exit(1);
+  await safeExit(1, 'Execution error');
 };

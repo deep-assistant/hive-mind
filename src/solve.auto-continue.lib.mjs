@@ -21,6 +21,9 @@ const {
   cleanErrorMessage
 } = lib;
 
+// Import exit handler
+import { safeExit } from './exit-handler.lib.mjs';
+
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
@@ -96,7 +99,7 @@ export const autoContinueWhenLimitResets = async (issueUrl, sessionId, argv, sho
     await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log('\n🔄 Manual resume command:');
     await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
-    process.exit(1);
+    await safeExit(1, 'Auto-continue failed');
   }
 };
 
@@ -212,7 +215,7 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
       if (prResult.code !== 0) {
         await log('Error: Failed to get PR details', { level: 'error' });
         await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-        process.exit(1);
+        await safeExit(1, 'Auto-continue failed');
       }
 
       const prData = JSON.parse(prResult.stdout.toString());
@@ -240,7 +243,7 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
       }
     } catch (error) {
       await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
-      process.exit(1);
+      await safeExit(1, 'Auto-continue failed');
     }
   }
 
