@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
-// Handle version early
 if (earlyArgs.includes('--version')) {
   // Quick version output without loading modules
   // Get version from package.json or use dev version format
@@ -26,7 +25,6 @@ if (earlyArgs.includes('--version')) {
   }
   process.exit(0);
 }
-// Handle help early
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   // Load minimal modules needed for help
   const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
@@ -38,159 +36,56 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   createYargsConfig(yargs(rawArgs)).showHelp();
   process.exit(0);
 }
-// Handle no arguments early (must exit before loading modules)
 if (earlyArgs.length === 0) {
   console.error('Usage: solve.mjs <issue-url> [options]');
   console.error('\nError: Missing required github issue or pull request URL');
   console.error('\nRun "solve.mjs --help" for more information');
   process.exit(1);
 }
-
 // Now load all modules for normal operation
-// Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-
-// Set use globally so imported modules can access it
 globalThis.use = use;
-
-// Use command-stream for consistent $ behavior across runtimes
 const { $ } = await use('command-stream');
-
-// Import CLI configuration module
 const config = await import('./solve.config.lib.mjs');
 const { initializeConfig, parseArguments, createYargsConfig } = config;
-
-// Initialize yargs and hideBin using the shared 'use' function
 const { yargs, hideBin } = await initializeConfig(use);
-
 const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
-
-// Import memory check functions (RAM, swap, disk)
 const memoryCheck = await import('./memory-check.mjs');
-
-// Import shared library functions
 const lib = await import('./lib.mjs');
-const {
-  log,
-  setLogFile,
-  getLogFile,
-  cleanErrorMessage,
-  formatAligned,
-  getVersionInfo
-} = lib;
-
-// Import GitHub-related functions
+const { log, setLogFile, getLogFile, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
-const {
-  sanitizeLogContent,
-  checkFileInBranch,
-  checkGitHubPermissions,
-  attachLogToGitHub
-} = githubLib;
-
-// Import Claude-related functions
+const { sanitizeLogContent, checkFileInBranch, checkGitHubPermissions, attachLogToGitHub } = githubLib;
 const claudeLib = await import('./claude.lib.mjs');
-const {
-  validateClaudeConnection
-} = claudeLib;
-
-// Import validation functions
+const { validateClaudeConnection } = claudeLib;
 const validation = await import('./solve.validation.lib.mjs');
-const {
-  validateGitHubUrl,
-  showAttachLogsWarning,
-  initializeLogFile,
-  validateUrlRequirement,
-  validateContinueOnlyOnFeedback,
-  performSystemChecks,
-  parseUrlComponents,
-  parseResetTime,
-  calculateWaitTime
-} = validation;
-
-// Import auto-continue functions
+const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents, parseResetTime, calculateWaitTime } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
-const {
-  autoContinueWhenLimitResets,
-  checkExistingPRsForAutoContinue,
-  processPRMode,
-  processAutoContinueForIssue
-} = autoContinue;
-
-// Import repository management functions
+const { autoContinueWhenLimitResets, checkExistingPRsForAutoContinue, processPRMode, processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
-const {
-  setupTempDirectory,
-  setupRepository,
-  cloneRepository,
-  setupUpstreamAndSync,
-  cleanupTempDirectory
-} = repository;
-
-// Import results processing functions
+const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, cleanupTempDirectory } = repository;
 const results = await import('./solve.results.lib.mjs');
-const {
-  cleanupClaudeFile,
-  showSessionSummary,
-  verifyResults,
-  handleExecutionError
-} = results;
-
-// Import Claude execution functions
+const { cleanupClaudeFile, showSessionSummary, verifyResults, handleExecutionError } = results;
 const claudeExecution = await import('./solve.claude-execution.lib.mjs');
-const {
-  executeClaude,
-  executeClaudeCommand,
-  buildSystemPrompt,
-  buildUserPrompt,
-  checkForUncommittedChanges
-} = claudeExecution;
-
-// Import feedback detection functions
+const { executeClaude, executeClaudeCommand, buildSystemPrompt, buildUserPrompt, checkForUncommittedChanges } = claudeExecution;
 const feedback = await import('./solve.feedback.lib.mjs');
-const {
-  detectAndCountFeedback
-} = feedback;
-
-// Import error handling functions
+const { detectAndCountFeedback } = feedback;
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
-const {
-  createUncaughtExceptionHandler,
-  createUnhandledRejectionHandler,
-  handleMainExecutionError
-} = errorHandlers;
-
-// Import watch mode functions
+const { createUncaughtExceptionHandler, createUnhandledRejectionHandler, handleMainExecutionError } = errorHandlers;
+const branchErrors = await import('./solve.branch-errors.lib.mjs');
+const { handleBranchCheckoutError, handleBranchCreationError, handleBranchVerificationError } = branchErrors;
 const watchLib = await import('./solve.watch.lib.mjs');
-const {
-  startWatchMode
-} = watchLib;
-
-// solve-helpers.mjs is no longer needed - functions moved to lib.mjs and github.lib.mjs
-
-// Global log file reference (will be passed to lib.mjs)
-
-// Use getResourceSnapshot from memory-check module
+const { startWatchMode } = watchLib;
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
-// Parse command line arguments using the config module
 const argv = await parseArguments(yargs, hideBin);
-
-// Set global verbose mode for log function
 global.verboseMode = argv.verbose;
-
-// URL validation will be done after version logging
-
-// Debug logging for attach-logs option
 if (argv.verbose) {
   await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
   await log(`Debug: argv["attach-logs"] = ${argv['attach-logs']}`, { verbose: true });
 }
-
-// Show security warning and initialize log file using validation module
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
@@ -479,61 +374,31 @@ try {
   if (checkoutResult.code !== 0) {
     const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
     await log('');
-    
+
     if (isContinueMode) {
-      await log(`${formatAligned('❌', 'BRANCH CHECKOUT FAILED', '')}`, { level: 'error' });
-      await log('');
-      await log('  🔍 What happened:');
-      await log(`     Unable to checkout PR branch '${branchName}'.`);
-      await log('');
-      await log('  📦 Git output:');
-      for (const line of errorOutput.split('\n')) {
-        await log(`     ${line}`);
-      }
-      await log('');
-      await log('  💡 Possible causes:');
-      await log('     • PR branch doesn\'t exist on remote');
-      await log('     • Network connectivity issues');
-      await log('     • Permission denied to fetch branches');
-      if (isForkPR) {
-        await log('     • This is a forked PR - branch is in the fork, not the main repo');
-      }
-      await log('');
-      await log('  🔧 How to fix:');
-      if (isForkPR) {
-        await log('     1. Use --fork option (RECOMMENDED for forked PRs):');
-        await log(`        ./solve.mjs "${issueUrl}" --fork`);
-        await log('        This will create a fork and work from there.');
-        await log('');
-        await log('     2. Alternative diagnostic steps:');
-        await log(`        • Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
-        await log(`        • Check remote branches: cd ${tempDir} && git branch -r`);
-        await log(`        • Try fetching manually: cd ${tempDir} && git fetch origin`);
-      } else {
-        await log(`     1. Verify PR branch exists: gh pr view ${prNumber} --repo ${owner}/${repo}`);
-        await log(`     2. Check remote branches: cd ${tempDir} && git branch -r`);
-        await log(`     3. Try fetching manually: cd ${tempDir} && git fetch origin`);
-      }
+      await handleBranchCheckoutError({
+        branchName,
+        prNumber,
+        errorOutput,
+        issueUrl,
+        owner,
+        repo,
+        tempDir,
+        argv,
+        formatAligned,
+        log,
+        $
+      });
     } else {
-      await log(`${formatAligned('❌', 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
-      await log('');
-      await log('  🔍 What happened:');
-      await log(`     Unable to create branch '${branchName}'.`);
-      await log('');
-      await log('  📦 Git output:');
-      for (const line of errorOutput.split('\n')) {
-        await log(`     ${line}`);
-      }
-      await log('');
-      await log('  💡 Possible causes:');
-      await log('     • Branch name already exists');
-      await log('     • Uncommitted changes in repository');
-      await log('     • Git configuration issues');
-      await log('');
-      await log('  🔧 How to fix:');
-      await log('     1. Try running the command again (uses random names)');
-      await log(`     2. Check git status: cd ${tempDir} && git status`);
-      await log(`     3. View existing branches: cd ${tempDir} && git branch -a`);
+      await handleBranchCreationError({
+        branchName,
+        errorOutput,
+        tempDir,
+        owner,
+        repo,
+        formatAligned,
+        log
+      });
     }
     
     await log('');
@@ -562,63 +427,18 @@ try {
   const actualBranch = verifyResult.stdout.toString().trim();
   if (actualBranch !== branchName) {
     // Branch wasn't actually created/checked out or we didn't switch to it
-    await log('');
-    await log(`${formatAligned('❌', isContinueMode ? 'BRANCH CHECKOUT FAILED' : 'BRANCH CREATION FAILED', '')}`, { level: 'error' });
-    await log('');
-    await log('  🔍 What happened:');
-    if (isContinueMode) {
-      await log('     Git checkout command didn\'t switch to the PR branch.');
-    } else {
-      await log('     Git checkout -b command didn\'t create or switch to the branch.');
-    }
-    await log('');
-    await log('  📊 Branch status:');
-    await log(`     Expected branch: ${branchName}`);
-    await log(`     Currently on: ${actualBranch || '(unknown)'}`);
-    await log('');
-    
-    // Show all branches to help debug
-    const allBranchesResult = await $({ cwd: tempDir })`git branch -a 2>&1`;
-    if (allBranchesResult.code === 0) {
-      await log('  🌿 Available branches:');
-      for (const line of allBranchesResult.stdout.toString().split('\n')) {
-        if (line.trim()) await log(`     ${line}`);
-      }
-      await log('');
-    }
-    
-    if (isContinueMode) {
-      await log('  💡 This might mean:');
-      await log('     • PR branch doesn\'t exist on remote');
-      await log('     • Branch name mismatch');
-      await log('     • Network/permission issues');
-      await log('');
-      await log('  🔧 How to fix:');
-      await log(`     1. Check PR details: gh pr view ${prNumber} --repo ${owner}/${repo}`);
-      await log(`     2. List remote branches: cd ${tempDir} && git branch -r`);
-      await log(`     3. Try manual checkout: cd ${tempDir} && git checkout ${branchName}`);
-    } else {
-      await log('  💡 This is unusual. Possible causes:');
-      await log('     • Git version incompatibility');
-      await log('     • File system permissions issue');
-      await log('     • Repository corruption');
-      await log('');
-      await log('  🔧 How to fix:');
-      await log('     1. Try creating the branch manually:');
-      await log(`        cd ${tempDir}`);
-      await log(`        git checkout -b ${branchName}`);
-      await log('     ');
-      await log('     2. If that fails, try two-step approach:');
-      await log(`        cd ${tempDir}`);
-      await log(`        git branch ${branchName}`);
-      await log(`        git checkout ${branchName}`);
-      await log('     ');
-      await log('     3. Check your git version:');
-      await log('        git --version');
-    }
-    await log('');
-    await log(`  📂 Working directory: ${tempDir}`);
-    await log('');
+    await handleBranchVerificationError({
+      isContinueMode,
+      branchName,
+      actualBranch,
+      prNumber,
+      owner,
+      repo,
+      tempDir,
+      formatAligned,
+      log,
+      $
+    });
     process.exit(1);
   }
   
@@ -763,6 +583,25 @@ Issue: ${issueUrl}`;
           
           // Check for permission denied error
           if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {
+            // Check if user already has a fork
+            let userHasFork = false;
+            let currentUser = null;
+            try {
+              const userResult = await $`gh api user --jq .login`;
+              if (userResult.code === 0) {
+                currentUser = userResult.stdout.toString().trim();
+                const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json parent 2>/dev/null`;
+                if (forkCheckResult.code === 0) {
+                  const forkData = JSON.parse(forkCheckResult.stdout.toString());
+                  if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
+                    userHasFork = true;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore error
+            }
+
             await log(`\n${formatAligned('❌', 'PERMISSION DENIED:', 'Cannot push to repository')}`, { level: 'error' });
             await log('');
             await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -775,16 +614,28 @@ Issue: ${issueUrl}`;
             await log('');
             await log('  📋 HOW TO FIX THIS:');
             await log('');
-            await log('  Option 1: Use the --fork flag (RECOMMENDED)');
-            await log(`  ${'-'.repeat(40)}`);
+            await log('  ┌──────────────────────────────────────────────────────────┐');
+            await log('  │  RECOMMENDED: Use the --fork option                     │');
+            await log('  └──────────────────────────────────────────────────────────┘');
+            await log('');
             await log('  Run the command again with --fork:');
             await log('');
             await log(`    ./solve.mjs "${issueUrl}" --fork`);
             await log('');
-            await log('  This will:');
-            await log('    ✓ Fork the repository to your account');
+            await log('  This will automatically:');
+            if (userHasFork) {
+              await log(`    ✓ Use your existing fork (${currentUser}/${repo})`);
+              await log('    ✓ Sync your fork with the latest changes');
+            } else {
+              await log('    ✓ Fork the repository to your account');
+            }
             await log('    ✓ Push changes to your fork');
             await log('    ✓ Create a PR from your fork to the original repo');
+            await log('    ✓ Handle all the remote setup automatically');
+            await log('');
+            await log('  ─────────────────────────────────────────────────────────');
+            await log('');
+            await log('  Alternative options:');
             await log('');
             await log('  Option 2: Request collaborator access');
             await log(`  ${'-'.repeat(40)}`);
@@ -800,6 +651,9 @@ Issue: ${issueUrl}`;
             await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             await log('');
             await log('💡 Tip: The --fork option automates the entire fork workflow!');
+            if (userHasFork) {
+              await log(`   Note: We detected you already have a fork at ${currentUser}/${repo}`);
+            }
             await log('');
             process.exit(1);
           } else {
