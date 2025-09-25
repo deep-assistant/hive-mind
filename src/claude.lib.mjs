@@ -5,7 +5,6 @@
 // If not, fetch it (when running standalone)
 if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
-const use = globalThis.use;
 }
 
 const { $ } = await use('command-stream');
@@ -13,6 +12,7 @@ const fs = (await use('fs')).promises;
 
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
+import { reportError } from './sentry.lib.mjs';
 
 // Function to validate Claude CLI connection with retry logic
 export const validateClaudeConnection = async (model = 'sonnet') => {
@@ -84,6 +84,12 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
           }
         } catch (e) {
           // Not valid JSON, continue with other checks
+          if (global.verboseMode) {
+            reportError(e, {
+              context: 'claude_json_error_parse',
+              level: 'debug'
+            });
+          }
         }
         return null;
       };
@@ -192,6 +198,10 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await $`which bun`;
         await log('   ✅ Bun runtime found');
       } catch (bunError) {
+        reportError(bunError, {
+          context: 'claude.lib.mjs - bun availability check',
+          level: 'error'
+        });
         await log('❌ Bun runtime not found. Please install bun first: https://bun.sh/', { level: 'error' });
         process.exit(1);
       }
@@ -211,16 +221,20 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
+        reportError(accessError, {
+          context: 'claude.lib.mjs - Claude executable write permission check (bun)',
+          level: 'error'
+        });
         await log('❌ Cannot write to Claude executable (permission denied)', { level: 'error' });
         await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
-      
+
       // Read current shebang
       const firstLine = await $`head -1 "${claudePath}"`;
       const currentShebang = firstLine.stdout.toString().trim();
       await log(`   Current shebang: ${currentShebang}`);
-      
+
       if (currentShebang.includes('bun')) {
         await log('   ✅ Claude is already configured to use bun');
         process.exit(0);
@@ -262,6 +276,10 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await $`which node`;
         await log('   ✅ Node.js runtime found');
       } catch (nodeError) {
+        reportError(nodeError, {
+          context: 'claude.lib.mjs - Node.js availability check',
+          level: 'error'
+        });
         await log('❌ Node.js runtime not found. Please install Node.js first', { level: 'error' });
         process.exit(1);
       }
@@ -281,16 +299,20 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
+        reportError(accessError, {
+          context: 'claude.lib.mjs - Claude executable write permission check (nodejs)',
+          level: 'error'
+        });
         await log('❌ Cannot write to Claude executable (permission denied)', { level: 'error' });
         await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
-      
+
       // Read current shebang
       const firstLine = await $`head -1 "${claudePath}"`;
       const currentShebang = firstLine.stdout.toString().trim();
       await log(`   Current shebang: ${currentShebang}`);
-      
+
       if (currentShebang.includes('node') && !currentShebang.includes('bun')) {
         await log('   ✅ Claude is already configured to use Node.js');
         process.exit(0);
@@ -304,6 +326,10 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await $`cp "${backupPath}" "${claudePath}"`;
         await log(`   ✅ Restored Claude from backup: ${backupPath}`);
       } catch (backupError) {
+        reportError(backupError, {
+          context: 'claude_restore_backup',
+          level: 'info'
+        });
         // No backup available, manually update shebang
         await log('   📝 No backup found, manually updating shebang...');
         const content = await fs.readFile(claudePath, 'utf8');

@@ -17,7 +17,7 @@ const { $ } = await use('command-stream');
 const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
-const crypto = (await use('crypto')).default;
+// crypto module not used, removed to fix linting
 
 // Import memory check functions (RAM, swap, disk)
 const memoryCheck = await import('./memory-check.mjs');
@@ -256,7 +256,7 @@ export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
 };
 
 // Execute the main solve logic with Claude
-export const executeMainSolveLogic = async (tempDir, repoToClone, claudePath, argv, issueUrl, sessionId, owner, repo, issueNumber) => {
+export const executeMainSolveLogic = async (tempDir, repoToClone, _claudePath, _argv, _issueUrl, _sessionId, _owner, _repo, _issueNumber) => {
   // Clone the repository (or fork) using gh tool with authentication
   await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}`);
 

@@ -5,7 +5,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 
 // Import Sentry integration
 import { reportError } from './sentry.lib.mjs';

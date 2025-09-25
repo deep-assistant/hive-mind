@@ -42,14 +42,10 @@ const {
 } = autoContinue;
 
 // Import error handling functions
-const errorHandlers = await import('./solve.error-handlers.lib.mjs');
+// const errorHandlers = await import('./solve.error-handlers.lib.mjs'); // Not currently used
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
-
-const {
-  handleFailure
-} = errorHandlers;
 
 // Remove CLAUDE.md and commit the deletion
 export const cleanupClaudeFile = async (tempDir, branchName) => {

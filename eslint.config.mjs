@@ -35,7 +35,7 @@ export default [
     files: ['**/*.mjs', '**/*.js'],
     rules: {
       'no-undef': 'error',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'no-console': 'off',
       'semi': ['error', 'always'],
       'quotes': ['error', 'single', { avoidEscape: true }]

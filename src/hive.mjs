@@ -18,7 +18,7 @@ const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
-const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError, cleanupTempDirectories } = lib;
+const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, cleanupTempDirectories } = lib;
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
@@ -26,7 +26,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, normalizeGitHubUrl } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl } = githubLib;
 
 // Import memory check functions
 const memCheck = await import('./memory-check.mjs');
@@ -38,7 +38,7 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
-const { initializeSentry, withSentry, addBreadcrumb, reportError, flushSentry, closeSentry } = sentryLib;
+const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
@@ -714,7 +714,7 @@ async function worker(workerId) {
         let exitCode = 0;
 
         // Create promise to handle async spawn process
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve, _reject) => {
           const child = spawn(solveCommand, args, {
             stdio: ['pipe', 'pipe', 'pipe']
           });
@@ -1015,7 +1015,7 @@ async function fetchIssues() {
       const filteredIssues = [];
       let totalSkipped = 0;
 
-      for (const [repoKey, repoData] of Object.entries(issuesByRepo)) {
+      for (const repoData of Object.values(issuesByRepo)) {
         const issueNumbers = repoData.issues.map(i => i.number);
         const prResults = await batchCheckPullRequestsForIssues(repoData.owner, repoData.repo, issueNumbers);
 

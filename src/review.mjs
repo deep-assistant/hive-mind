@@ -11,39 +11,10 @@ const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 
-// Global log file reference
-let logFile = null;
+// Import shared functions from lib.mjs to follow DRY principle
+import { log, setLogFile, getLogFile } from './lib.mjs';
+import { reportError } from './sentry.lib.mjs';
 
-// Helper function to log to both console and file
-const log = async (message, options = {}) => {
-  const { level = 'info', verbose = false } = options;
-  
-  // Skip verbose logs unless --verbose is enabled
-  if (verbose && !global.verboseMode) {
-    return;
-  }
-  
-  // Write to file if log file is set
-  if (logFile) {
-    const logMessage = `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
-    await fs.appendFile(logFile, logMessage + '\n').catch(() => {});
-  }
-  
-  // Write to console based on level
-  switch (level) {
-    case 'error':
-      console.error(message);
-      break;
-    case 'warning':
-    case 'warn':
-      console.warn(message);
-      break;
-    case 'info':
-    default:
-      console.log(message);
-      break;
-  }
-};
 
 // Configure command line arguments - GitHub PR URL as positional argument
 const argv = yargs(process.argv.slice(2))
@@ -99,11 +70,12 @@ global.verboseMode = argv.verbose;
 // Create permanent log file immediately with timestamp
 const scriptDir = path.dirname(process.argv[1]);
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-logFile = path.join(scriptDir, `review-${timestamp}.log`);
+const logFilePath = path.join(scriptDir, `review-${timestamp}.log`);
+setLogFile(logFilePath);
 
 // Create the log file immediately
-await fs.writeFile(logFile, `# Review.mjs Log - ${new Date().toISOString()}\n\n`);
-await log(`📁 Log file: ${logFile}`);
+await fs.writeFile(logFilePath, `# Review.mjs Log - ${new Date().toISOString()}\n\n`);
+await log(`📁 Log file: ${logFilePath}`);
 await log(`   (All output will be logged here)\n`);
 
 // Validate GitHub PR URL format
@@ -139,6 +111,10 @@ if (isResuming) {
     await fs.mkdir(tempDir, { recursive: true });
     await log(`Creating new temporary directory for resumed session: ${tempDir}`);
   } catch (err) {
+    reportError(err, {
+      context: 'resume_session_lookup',
+      sessionId: argv.resume
+    });
     await log(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
     tempDir = path.join(os.tmpdir(), `gh-pr-reviewer-resume-${argv.resume}-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
@@ -352,6 +328,14 @@ Review this pull request thoroughly.`;
         json = JSON.parse(data);
         await log(JSON.stringify(json, null, 2));
       } catch (error) {
+        // JSON parse errors are expected for non-JSON output
+        // Only report in verbose mode
+        if (global.verboseMode) {
+          reportError(error, {
+            context: 'parse_claude_output',
+            level: 'debug'
+          });
+        }
         await log(data);
         continue;
       }
@@ -363,13 +347,18 @@ Review this pull request thoroughly.`;
         
         // Try to rename log file to include session ID
         try {
+          const currentLogFile = getLogFile();
           const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-          await fs.rename(logFile, sessionLogFile);
-          logFile = sessionLogFile;
-          await log(`📁 Log renamed to: ${logFile}`);
+          await fs.rename(currentLogFile, sessionLogFile);
+          setLogFile(sessionLogFile);
+          await log(`📁 Log renamed to: ${sessionLogFile}`);
         } catch (renameError) {
+          reportError(renameError, {
+            context: 'rename_log_file',
+            level: 'warning'
+          });
           // If rename fails, keep original filename
-          await log(`📁 Keeping log file: ${logFile}`);
+          await log(`📁 Keeping log file: ${getLogFile()}`);
         }
         await log('');
       }
@@ -460,6 +449,11 @@ Review this pull request thoroughly.`;
           await log(`ℹ️  Review may be pending or saved as draft`);
         }
       } catch (error) {
+        reportError(error, {
+          context: 'verify_review_status',
+          prNumber,
+          level: 'warning'
+        });
         await log(`⚠️  Could not verify review status`);
       }
       
@@ -477,6 +471,10 @@ Review this pull request thoroughly.`;
   await log(`📍 Pull Request: ${prUrl}`);
 
 } catch (error) {
+  reportError(error, {
+    context: 'review_execution',
+    prUrl: argv._[0]
+  });
   await log('Error executing review:', error.message, { level: 'error' });
   process.exit(1);
 } finally {
@@ -487,6 +485,11 @@ Review this pull request thoroughly.`;
       await fs.rm(tempDir, { recursive: true, force: true });
       await log(' ✅');
     } catch (cleanupError) {
+      reportError(cleanupError, {
+        context: 'cleanup_temp_dir',
+        level: 'warning',
+        tempDir
+      });
       await log(' ⚠️  (failed)');
     }
   } else if (argv.resume) {

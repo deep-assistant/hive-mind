@@ -105,7 +105,7 @@ export const watchForFeedback = async (params) => {
   await log('Press Ctrl+C to stop watching manually');
   await log('');
 
-  let lastCheckTime = new Date();
+  // let lastCheckTime = new Date(); // Not currently used
   let iteration = 0;
   let firstIterationInTemporaryMode = isTemporaryWatch;
 
@@ -269,8 +269,7 @@ export const watchForFeedback = async (params) => {
           await log(formatAligned('✅', 'Claude execution completed:', 'Resuming watch mode...'));
         }
 
-        // Update last check time after restart completes
-        lastCheckTime = new Date();
+        // Note: lastCheckTime tracking removed as it was not being used
 
         // Clear the first iteration flag after handling initial uncommitted changes
         if (firstIterationInTemporaryMode) {

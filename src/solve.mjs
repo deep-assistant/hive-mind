@@ -56,13 +56,13 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
-const { initializeConfig, parseArguments, createYargsConfig } = config;
+const { initializeConfig, parseArguments } = config;
 
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
-const { initializeSentry, withSentry, addBreadcrumb, reportError, flushSentry, closeSentry } = sentryLib;
+const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
 const { yargs, hideBin } = await initializeConfig(use);
-const os = (await use('os')).default;
+// const os = (await use('os')).default; // Not currently used
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
@@ -70,19 +70,20 @@ const memoryCheck = await import('./memory-check.mjs');
 const lib = await import('./lib.mjs');
 const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
-const { sanitizeLogContent, checkFileInBranch, checkGitHubPermissions, attachLogToGitHub } = githubLib;
-const claudeLib = await import('./claude.lib.mjs');
-const { validateClaudeConnection } = claudeLib;
+const { sanitizeLogContent, attachLogToGitHub } = githubLib;
+// Claude lib import removed - not currently used
+// const claudeLib = await import('./claude.lib.mjs');
+// const { validateClaudeConnection } = claudeLib; // Not currently used
 const validation = await import('./solve.validation.lib.mjs');
-const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents, parseResetTime, calculateWaitTime } = validation;
+const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
-const { autoContinueWhenLimitResets, checkExistingPRsForAutoContinue, processPRMode, processAutoContinueForIssue } = autoContinue;
+const { processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
 const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, cleanupTempDirectory } = repository;
 const results = await import('./solve.results.lib.mjs');
-const { cleanupClaudeFile, showSessionSummary, verifyResults, handleExecutionError } = results;
+const { cleanupClaudeFile, showSessionSummary, verifyResults } = results;
 const claudeExecution = await import('./solve.claude-execution.lib.mjs');
-const { executeClaude, executeClaudeCommand, buildSystemPrompt, buildUserPrompt, checkForUncommittedChanges } = claudeExecution;
+const { executeClaude, checkForUncommittedChanges } = claudeExecution;
 const feedback = await import('./solve.feedback.lib.mjs');
 const { detectAndCountFeedback } = feedback;
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
@@ -223,7 +224,7 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let mergeStateStatus;
-let isForkPR = false;
+// let isForkPR = false; // Not currently used
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
@@ -267,7 +268,8 @@ if (isPrUrl) {
     mergeStateStatus = prData.mergeStateStatus;
 
     // Check if this is a fork PR
-    isForkPR = prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner;
+    // Check if this is a fork PR (not currently used)
+    // isForkPR = prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner;
 
     await log(`📝 PR branch: ${prBranch}`);
     
@@ -301,7 +303,7 @@ if (isPrUrl) {
 }
 
 // Create or find temporary directory for cloning the repository
-const { tempDir, isResuming } = await setupTempDirectory(argv);
+const { tempDir } = await setupTempDirectory(argv);
 
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
@@ -1147,7 +1149,7 @@ ${prBody}`, { verbose: true });
   // Now we have the PR URL if one was created
 
   // Count new comments and detect feedback
-  let { newPrComments, newIssueComments, commentInfo, feedbackLines } = await detectAndCountFeedback({
+  let { feedbackLines } = await detectAndCountFeedback({
     prNumber,
     branchName,
     owner,
@@ -1298,7 +1300,7 @@ ${prBody}`, { verbose: true });
     $
   });
 
-  const { success, sessionId, messageCount, toolUseCount } = claudeResult;
+  const { success, sessionId } = claudeResult;
   limitReached = claudeResult.limitReached;
 
   if (!success) {
