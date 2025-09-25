@@ -1,5 +1,47 @@
 #!/usr/bin/env node
 
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+
+if (earlyArgs.includes('--version')) {
+  // Quick version output without loading modules
+  const { readFileSync } = await import('fs');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const { getGitVersion } = await import('./git.lib.mjs');
+  const { execSync } = await import('child_process');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const packagePath = join(__dirname, '..', 'package.json');
+
+  try {
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+    const version = await getGitVersion(execSync, currentVersion);
+    console.log(version);
+  } catch (versionError) {
+    // Fallback to hardcoded version if all else fails
+    console.log('0.10.4');
+  }
+  process.exit(0);
+}
+
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Show help and exit
+  console.log('Usage: review.mjs <pr-url> [options]');
+  console.log('\nOptions:');
+  console.log('  --version          Show version number');
+  console.log('  --help, -h         Show help');
+  console.log('  --resume, -r       Resume from a previous session ID');
+  console.log('  --dry-run, -n      Prepare everything but do not execute Claude');
+  console.log('  --model, -m        Model to use (opus or sonnet) [default: opus]');
+  console.log('  --focus, -f        Focus areas for review [default: all]');
+  console.log('  --approve          If review passes, approve the PR');
+  console.log('  --verbose, -v      Enable verbose logging');
+  process.exit(0);
+}
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
 
@@ -15,6 +57,8 @@ const fs = (await use('fs')).promises;
 import { log, setLogFile, getLogFile } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 
+// Import Claude execution functions
+import { executeClaude, validateClaudeConnection } from './claude.lib.mjs';
 
 // Configure command line arguments - GitHub PR URL as positional argument
 const argv = yargs(process.argv.slice(2))

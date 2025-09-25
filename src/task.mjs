@@ -1,5 +1,48 @@
 #!/usr/bin/env node
 
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+
+if (earlyArgs.includes('--version')) {
+  // Quick version output without loading modules
+  const { readFileSync } = await import('fs');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const { getGitVersion } = await import('./git.lib.mjs');
+  const { execSync } = await import('child_process');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const packagePath = join(__dirname, '..', 'package.json');
+
+  try {
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+    const version = await getGitVersion(execSync, currentVersion);
+    console.log(version);
+  } catch (versionError) {
+    // Fallback to hardcoded version if all else fails
+    console.log('0.10.4');
+  }
+  process.exit(0);
+}
+
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Show help and exit
+  console.log('Usage: task.mjs <task-description> [options]');
+  console.log('\nOptions:');
+  console.log('  --version          Show version number');
+  console.log('  --help, -h         Show help');
+  console.log('  --clarify          Enable clarification mode [default: true]');
+  console.log('  --decompose        Enable decomposition mode [default: true]');
+  console.log('  --only-clarify     Only run clarification mode');
+  console.log('  --only-decompose   Only run decomposition mode');
+  console.log('  --model, -m        Model to use (opus or sonnet) [default: sonnet]');
+  console.log('  --verbose, -v      Enable verbose logging');
+  console.log('  --output-format    Output format (text or json) [default: text]');
+  process.exit(0);
+}
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
 
@@ -12,6 +55,9 @@ const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
 const { spawn } = (await use('child_process')).default;
+
+// Import Claude execution functions
+import { validateClaudeConnection } from './claude.lib.mjs';
 
 // Global log file reference
 let logFile = null;
