@@ -6,6 +6,9 @@
  * Provides improved error messages for branch checkout/creation failures
  */
 
+// Import Sentry integration
+import { reportError } from './sentry.lib.mjs';
+
 export async function handleBranchCheckoutError({
   branchName,
   prNumber,
@@ -43,11 +46,24 @@ export async function handleBranchCheckoutError({
               branchExistsInFork = true;
             }
           } catch (e) {
+            reportError(e, {
+              context: 'check_fork_for_branch',
+              prNumber,
+              forkOwner,
+              branchName,
+              operation: 'verify_fork_branch'
+            });
             // Branch doesn't exist in fork or can't access it
           }
         }
       }
     } catch (e) {
+      reportError(e, {
+        context: 'handle_branch_checkout_error',
+        prNumber,
+        branchName,
+        operation: 'analyze_branch_error'
+      });
       // Ignore error, proceed with default message
     }
 
@@ -73,6 +89,13 @@ export async function handleBranchCheckoutError({
                   forkOwner = currentUser;
                 }
               } catch (e) {
+                reportError(e, {
+                  context: 'check_user_fork_branch',
+                  userForkOwner: currentUser,
+                  repo,
+                  branchName,
+                  operation: 'check_branch_in_user_fork'
+                });
                 // Branch doesn't exist in user's fork
               }
             }
@@ -80,6 +103,12 @@ export async function handleBranchCheckoutError({
         }
       }
     } catch (e) {
+      reportError(e, {
+        context: 'handle_branch_checkout_error',
+        prNumber,
+        branchName,
+        operation: 'analyze_branch_error'
+      });
       // Ignore error, proceed with default message
     }
   }

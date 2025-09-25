@@ -43,6 +43,10 @@ const {
 
 // Import error handling functions
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
+
 const {
   handleFailure
 } = errorHandlers;
@@ -69,6 +73,11 @@ export const cleanupClaudeFile = async (tempDir, branchName) => {
       await log('   Warning: Could not commit CLAUDE.md deletion', { verbose: true });
     }
   } catch (e) {
+    reportError(e, {
+      context: 'cleanup_claude_file',
+      tempDir,
+      operation: 'remove_claude_md'
+    });
     // File might not exist or already removed, that's fine
     await log('   CLAUDE.md already removed or not found', { verbose: true });
   }
@@ -313,6 +322,11 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
     return; // Return normally for watch mode
 
   } catch (searchError) {
+    reportError(searchError, {
+      context: 'verify_pr_creation',
+      issueNumber,
+      operation: 'search_for_pr'
+    });
     await log('\n⚠️  Could not verify results:', searchError.message);
     await log('\n💡 Check the log file for details:');
     // Always use absolute path for log file display
@@ -356,6 +370,11 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
           await log('📎 Failure log attached to Pull Request');
         }
       } catch (attachError) {
+        reportError(attachError, {
+          context: 'attach_success_log',
+          prNumber: global.createdPR?.number,
+          operation: 'attach_log_to_pr'
+        });
         await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
       }
     }
@@ -372,6 +391,11 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
         await log(`⚠️  Could not close pull request: ${result.stderr}`, { level: 'warning' });
       }
     } catch (closeError) {
+      reportError(closeError, {
+        context: 'close_success_pr',
+        prNumber: global.createdPR?.number,
+        operation: 'close_pull_request'
+      });
       await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
     }
   }

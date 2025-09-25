@@ -7,6 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+// Import Sentry integration
+import { reportError } from './sentry.lib.mjs';
+
 /**
  * Build the user prompt for Claude
  * @param {Object} params - Parameters for building the user prompt
@@ -422,10 +425,11 @@ export const executeClaudeCommand = async (params) => {
               await log(`📌 Session ID: ${sessionId}`);
 
               // Try to rename log file to include session ID
+              let sessionLogFile;
               try {
                 const currentLogFile = getLogFile();
                 const logDir = path.dirname(currentLogFile);
-                const sessionLogFile = path.join(logDir, `${sessionId}.log`);
+                sessionLogFile = path.join(logDir, `${sessionId}.log`);
 
                 // Use fs.promises to rename the file
                 await fs.promises.rename(currentLogFile, sessionLogFile);
@@ -435,6 +439,12 @@ export const executeClaudeCommand = async (params) => {
 
                 await log(`📁 Log renamed to: ${sessionLogFile}`);
               } catch (renameError) {
+                reportError(renameError, {
+                  context: 'rename_session_log',
+                  sessionId,
+                  sessionLogFile,
+                  operation: 'rename_log_file'
+                });
                 // If rename fails, keep original filename
                 await log(`⚠️ Could not rename log file: ${renameError.message}`, { verbose: true });
               }
@@ -471,7 +481,12 @@ export const executeClaudeCommand = async (params) => {
               }
             }
 
-          } catch {
+          } catch (parseError) {
+            reportError(parseError, {
+              context: 'parse_claude_output',
+              line,
+              operation: 'parse_json_output'
+            });
             // Not JSON or parsing failed, output as-is if it's not empty
             if (line.trim() && !line.includes('node:internal')) {
               await log(line, { stream: 'raw' });
@@ -586,6 +601,12 @@ export const executeClaudeCommand = async (params) => {
       toolUseCount
     };
   } catch (error) {
+    reportError(error, {
+      context: 'execute_claude',
+      command: params.command,
+      claudePath: params.claudePath,
+      operation: 'run_claude_command'
+    });
     // Check if this is an overload error in the exception
     const errorStr = error.message || error.toString();
     if ((errorStr.includes('API Error: 500') && errorStr.includes('Overloaded')) ||
@@ -686,6 +707,11 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
       return false; // No restart needed on error
     }
   } catch (gitError) {
+    reportError(gitError, {
+      context: 'check_uncommitted_changes',
+      tempDir,
+      operation: 'git_status_check'
+    });
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
     return false; // No restart needed on error
   }

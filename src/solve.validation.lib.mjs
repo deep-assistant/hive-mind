@@ -35,6 +35,10 @@ const {
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
+
 const {
   validateClaudeConnection
 } = claudeLib;
@@ -141,10 +145,19 @@ export const initializeLogFile = async (logDir = null) => {
   try {
     await fs.access(targetDir);
   } catch (error) {
+    reportError(error, {
+      context: 'create_log_directory',
+      operation: 'mkdir_log_dir'
+    });
     // If directory doesn't exist, try to create it
     try {
       await fs.mkdir(targetDir, { recursive: true });
     } catch (mkdirError) {
+      reportError(mkdirError, {
+        context: 'create_log_directory_fallback',
+        targetDir,
+        operation: 'mkdir_recursive'
+      });
       await log(`⚠️  Unable to create log directory: ${targetDir}`, { level: 'error' });
       await log('   Falling back to current working directory', { level: 'error' });
       // Fall back to current working directory

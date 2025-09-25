@@ -20,6 +20,10 @@ const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
+
 const {
   log,
   formatAligned
@@ -48,6 +52,11 @@ export const setupTempDirectory = async (argv) => {
       await fs.mkdir(tempDir, { recursive: true });
       await log(`Creating new temporary directory for resumed session: ${tempDir}`);
     } catch (err) {
+      reportError(err, {
+        context: 'resume_session_lookup',
+        sessionId: argv.resume,
+        operation: 'find_session_log'
+      });
       await log(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
       tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
       await fs.mkdir(tempDir, { recursive: true });
@@ -377,6 +386,11 @@ export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
       await fs.rm(tempDir, { recursive: true, force: true });
       await log(' ✅');
     } catch (cleanupError) {
+      reportError(cleanupError, {
+        context: 'cleanup_temp_directory',
+        tempDir,
+        operation: 'remove_temp_dir'
+      });
       await log(' ⚠️  (failed)');
     }
   } else if (argv.resume) {

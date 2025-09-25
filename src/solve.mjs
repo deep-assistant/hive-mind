@@ -22,7 +22,11 @@ if (earlyArgs.includes('--version')) {
     const currentVersion = packageJson.version;
     const version = await getGitVersion(execSync, currentVersion);
     console.log(version);
-  } catch {
+  } catch (versionError) {
+    reportError(versionError, {
+      context: 'version_detection',
+      operation: 'get_package_version'
+    });
     // Fallback to hardcoded version if all else fails
     console.log('0.10.4');
   }
@@ -282,6 +286,11 @@ if (isPrUrl) {
       issueNumber = prNumber;
     }
   } catch (error) {
+    reportError(error, {
+      context: 'pr_processing',
+      prNumber,
+      operation: 'process_pull_request'
+    });
     await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
     await safeExit(1, 'Failed to process PR');
   }
@@ -626,7 +635,13 @@ Issue: ${issueUrl}`;
                 }
               }
             } catch (e) {
-              // Ignore error
+              reportError(e, {
+                context: 'fork_check',
+                owner,
+                repo,
+                operation: 'check_user_fork'
+              });
+              // Ignore error - fork check is optional
             }
 
             await log(`\n${formatAligned('❌', 'PERMISSION DENIED:', 'Cannot push to repository')}`, { level: 'error' });
@@ -777,6 +792,13 @@ Issue: ${issueUrl}`;
               canAssign = true;
               await log('   User has collaborator access', { verbose: true });
             } catch (e) {
+              reportError(e, {
+                context: 'collaborator_check',
+                owner,
+                repo,
+                currentUser,
+                operation: 'check_collaborator_access'
+              });
               // User doesn't have access, which is fine - we just won't assign
               canAssign = false;
               await log('   User is not a collaborator (will skip assignment)', { verbose: true });
@@ -858,7 +880,13 @@ ${prBody}`, { verbose: true });
             const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
             
             // Clean up temp file
-            await fs.unlink(prBodyFile).catch(() => {});
+            await fs.unlink(prBodyFile).catch((unlinkError) => {
+              reportError(unlinkError, {
+                context: 'pr_body_file_cleanup',
+                prBodyFile,
+                operation: 'delete_temp_file'
+              });
+            });
             
             // Extract PR URL from output - gh pr create outputs the URL to stdout
             prUrl = output.trim();
@@ -959,6 +987,12 @@ ${prBody}`, { verbose: true });
                     await log(`   Please verify manually at: ${prUrl}`, { level: 'warning' });
                   }
                 } catch (linkError) {
+                  reportError(linkError, {
+                    context: 'pr_issue_link_verification',
+                    prUrl,
+                    issueNumber,
+                    operation: 'verify_issue_link'
+                  });
                   const expectedRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
                   await log(`⚠️ Could not verify issue linking: ${linkError.message}`, { level: 'warning' });
                   await log(`   PR body should contain: "Fixes ${expectedRef}"`, { level: 'warning' });
@@ -974,6 +1008,12 @@ ${prBody}`, { verbose: true });
               await log('⚠️ Draft pull request created but URL could not be determined', { level: 'warning' });
             }
           } catch (prCreateError) {
+            reportError(prCreateError, {
+              context: 'pr_creation',
+              issueNumber,
+              branchName,
+              operation: 'create_pull_request'
+            });
             const errorMsg = prCreateError.message || '';
             
             // Clean up the error message - extract the meaningful part
@@ -1003,6 +1043,10 @@ ${prBody}`, { verbose: true });
                   await log(formatAligned('✅', 'PR created:', `#${prNumber} (without assignee)`));
                   await log(formatAligned('📍', 'PR URL:', prUrl));
                 } catch (parseErr) {
+                  reportError(parseErr, {
+                    context: 'pr_output_parsing',
+                    operation: 'parse_pr_creation_output'
+                  });
                   // If we can't parse, continue without PR info
                   await log(formatAligned('⚠️', 'PR status:', 'Unknown (check GitHub)'));
                 }
@@ -1083,6 +1127,11 @@ ${prBody}`, { verbose: true });
         }
       }
     } catch (prError) {
+      reportError(prError, {
+        context: 'auto_pr_creation',
+        issueNumber,
+        operation: 'handle_auto_pr'
+      });
       await log(`Warning: Error during auto PR creation: ${prError.message}`, { level: 'warning' });
       await log('   Continuing without PR...');
     }
@@ -1171,6 +1220,12 @@ ${prBody}`, { verbose: true });
 
     await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())}`);
   } catch (timestampError) {
+    reportError(timestampError, {
+      context: 'get_reference_timestamp',
+      prNumber,
+      issueNumber,
+      operation: 'fetch_github_timestamps'
+    });
     await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
     await log(`  Error: ${timestampError.message}`);
     referenceTime = new Date();
@@ -1210,6 +1265,11 @@ ${prBody}`, { verbose: true });
         }
       }
     } catch (gitError) {
+      reportError(gitError, {
+        context: 'check_uncommitted_changes',
+        tempDir,
+        operation: 'git_status'
+      });
       await log(`⚠️ Warning: Could not check git status: ${gitError.message}`, { level: 'warning' });
     }
   }
@@ -1293,6 +1353,10 @@ ${prBody}`, { verbose: true });
     }
   });
 } catch (error) {
+  reportError(error, {
+    context: 'solve_main',
+    operation: 'main_execution'
+  });
   await handleMainExecutionError({
     error,
     log,
