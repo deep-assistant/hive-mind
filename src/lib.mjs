@@ -8,12 +8,15 @@ let reportError = null;
 try {
   const sentryModule = await import('./sentry.lib.mjs');
   reportError = sentryModule.reportError;
-} catch (error) {
+} catch (_error) {
   // Sentry module not available, create a no-op function
-  reportError = (error, context) => {
+  if (global.verboseMode) {
+    console.debug('Sentry module not available:', _error?.message || 'Import failed');
+  }
+  reportError = (_err, _ctx) => {
     // Silent no-op when Sentry is not available
     if (global.verboseMode) {
-      console.debug('Sentry not available:', error.message);
+      console.debug('Sentry not available for error reporting:', _err?.message);
     }
   };
 }
@@ -22,7 +25,6 @@ try {
 // If not, fetch it (when running standalone)
 if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
-const use = globalThis.use;
 }
 
 const fs = (await use('fs')).promises;

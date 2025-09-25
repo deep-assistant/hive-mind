@@ -5,7 +5,6 @@
 // If not, fetch it (when running standalone)
 if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
-const use = globalThis.use;
 }
 
 const fs = (await use('fs')).promises;
@@ -660,6 +659,10 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
         throw new Error('Missing project scope. Run: gh auth refresh -s project');
       }
     } catch (error) {
+      reportError(error, {
+        context: 'github.lib.mjs - GitHub CLI auth status check',
+        level: 'error'
+      });
       throw new Error('GitHub CLI authentication failed. Please run: gh auth login');
     }
 
@@ -944,6 +947,13 @@ export function parseGitHubUrl(url) {
   try {
     urlObj = new globalThis.URL(normalizedUrl);
   } catch (e) {
+    if (global.verboseMode) {
+      reportError(e, {
+        context: 'github.lib.mjs - URL parsing',
+        level: 'debug',
+        url: normalizedUrl
+      });
+    }
     return {
       valid: false,
       error: 'Invalid URL format'
