@@ -5,8 +5,7 @@ import './instrument.mjs';
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
-  // Quick version output without loading modules
-  // Get version from package.json or use dev version format
+  // Quick version output without loading modules - get version from package.json or use dev version format
   const { execSync } = await import('child_process');
   const { readFileSync } = await import('fs');
   const { dirname, join } = await import('path');
@@ -72,8 +71,6 @@ const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, form
 const githubLib = await import('./github.lib.mjs');
 const { sanitizeLogContent, attachLogToGitHub } = githubLib;
 // Claude lib import removed - not currently used
-// const claudeLib = await import('./claude.lib.mjs');
-// const { validateClaudeConnection } = claudeLib; // Not currently used
 const validation = await import('./solve.validation.lib.mjs');
 const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
@@ -145,7 +142,6 @@ await log('');
 
 // Now handle argument validation that was moved from early checks
 let issueUrl = argv._[0];
-
 if (!issueUrl) {
   await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
   await log('');
@@ -185,7 +181,6 @@ process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptio
 process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
 
 // Graceful shutdown handlers are now handled by exit-handler.lib.mjs
-
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
   await safeExit(1, 'URL requirement validation failed');
