@@ -13,6 +13,7 @@ const fs = (await use('fs')).promises;
 
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
+import { reportError } from './sentry.lib.mjs';
 
 // Function to validate Claude CLI connection with retry logic
 export const validateClaudeConnection = async (model = 'sonnet') => {
@@ -84,6 +85,12 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
           }
         } catch (e) {
           // Not valid JSON, continue with other checks
+          if (global.verboseMode) {
+            reportError(e, {
+              context: 'claude_json_error_parse',
+              level: 'debug'
+            });
+          }
         }
         return null;
       };
@@ -304,6 +311,10 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await $`cp "${backupPath}" "${claudePath}"`;
         await log(`   ✅ Restored Claude from backup: ${backupPath}`);
       } catch (backupError) {
+        reportError(backupError, {
+          context: 'claude_restore_backup',
+          level: 'info'
+        });
         // No backup available, manually update shebang
         await log('   📝 No backup found, manually updating shebang...');
         const content = await fs.readFile(claudePath, 'utf8');
