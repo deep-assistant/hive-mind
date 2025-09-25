@@ -8,14 +8,16 @@
 
 // Keep track of whether we've already shown the exit message
 let exitMessageShown = false;
-let absoluteLogPath = null;
+let getLogPathFunction = null;
 let logFunction = null;
 
 /**
  * Initialize the exit handler with required dependencies
+ * @param {Function} getLogPath - Function that returns the current log path
+ * @param {Function} log - Logging function
  */
-export const initializeExitHandler = (logPath, log) => {
-  absoluteLogPath = logPath;
+export const initializeExitHandler = (getLogPath, log) => {
+  getLogPathFunction = getLogPath;
   logFunction = log;
 };
 
@@ -23,11 +25,14 @@ export const initializeExitHandler = (logPath, log) => {
  * Display the exit message with log path
  */
 const showExitMessage = async (reason = 'Process exiting', code = 0) => {
-  if (exitMessageShown || !absoluteLogPath || !logFunction) {
+  if (exitMessageShown || !getLogPathFunction || !logFunction) {
     return;
   }
 
   exitMessageShown = true;
+
+  // Get the current log path dynamically
+  const currentLogPath = await getLogPathFunction();
 
   // Always show the log path on exit
   await logFunction('');
@@ -36,7 +41,7 @@ const showExitMessage = async (reason = 'Process exiting', code = 0) => {
   } else {
     await logFunction(`❌ ${reason}`, { level: 'error' });
   }
-  await logFunction(`📁 Full log file: ${absoluteLogPath}`);
+  await logFunction(`📁 Full log file: ${currentLogPath}`);
 };
 
 /**
@@ -54,14 +59,22 @@ export const installGlobalExitHandlers = () => {
   // Handle normal exit
   process.on('exit', (code) => {
     // Synchronous fallback - can't use async here
-    if (!exitMessageShown && absoluteLogPath) {
-      console.log('');
-      if (code === 0) {
-        console.log('✅ Process completed');
-      } else {
-        console.log(`❌ Process exited with code ${code}`);
+    if (!exitMessageShown && getLogPathFunction) {
+      try {
+        // Try to get the current log path synchronously if possible
+        const currentLogPath = getLogPathFunction();
+        if (currentLogPath && typeof currentLogPath === 'string') {
+          console.log('');
+          if (code === 0) {
+            console.log('✅ Process completed');
+          } else {
+            console.log(`❌ Process exited with code ${code}`);
+          }
+          console.log(`📁 Full log file: ${currentLogPath}`);
+        }
+      } catch (e) {
+        // If we can't get the log path synchronously, skip showing it
       }
-      console.log(`📁 Full log file: ${absoluteLogPath}`);
     }
   });
 

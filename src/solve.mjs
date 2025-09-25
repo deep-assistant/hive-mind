@@ -64,7 +64,7 @@ const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
 const memoryCheck = await import('./memory-check.mjs');
 const lib = await import('./lib.mjs');
-const { log, setLogFile, getLogFile, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
+const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
 const { sanitizeLogContent, checkFileInBranch, checkGitHubPermissions, attachLogToGitHub } = githubLib;
 const claudeLib = await import('./claude.lib.mjs');
@@ -122,8 +122,8 @@ if (!argv.noSentry) {
   });
 }
 
-// Initialize the exit handler with log path and Sentry cleanup
-initializeExitHandler(absoluteLogPath, log);
+// Initialize the exit handler with getAbsoluteLogPath function and Sentry cleanup
+initializeExitHandler(getAbsoluteLogPath, log);
 installGlobalExitHandlers();
 
 // Log version and raw command at the start

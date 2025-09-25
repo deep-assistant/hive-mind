@@ -18,7 +18,7 @@ const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
-const { log, setLogFile, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError, cleanupTempDirectories } = lib;
+const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, formatAligned, displayFormattedError, cleanupTempDirectories } = lib;
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
@@ -416,8 +416,8 @@ if (!argv.noSentry) {
   });
 }
 
-// Initialize the exit handler with log path and Sentry cleanup
-initializeExitHandler(absoluteLogPath, log);
+// Initialize the exit handler with getAbsoluteLogPath function and Sentry cleanup
+initializeExitHandler(getAbsoluteLogPath, log);
 installGlobalExitHandlers();
 
 // Unhandled error handlers are now managed by exit-handler.lib.mjs

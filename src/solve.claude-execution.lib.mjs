@@ -433,10 +433,6 @@ export const executeClaudeCommand = async (params) => {
                 // Update the global log file reference
                 setLogFile(sessionLogFile);
 
-                // Update exit handler with new log path
-                const { initializeExitHandler } = await import('./exit-handler.lib.mjs');
-                initializeExitHandler(sessionLogFile, log);
-
                 await log(`📁 Log renamed to: ${sessionLogFile}`);
               } catch (renameError) {
                 // If rename fails, keep original filename
