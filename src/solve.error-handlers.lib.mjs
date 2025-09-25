@@ -5,6 +5,9 @@
 // Import exit handler
 import { safeExit } from './exit-handler.lib.mjs';
 
+// Import Sentry integration
+import { reportError } from './sentry.lib.mjs';
+
 /**
  * Handles log attachment and PR closing on failure
  */
@@ -45,6 +48,12 @@ export const handleFailure = async (options) => {
         await log('📎 Failure log attached to Pull Request');
       }
     } catch (attachError) {
+      reportError(attachError, {
+        context: 'attach_failure_log',
+        prNumber,
+        errorType,
+        operation: 'attach_log_to_pr'
+      });
       await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
     }
   }
@@ -64,6 +73,13 @@ export const handleFailure = async (options) => {
         await log('✅ Pull request closed successfully');
       }
     } catch (closeError) {
+      reportError(closeError, {
+        context: 'close_pr_on_failure',
+        prNumber,
+        owner,
+        repo,
+        operation: 'close_pull_request'
+      });
       await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
     }
   }

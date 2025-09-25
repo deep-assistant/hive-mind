@@ -21,6 +21,10 @@ const { log, cleanErrorMessage, formatAligned } = lib;
 
 // Import feedback detection functions
 const feedbackLib = await import('./solve.feedback.lib.mjs');
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
+
 const { detectAndCountFeedback } = feedbackLib;
 
 /**
@@ -33,6 +37,13 @@ const checkPRMerged = async (owner, repo, prNumber) => {
       return prResult.stdout.toString().trim() === 'true';
     }
   } catch (error) {
+    reportError(error, {
+      context: 'check_pr_merged',
+      owner,
+      repo,
+      prNumber,
+      operation: 'check_merge_status'
+    });
     // If we can't check, assume not merged
     return false;
   }
@@ -50,6 +61,13 @@ const checkForUncommittedChanges = async (tempDir, $) => {
       return statusOutput.length > 0;
     }
   } catch (error) {
+    reportError(error, {
+      context: 'check_pr_closed',
+      owner,
+      repo,
+      prNumber,
+      operation: 'check_close_status'
+    });
     // If we can't check, assume no uncommitted changes
   }
   return false;
@@ -164,6 +182,13 @@ export const watchForFeedback = async (params) => {
               }
             }
           } catch (e) {
+            reportError(e, {
+              context: 'check_claude_file_exists',
+              owner,
+              repo,
+              branchName,
+              operation: 'check_file_in_branch'
+            });
             // Ignore errors
           }
           await log('');
@@ -190,6 +215,13 @@ export const watchForFeedback = async (params) => {
               feedbackLines.push('Consider committing important changes or cleaning up unnecessary files.');
             }
           } catch (e) {
+            reportError(e, {
+              context: 'recheck_claude_file',
+              owner,
+              repo,
+              branchName,
+              operation: 'verify_file_in_branch'
+            });
             // Ignore errors
           }
         } else {
@@ -251,6 +283,13 @@ export const watchForFeedback = async (params) => {
       }
 
     } catch (error) {
+      reportError(error, {
+        context: 'watch_pr_general',
+        prNumber,
+        owner,
+        repo,
+        operation: 'watch_pull_request'
+      });
       await log(formatAligned('⚠️', 'Check failed:', cleanErrorMessage(error), 2));
       await log(formatAligned('', 'Will retry in:', `${watchInterval} seconds`, 2));
     }

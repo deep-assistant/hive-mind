@@ -33,6 +33,10 @@ const {
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
+
 const {
   sanitizeLogContent,
   attachLogToGitHub
@@ -58,6 +62,11 @@ export const setupTempDirectory = async (argv) => {
       await fs.mkdir(tempDir, { recursive: true });
       await log(`Creating new temporary directory for resumed session: ${tempDir}`);
     } catch (err) {
+      reportError(err, {
+        context: 'resume_session_setup',
+        sessionId: argv.resume,
+        operation: 'find_session_log'
+      });
       await log(`Warning: Session log for ${argv.resume} not found, but continuing with resume attempt`);
       tempDir = path.join(os.tmpdir(), `gh-issue-solver-resume-${argv.resume}-${Date.now()}`);
       await fs.mkdir(tempDir, { recursive: true });
@@ -188,6 +197,11 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
           await log('📎 Failure log attached to Pull Request');
         }
       } catch (attachError) {
+        reportError(attachError, {
+          context: 'attach_error_log',
+          prNumber,
+          operation: 'attach_log_to_pr'
+        });
         await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
       }
     }
@@ -204,6 +218,11 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
         await log(`⚠️  Could not close pull request: ${result.stderr}`, { level: 'warning' });
       }
     } catch (closeError) {
+      reportError(closeError, {
+        context: 'close_pr_on_error',
+        prNumber,
+        operation: 'close_pull_request'
+      });
       await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });
     }
   }
@@ -220,6 +239,11 @@ export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
       await fs.rm(tempDir, { recursive: true, force: true });
       await log(' ✅');
     } catch (cleanupError) {
+      reportError(cleanupError, {
+        context: 'cleanup_temp_directory',
+        tempDir,
+        operation: 'remove_temp_dir'
+      });
       await log(' ⚠️  (failed)');
     }
   } else if (argv.resume) {

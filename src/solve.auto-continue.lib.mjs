@@ -32,6 +32,10 @@ const {
 
 // Import validation functions for time parsing
 const validation = await import('./solve.validation.lib.mjs');
+
+// Import Sentry integration
+const sentryLib = await import('./sentry.lib.mjs');
+const { reportError } = sentryLib;
 const {
   calculateWaitTime
 } = validation;
@@ -96,6 +100,12 @@ export const autoContinueWhenLimitResets = async (issueUrl, sessionId, argv, sho
     });
 
   } catch (error) {
+    reportError(error, {
+      context: 'auto_continue_with_command',
+      issueUrl,
+      sessionId,
+      operation: 'auto_continue_execution'
+    });
     await log(`\n❌ Auto-continue failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log('\n🔄 Manual resume command:');
     await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
@@ -180,6 +190,13 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
         }
       }
     } catch (prSearchError) {
+      reportError(prSearchError, {
+        context: 'check_existing_pr_for_issue',
+        owner,
+        repo,
+        issueNumber,
+        operation: 'search_issue_prs'
+      });
       await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
       await log('   Continuing with normal flow...');
     }
@@ -242,6 +259,11 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
         issueNumber = prNumber;
       }
     } catch (error) {
+      reportError(error, {
+        context: 'process_pr_in_auto_continue',
+        prNumber,
+        operation: 'process_pr_for_continuation'
+      });
       await log(`Error: Failed to process PR: ${cleanErrorMessage(error)}`, { level: 'error' });
       await safeExit(1, 'Auto-continue failed');
     }
@@ -328,6 +350,13 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
       }
     }
   } catch (prSearchError) {
+    reportError(prSearchError, {
+      context: 'check_existing_pr_with_claude',
+      owner,
+      repo,
+      issueNumber,
+      operation: 'search_pr_with_claude_md'
+    });
     await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
     await log('   Continuing with normal flow...');
   }

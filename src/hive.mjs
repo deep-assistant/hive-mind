@@ -129,6 +129,11 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
         }
 
       } catch (repoError) {
+        reportError(repoError, {
+          context: 'fetchIssuesFromRepositories',
+          repo: repo.name,
+          operation: 'fetch_repo_issues'
+        });
         await log(`   ⚠️  Failed to fetch issues from ${repo.name}: ${cleanErrorMessage(repoError)}`, { verbose: true });
         // Continue with other repositories
       }
@@ -138,6 +143,12 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     return collectedIssues;
 
   } catch (error) {
+    reportError(error, {
+      context: 'fetchIssuesFromRepositories',
+      owner,
+      scope,
+      operation: 'repository_fallback'
+    });
     await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     return [];
   }
@@ -371,10 +382,20 @@ let targetDir = argv.logDir || process.cwd();
 try {
   await fs.access(targetDir);
 } catch (error) {
+  reportError(error, {
+    context: 'log_directory_access',
+    targetDir,
+    operation: 'check_directory_exists'
+  });
   // If directory doesn't exist, try to create it
   try {
     await fs.mkdir(targetDir, { recursive: true });
   } catch (mkdirError) {
+    reportError(mkdirError, {
+      context: 'log_directory_creation',
+      targetDir,
+      operation: 'create_directory'
+    });
     console.error(`⚠️  Unable to create log directory: ${targetDir}`);
     console.error('   Falling back to current working directory');
     // Fall back to current working directory
@@ -495,6 +516,11 @@ if (!repo) {
     const accountType = typeResult.stdout.toString().trim();
     scope = accountType === 'Organization' ? 'organization' : 'user';
   } catch (e) {
+    reportError(e, {
+      context: 'detect_scope',
+      owner,
+      operation: 'detect_account_type'
+    });
     // Default to user if API call fails
     scope = 'user';
   }
@@ -698,7 +724,13 @@ async function worker(workerId) {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [${solveCommand} worker-${workerId}] ${line}`).catch(() => {});
+                  log(`   [${solveCommand} worker-${workerId}] ${line}`).catch((logError) => {
+                    reportError(logError, {
+                      context: 'worker_stdout_log',
+                      workerId,
+                      operation: 'log_output'
+                    });
+                  });
                 }
               }
             });
@@ -708,7 +740,13 @@ async function worker(workerId) {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  log(`   [${solveCommand} worker-${workerId} ERROR] ${line}`, { level: 'error' }).catch(() => {});
+                  log(`   [${solveCommand} worker-${workerId} ERROR] ${line}`, { level: 'error' }).catch((logError) => {
+                    reportError(logError, {
+                      context: 'worker_stderr_log',
+                      workerId,
+                      operation: 'log_error'
+                    });
+                  });
                 }
               }
             });
@@ -722,7 +760,13 @@ async function worker(workerId) {
             // Handle process errors
             child.on('error', (error) => {
               exitCode = 1;
-              log(`   [${solveCommand} worker-${workerId} ERROR] Process error: ${error.message}`, { level: 'error' }).catch(() => {});
+              log(`   [${solveCommand} worker-${workerId} ERROR] Process error: ${error.message}`, { level: 'error' }).catch((logError) => {
+                reportError(logError, {
+                  context: 'worker_process_error_log',
+                  workerId,
+                  operation: 'log_process_error'
+                });
+              });
               resolve();
             });
           });
@@ -740,6 +784,12 @@ async function worker(workerId) {
           await new Promise(resolve => setTimeout(resolve, 10000));
         }
       } catch (error) {
+        reportError(error, {
+          context: 'worker_process_issue',
+          workerId,
+          issueUrl,
+          operation: 'spawn_solve_worker'
+        });
         await log(`   ❌ Worker ${workerId} failed on ${issueUrl}: ${cleanErrorMessage(error)}`, { level: 'error' });
         issueQueue.markFailed(issueUrl);
         issueFailed = true;
@@ -803,6 +853,12 @@ async function fetchIssues() {
       try {
         issues = await fetchAllIssuesWithPagination(searchCmd);
       } catch (searchError) {
+        reportError(searchError, {
+          context: 'github_all_issues_search',
+          scope,
+          owner,
+          operation: 'search_all_issues'
+        });
         await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
         // Check if the error is due to rate limiting and we're not in repository scope
@@ -811,6 +867,12 @@ async function fetchIssues() {
           try {
             issues = await fetchIssuesFromRepositories(owner, scope, null, true);
           } catch (fallbackError) {
+            reportError(fallbackError, {
+              context: 'github_all_issues_fallback',
+              scope,
+              owner,
+              operation: 'fallback_all_fetch'
+            });
             await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(fallbackError)}`, { verbose: true });
             issues = [];
           }
@@ -832,6 +894,13 @@ async function fetchIssues() {
         try {
           issues = await fetchAllIssuesWithPagination(listCmd);
         } catch (listError) {
+          reportError(listError, {
+            context: 'github_list_issues',
+            scope,
+            owner,
+            monitorTag: argv.monitorTag,
+            operation: 'list_repository_issues'
+          });
           await log(`   ⚠️  List failed: ${cleanErrorMessage(listError)}`, { verbose: true });
           issues = [];
         }
@@ -863,6 +932,13 @@ async function fetchIssues() {
         try {
           issues = await fetchAllIssuesWithPagination(searchCmd);
         } catch (searchError) {
+          reportError(searchError, {
+            context: 'github_labeled_issues_search',
+            scope,
+            owner,
+            monitorTag: argv.monitorTag,
+            operation: 'search_labeled_issues'
+          });
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
           // Check if the error is due to rate limiting
@@ -871,6 +947,13 @@ async function fetchIssues() {
             try {
               issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
             } catch (fallbackError) {
+              reportError(fallbackError, {
+                context: 'github_labeled_issues_fallback',
+                scope,
+                owner,
+                monitorTag: argv.monitorTag,
+                operation: 'fallback_labeled_fetch'
+              });
               await log(`   ❌ Repository fallback failed: ${cleanErrorMessage(fallbackError)}`, { verbose: true });
               issues = [];
             }
@@ -971,6 +1054,13 @@ async function fetchIssues() {
     return issuesToProcess.map(issue => issue.url);
     
   } catch (error) {
+    reportError(error, {
+      context: 'fetchIssues',
+      projectMode: argv.projectMode,
+      allIssues: argv.allIssues,
+      monitorTag: argv.monitorTag,
+      operation: 'fetch_issues'
+    });
     await log(`   ❌ Error fetching issues: ${cleanErrorMessage(error)}`, { level: 'error' });
     return [];
   }
@@ -1100,6 +1190,10 @@ async function gracefulShutdown(signal) {
     await log(`   📁 Full log file: ${absoluteLogPath}`);
 
   } catch (error) {
+    reportError(error, {
+      context: 'monitor_issues_shutdown',
+      operation: 'cleanup_and_exit'
+    });
     await log(`   ⚠️  Error during shutdown: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log(`   📁 Full log file: ${absoluteLogPath}`);
   }
@@ -1142,6 +1236,10 @@ const monitorWithSentry = argv.noSentry ? monitor : withSentry(monitor, 'hive.mo
 try {
   await monitorWithSentry();
 } catch (error) {
+  reportError(error, {
+    context: 'hive_main',
+    operation: 'monitor_with_sentry'
+  });
   await log(`\n❌ Fatal error: ${cleanErrorMessage(error)}`, { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');

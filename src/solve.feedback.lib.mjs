@@ -3,6 +3,9 @@
  * Handles comment counting and feedback detection for continue mode
  */
 
+// Import Sentry integration
+import { reportError } from './sentry.lib.mjs';
+
 export const detectAndCountFeedback = async (params) => {
   const {
     prNumber,
@@ -67,6 +70,11 @@ export const detectAndCountFeedback = async (params) => {
             await log(formatAligned('📅', 'Last commit time (from API):', lastCommitTime.toISOString(), 2));
           }
         } catch (error) {
+          reportError(error, {
+            context: 'get_last_commit_time',
+            prNumber,
+            operation: 'fetch_commit_timestamp'
+          });
           await log(`Warning: Could not get last commit time: ${cleanErrorMessage(error)}`, { level: 'warning' });
         }
       }
@@ -179,6 +187,11 @@ export const detectAndCountFeedback = async (params) => {
                 filteredIssueComments = filteredComments.length;
               }
             } catch (error) {
+              reportError(error, {
+                context: 'check_issue_comments',
+                issueNumber,
+                operation: 'fetch_issue_comments'
+              });
               if (argv.verbose) {
                 await log(`Warning: Could not check issue comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
               }
@@ -225,6 +238,11 @@ export const detectAndCountFeedback = async (params) => {
               }
             }
           } catch (error) {
+            reportError(error, {
+              context: 'check_description_edits',
+              prNumber,
+              operation: 'fetch_pr_timeline'
+            });
             if (argv.verbose) {
               await log(`Warning: Could not check description edit times: ${cleanErrorMessage(error)}`, { level: 'warning' });
             }
@@ -248,6 +266,11 @@ export const detectAndCountFeedback = async (params) => {
               }
             }
           } catch (error) {
+            reportError(error, {
+              context: 'check_branch_commits',
+              branchName,
+              operation: 'fetch_commit_messages'
+            });
             if (argv.verbose) {
               await log(`Warning: Could not check default branch commits: ${cleanErrorMessage(error)}`, { level: 'warning' });
             }
@@ -276,6 +299,11 @@ export const detectAndCountFeedback = async (params) => {
               }
             }
           } catch (error) {
+            reportError(error, {
+              context: 'check_pr_status_checks',
+              prNumber,
+              operation: 'fetch_status_checks'
+            });
             if (argv.verbose) {
               await log(`Warning: Could not check PR status checks: ${cleanErrorMessage(error)}`, { level: 'warning' });
             }
@@ -297,6 +325,11 @@ export const detectAndCountFeedback = async (params) => {
               }
             }
           } catch (error) {
+            reportError(error, {
+              context: 'check_pr_reviews',
+              prNumber,
+              operation: 'fetch_pr_reviews'
+            });
             if (argv.verbose) {
               await log(`Warning: Could not check PR reviews: ${cleanErrorMessage(error)}`, { level: 'warning' });
             }
@@ -336,6 +369,11 @@ export const detectAndCountFeedback = async (params) => {
         await log('Warning: Could not determine last commit time, skipping comment counting', { level: 'warning' });
       }
     } catch (error) {
+      reportError(error, {
+        context: 'count_new_comments',
+        prNumber,
+        operation: 'detect_and_count_feedback'
+      });
       await log(`Warning: Could not count new comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
     }
   } else {
