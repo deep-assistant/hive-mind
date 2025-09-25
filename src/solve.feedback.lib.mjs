@@ -16,6 +16,7 @@ export const detectAndCountFeedback = async (params) => {
     isContinueMode,
     argv,
     mergeStateStatus,
+    workStartTime,
     log,
     formatAligned,
     cleanErrorMessage,
@@ -26,6 +27,22 @@ export const detectAndCountFeedback = async (params) => {
   let newIssueComments = 0;
   let commentInfo = '';
   let feedbackLines = [];
+  let currentUser = null;
+
+  // Get current GitHub user to filter out own comments
+  try {
+    const userResult = await $`gh api user --jq .login`;
+    if (userResult.code === 0) {
+      currentUser = userResult.stdout.toString().trim();
+      await log(formatAligned('👤', 'Current user:', currentUser, 2));
+    }
+  } catch (error) {
+    reportError(error, {
+      context: 'get_current_user',
+      operation: 'gh_api_user'
+    });
+    await log('Warning: Could not get current GitHub user', { level: 'warning' });
+  }
 
   // Debug logging to understand when comment counting doesn't run
   if (argv.verbose) {
@@ -99,18 +116,45 @@ export const detectAndCountFeedback = async (params) => {
         }
 
         // Combine and count all PR comments after last commit
+        // Filter out comments from current user if made after work started
         const allPrComments = [...prReviewComments, ...prConversationComments];
-        newPrComments = allPrComments.filter(comment =>
-          new Date(comment.created_at) > lastCommitTime
-        ).length;
+        const filteredPrComments = allPrComments.filter(comment => {
+          const commentTime = new Date(comment.created_at);
+          const isAfterCommit = commentTime > lastCommitTime;
+
+          // If we have a work start time and current user, filter out comments made by claude tool after work started
+          if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
+            const isAfterWorkStart = commentTime > new Date(workStartTime);
+            if (isAfterWorkStart && argv.verbose) {
+              // Note: Filtering out own comment from user after work started
+            }
+            return isAfterCommit && !isAfterWorkStart;
+          }
+
+          return isAfterCommit;
+        });
+        newPrComments = filteredPrComments.length;
 
         // Count new issue comments after last commit
         const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
         if (issueCommentsResult.code === 0) {
           const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
-          newIssueComments = issueComments.filter(comment =>
-            new Date(comment.created_at) > lastCommitTime
-          ).length;
+          const filteredIssueComments = issueComments.filter(comment => {
+            const commentTime = new Date(comment.created_at);
+            const isAfterCommit = commentTime > lastCommitTime;
+
+            // If we have a work start time and current user, filter out comments made by claude tool after work started
+            if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
+              const isAfterWorkStart = commentTime > new Date(workStartTime);
+              if (isAfterWorkStart && argv.verbose) {
+                // Note: Filtering out own issue comment from user after work started
+              }
+              return isAfterCommit && !isAfterWorkStart;
+            }
+
+            return isAfterCommit;
+          });
+          newIssueComments = filteredIssueComments.length;
         }
 
         await log(formatAligned('💬', 'New PR comments:', newPrComments.toString(), 2));
@@ -168,10 +212,19 @@ export const detectAndCountFeedback = async (params) => {
           ];
 
           if (allPrComments.length > 0) {
-            const filteredComments = allPrComments.filter(comment =>
-              new Date(comment.created_at) > lastCommitTime &&
-              !logPatterns.some(pattern => pattern.test(comment.body || ''))
-            );
+            const filteredComments = allPrComments.filter(comment => {
+              const commentTime = new Date(comment.created_at);
+              const isAfterCommit = commentTime > lastCommitTime;
+              const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
+
+              // Filter out comments from current user if made after work started
+              if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
+                const isAfterWorkStart = commentTime > new Date(workStartTime);
+                return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
+              }
+
+              return isAfterCommit && isNotLogPattern;
+            });
             filteredPrComments = filteredComments.length;
           }
 
@@ -180,10 +233,19 @@ export const detectAndCountFeedback = async (params) => {
               const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
               if (issueCommentsResult.code === 0) {
                 const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
-                const filteredComments = issueComments.filter(comment =>
-                  new Date(comment.created_at) > lastCommitTime &&
-                  !logPatterns.some(pattern => pattern.test(comment.body || ''))
-                );
+                const filteredComments = issueComments.filter(comment => {
+                  const commentTime = new Date(comment.created_at);
+                  const isAfterCommit = commentTime > lastCommitTime;
+                  const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
+
+                  // Filter out comments from current user if made after work started
+                  if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
+                    const isAfterWorkStart = commentTime > new Date(workStartTime);
+                    return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
+                  }
+
+                  return isAfterCommit && isNotLogPattern;
+                });
                 filteredIssueComments = filteredComments.length;
               }
             } catch (error) {

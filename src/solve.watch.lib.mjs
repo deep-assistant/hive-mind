@@ -157,6 +157,7 @@ export const watchForFeedback = async (params) => {
         isContinueMode: true,
         argv: { ...argv, verbose: false }, // Reduce verbosity in watch mode
         mergeStateStatus,
+        workStartTime: null, // In watch mode, we want to count all comments as potential feedback
         log,
         formatAligned,
         cleanErrorMessage,
