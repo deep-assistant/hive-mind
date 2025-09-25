@@ -58,6 +58,11 @@ export const buildUserPrompt = (params) => {
   if (argv && argv.fork && forkedRepo) {
     promptLines.push(`Your forked repository: ${forkedRepo}`);
     promptLines.push(`Original repository (upstream): ${owner}/${repo}`);
+
+    // Check for GitHub Actions on fork and add link if workflows exist
+    if (branchName && params.forkActionsUrl) {
+      promptLines.push(`GitHub Actions on your fork: ${params.forkActionsUrl}`);
+    }
   }
 
   // Add blank line
@@ -176,6 +181,7 @@ export const executeClaude = async (params) => {
     mergeStateStatus,
     forkedRepo,
     feedbackLines,
+    forkActionsUrl,
     owner,
     repo,
     argv,
@@ -200,6 +206,7 @@ export const executeClaude = async (params) => {
     mergeStateStatus,
     forkedRepo,
     feedbackLines,
+    forkActionsUrl,
     owner,
     repo,
     argv
