@@ -50,7 +50,7 @@ export const handleFailure = async (options) => {
     } catch (attachError) {
       reportError(attachError, {
         context: 'attach_failure_log',
-        prNumber,
+        prNumber: global.createdPR?.number,
         errorType,
         operation: 'attach_log_to_pr'
       });
@@ -75,7 +75,7 @@ export const handleFailure = async (options) => {
     } catch (closeError) {
       reportError(closeError, {
         context: 'close_pr_on_failure',
-        prNumber,
+        prNumber: global.createdPR?.number,
         owner,
         repo,
         operation: 'close_pull_request'

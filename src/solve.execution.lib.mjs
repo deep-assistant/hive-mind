@@ -199,7 +199,7 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
       } catch (attachError) {
         reportError(attachError, {
           context: 'attach_error_log',
-          prNumber,
+          prNumber: global.createdPR?.number,
           operation: 'attach_log_to_pr'
         });
         await log(`⚠️  Could not attach failure log: ${attachError.message}`, { level: 'warning' });
@@ -220,7 +220,7 @@ export const handleExecutionError = async (error, shouldAttachLogs, owner, repo,
     } catch (closeError) {
       reportError(closeError, {
         context: 'close_pr_on_error',
-        prNumber,
+        prNumber: global.createdPR?.number,
         operation: 'close_pull_request'
       });
       await log(`⚠️  Could not close pull request: ${closeError.message}`, { level: 'warning' });

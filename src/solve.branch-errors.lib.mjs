@@ -91,7 +91,7 @@ export async function handleBranchCheckoutError({
               } catch (e) {
                 reportError(e, {
                   context: 'check_user_fork_branch',
-                  userForkOwner,
+                  userForkOwner: currentUser,
                   repo,
                   branchName,
                   operation: 'check_branch_in_user_fork'

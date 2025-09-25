@@ -425,10 +425,11 @@ export const executeClaudeCommand = async (params) => {
               await log(`📌 Session ID: ${sessionId}`);
 
               // Try to rename log file to include session ID
+              let sessionLogFile;
               try {
                 const currentLogFile = getLogFile();
                 const logDir = path.dirname(currentLogFile);
-                const sessionLogFile = path.join(logDir, `${sessionId}.log`);
+                sessionLogFile = path.join(logDir, `${sessionId}.log`);
 
                 // Use fs.promises to rename the file
                 await fs.promises.rename(currentLogFile, sessionLogFile);
@@ -708,7 +709,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
   } catch (gitError) {
     reportError(gitError, {
       context: 'check_uncommitted_changes',
-      tempDir: params.tempDir,
+      tempDir,
       operation: 'git_status_check'
     });
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });

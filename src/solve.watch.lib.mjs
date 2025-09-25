@@ -63,9 +63,7 @@ const checkForUncommittedChanges = async (tempDir, $) => {
   } catch (error) {
     reportError(error, {
       context: 'check_pr_closed',
-      owner,
-      repo,
-      prNumber,
+      tempDir,
       operation: 'check_close_status'
     });
     // If we can't check, assume no uncommitted changes
