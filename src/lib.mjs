@@ -2,7 +2,21 @@
 
 // Shared library functions for hive-mind project
 
-import { reportError } from './sentry.lib.mjs';
+// Try to import reportError from sentry.lib.mjs, but make it optional
+// This allows the module to work even when @sentry/node is not installed
+let reportError = null;
+try {
+  const sentryModule = await import('./sentry.lib.mjs');
+  reportError = sentryModule.reportError;
+} catch (error) {
+  // Sentry module not available, create a no-op function
+  reportError = (error, context) => {
+    // Silent no-op when Sentry is not available
+    if (global.verboseMode) {
+      console.debug('Sentry not available:', error.message);
+    }
+  };
+}
 
 // Check if use is already defined (when imported from solve.mjs)
 // If not, fetch it (when running standalone)
@@ -461,3 +475,6 @@ export const getVersionInfo = async () => {
     return '0.10.4';
   }
 };
+
+// Export reportError for other modules that may import it
+export { reportError };
