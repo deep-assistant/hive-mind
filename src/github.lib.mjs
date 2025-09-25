@@ -17,6 +17,7 @@ const { $ } = await use('command-stream');
 
 // Import log and maskToken from general lib
 import { log, maskToken, cleanErrorMessage } from './lib.mjs';
+import { reportError } from './sentry.lib.mjs';
 
 // Helper function to mask GitHub tokens (alias for backward compatibility)
 export const maskGitHubToken = maskToken;
@@ -53,7 +54,13 @@ export const getGitHubTokensFromFiles = async () => {
       }
     }
   } catch (error) {
-    // Silently ignore file access errors
+    // File access errors are expected when config doesn't exist
+    if (global.verboseMode) {
+      reportError(error, {
+        context: 'github_token_file_access',
+        level: 'debug'
+      });
+    }
   }
   
   return tokens;
@@ -88,7 +95,13 @@ export const getGitHubTokensFromCommand = async () => {
       }
     }
   } catch (error) {
-    // Silently ignore command errors
+    // Command errors are expected when gh is not configured
+    if (global.verboseMode) {
+      reportError(error, {
+        context: 'github_token_gh_auth',
+        level: 'debug'
+      });
+    }
   }
   
   return tokens;
@@ -132,6 +145,10 @@ export const sanitizeLogContent = async (logContent) => {
     await log(`  🔒 Sanitized ${allTokens.length} detected GitHub tokens in log content`, { verbose: true });
     
   } catch (error) {
+    reportError(error, {
+      context: 'sanitize_log_content',
+      level: 'warning'
+    });
     await log(`  ⚠️  Warning: Could not fully sanitize log content: ${error.message}`, { verbose: true });
   }
   
@@ -147,7 +164,17 @@ export const checkFileInBranch = async (owner, repo, fileName, branchName) => {
     const result = await $`gh api repos/${owner}/${repo}/contents/${fileName}?ref=${branchName}`;
     return result.code === 0;
   } catch (error) {
-    // If file doesn't exist or there's an error, file doesn't exist
+    // File doesn't exist or access error - this is expected behavior
+    if (global.verboseMode) {
+      reportError(error, {
+        context: 'check_file_in_branch',
+        level: 'debug',
+        owner,
+        repo,
+        fileName,
+        branchName
+      });
+    }
     return false;
   }
 };
@@ -341,6 +368,12 @@ ${logContent}
             }
           }
         } catch (visibilityError) {
+          reportError(visibilityError, {
+            context: 'check_repo_visibility',
+            level: 'warning',
+            owner,
+            repo
+          });
           // Default to public if we can't determine visibility
           await log('  ⚠️  Could not determine repository visibility, defaulting to public gist', { verbose: true });
         }
@@ -417,6 +450,10 @@ This log file contains the complete execution trace of the AI ${targetType === '
           return await attachTruncatedLog(options);
         }
       } catch (gistError) {
+        reportError(gistError, {
+          context: 'create_gist',
+          level: 'error'
+        });
         await log(`  ❌ Error creating gist: ${gistError.message}`);
         // Try regular comment as last resort
         return await attachRegularComment(options, logComment);
