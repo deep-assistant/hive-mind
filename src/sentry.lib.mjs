@@ -113,7 +113,8 @@ export const logToSentry = (message, level = 'info', context = {}) => {
 };
 
 /**
- * Capture an error to Sentry
+ * Report an error to Sentry
+ * Use this for actual errors that indicate something went wrong
  * @param {Error} error - Error to capture
  * @param {Object} context - Additional context
  */
@@ -122,7 +123,23 @@ export const reportError = (error, context = {}) => {
     return;
   }
 
-  captureException(error, context);
+  captureException(error, { ...context, level: 'error' });
+};
+
+/**
+ * Report a warning to Sentry
+ * Use this for non-critical issues that should be tracked but don't indicate failure
+ * @param {string|Error} warning - Warning message or error object
+ * @param {Object} context - Additional context
+ */
+export const reportWarning = (warning, context = {}) => {
+  if (!isSentryEnabled() || sentryDisabled) {
+    return;
+  }
+
+  // Convert string warnings to Error objects for better stack traces
+  const warningError = typeof warning === 'string' ? new Error(warning) : warning;
+  captureException(warningError, { ...context, level: 'warning' });
 };
 
 /**

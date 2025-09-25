@@ -28,7 +28,7 @@ const { log: libLog, setLogFile } = lib;
 
 // Function to check available disk space
 export const checkDiskSpace = async (minSpaceMB = 500, options = {}) => {
-  const { log = libLog } = options;
+  const log = options.log || libLog;
   
   try {
     let availableMB;
@@ -69,7 +69,7 @@ export const checkDiskSpace = async (minSpaceMB = 500, options = {}) => {
 
 // Function to check available RAM (volatile memory)
 export const checkRAM = async (minMemoryMB = 256, options = {}) => {
-  const { log = libLog } = options;
+  const log = options.log || libLog;
   
   // Check platform first
   if (process.platform === 'darwin') {
@@ -340,9 +340,8 @@ export const checkSystem = async (requirements = {}, options = {}) => {
     minDiskSpaceMB = 500,
     exitOnFailure = false
   } = requirements;
-  
-  const { log = libLog } = options;
-  
+
+  // Note: log is passed through options to checkDiskSpace and checkRAM
   const results = {
     ram: null,
     disk: null,

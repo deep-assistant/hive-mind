@@ -714,7 +714,7 @@ async function worker(workerId) {
         let exitCode = 0;
 
         // Create promise to handle async spawn process
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve, _reject) => {
           const child = spawn(solveCommand, args, {
             stdio: ['pipe', 'pipe', 'pipe']
           });
@@ -1015,7 +1015,7 @@ async function fetchIssues() {
       const filteredIssues = [];
       let totalSkipped = 0;
 
-      for (const [repoKey, repoData] of Object.entries(issuesByRepo)) {
+      for (const repoData of Object.values(issuesByRepo)) {
         const issueNumbers = repoData.issues.map(i => i.number);
         const prResults = await batchCheckPullRequestsForIssues(repoData.owner, repoData.repo, issueNumbers);
 

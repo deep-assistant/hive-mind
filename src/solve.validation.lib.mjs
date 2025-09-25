@@ -21,16 +21,16 @@ const memoryCheck = await import('./memory-check.mjs');
 const lib = await import('./lib.mjs');
 const {
   log,
-  setLogFile,
-  getLogFile
+  setLogFile
+  // getLogFile - not currently used
 } = lib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
   checkGitHubPermissions,
-  parseGitHubUrl,
-  isGitHubUrlType
+  parseGitHubUrl
+  // isGitHubUrlType - not currently used
 } = githubLib;
 
 // Import Claude-related functions
