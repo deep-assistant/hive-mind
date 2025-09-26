@@ -52,6 +52,9 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 
 ### Core Operations
 ```bash
+# Solve using maximum power
+solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think-ultra-hard
+
 # Solve GitHub issues automatically
 solve https://github.com/owner/repo/issues/123 --fork --model sonnet
 
