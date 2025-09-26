@@ -45,7 +45,7 @@
     "eslint": "^9.35.0"
   },
   "dependencies": {
-    "@sentry/node": "^10.14.0",
-    "@sentry/profiling-node": "^10.14.0"
+    "@sentry/node": "^10.15.0",
+    "@sentry/profiling-node": "^10.15.0"
   }
 }
