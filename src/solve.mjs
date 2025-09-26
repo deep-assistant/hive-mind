@@ -1176,7 +1176,7 @@ ${prBody}`, { verbose: true });
 
     // Post a comment marking the start of work session
     try {
-      const startComment = `🤖 **AI Work Session Started**\n\nStarting automated work session at ${workStartTime.toISOString()}\n\nThe PR has been converted to draft mode while work is in progress.\n\n_This comment marks the beginning of an AI work session. Comments made after this time by the AI tool will not be counted as feedback._`;
+      const startComment = `🤖 **AI Work Session Started**\n\nStarting automated work session at ${workStartTime.toISOString()}\n\nThe PR has been converted to draft mode while work is in progress.\n\n_This comment marks the beginning of an AI work session. Please wait working session to finish, and provide your feedback._`;
       const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${startComment}`;
       if (commentResult.code === 0) {
         await log(formatAligned('💬', 'Posted:', 'Work session start comment', 2));
