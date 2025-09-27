@@ -140,9 +140,11 @@ export const captureMessage = (message, level = 'info', context = {}) => {
 };
 
 // Export function to create a transaction
+// Note: In Sentry v10, startTransaction is deprecated in favor of startSpan
 export const startTransaction = (name, op = 'task') => {
   if (isSentryEnabled()) {
-    return Sentry.startTransaction({
+    // Use startInactiveSpan for manual transaction control (similar to old startTransaction)
+    return Sentry.startInactiveSpan({
       op,
       name,
     });
@@ -150,6 +152,7 @@ export const startTransaction = (name, op = 'task') => {
   // Return a dummy transaction object if Sentry is disabled
   return {
     finish: () => {},
+    end: () => {},
     setStatus: () => {},
     setData: () => {},
   };

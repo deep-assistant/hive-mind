@@ -74,7 +74,13 @@ export const withSentry = (fn, name, op = 'task') => {
       });
       throw error;
     } finally {
-      transaction.finish();
+      // In Sentry v10, use end() instead of finish()
+      if (transaction.end) {
+        transaction.end();
+      } else if (transaction.finish) {
+        // Fallback for compatibility
+        transaction.finish();
+      }
     }
   };
 };
