@@ -219,7 +219,8 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let mergeStateStatus;
-// let isForkPR = false; // Not currently used
+let isForkPR = false;
+let forkOwner = null;
 let isContinueMode = false;
 
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
@@ -231,6 +232,30 @@ if (autoContinueResult.isContinueMode) {
   issueNumber = autoContinueResult.issueNumber;
   // Store PR info globally for error handlers
   global.createdPR = { number: prNumber };
+
+  // Check if PR is from a fork and get fork owner
+  if (argv.verbose) {
+    await log('   Checking if PR is from a fork...', { verbose: true });
+  }
+  try {
+    const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner`;
+    if (prCheckResult.code === 0) {
+      const prCheckData = JSON.parse(prCheckResult.stdout.toString());
+      if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
+        isForkPR = true;
+        forkOwner = prCheckData.headRepositoryOwner.login;
+        await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+        if (argv.verbose) {
+          await log(`   Fork owner: ${forkOwner}`, { verbose: true });
+          await log('   Will clone fork repository for continue mode', { verbose: true });
+        }
+      }
+    }
+  } catch (forkCheckError) {
+    if (argv.verbose) {
+      await log(`   Warning: Could not check fork status: ${forkCheckError.message}`, { verbose: true });
+    }
+  }
 } else if (isIssueUrl) {
   issueNumber = autoContinueResult.issueNumber || urlNumber;
 }
@@ -263,8 +288,15 @@ if (isPrUrl) {
     mergeStateStatus = prData.mergeStateStatus;
 
     // Check if this is a fork PR
-    // Check if this is a fork PR (not currently used)
-    // isForkPR = prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner;
+    if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
+      isForkPR = true;
+      forkOwner = prData.headRepositoryOwner.login;
+      await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+      if (argv.verbose) {
+        await log(`   Fork owner: ${forkOwner}`, { verbose: true });
+        await log('   Will clone fork repository for continue mode', { verbose: true });
+      }
+    }
 
     await log(`📝 PR branch: ${prBranch}`);
     
@@ -305,7 +337,7 @@ let limitReached = false;
 
 try {
   // Set up repository and handle forking
-  const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo);
+  const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo, forkOwner);
 
   // Clone repository and set up remotes
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
