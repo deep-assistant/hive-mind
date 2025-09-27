@@ -402,6 +402,102 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
   }
 };
 
+// Set up pr-fork remote for continuing someone else's fork PR with --fork flag
+export const setupPrForkRemote = async (tempDir, argv, prForkOwner, repo, isContinueMode) => {
+  // Only set up pr-fork remote if:
+  // 1. --fork flag is used (user wants to use their own fork)
+  // 2. prForkOwner is provided (continuing an existing PR from a fork)
+  // 3. In continue mode (auto-continue or continuing existing PR)
+  if (!argv.fork || !prForkOwner || !isContinueMode) {
+    return null;
+  }
+
+  // Get current user to check if it's someone else's fork
+  await log(`\n${formatAligned('🔍', 'Checking PR fork:', 'Determining if branch is in another fork...')}`);
+  const userResult = await $`gh api user --jq .login`;
+  if (userResult.code !== 0) {
+    await log(`${formatAligned('⚠️', 'Warning:', 'Failed to get current user, cannot set up pr-fork remote')}`);
+    return null;
+  }
+
+  const currentUser = userResult.stdout.toString().trim();
+
+  // If PR is from current user's fork, no need for pr-fork remote
+  if (prForkOwner === currentUser) {
+    await log(`${formatAligned('ℹ️', 'PR fork owner:', 'Same as current user, using origin remote')}`);
+    return null;
+  }
+
+  // This is someone else's fork - add it as pr-fork remote
+  await log(`${formatAligned('🔗', 'Setting up pr-fork:', 'Branch exists in another user\'s fork')}`);
+  await log(`${formatAligned('', 'PR fork owner:', prForkOwner)}`);
+  await log(`${formatAligned('', 'Current user:', currentUser)}`);
+  await log(`${formatAligned('', 'Action:', `Adding ${prForkOwner}/${repo} as pr-fork remote`)}`);
+
+  const addRemoteResult = await $({ cwd: tempDir })`git remote add pr-fork https://github.com/${prForkOwner}/${repo}.git`;
+  if (addRemoteResult.code !== 0) {
+    await log(`${formatAligned('❌', 'Error:', 'Failed to add pr-fork remote')}`);
+    if (addRemoteResult.stderr) {
+      await log(`${formatAligned('', 'Details:', addRemoteResult.stderr.toString().trim())}`);
+    }
+    await log(`${formatAligned('', 'Suggestion:', 'The PR branch may not be accessible')}`);
+    await log(`${formatAligned('', 'Workaround:', 'Remove --fork flag to continue work in the original fork')}`);
+    return null;
+  }
+
+  await log(`${formatAligned('✅', 'Remote added:', 'pr-fork')}`);
+
+  // Fetch from pr-fork to get the branch
+  await log(`${formatAligned('📥', 'Fetching branches:', 'From pr-fork remote...')}`);
+  const fetchPrForkResult = await $({ cwd: tempDir })`git fetch pr-fork`;
+  if (fetchPrForkResult.code !== 0) {
+    await log(`${formatAligned('❌', 'Error:', 'Failed to fetch from pr-fork')}`);
+    if (fetchPrForkResult.stderr) {
+      await log(`${formatAligned('', 'Details:', fetchPrForkResult.stderr.toString().trim())}`);
+    }
+    await log(`${formatAligned('', 'Suggestion:', 'Check if you have access to the fork')}`);
+    return null;
+  }
+
+  await log(`${formatAligned('✅', 'Fetched:', 'pr-fork branches')}`);
+  await log(`${formatAligned('ℹ️', 'Next step:', 'Will checkout branch from pr-fork remote')}`);
+  return 'pr-fork';
+};
+
+// Checkout branch for continue mode (PR branch from remote)
+export const checkoutPrBranch = async (tempDir, branchName, prForkRemote, prForkOwner) => {
+  await log(`\n${formatAligned('🔄', 'Checking out PR branch:', branchName)}`);
+
+  // Determine which remote to use for branch checkout
+  const remoteName = prForkRemote || 'origin';
+
+  // First fetch all branches from remote (if not already fetched from pr-fork)
+  if (!prForkRemote) {
+    await log(`${formatAligned('📥', 'Fetching branches:', 'From remote...')}`);
+    const fetchResult = await $({ cwd: tempDir })`git fetch origin`;
+
+    if (fetchResult.code !== 0) {
+      await log('Warning: Failed to fetch branches from remote', { level: 'warning' });
+    }
+  } else {
+    await log(`${formatAligned('ℹ️', 'Using pr-fork remote:', `Branch exists in ${prForkOwner}'s fork`)}`);
+  }
+
+  // Checkout the PR branch (it might exist locally or remotely)
+  const localBranchResult = await $({ cwd: tempDir })`git show-ref --verify --quiet refs/heads/${branchName}`;
+
+  let checkoutResult;
+  if (localBranchResult.code === 0) {
+    // Branch exists locally
+    checkoutResult = await $({ cwd: tempDir })`git checkout ${branchName}`;
+  } else {
+    // Branch doesn't exist locally, try to checkout from remote
+    checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName} ${remoteName}/${branchName}`;
+  }
+
+  return checkoutResult;
+};
+
 // Cleanup temporary directory
 export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
   // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
