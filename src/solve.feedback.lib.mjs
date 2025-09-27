@@ -99,6 +99,14 @@ export const detectAndCountFeedback = async (params) => {
       // Only proceed if we have a last commit time
       if (lastCommitTime) {
 
+        // Define log patterns to filter out comments containing logs from solve.mjs
+        const logPatterns = [
+          /📊.*Log file|solution\s+draft.*log/i,
+          /🔗.*Link:|💻.*Session:/i,
+          /Generated with.*solve\.mjs/i,
+          /Session ID:|Log file available:/i
+        ];
+
         // Count new PR comments after last commit (both code review comments and conversation comments)
         let prReviewComments = [];
         let prConversationComments = [];
@@ -116,11 +124,12 @@ export const detectAndCountFeedback = async (params) => {
         }
 
         // Combine and count all PR comments after last commit
-        // Filter out comments from current user if made after work started
+        // Filter out comments from current user if made after work started AND filter out log comments
         const allPrComments = [...prReviewComments, ...prConversationComments];
         const filteredPrComments = allPrComments.filter(comment => {
           const commentTime = new Date(comment.created_at);
           const isAfterCommit = commentTime > lastCommitTime;
+          const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
 
           // If we have a work start time and current user, filter out comments made by claude tool after work started
           if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
@@ -128,10 +137,10 @@ export const detectAndCountFeedback = async (params) => {
             if (isAfterWorkStart && argv.verbose) {
               // Note: Filtering out own comment from user after work started
             }
-            return isAfterCommit && !isAfterWorkStart;
+            return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
           }
 
-          return isAfterCommit;
+          return isAfterCommit && isNotLogPattern;
         });
         newPrComments = filteredPrComments.length;
 
@@ -142,6 +151,7 @@ export const detectAndCountFeedback = async (params) => {
           const filteredIssueComments = issueComments.filter(comment => {
             const commentTime = new Date(comment.created_at);
             const isAfterCommit = commentTime > lastCommitTime;
+            const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
 
             // If we have a work start time and current user, filter out comments made by claude tool after work started
             if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
@@ -149,10 +159,10 @@ export const detectAndCountFeedback = async (params) => {
               if (isAfterWorkStart && argv.verbose) {
                 // Note: Filtering out own issue comment from user after work started
               }
-              return isAfterCommit && !isAfterWorkStart;
+              return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
             }
 
-            return isAfterCommit;
+            return isAfterCommit && isNotLogPattern;
           });
           newIssueComments = filteredIssueComments.length;
         }
@@ -199,75 +209,9 @@ export const detectAndCountFeedback = async (params) => {
             await log(`${formatAligned('🔍', 'Feedback detection:', 'Checking for any feedback since last commit...')}`);
           }
 
-          // 1. Check for new comments (excluding our own log comments) - enhanced filtering
-          let filteredPrComments = 0;
-          let filteredIssueComments = 0;
-
-          // Filter out comments that contain logs from solve.mjs
-          const logPatterns = [
-            /📊.*Log file|solution\s+draft.*log/i,
-            /🔗.*Link:|💻.*Session:/i,
-            /Generated with.*solve\.mjs/i,
-            /Session ID:|Log file available:/i
-          ];
-
-          if (allPrComments.length > 0) {
-            const filteredComments = allPrComments.filter(comment => {
-              const commentTime = new Date(comment.created_at);
-              const isAfterCommit = commentTime > lastCommitTime;
-              const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
-
-              // Filter out comments from current user if made after work started
-              if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
-                const isAfterWorkStart = commentTime > new Date(workStartTime);
-                return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
-              }
-
-              return isAfterCommit && isNotLogPattern;
-            });
-            filteredPrComments = filteredComments.length;
-          }
-
-          if (issueNumber) {
-            try {
-              const issueCommentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-              if (issueCommentsResult.code === 0) {
-                const issueComments = JSON.parse(issueCommentsResult.stdout.toString());
-                const filteredComments = issueComments.filter(comment => {
-                  const commentTime = new Date(comment.created_at);
-                  const isAfterCommit = commentTime > lastCommitTime;
-                  const isNotLogPattern = !logPatterns.some(pattern => pattern.test(comment.body || ''));
-
-                  // Filter out comments from current user if made after work started
-                  if (workStartTime && currentUser && comment.user && comment.user.login === currentUser) {
-                    const isAfterWorkStart = commentTime > new Date(workStartTime);
-                    return isAfterCommit && !isAfterWorkStart && isNotLogPattern;
-                  }
-
-                  return isAfterCommit && isNotLogPattern;
-                });
-                filteredIssueComments = filteredComments.length;
-              }
-            } catch (error) {
-              reportError(error, {
-                context: 'check_issue_comments',
-                issueNumber,
-                operation: 'fetch_issue_comments'
-              });
-              if (argv.verbose) {
-                await log(`Warning: Could not check issue comments: ${cleanErrorMessage(error)}`, { level: 'warning' });
-              }
-            }
-          }
-
-          // Add filtered comment info if different from original counts
-          const totalFilteredComments = filteredPrComments + filteredIssueComments;
+          // 1. Check for new comments (already filtered above)
           const totalNewComments = newPrComments + newIssueComments;
-          if (totalFilteredComments > 0 && totalFilteredComments !== totalNewComments) {
-            feedbackLines.push(`New non-log comments: ${totalFilteredComments} (${totalNewComments} total)`);
-            feedbackDetected = true;
-            feedbackSources.push(`New comments (${totalFilteredComments} filtered)`);
-          } else if (totalNewComments > 0) {
+          if (totalNewComments > 0) {
             feedbackDetected = true;
             feedbackSources.push(`New comments (${totalNewComments})`);
           }
