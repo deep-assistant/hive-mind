@@ -146,6 +146,14 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
 
             // Check if PR is open (not closed)
             if (pr.state === 'OPEN') {
+              // CRITICAL: Validate that branch name matches the expected pattern for this issue
+              // Branch naming convention: issue-{issueNumber}-{randomHash}
+              const expectedBranchPrefix = `issue-${issueNumber}-`;
+              if (!pr.headRefName.startsWith(expectedBranchPrefix)) {
+                await log(`  PR #${pr.number}: Branch '${pr.headRefName}' doesn't match expected pattern '${expectedBranchPrefix}*' - skipping`);
+                continue;
+              }
+
               // Check if CLAUDE.md exists in this PR branch
               const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
 
@@ -303,6 +311,14 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
           // Check if PR is open (not closed)
           if (pr.state === 'OPEN') {
+            // CRITICAL: Validate that branch name matches the expected pattern for this issue
+            // Branch naming convention: issue-{issueNumber}-{randomHash}
+            const expectedBranchPrefix = `issue-${issueNumber}-`;
+            if (!pr.headRefName.startsWith(expectedBranchPrefix)) {
+              await log(`  PR #${pr.number}: Branch '${pr.headRefName}' doesn't match expected pattern '${expectedBranchPrefix}*' - skipping`);
+              continue;
+            }
+
             // Check if CLAUDE.md exists in this PR branch
             const claudeMdExists = await checkFileInBranch(owner, repo, 'CLAUDE.md', pr.headRefName);
 
