@@ -366,78 +366,95 @@ Review this pull request thoroughly.`;
 
   for await (const chunk of execCommand.stream()) {
     if (chunk.type === 'stdout') {
-      const data = chunk.data.toString();
-      let json;
-      try {
-        json = JSON.parse(data);
-        await log(JSON.stringify(json, null, 2));
-      } catch (error) {
-        // JSON parse errors are expected for non-JSON output
-        // Only report in verbose mode
-        if (global.verboseMode) {
-          reportError(error, {
-            context: 'parse_claude_output',
-            level: 'debug'
-          });
-        }
-        await log(data);
-        continue;
-      }
+      const output = chunk.data.toString();
 
-      // Extract session ID on first message
-      if (!sessionId && json.session_id) {
-        sessionId = json.session_id;
-        await log(`🔧 Session ID: ${sessionId}`);
-        
-        // Try to rename log file to include session ID
+      // Split output into individual lines for NDJSON parsing
+      // Claude CLI outputs NDJSON (newline-delimited JSON) format where each line is a separate JSON object
+      // This allows us to parse each event independently and extract structured data like session IDs,
+      // message counts, and error patterns. Attempting to parse the entire chunk as single JSON would fail
+      // since multiple JSON objects aren't valid JSON together.
+      const lines = output.split('\n');
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        let json;
         try {
-          const currentLogFile = getLogFile();
-          const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-          await fs.rename(currentLogFile, sessionLogFile);
-          setLogFile(sessionLogFile);
-          await log(`📁 Log renamed to: ${sessionLogFile}`);
-        } catch (renameError) {
-          reportError(renameError, {
-            context: 'rename_log_file',
-            level: 'warning'
-          });
-          // If rename fails, keep original filename
-          await log(`📁 Keeping log file: ${getLogFile()}`);
+          json = JSON.parse(line);
+          await log(JSON.stringify(json, null, 2));
+        } catch (error) {
+          // JSON parse errors are expected for non-JSON output
+          // Only report in verbose mode
+          if (global.verboseMode) {
+            reportError(error, {
+              context: 'parse_claude_output',
+              line,
+              operation: 'parse_json_output',
+              level: 'debug'
+            });
+          }
+          // Not JSON or parsing failed, output as-is if it's not empty
+          if (line.trim() && !line.includes('node:internal')) {
+            await log(line);
+            lastMessage = line;
+          }
+          continue;
         }
-        await log('');
-      }
 
-      // Display user-friendly progress
-      if (json.type === 'message' && json.message) {
-        messageCount++;
-        
-        // Extract text content from message
-        if (json.message.content && Array.isArray(json.message.content)) {
-          for (const item of json.message.content) {
-            if (item.type === 'text' && item.text) {
-              lastMessage = item.text.substring(0, 100); // First 100 chars
-              if (item.text.includes('limit reached')) {
-                limitReached = true;
+        // Extract session ID on first message
+        if (!sessionId && json.session_id) {
+          sessionId = json.session_id;
+          await log(`🔧 Session ID: ${sessionId}`);
+
+          // Try to rename log file to include session ID
+          try {
+            const currentLogFile = getLogFile();
+            const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
+            await fs.rename(currentLogFile, sessionLogFile);
+            setLogFile(sessionLogFile);
+            await log(`📁 Log renamed to: ${sessionLogFile}`);
+          } catch (renameError) {
+            reportError(renameError, {
+              context: 'rename_log_file',
+              level: 'warning'
+            });
+            // If rename fails, keep original filename
+            await log(`📁 Keeping log file: ${getLogFile()}`);
+          }
+          await log('');
+        }
+
+        // Display user-friendly progress
+        if (json.type === 'message' && json.message) {
+          messageCount++;
+
+          // Extract text content from message
+          if (json.message.content && Array.isArray(json.message.content)) {
+            for (const item of json.message.content) {
+              if (item.type === 'text' && item.text) {
+                lastMessage = item.text.substring(0, 100); // First 100 chars
+                if (item.text.includes('limit reached')) {
+                  limitReached = true;
+                }
               }
             }
           }
-        }
-        
-        // Show progress indicator (console only, not logged)
-        process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
-      } else if (json.type === 'tool_use') {
-        toolUseCount++;
-        const toolName = json.tool_use?.name || 'unknown';
-        // Log tool use
-        await log(`[TOOL USE] ${toolName}`);
-        // Show progress in console (without logging)
-        process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
-      } else if (json.type === 'system' && json.subtype === 'init') {
-        await log('🚀 Claude session started');
-        await log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
-        await log('\n🔄 Processing review...\n');
-      }
 
+          // Show progress indicator (console only, not logged)
+          process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
+        } else if (json.type === 'tool_use') {
+          toolUseCount++;
+          const toolName = json.tool_use?.name || 'unknown';
+          // Log tool use
+          await log(`[TOOL USE] ${toolName}`);
+          // Show progress in console (without logging)
+          process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
+        } else if (json.type === 'system' && json.subtype === 'init') {
+          await log('🚀 Claude session started');
+          await log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
+          await log('\n🔄 Processing review...\n');
+        }
+      }
     } else if (chunk.type === 'stderr') {
       const data = chunk.data.toString();
       // Only show actual errors, not verbose output
