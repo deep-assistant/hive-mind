@@ -77,28 +77,9 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
   let forkedRepo = null;
   let upstreamRemote = null;
 
-  // If forkOwner is provided (from auto-continue/PR mode), use that fork directly
-  if (forkOwner) {
-    await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
-    await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
-    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
-
-    // Verify the fork exists and is accessible
-    await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
-    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
-
-    if (forkCheckResult.code === 0) {
-      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
-      repoToClone = `${forkOwner}/${repo}`;
-      forkedRepo = `${forkOwner}/${repo}`;
-      upstreamRemote = `${owner}/${repo}`;
-    } else {
-      await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
-      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
-      await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
-      await safeExit(1, 'Repository setup failed');
-    }
-  } else if (argv.fork) {
+  // Priority 1: Check --fork flag first (user explicitly wants to use their own fork)
+  // This takes precedence over forkOwner to avoid trying to access someone else's fork
+  if (argv.fork) {
     await log(`\n${formatAligned('🍴', 'Fork mode:', 'ENABLED')}`);
     await log(`${formatAligned('', 'Checking fork status...', '')}\n`);
 
@@ -218,6 +199,29 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
       repoToClone = `${currentUser}/${repo}`;
       forkedRepo = `${currentUser}/${repo}`;
       upstreamRemote = `${owner}/${repo}`;
+    }
+  } else if (forkOwner) {
+    // Priority 2: If forkOwner is provided (from auto-continue/PR mode) and --fork was not used,
+    // try to use that fork directly (only works if it's accessible)
+    await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
+    await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
+    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
+
+    // Verify the fork exists and is accessible
+    await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
+    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
+
+    if (forkCheckResult.code === 0) {
+      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
+      repoToClone = `${forkOwner}/${repo}`;
+      forkedRepo = `${forkOwner}/${repo}`;
+      upstreamRemote = `${owner}/${repo}`;
+    } else {
+      await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
+      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
+      await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
+      await log(`${formatAligned('', 'Hint:', 'Try running with --fork flag to use your own fork instead')}`);
+      await safeExit(1, 'Repository setup failed');
     }
   }
 
