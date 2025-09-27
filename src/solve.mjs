@@ -61,7 +61,6 @@ const { initializeConfig, parseArguments } = config;
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
 const { yargs, hideBin } = await initializeConfig(use);
-// const os = (await use('os')).default; // Not currently used
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 const crypto = (await use('crypto')).default;
@@ -70,7 +69,6 @@ const lib = await import('./lib.mjs');
 const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
 const { sanitizeLogContent, attachLogToGitHub } = githubLib;
-// Claude lib import removed - not currently used
 const validation = await import('./solve.validation.lib.mjs');
 const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
@@ -95,10 +93,6 @@ const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
-if (argv.verbose) {
-  await log(`Debug: argv.attachLogs = ${argv.attachLogs}`, { verbose: true });
-  await log(`Debug: argv["attach-logs"] = ${argv['attach-logs']}`, { verbose: true });
-}
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
@@ -132,9 +126,6 @@ installGlobalExitHandlers();
 const versionInfo = await getVersionInfo();
 await log('');
 await log(`🚀 solve v${versionInfo}`);
-await log('');
-
-// Log the raw command that was executed (for better bug reporting)
 const rawCommand = process.argv.join(' ');
 await log('🔧 Raw command executed:');
 await log(`   ${rawCommand}`);
@@ -144,23 +135,17 @@ await log('');
 let issueUrl = argv._[0];
 if (!issueUrl) {
   await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
-  await log('');
   await log('Error: Missing required github issue or pull request URL', { level: 'error' });
-  await log('');
   await log('Run "solve.mjs --help" for more information', { level: 'error' });
   await safeExit(1, 'Missing required GitHub URL');
 }
-
 // Validate GitHub URL using validation module (more thorough check)
 const urlValidation = validateGitHubUrl(issueUrl);
 if (!urlValidation.isValid) {
   await safeExit(1, 'Invalid GitHub URL');
 }
 const { isIssueUrl, isPrUrl, normalizedUrl } = urlValidation;
-
-// Use the normalized URL for all subsequent operations
 issueUrl = normalizedUrl || issueUrl;
-
 // Setup unhandled error handlers to ensure log path is always shown
 const errorHandlerOptions = {
   log,
@@ -179,24 +164,19 @@ const errorHandlerOptions = {
 
 process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptions));
 process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
-
-// Graceful shutdown handlers are now handled by exit-handler.lib.mjs
 // Validate GitHub URL requirement and options using validation module
 if (!(await validateUrlRequirement(issueUrl))) {
   await safeExit(1, 'URL requirement validation failed');
 }
-
 if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
   await safeExit(1, 'Feedback validation failed');
 }
-
 // Perform all system checks using validation module
 // Skip Claude validation in dry-run mode or when --skip-claude-check is enabled
 const skipClaudeCheck = argv.dryRun || argv.skipClaudeCheck;
 if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck, argv.model))) {
   await safeExit(1, 'System checks failed');
 }
-
 // URL validation debug logging
 if (argv.verbose) {
   await log('📋 URL validation:', { verbose: true });
@@ -204,25 +184,20 @@ if (argv.verbose) {
   await log(`   Is Issue URL: ${!!isIssueUrl}`, { verbose: true });
   await log(`   Is PR URL: ${!!isPrUrl}`, { verbose: true });
 }
-
 const claudePath = process.env.CLAUDE_PATH || 'claude';
-
 // Parse URL components using validation module
 const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
-
 // Determine mode and get issue details
 let issueNumber;
 let prNumber;
 let prBranch;
 let mergeStateStatus;
-let isForkPR = false;
 let forkOwner = null;
 let isContinueMode = false;
-
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
 const autoContinueResult = await processAutoContinueForIssue(argv, isIssueUrl, urlNumber, owner, repo);
 if (autoContinueResult.isContinueMode) {
@@ -232,7 +207,6 @@ if (autoContinueResult.isContinueMode) {
   issueNumber = autoContinueResult.issueNumber;
   // Store PR info globally for error handlers
   global.createdPR = { number: prNumber };
-
   // Check if PR is from a fork and get fork owner
   if (argv.verbose) {
     await log('   Checking if PR is from a fork...', { verbose: true });
@@ -242,7 +216,6 @@ if (autoContinueResult.isContinueMode) {
     if (prCheckResult.code === 0) {
       const prCheckData = JSON.parse(prCheckResult.stdout.toString());
       if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
-        isForkPR = true;
         forkOwner = prCheckData.headRepositoryOwner.login;
         await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
         if (argv.verbose) {
@@ -259,20 +232,17 @@ if (autoContinueResult.isContinueMode) {
 } else if (isIssueUrl) {
   issueNumber = autoContinueResult.issueNumber || urlNumber;
 }
-
 if (isPrUrl) {
   isContinueMode = true;
   prNumber = urlNumber;
   // Store PR info globally for error handlers
   global.createdPR = { number: prNumber, url: issueUrl };
-
   await log(`🔄 Continue mode: Working with PR #${prNumber}`);
   if (argv.verbose) {
     await log('   Continue mode activated: PR URL provided directly', { verbose: true });
     await log(`   PR Number set to: ${prNumber}`, { verbose: true });
     await log('   Will fetch PR details and linked issue', { verbose: true });
   }
-  
   // Get PR details to find the linked issue and branch
   try {
     const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,headRepositoryOwner`;
@@ -289,7 +259,6 @@ if (isPrUrl) {
 
     // Check if this is a fork PR
     if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
-      isForkPR = true;
       forkOwner = prData.headRepositoryOwner.login;
       await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
       if (argv.verbose) {
