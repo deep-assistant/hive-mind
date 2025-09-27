@@ -92,13 +92,28 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
     const currentUser = userResult.stdout.toString().trim();
 
     // Check if fork already exists
-    const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+    // GitHub may create forks with different names to avoid conflicts
+    // Try standard name first: currentUser/repo
+    let existingForkName = null;
+    const standardForkName = `${currentUser}/${repo}`;
+    const alternateForkName = `${currentUser}/${owner}-${repo}`;
 
+    let forkCheckResult = await $`gh repo view ${standardForkName} --json name 2>/dev/null`;
     if (forkCheckResult.code === 0) {
+      existingForkName = standardForkName;
+    } else {
+      // Try alternate name: currentUser/owner-repo
+      forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
+      if (forkCheckResult.code === 0) {
+        existingForkName = alternateForkName;
+      }
+    }
+
+    if (existingForkName) {
       // Fork exists
-      await log(`${formatAligned('✅', 'Fork exists:', `${currentUser}/${repo}`)}`);
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
+      await log(`${formatAligned('✅', 'Fork exists:', existingForkName)}`);
+      repoToClone = existingForkName;
+      forkedRepo = existingForkName;
       upstreamRemote = `${owner}/${repo}`;
     } else {
       // Need to create fork with retry logic for concurrent scenarios
@@ -108,35 +123,49 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
       const baseDelay = 2000; // Start with 2 seconds
       let forkCreated = false;
       let forkExists = false;
+      let actualForkName = `${currentUser}/${repo}`; // Default expected fork name
 
       for (let attempt = 1; attempt <= maxForkRetries; attempt++) {
         // Try to create fork
         const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false 2>&1`;
 
+        // Always capture output to parse actual fork name
+        const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
+                          (forkResult.stdout ? forkResult.stdout.toString() : '');
+
+        // Parse actual fork name from output (e.g., "konard/netkeep80-jsonRVM already exists")
+        // GitHub may create forks with modified names to avoid conflicts
+        const forkNameMatch = forkOutput.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/);
+        if (forkNameMatch) {
+          actualForkName = forkNameMatch[1];
+        }
+
         if (forkResult.code === 0) {
-          // Fork successfully created
-          await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
-          forkCreated = true;
-          forkExists = true;
+          // Fork successfully created or already exists
+          if (forkOutput.includes('already exists')) {
+            await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
+            forkExists = true;
+          } else {
+            await log(`${formatAligned('✅', 'Fork created:', actualForkName)}`);
+            forkCreated = true;
+            forkExists = true;
+          }
           break;
         } else {
           // Fork creation failed - check if it's because fork already exists
-          const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
-                            (forkResult.stdout ? forkResult.stdout.toString() : '');
-
           if (forkOutput.includes('already exists') ||
               forkOutput.includes('Name already exists') ||
               forkOutput.includes('fork of') ||
               forkOutput.includes('HTTP 422')) {
             // Fork already exists (likely created by another concurrent worker)
-            await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created (likely by another worker)')}`);
+            await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
             forkExists = true;
             break;
           }
 
           // Check if fork was created by another worker even if error message doesn't explicitly say so
           await log(`${formatAligned('🔍', 'Checking:', 'If fork exists after failed creation attempt...')}`);
-          const checkResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          const checkResult = await $`gh repo view ${actualForkName} --json name 2>/dev/null`;
 
           if (checkResult.code === 0) {
             // Fork exists now (created by another worker during our attempt)
@@ -175,10 +204,10 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
             await new Promise(resolve => setTimeout(resolve, delay));
           }
 
-          const verifyResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          const verifyResult = await $`gh repo view ${actualForkName} --json name 2>/dev/null`;
           if (verifyResult.code === 0) {
             forkVerified = true;
-            await log(`${formatAligned('✅', 'Fork verified:', `${currentUser}/${repo} is accessible`)}`);
+            await log(`${formatAligned('✅', 'Fork verified:', `${actualForkName} is accessible`)}`);
             break;
           }
         }
@@ -196,8 +225,8 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
         }
       }
 
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
+      repoToClone = actualForkName;
+      forkedRepo = actualForkName;
       upstreamRemote = `${owner}/${repo}`;
     }
   } else if (forkOwner) {
