@@ -686,11 +686,16 @@ export const executeClaudeCommand = async (params) => {
             }
 
           } catch (parseError) {
-            reportError(parseError, {
-              context: 'parse_claude_output',
-              line,
-              operation: 'parse_json_output'
-            });
+            // JSON parse errors are expected for non-JSON output
+            // Only report in verbose mode
+            if (global.verboseMode) {
+              reportError(parseError, {
+                context: 'parse_claude_output',
+                line,
+                operation: 'parse_json_output',
+                level: 'debug'
+              });
+            }
             // Not JSON or parsing failed, output as-is if it's not empty
             if (line.trim() && !line.includes('node:internal')) {
               await log(line, { stream: 'raw' });
