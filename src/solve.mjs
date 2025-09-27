@@ -74,7 +74,7 @@ const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrl
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const { processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
-const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, cleanupTempDirectory } = repository;
+const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, setupPrForkRemote, checkoutPrBranch, cleanupTempDirectory } = repository;
 const results = await import('./solve.results.lib.mjs');
 const { cleanupClaudeFile, showSessionSummary, verifyResults } = results;
 const claudeLib = await import('./claude.lib.mjs');
@@ -306,12 +306,15 @@ let limitReached = false;
 
 try {
   // Set up repository and handle forking
-  const { repoToClone, forkedRepo, upstreamRemote } = await setupRepository(argv, owner, repo, forkOwner);
+  const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner);
 
   // Clone repository and set up remotes
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
   // Set up upstream remote and sync fork if needed
   await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
+
+  // Set up pr-fork remote if we're continuing someone else's fork PR with --fork flag
+  const prForkRemote = await setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode);
 
   // Set up git authentication using gh
   const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
@@ -374,26 +377,7 @@ try {
   if (isContinueMode && prBranch) {
     // Continue mode: checkout existing PR branch
     branchName = prBranch;
-    await log(`\n${formatAligned('🔄', 'Checking out PR branch:', branchName)}`);
-    
-    // First fetch all branches from remote
-    await log(`${formatAligned('📥', 'Fetching branches:', 'From remote...')}`);
-    const fetchResult = await $({ cwd: tempDir })`git fetch origin`;
-    
-    if (fetchResult.code !== 0) {
-      await log('Warning: Failed to fetch branches from remote', { level: 'warning' });
-    }
-    
-    // Checkout the PR branch (it might exist locally or remotely)
-    const localBranchResult = await $({ cwd: tempDir })`git show-ref --verify --quiet refs/heads/${branchName}`;
-    
-    if (localBranchResult.code === 0) {
-      // Branch exists locally
-      checkoutResult = await $({ cwd: tempDir })`git checkout ${branchName}`;
-    } else {
-      // Branch doesn't exist locally, try to checkout from remote
-      checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName} origin/${branchName}`;
-    }
+    checkoutResult = await checkoutPrBranch(tempDir, branchName, prForkRemote, prForkOwner);
   } else {
     // Traditional mode: create new branch for issue
     const randomHex = crypto.randomBytes(4).toString('hex');

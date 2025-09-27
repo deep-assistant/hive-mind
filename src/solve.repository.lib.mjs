@@ -77,28 +77,9 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
   let forkedRepo = null;
   let upstreamRemote = null;
 
-  // If forkOwner is provided (from auto-continue/PR mode), use that fork directly
-  if (forkOwner) {
-    await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
-    await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
-    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
-
-    // Verify the fork exists and is accessible
-    await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
-    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
-
-    if (forkCheckResult.code === 0) {
-      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
-      repoToClone = `${forkOwner}/${repo}`;
-      forkedRepo = `${forkOwner}/${repo}`;
-      upstreamRemote = `${owner}/${repo}`;
-    } else {
-      await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
-      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
-      await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
-      await safeExit(1, 'Repository setup failed');
-    }
-  } else if (argv.fork) {
+  // Priority 1: Check --fork flag first (user explicitly wants to use their own fork)
+  // This takes precedence over forkOwner to avoid trying to access someone else's fork
+  if (argv.fork) {
     await log(`\n${formatAligned('🍴', 'Fork mode:', 'ENABLED')}`);
     await log(`${formatAligned('', 'Checking fork status...', '')}\n`);
 
@@ -111,13 +92,28 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
     const currentUser = userResult.stdout.toString().trim();
 
     // Check if fork already exists
-    const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+    // GitHub may create forks with different names to avoid conflicts
+    // Try standard name first: currentUser/repo
+    let existingForkName = null;
+    const standardForkName = `${currentUser}/${repo}`;
+    const alternateForkName = `${currentUser}/${owner}-${repo}`;
 
+    let forkCheckResult = await $`gh repo view ${standardForkName} --json name 2>/dev/null`;
     if (forkCheckResult.code === 0) {
+      existingForkName = standardForkName;
+    } else {
+      // Try alternate name: currentUser/owner-repo
+      forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
+      if (forkCheckResult.code === 0) {
+        existingForkName = alternateForkName;
+      }
+    }
+
+    if (existingForkName) {
       // Fork exists
-      await log(`${formatAligned('✅', 'Fork exists:', `${currentUser}/${repo}`)}`);
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
+      await log(`${formatAligned('✅', 'Fork exists:', existingForkName)}`);
+      repoToClone = existingForkName;
+      forkedRepo = existingForkName;
       upstreamRemote = `${owner}/${repo}`;
     } else {
       // Need to create fork with retry logic for concurrent scenarios
@@ -127,35 +123,49 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
       const baseDelay = 2000; // Start with 2 seconds
       let forkCreated = false;
       let forkExists = false;
+      let actualForkName = `${currentUser}/${repo}`; // Default expected fork name
 
       for (let attempt = 1; attempt <= maxForkRetries; attempt++) {
         // Try to create fork
         const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false 2>&1`;
 
+        // Always capture output to parse actual fork name
+        const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
+                          (forkResult.stdout ? forkResult.stdout.toString() : '');
+
+        // Parse actual fork name from output (e.g., "konard/netkeep80-jsonRVM already exists")
+        // GitHub may create forks with modified names to avoid conflicts
+        const forkNameMatch = forkOutput.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/);
+        if (forkNameMatch) {
+          actualForkName = forkNameMatch[1];
+        }
+
         if (forkResult.code === 0) {
-          // Fork successfully created
-          await log(`${formatAligned('✅', 'Fork created:', `${currentUser}/${repo}`)}`);
-          forkCreated = true;
-          forkExists = true;
+          // Fork successfully created or already exists
+          if (forkOutput.includes('already exists')) {
+            await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
+            forkExists = true;
+          } else {
+            await log(`${formatAligned('✅', 'Fork created:', actualForkName)}`);
+            forkCreated = true;
+            forkExists = true;
+          }
           break;
         } else {
           // Fork creation failed - check if it's because fork already exists
-          const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
-                            (forkResult.stdout ? forkResult.stdout.toString() : '');
-
           if (forkOutput.includes('already exists') ||
               forkOutput.includes('Name already exists') ||
               forkOutput.includes('fork of') ||
               forkOutput.includes('HTTP 422')) {
             // Fork already exists (likely created by another concurrent worker)
-            await log(`${formatAligned('ℹ️', 'Fork exists:', 'Already created (likely by another worker)')}`);
+            await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
             forkExists = true;
             break;
           }
 
           // Check if fork was created by another worker even if error message doesn't explicitly say so
           await log(`${formatAligned('🔍', 'Checking:', 'If fork exists after failed creation attempt...')}`);
-          const checkResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          const checkResult = await $`gh repo view ${actualForkName} --json name 2>/dev/null`;
 
           if (checkResult.code === 0) {
             // Fork exists now (created by another worker during our attempt)
@@ -194,10 +204,10 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
             await new Promise(resolve => setTimeout(resolve, delay));
           }
 
-          const verifyResult = await $`gh repo view ${currentUser}/${repo} --json name 2>/dev/null`;
+          const verifyResult = await $`gh repo view ${actualForkName} --json name 2>/dev/null`;
           if (verifyResult.code === 0) {
             forkVerified = true;
-            await log(`${formatAligned('✅', 'Fork verified:', `${currentUser}/${repo} is accessible`)}`);
+            await log(`${formatAligned('✅', 'Fork verified:', `${actualForkName} is accessible`)}`);
             break;
           }
         }
@@ -215,13 +225,36 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
         }
       }
 
-      repoToClone = `${currentUser}/${repo}`;
-      forkedRepo = `${currentUser}/${repo}`;
+      repoToClone = actualForkName;
+      forkedRepo = actualForkName;
       upstreamRemote = `${owner}/${repo}`;
+    }
+  } else if (forkOwner) {
+    // Priority 2: If forkOwner is provided (from auto-continue/PR mode) and --fork was not used,
+    // try to use that fork directly (only works if it's accessible)
+    await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
+    await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
+    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
+
+    // Verify the fork exists and is accessible
+    await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
+    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
+
+    if (forkCheckResult.code === 0) {
+      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
+      repoToClone = `${forkOwner}/${repo}`;
+      forkedRepo = `${forkOwner}/${repo}`;
+      upstreamRemote = `${owner}/${repo}`;
+    } else {
+      await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
+      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
+      await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
+      await log(`${formatAligned('', 'Hint:', 'Try running with --fork flag to use your own fork instead')}`);
+      await safeExit(1, 'Repository setup failed');
     }
   }
 
-  return { repoToClone, forkedRepo, upstreamRemote };
+  return { repoToClone, forkedRepo, upstreamRemote, prForkOwner: forkOwner };
 };
 
 // Clone repository and set up remotes
@@ -396,6 +429,102 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
       }
     }
   }
+};
+
+// Set up pr-fork remote for continuing someone else's fork PR with --fork flag
+export const setupPrForkRemote = async (tempDir, argv, prForkOwner, repo, isContinueMode) => {
+  // Only set up pr-fork remote if:
+  // 1. --fork flag is used (user wants to use their own fork)
+  // 2. prForkOwner is provided (continuing an existing PR from a fork)
+  // 3. In continue mode (auto-continue or continuing existing PR)
+  if (!argv.fork || !prForkOwner || !isContinueMode) {
+    return null;
+  }
+
+  // Get current user to check if it's someone else's fork
+  await log(`\n${formatAligned('🔍', 'Checking PR fork:', 'Determining if branch is in another fork...')}`);
+  const userResult = await $`gh api user --jq .login`;
+  if (userResult.code !== 0) {
+    await log(`${formatAligned('⚠️', 'Warning:', 'Failed to get current user, cannot set up pr-fork remote')}`);
+    return null;
+  }
+
+  const currentUser = userResult.stdout.toString().trim();
+
+  // If PR is from current user's fork, no need for pr-fork remote
+  if (prForkOwner === currentUser) {
+    await log(`${formatAligned('ℹ️', 'PR fork owner:', 'Same as current user, using origin remote')}`);
+    return null;
+  }
+
+  // This is someone else's fork - add it as pr-fork remote
+  await log(`${formatAligned('🔗', 'Setting up pr-fork:', 'Branch exists in another user\'s fork')}`);
+  await log(`${formatAligned('', 'PR fork owner:', prForkOwner)}`);
+  await log(`${formatAligned('', 'Current user:', currentUser)}`);
+  await log(`${formatAligned('', 'Action:', `Adding ${prForkOwner}/${repo} as pr-fork remote`)}`);
+
+  const addRemoteResult = await $({ cwd: tempDir })`git remote add pr-fork https://github.com/${prForkOwner}/${repo}.git`;
+  if (addRemoteResult.code !== 0) {
+    await log(`${formatAligned('❌', 'Error:', 'Failed to add pr-fork remote')}`);
+    if (addRemoteResult.stderr) {
+      await log(`${formatAligned('', 'Details:', addRemoteResult.stderr.toString().trim())}`);
+    }
+    await log(`${formatAligned('', 'Suggestion:', 'The PR branch may not be accessible')}`);
+    await log(`${formatAligned('', 'Workaround:', 'Remove --fork flag to continue work in the original fork')}`);
+    return null;
+  }
+
+  await log(`${formatAligned('✅', 'Remote added:', 'pr-fork')}`);
+
+  // Fetch from pr-fork to get the branch
+  await log(`${formatAligned('📥', 'Fetching branches:', 'From pr-fork remote...')}`);
+  const fetchPrForkResult = await $({ cwd: tempDir })`git fetch pr-fork`;
+  if (fetchPrForkResult.code !== 0) {
+    await log(`${formatAligned('❌', 'Error:', 'Failed to fetch from pr-fork')}`);
+    if (fetchPrForkResult.stderr) {
+      await log(`${formatAligned('', 'Details:', fetchPrForkResult.stderr.toString().trim())}`);
+    }
+    await log(`${formatAligned('', 'Suggestion:', 'Check if you have access to the fork')}`);
+    return null;
+  }
+
+  await log(`${formatAligned('✅', 'Fetched:', 'pr-fork branches')}`);
+  await log(`${formatAligned('ℹ️', 'Next step:', 'Will checkout branch from pr-fork remote')}`);
+  return 'pr-fork';
+};
+
+// Checkout branch for continue mode (PR branch from remote)
+export const checkoutPrBranch = async (tempDir, branchName, prForkRemote, prForkOwner) => {
+  await log(`\n${formatAligned('🔄', 'Checking out PR branch:', branchName)}`);
+
+  // Determine which remote to use for branch checkout
+  const remoteName = prForkRemote || 'origin';
+
+  // First fetch all branches from remote (if not already fetched from pr-fork)
+  if (!prForkRemote) {
+    await log(`${formatAligned('📥', 'Fetching branches:', 'From remote...')}`);
+    const fetchResult = await $({ cwd: tempDir })`git fetch origin`;
+
+    if (fetchResult.code !== 0) {
+      await log('Warning: Failed to fetch branches from remote', { level: 'warning' });
+    }
+  } else {
+    await log(`${formatAligned('ℹ️', 'Using pr-fork remote:', `Branch exists in ${prForkOwner}'s fork`)}`);
+  }
+
+  // Checkout the PR branch (it might exist locally or remotely)
+  const localBranchResult = await $({ cwd: tempDir })`git show-ref --verify --quiet refs/heads/${branchName}`;
+
+  let checkoutResult;
+  if (localBranchResult.code === 0) {
+    // Branch exists locally
+    checkoutResult = await $({ cwd: tempDir })`git checkout ${branchName}`;
+  } else {
+    // Branch doesn't exist locally, try to checkout from remote
+    checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName} ${remoteName}/${branchName}`;
+  }
+
+  return checkoutResult;
 };
 
 // Cleanup temporary directory
