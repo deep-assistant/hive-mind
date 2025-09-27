@@ -72,12 +72,33 @@ export const setupTempDirectory = async (argv) => {
 };
 
 // Handle fork creation and repository setup
-export const setupRepository = async (argv, owner, repo) => {
+export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
   let repoToClone = `${owner}/${repo}`;
   let forkedRepo = null;
   let upstreamRemote = null;
 
-  if (argv.fork) {
+  // If forkOwner is provided (from auto-continue/PR mode), use that fork directly
+  if (forkOwner) {
+    await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
+    await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
+    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
+
+    // Verify the fork exists and is accessible
+    await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
+    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
+
+    if (forkCheckResult.code === 0) {
+      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
+      repoToClone = `${forkOwner}/${repo}`;
+      forkedRepo = `${forkOwner}/${repo}`;
+      upstreamRemote = `${owner}/${repo}`;
+    } else {
+      await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
+      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
+      await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
+      await safeExit(1, 'Repository setup failed');
+    }
+  } else if (argv.fork) {
     await log(`\n${formatAligned('🍴', 'Fork mode:', 'ENABLED')}`);
     await log(`${formatAligned('', 'Checking fork status...', '')}\n`);
 
