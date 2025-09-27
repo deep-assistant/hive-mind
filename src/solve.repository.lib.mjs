@@ -225,7 +225,7 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
     }
   }
 
-  return { repoToClone, forkedRepo, upstreamRemote };
+  return { repoToClone, forkedRepo, upstreamRemote, prForkOwner: forkOwner };
 };
 
 // Clone repository and set up remotes
