@@ -611,7 +611,11 @@ export const executeClaudeCommand = async (params) => {
       if (chunk.type === 'stdout') {
         const output = chunk.data.toString();
 
-        // Process complete lines from stdout
+        // Split output into individual lines for NDJSON parsing
+        // Claude CLI outputs NDJSON (newline-delimited JSON) format where each line is a separate JSON object
+        // This allows us to parse each event independently and extract structured data like session IDs,
+        // message counts, and error patterns. Attempting to parse the entire chunk as single JSON would fail
+        // since multiple JSON objects aren't valid JSON together.
         const lines = output.split('\n');
 
         for (const line of lines) {
@@ -686,11 +690,16 @@ export const executeClaudeCommand = async (params) => {
             }
 
           } catch (parseError) {
-            reportError(parseError, {
-              context: 'parse_claude_output',
-              line,
-              operation: 'parse_json_output'
-            });
+            // JSON parse errors are expected for non-JSON output
+            // Only report in verbose mode
+            if (global.verboseMode) {
+              reportError(parseError, {
+                context: 'parse_claude_output',
+                line,
+                operation: 'parse_json_output',
+                level: 'debug'
+              });
+            }
             // Not JSON or parsing failed, output as-is if it's not empty
             if (line.trim() && !line.includes('node:internal')) {
               await log(line, { stream: 'raw' });

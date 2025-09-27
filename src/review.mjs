@@ -54,11 +54,12 @@ const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
 
 // Import shared functions from lib.mjs to follow DRY principle
-import { log, setLogFile, getLogFile } from './lib.mjs';
+import { log, setLogFile, getLogFile, formatAligned } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
+import * as memoryCheck from './memory-check.mjs';
 
 // Import Claude execution functions
-import { executeClaude, validateClaudeConnection } from './claude.lib.mjs';
+import { executeClaude, executeClaudeCommand, validateClaudeConnection } from './claude.lib.mjs';
 
 // Configure command line arguments - GitHub PR URL as positional argument
 const argv = yargs(process.argv.slice(2))
@@ -315,163 +316,53 @@ Review this pull request thoroughly.`;
   // Execute claude command from the cloned repository directory
   await log(`\n🤖 Executing Claude (${argv.model.toUpperCase()}) for PR review...`);
 
-  // Use command-stream's async iteration for real-time streaming with file logging
-  let commandFailed = false;
-  let sessionId = null;
-  let limitReached = false;
-  let messageCount = 0;
-  let toolUseCount = 0;
-  let lastMessage = '';
-
-  // Build claude command with optional resume flag
-  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
-
-  if (argv.resume) {
-    await log(`🔄 Resuming from session: ${argv.resume}`);
-    claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
-  }
-
-  claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-
-  // Print the command being executed (with cd for reproducibility)
-  const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-  await log(`📋 Command details:`);
-  await log(`   📂 Working directory: ${tempDir}`);
-  await log(`   🔀 PR branch: ${prDetails.headRefName}`);
-  await log(`   🤖 Model: Claude ${argv.model.toUpperCase()}`);
-  await log(`\n📋 Full command:`);
-  await log(`   ${fullCommand}`);
-  await log('');
-
   // If dry-run, exit here
   if (argv.dryRun) {
     await log(`✅ Command preparation complete`);
     await log(`📂 Repository cloned to: ${tempDir}`);
     await log(`🔀 PR branch checked out: ${prDetails.headRefName}`);
-    await log(`\n💡 To execute manually:`);
-    await log(`   (cd "${tempDir}" && ${claudePath} ${claudeArgs})`);
     process.exit(0);
   }
 
-  // Change to the temporary directory and execute
+  // Change to the temporary directory before executing
   process.chdir(tempDir);
 
-  // Build the actual command for execution
-  let execCommand;
-  if (argv.resume) {
-    execCommand = $({ mirror: false })`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-  } else {
-    execCommand = $({ stdin: prompt, mirror: false })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --append-system-prompt "${escapedSystemPrompt}" --model ${argv.model}`;
-  }
+  // Use the shared executeClaudeCommand function from claude.lib.mjs
+  // This ensures consistent NDJSON parsing, error handling, and retry logic across all commands
+  const result = await executeClaudeCommand({
+    tempDir,
+    branchName: prDetails.headRefName,
+    prompt,
+    systemPrompt,
+    escapedPrompt,
+    escapedSystemPrompt,
+    argv,
+    log,
+    setLogFile,
+    getLogFile,
+    formatAligned,
+    getResourceSnapshot: memoryCheck.getResourceSnapshot,
+    forkedRepo: null,
+    feedbackLines: [],
+    claudePath,
+    $
+  });
 
-  for await (const chunk of execCommand.stream()) {
-    if (chunk.type === 'stdout') {
-      const data = chunk.data.toString();
-      let json;
-      try {
-        json = JSON.parse(data);
-        await log(JSON.stringify(json, null, 2));
-      } catch (error) {
-        // JSON parse errors are expected for non-JSON output
-        // Only report in verbose mode
-        if (global.verboseMode) {
-          reportError(error, {
-            context: 'parse_claude_output',
-            level: 'debug'
-          });
-        }
-        await log(data);
-        continue;
-      }
+  const { success: commandSuccess, sessionId, limitReached, messageCount, toolUseCount } = result;
 
-      // Extract session ID on first message
-      if (!sessionId && json.session_id) {
-        sessionId = json.session_id;
-        await log(`🔧 Session ID: ${sessionId}`);
-        
-        // Try to rename log file to include session ID
-        try {
-          const currentLogFile = getLogFile();
-          const sessionLogFile = path.join(scriptDir, `${sessionId}.log`);
-          await fs.rename(currentLogFile, sessionLogFile);
-          setLogFile(sessionLogFile);
-          await log(`📁 Log renamed to: ${sessionLogFile}`);
-        } catch (renameError) {
-          reportError(renameError, {
-            context: 'rename_log_file',
-            level: 'warning'
-          });
-          // If rename fails, keep original filename
-          await log(`📁 Keeping log file: ${getLogFile()}`);
-        }
-        await log('');
-      }
-
-      // Display user-friendly progress
-      if (json.type === 'message' && json.message) {
-        messageCount++;
-        
-        // Extract text content from message
-        if (json.message.content && Array.isArray(json.message.content)) {
-          for (const item of json.message.content) {
-            if (item.type === 'text' && item.text) {
-              lastMessage = item.text.substring(0, 100); // First 100 chars
-              if (item.text.includes('limit reached')) {
-                limitReached = true;
-              }
-            }
-          }
-        }
-        
-        // Show progress indicator (console only, not logged)
-        process.stdout.write(`\r📝 Messages: ${messageCount} | 🔧 Tool uses: ${toolUseCount} | Last: ${lastMessage}...`);
-      } else if (json.type === 'tool_use') {
-        toolUseCount++;
-        const toolName = json.tool_use?.name || 'unknown';
-        // Log tool use
-        await log(`[TOOL USE] ${toolName}`);
-        // Show progress in console (without logging)
-        process.stdout.write(`\r🔧 Using tool: ${toolName} (${toolUseCount} total)...                                   `);
-      } else if (json.type === 'system' && json.subtype === 'init') {
-        await log('🚀 Claude session started');
-        await log(`📊 Model: Claude ${argv.model.toUpperCase()}`);
-        await log('\n🔄 Processing review...\n');
-      }
-
-    } else if (chunk.type === 'stderr') {
-      const data = chunk.data.toString();
-      // Only show actual errors, not verbose output
-      if (data.includes('Error') || data.includes('error')) {
-        await log(`\n⚠️  ${data}`, { level: 'error' });
-      }
-      // Log stderr
-      await log(`STDERR: ${data}`);
-    } else if (chunk.type === 'exit') {
-      if (chunk.code !== 0) {
-        commandFailed = true;
-        await log(`\n\n❌ Claude command failed with exit code ${chunk.code}`, { level: 'error' });
-      }
-    }
-  }
-
-  // Clear the progress line
-  process.stdout.write('\r' + ' '.repeat(100) + '\r');
-
-  if (commandFailed) {
+  // Handle command failure
+  if (!commandSuccess) {
     await log('\n❌ Command execution failed. Check the log file for details.');
-    await log(`📁 Log file: ${logFile}`);
+    await log(`📁 Log file: ${getLogFile()}`);
     process.exit(1);
   }
-
-  await log('\n\n✅ Claude review completed');
-  await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
   // Show summary of session and log file
   await log('\n=== Review Summary ===');
 
   if (sessionId) {
     await log(`✅ Session ID: ${sessionId}`);
-    await log(`✅ Complete log file: ${logFile}`);
+    await log(`✅ Complete log file: ${getLogFile()}`);
 
     if (limitReached) {
       await log(`\n⏰ LIMIT REACHED DETECTED!`);
@@ -508,7 +399,7 @@ Review this pull request thoroughly.`;
     }
   } else {
     await log(`❌ No session ID extracted`);
-    await log(`📁 Log file available: ${logFile}`);
+    await log(`📁 Log file available: ${getLogFile()}`);
   }
 
   await log(`\n✨ Review process complete. Check the PR for review comments.`);
