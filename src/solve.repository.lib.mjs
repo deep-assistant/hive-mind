@@ -135,7 +135,8 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
 
         // Parse actual fork name from output (e.g., "konard/netkeep80-jsonRVM already exists")
         // GitHub may create forks with modified names to avoid conflicts
-        const forkNameMatch = forkOutput.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/);
+        // Use regex that won't match domain names like "github.com/user" -> "com/user"
+        const forkNameMatch = forkOutput.match(/(?:github\.com\/|^|\s)([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/);
         if (forkNameMatch) {
           actualForkName = forkNameMatch[1];
         }
