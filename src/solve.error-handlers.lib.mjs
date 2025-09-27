@@ -8,6 +8,9 @@ import { safeExit } from './exit-handler.lib.mjs';
 // Import Sentry integration
 import { reportError } from './sentry.lib.mjs';
 
+// Import GitHub issue creator
+import { handleErrorWithIssueCreation } from './github-issue-creator.lib.mjs';
+
 /**
  * Handles log attachment and PR closing on failure
  */
@@ -27,6 +30,28 @@ export const handleFailure = async (options) => {
     sanitizeLogContent,
     $
   } = options;
+
+  // Offer to create GitHub issue for the error
+  try {
+    await handleErrorWithIssueCreation({
+      error,
+      errorType,
+      logFile: getLogFile(),
+      context: {
+        owner: global.owner || owner,
+        repo: global.repo || repo,
+        prNumber: global.createdPR?.number,
+        errorType
+      },
+      skipPrompt: !process.stdin.isTTY || argv.noIssueCreation
+    });
+  } catch (issueError) {
+    reportError(issueError, {
+      context: 'automatic_issue_creation',
+      operation: 'handle_error_with_issue_creation'
+    });
+    await log(`⚠️  Could not create issue: ${issueError.message}`, { level: 'warning' });
+  }
 
   // If --attach-logs is enabled, try to attach failure logs
   if (shouldAttachLogs && getLogFile() && global.createdPR && global.createdPR.number) {
