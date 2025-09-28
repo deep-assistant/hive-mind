@@ -43,11 +43,6 @@ export const buildUserPrompt = (params) => {
     promptLines.push(`Your prepared Pull Request: ${prUrl}`);
   }
 
-  // Merge state for continue mode
-  if (isContinueMode && mergeStateStatus) {
-    promptLines.push(`Existing pull request's merge state status: ${mergeStateStatus}`);
-  }
-
   // Fork info if applicable
   if (argv && argv.fork && forkedRepo) {
     promptLines.push(`Your forked repository: ${forkedRepo}`);
