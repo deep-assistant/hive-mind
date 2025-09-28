@@ -246,15 +246,26 @@ if (isPrUrl) {
   }
   // Get PR details to find the linked issue and branch
   try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,state,headRepositoryOwner`;
-    
-    if (prResult.code !== 0) {
+    const prResult = await githubLib.ghPrView({
+      prNumber,
+      owner,
+      repo,
+      jsonFields: 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner'
+    });
+
+    if (prResult.code !== 0 || !prResult.data) {
       await log('Error: Failed to get PR details', { level: 'error' });
-      await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+
+      if (prResult.output.includes('Could not resolve to a PullRequest')) {
+        await githubLib.handlePRNotFoundError({ prNumber, owner, repo, argv, shouldAttachLogs });
+      } else {
+        await log(`Error: ${prResult.stderr || 'Unknown error'}`, { level: 'error' });
+      }
+
       await safeExit(1, 'Failed to get PR details');
     }
-    
-    const prData = JSON.parse(prResult.stdout.toString());
+
+    const prData = prResult.data;
     prBranch = prData.headRefName;
     mergeStateStatus = prData.mergeStateStatus;
     prState = prData.state;
@@ -270,11 +281,11 @@ if (isPrUrl) {
     }
 
     await log(`📝 PR branch: ${prBranch}`);
-    
+
     // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
     const prBody = prData.body || '';
     const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
-    
+
     if (issueMatch) {
       issueNumber = issueMatch[1];
       await log(`🔗 Found linked issue #${issueNumber}`);
