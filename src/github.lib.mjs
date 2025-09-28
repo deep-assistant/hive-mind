@@ -1161,6 +1161,49 @@ export function isGitHubUrlType(url, types) {
   return typeArray.includes(parsed.type);
 }
 
+/**
+ * Handle PR not found error and check if an issue exists with the same number
+ * Provides user-friendly error messages and command suggestions
+ * @param {Object} options - Configuration options
+ * @param {number} options.prNumber - PR number that doesn't exist
+ * @param {string} options.owner - Repository owner
+ * @param {string} options.repo - Repository name
+ * @param {Object} options.argv - Command line arguments object (for reconstructing command)
+ * @param {boolean} [options.shouldAttachLogs] - Whether --attach-logs was used
+ * @returns {Promise<void>}
+ */
+export async function handlePRNotFoundError({ prNumber, owner, repo, argv, shouldAttachLogs }) {
+  await log(`Error: PR #${prNumber} does not exist in ${owner}/${repo}`, { level: 'error' });
+  await log('', { level: 'error' });
+
+  try {
+    const issueCheckResult = await $`gh issue view ${prNumber} --repo ${owner}/${repo} --json number,title`;
+    const issueOutput = issueCheckResult.stdout.toString();
+
+    if (issueCheckResult.code === 0 && !issueOutput.includes('Could not resolve')) {
+      const issueData = JSON.parse(issueOutput);
+      await log(`💡 However, Issue #${prNumber} exists with the same number:`, { level: 'error' });
+      await log(`   Title: "${issueData.title}"`, { level: 'error' });
+      await log('', { level: 'error' });
+      await log('🔧 Did you mean to work on the issue instead?', { level: 'error' });
+      await log('   Try this corrected command:', { level: 'error' });
+      await log('', { level: 'error' });
+
+      const commandParts = [`solve https://github.com/${owner}/${repo}/issues/${prNumber}`];
+      if (argv.autoContinue) commandParts.push('--auto-continue');
+      if (shouldAttachLogs || argv.attachLogs || argv['attach-logs']) commandParts.push('--attach-logs');
+      if (argv.verbose) commandParts.push('--verbose');
+      if (argv.model && argv.model !== 'sonnet') commandParts.push('--model', argv.model);
+      if (argv.thinkUltraHard) commandParts.push('--think-ultra-hard');
+
+      await log(`   ${commandParts.join(' ')}`, { level: 'error' });
+      await log('', { level: 'error' });
+    }
+  } catch {
+    // Silently ignore if issue check fails
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -1176,5 +1219,6 @@ export default {
   batchCheckPullRequestsForIssues,
   parseGitHubUrl,
   normalizeGitHubUrl,
-  isGitHubUrlType
+  isGitHubUrlType,
+  handlePRNotFoundError
 };
