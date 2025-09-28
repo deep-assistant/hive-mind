@@ -108,6 +108,7 @@ General guidelines.
 
 Initial research.
    - When you read issue, read all details and comments thoroughly.
+   - When you see screenshots or images in issue descriptions, pull request descriptions, comments, or discussions, use appropriate tools to view and analyze them.
    - When you need issue details, use gh issue view https://github.com/${owner}/${repo}/issues/${issueNumber}.
    - When you need related code, use gh search code --owner ${owner} [keywords].
    - When you need repo context, read files in your working directory.
