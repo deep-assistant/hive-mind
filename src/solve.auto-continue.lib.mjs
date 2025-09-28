@@ -235,22 +235,26 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
     // Get PR details to find the linked issue and branch
     try {
-      const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,headRepositoryOwner`;
-      const prOutput = prResult.stdout.toString() + (prResult.stderr ? prResult.stderr.toString() : '');
+      const prResult = await githubLib.ghPrView({
+        prNumber,
+        owner,
+        repo,
+        jsonFields: 'headRefName,body,number,mergeStateStatus,headRepositoryOwner'
+      });
 
-      if (prResult.code !== 0 || prOutput.includes('Could not resolve to a PullRequest')) {
+      if (prResult.code !== 0 || !prResult.data) {
         await log('Error: Failed to get PR details', { level: 'error' });
 
-        if (prOutput.includes('Could not resolve to a PullRequest')) {
+        if (prResult.output.includes('Could not resolve to a PullRequest')) {
           await githubLib.handlePRNotFoundError({ prNumber, owner, repo, argv, shouldAttachLogs: argv.attachLogs || argv['attach-logs'] });
         } else {
-          await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+          await log(`Error: ${prResult.stderr || 'Unknown error'}`, { level: 'error' });
         }
 
         await safeExit(1, 'Auto-continue failed');
       }
 
-      const prData = JSON.parse(prResult.stdout.toString());
+      const prData = prResult.data;
       prBranch = prData.headRefName;
       mergeStateStatus = prData.mergeStateStatus;
 

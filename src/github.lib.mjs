@@ -1162,6 +1162,92 @@ export function isGitHubUrlType(url, types) {
 }
 
 /**
+ * Universal function to view a pull request using gh pr view
+ * @param {Object} options - Configuration options
+ * @param {number|string} options.prNumber - PR number to view
+ * @param {string} options.owner - Repository owner
+ * @param {string} options.repo - Repository name
+ * @param {string} [options.jsonFields='headRefName,body,number,mergeStateStatus,state,headRepositoryOwner'] - JSON fields to return
+ * @returns {Promise<{code: number, stdout: string, stderr: string, data: Object|null}>}
+ */
+export async function ghPrView({ prNumber, owner, repo, jsonFields = 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner' }) {
+  try {
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json ${jsonFields}`;
+    const stdout = prResult.stdout.toString();
+    const stderr = prResult.stderr ? prResult.stderr.toString() : '';
+    const code = prResult.code || 0;
+
+    let data = null;
+    if (code === 0 && stdout && !stdout.includes('Could not resolve')) {
+      try {
+        data = JSON.parse(stdout);
+      } catch {
+        // If JSON parsing fails, data remains null
+      }
+    }
+
+    return {
+      code,
+      stdout,
+      stderr,
+      data,
+      output: stdout + stderr
+    };
+  } catch (error) {
+    return {
+      code: error.code || 1,
+      stdout: error.stdout?.toString() || '',
+      stderr: error.stderr?.toString() || error.message || '',
+      data: null,
+      output: (error.stdout?.toString() || '') + (error.stderr?.toString() || error.message || '')
+    };
+  }
+}
+
+/**
+ * Universal function to view an issue using gh issue view
+ * @param {Object} options - Configuration options
+ * @param {number|string} options.issueNumber - Issue number to view
+ * @param {string} options.owner - Repository owner
+ * @param {string} options.repo - Repository name
+ * @param {string} [options.jsonFields='number,title'] - JSON fields to return
+ * @returns {Promise<{code: number, stdout: string, stderr: string, data: Object|null}>}
+ */
+export async function ghIssueView({ issueNumber, owner, repo, jsonFields = 'number,title' }) {
+  try {
+    const issueResult = await $`gh issue view ${issueNumber} --repo ${owner}/${repo} --json ${jsonFields}`;
+    const stdout = issueResult.stdout.toString();
+    const stderr = issueResult.stderr ? issueResult.stderr.toString() : '';
+    const code = issueResult.code || 0;
+
+    let data = null;
+    if (code === 0 && stdout && !stdout.includes('Could not resolve')) {
+      try {
+        data = JSON.parse(stdout);
+      } catch {
+        // If JSON parsing fails, data remains null
+      }
+    }
+
+    return {
+      code,
+      stdout,
+      stderr,
+      data,
+      output: stdout + stderr
+    };
+  } catch (error) {
+    return {
+      code: error.code || 1,
+      stdout: error.stdout?.toString() || '',
+      stderr: error.stderr?.toString() || error.message || '',
+      data: null,
+      output: (error.stdout?.toString() || '') + (error.stderr?.toString() || error.message || '')
+    };
+  }
+}
+
+/**
  * Handle PR not found error and check if an issue exists with the same number
  * Provides user-friendly error messages and command suggestions
  * @param {Object} options - Configuration options
@@ -1177,13 +1263,11 @@ export async function handlePRNotFoundError({ prNumber, owner, repo, argv, shoul
   await log('', { level: 'error' });
 
   try {
-    const issueCheckResult = await $`gh issue view ${prNumber} --repo ${owner}/${repo} --json number,title`;
-    const issueOutput = issueCheckResult.stdout.toString();
+    const issueCheckResult = await ghIssueView({ issueNumber: prNumber, owner, repo, jsonFields: 'number,title' });
 
-    if (issueCheckResult.code === 0 && !issueOutput.includes('Could not resolve')) {
-      const issueData = JSON.parse(issueOutput);
+    if (issueCheckResult.code === 0 && issueCheckResult.data) {
       await log(`💡 However, Issue #${prNumber} exists with the same number:`, { level: 'error' });
-      await log(`   Title: "${issueData.title}"`, { level: 'error' });
+      await log(`   Title: "${issueCheckResult.data.title}"`, { level: 'error' });
       await log('', { level: 'error' });
       await log('🔧 Did you mean to work on the issue instead?', { level: 'error' });
       await log('   Try this corrected command:', { level: 'error' });
@@ -1220,5 +1304,7 @@ export default {
   parseGitHubUrl,
   normalizeGitHubUrl,
   isGitHubUrlType,
+  ghPrView,
+  ghIssueView,
   handlePRNotFoundError
 };
