@@ -16,6 +16,7 @@ export const detectAndCountFeedback = async (params) => {
     isContinueMode,
     argv,
     mergeStateStatus,
+    prState,
     workStartTime,
     log,
     formatAligned,
@@ -282,14 +283,30 @@ export const detectAndCountFeedback = async (params) => {
             }
           }
 
-          // 4. Check merge status (dirty indicates conflicts)
-          if (mergeStateStatus === 'DIRTY') {
-            feedbackLines.push('Merge status is dirty (conflicts detected)');
+          // 4. Check pull request state (non-open indicates closed or merged)
+          if (prState && prState !== 'OPEN') {
+            feedbackLines.push(`Pull request state: ${prState}`);
             feedbackDetected = true;
-            feedbackSources.push('Merge status dirty');
+            feedbackSources.push(`PR state ${prState}`);
           }
 
-          // 5. Check for failed PR checks
+          // 5. Check merge status (non-clean indicates issues with merging)
+          if (mergeStateStatus && mergeStateStatus !== 'CLEAN') {
+            const statusDescriptions = {
+              'DIRTY': 'Merge status is DIRTY (conflicts detected)',
+              'UNSTABLE': 'Merge status is UNSTABLE (non-passing commit status)',
+              'BLOCKED': 'Merge status is BLOCKED',
+              'BEHIND': 'Merge status is BEHIND (head ref is out of date)',
+              'HAS_HOOKS': 'Merge status is HAS_HOOKS (has pre-receive hooks)',
+              'UNKNOWN': 'Merge status is UNKNOWN'
+            };
+            const description = statusDescriptions[mergeStateStatus] || `Merge status is ${mergeStateStatus}`;
+            feedbackLines.push(description);
+            feedbackDetected = true;
+            feedbackSources.push(`Merge status ${mergeStateStatus}`);
+          }
+
+          // 6. Check for failed PR checks
           try {
             const checksResult = await $`gh api repos/${owner}/${repo}/commits/$(gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '.head.sha')/check-runs`;
             if (checksResult.code === 0) {
@@ -315,7 +332,7 @@ export const detectAndCountFeedback = async (params) => {
             }
           }
 
-          // 6. Check for review requests with changes requested
+          // 7. Check for review requests with changes requested
           try {
             const reviewsResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber}/reviews`;
             if (reviewsResult.code === 0) {
@@ -352,7 +369,8 @@ export const detectAndCountFeedback = async (params) => {
               await log('   • New comments (excluding solve.mjs logs)');
               await log('   • Edited issue/PR descriptions');
               await log('   • New commits on default branch');
-              await log('   • Merge status dirty (conflicts detected)');
+              await log('   • Pull request state is not OPEN (closed or merged)');
+              await log('   • Merge status is not CLEAN (conflicts, unstable, blocked, etc.)');
               await log('   • Failed pull request checks');
               await log('   • Changes requested via review');
               process.exit(1);

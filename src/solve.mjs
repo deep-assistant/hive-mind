@@ -196,6 +196,7 @@ let issueNumber;
 let prNumber;
 let prBranch;
 let mergeStateStatus;
+let prState;
 let forkOwner = null;
 let isContinueMode = false;
 // Auto-continue logic: check for existing PRs if --auto-continue is enabled
@@ -245,7 +246,7 @@ if (isPrUrl) {
   }
   // Get PR details to find the linked issue and branch
   try {
-    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,headRepositoryOwner`;
+    const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,state,headRepositoryOwner`;
     
     if (prResult.code !== 0) {
       await log('Error: Failed to get PR details', { level: 'error' });
@@ -256,6 +257,7 @@ if (isPrUrl) {
     const prData = JSON.parse(prResult.stdout.toString());
     prBranch = prData.headRefName;
     mergeStateStatus = prData.mergeStateStatus;
+    prState = prData.state;
 
     // Check if this is a fork PR
     if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
@@ -1186,6 +1188,7 @@ ${prBody}`, { verbose: true });
     isContinueMode,
     argv,
     mergeStateStatus,
+    prState,
     workStartTime: isContinueMode && (argv.watch || argv.autoContinue) ? workStartTime : null,
     log,
     formatAligned,
