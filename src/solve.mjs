@@ -247,10 +247,45 @@ if (isPrUrl) {
   // Get PR details to find the linked issue and branch
   try {
     const prResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRefName,body,number,mergeStateStatus,state,headRepositoryOwner`;
-    
-    if (prResult.code !== 0) {
+    const prOutput = prResult.stdout.toString() + (prResult.stderr ? prResult.stderr.toString() : '');
+
+    if (prResult.code !== 0 || prOutput.includes('Could not resolve to a PullRequest')) {
       await log('Error: Failed to get PR details', { level: 'error' });
-      await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+
+      if (prOutput.includes('Could not resolve to a PullRequest')) {
+        await log(`Error: PR #${prNumber} does not exist in ${owner}/${repo}`, { level: 'error' });
+        await log('', { level: 'error' });
+
+        try {
+          const issueCheckResult = await $`gh issue view ${prNumber} --repo ${owner}/${repo} --json number,title`;
+          const issueOutput = issueCheckResult.stdout.toString();
+
+          if (issueCheckResult.code === 0 && !issueOutput.includes('Could not resolve')) {
+            const issueData = JSON.parse(issueOutput);
+            await log(`💡 However, Issue #${prNumber} exists with the same number:`, { level: 'error' });
+            await log(`   Title: "${issueData.title}"`, { level: 'error' });
+            await log('', { level: 'error' });
+            await log('🔧 Did you mean to work on the issue instead?', { level: 'error' });
+            await log('   Try this corrected command:', { level: 'error' });
+            await log('', { level: 'error' });
+
+            const commandParts = [`solve https://github.com/${owner}/${repo}/issues/${prNumber}`];
+            if (argv.autoContinue) commandParts.push('--auto-continue');
+            if (shouldAttachLogs) commandParts.push('--attach-logs');
+            if (argv.verbose) commandParts.push('--verbose');
+            if (argv.model && argv.model !== 'sonnet') commandParts.push('--model', argv.model);
+            if (argv.thinkUltraHard) commandParts.push('--think-ultra-hard');
+
+            await log(`   ${commandParts.join(' ')}`, { level: 'error' });
+            await log('', { level: 'error' });
+          }
+        } catch {
+          // Silently ignore if issue check fails
+        }
+      } else {
+        await log(`Error: ${prResult.stderr ? prResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+      }
+
       await safeExit(1, 'Failed to get PR details');
     }
     
