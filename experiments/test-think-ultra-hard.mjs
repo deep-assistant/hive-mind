@@ -4,7 +4,7 @@
  * Test script to verify the --think-ultra-hard option behavior
  */
 
-import { buildUserPrompt, buildSystemPrompt } from '../src/solve.claude-execution.lib.mjs';
+import { buildUserPrompt, buildSystemPrompt } from '../src/claude.prompts.lib.mjs';
 
 // Test cases
 const testCases = [
