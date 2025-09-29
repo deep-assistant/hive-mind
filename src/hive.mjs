@@ -297,6 +297,12 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Disable Sentry error tracking and monitoring',
       default: false
     })
+    .option('watch', {
+      type: 'boolean',
+      description: 'Monitor continuously for feedback and auto-restart when detected (stops when PR is merged)',
+      alias: 'w',
+      default: false
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -550,6 +556,9 @@ if (argv.fork) {
 if (argv.autoContinue) {
   await log('   🔄 Auto-Continue: ENABLED (will work on issues with existing PRs)');
 }
+if (argv.watch) {
+  await log('   👁️  Watch Mode: ENABLED (will monitor continuously for feedback)');
+}
 if (!argv.once) {
   await log(`   ⏱️  Polling Interval: ${argv.interval} seconds`);
 }
@@ -673,6 +682,7 @@ async function worker(workerId) {
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkUltraHardFlag = argv.thinkUltraHard ? ' --think-ultra-hard' : '';
         const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
+        const watchFlag = argv.watch ? ' --watch' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
         const { spawn } = await import('child_process');
@@ -706,9 +716,12 @@ async function worker(workerId) {
         if (argv.noSentry) {
           args.push('--no-sentry');
         }
+        if (argv.watch) {
+          args.push('--watch');
+        }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}${noSentryFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;
