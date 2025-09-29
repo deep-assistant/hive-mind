@@ -14,8 +14,8 @@ console.log('🧪 Testing log file rename in solve command flow...\n');
 
 // Create a simple test that simulates getting a session ID
 const testCode = `
-import { log, setLogFile, getLogFile } from './src/lib.mjs';
-import { initializeExitHandler, installGlobalExitHandlers, safeExit } from './src/exit-handler.lib.mjs';
+import { log, setLogFile, getLogFile } from '../src/lib.mjs';
+import { initializeExitHandler, installGlobalExitHandlers, safeExit } from '../src/exit-handler.lib.mjs';
 import path from 'path';
 import fs from 'fs';
 
