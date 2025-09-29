@@ -233,7 +233,7 @@ export const watchForFeedback = async (params) => {
         }
 
         // Import necessary modules for claude execution
-        const claudeExecLib = await import('./solve.claude-execution.lib.mjs');
+        const claudeExecLib = await import('./claude.lib.mjs');
         const { executeClaude } = claudeExecLib;
         const memoryCheck = await import('./memory-check.mjs');
         const { getResourceSnapshot } = memoryCheck;
