@@ -38,23 +38,23 @@ if (!supportedCommands.includes(command)) {
   process.exit(1);
 }
 
-// Find the GitHub URL in the arguments
+// Find the GitHub URL in the arguments (but keep all arguments)
 let githubUrl = null;
-let commandArgs = [];
+const commandArgs = args.slice(1); // Keep all arguments after the command
 
-for (let i = 1; i < args.length; i++) {
-  const arg = args[i];
+// Search for GitHub URL in all arguments
+for (const arg of commandArgs) {
   // Check if argument looks like a GitHub URL
-  if (arg.includes('github.com') || (githubUrl === null && !arg.startsWith('--'))) {
+  if (arg.includes('github.com')) {
     githubUrl = arg;
-  } else {
-    commandArgs.push(arg);
+    break; // Use the first GitHub URL found
   }
 }
 
 if (!githubUrl) {
   console.error('Error: GitHub URL is required');
   console.error('\nUsage: start-screen <command> <github-url> [options]');
+  console.error('Note: The GitHub URL can appear anywhere in the arguments');
   process.exit(1);
 }
 
@@ -103,8 +103,8 @@ async function screenSessionExists(sessionName) {
   }
 }
 
-// Build the full command to execute
-const fullCommand = [command, githubUrl, ...commandArgs].join(' ');
+// Build the full command to execute (pass all arguments as-is)
+const fullCommand = [command, ...commandArgs].join(' ');
 
 try {
   const sessionExists = await screenSessionExists(screenName);
