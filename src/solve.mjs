@@ -199,16 +199,13 @@ if (autoContinueResult.isContinueMode) {
     const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
     if (prCheckResult.code === 0) {
       const prCheckData = JSON.parse(prCheckResult.stdout.toString());
-
       // Extract merge status and PR state
       mergeStateStatus = prCheckData.mergeStateStatus;
       prState = prCheckData.state;
-
       if (argv.verbose) {
         await log(`   PR state: ${prState || 'UNKNOWN'}`, { verbose: true });
         await log(`   Merge status: ${mergeStateStatus || 'UNKNOWN'}`, { verbose: true });
       }
-
       if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
         forkOwner = prCheckData.headRepositoryOwner.login;
         await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
