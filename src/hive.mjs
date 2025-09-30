@@ -314,8 +314,25 @@ const createYargsConfig = (yargsInstance) => {
     .alias('h', 'help');
 };
 
-// Check for help flag before processing other arguments
+// Check for version flag before processing other arguments
 const rawArgs = hideBin(process.argv);
+if (rawArgs.includes('--version')) {
+  const { getVersion } = await import('./version.lib.mjs');
+  try {
+    const version = await getVersion();
+    console.log(version);
+  } catch (versionError) {
+    reportError(versionError, {
+      context: 'version_detection',
+      operation: 'get_package_version'
+    });
+    console.error('Error: Unable to determine version');
+    await safeExit(1, 'Error occurred');
+  }
+  await safeExit(0, 'Process completed');
+}
+
+// Check for help flag before processing other arguments
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   // Show help and exit - filter out help flags to avoid duplicate display
   const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
