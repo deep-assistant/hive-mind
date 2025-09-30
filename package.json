@@ -8,7 +8,8 @@
     "hive": "./src/hive.mjs",
     "solve": "./src/solve.mjs",
     "task": "./src/task.mjs",
-    "review": "./src/review.mjs"
+    "review": "./src/review.mjs",
+    "start-screen": "./start-screen.mjs"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
