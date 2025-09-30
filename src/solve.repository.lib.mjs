@@ -530,8 +530,10 @@ export const checkoutPrBranch = async (tempDir, branchName, prForkRemote, prFork
 
 // Cleanup temporary directory
 export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
-  // Clean up temporary directory (but not when resuming, when limit reached, or when auto-continue is active)
-  if (!argv.resume && !limitReached && !(argv.autoContinueLimit && global.limitResetTime)) {
+  // Determine if we should skip cleanup
+  const shouldKeepDirectory = !argv.autoCleanup || argv.resume || limitReached || (argv.autoContinueLimit && global.limitResetTime);
+
+  if (!shouldKeepDirectory) {
     try {
       process.stdout.write('\n🧹 Cleaning up...');
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -550,5 +552,7 @@ export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
     await log(`\n📁 Keeping directory for auto-continue: ${tempDir}`);
   } else if (limitReached) {
     await log(`\n📁 Keeping directory for future resume: ${tempDir}`);
+  } else if (!argv.autoCleanup) {
+    await log(`\n📁 Keeping directory (--no-auto-cleanup): ${tempDir}`);
   }
 };

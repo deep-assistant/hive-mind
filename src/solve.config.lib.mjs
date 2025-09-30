@@ -132,6 +132,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Disable Sentry error tracking and monitoring',
       default: false
     })
+    .option('auto-cleanup', {
+      type: 'boolean',
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
+      default: true
+    })
     .help('h')
     .alias('h', 'help');
 };
