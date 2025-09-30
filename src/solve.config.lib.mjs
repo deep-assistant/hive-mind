@@ -127,10 +127,20 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Add "You always think ultra hard on every step" to system prompt',
       default: false
     })
+    .option('base-branch', {
+      type: 'string',
+      description: 'Target branch for the pull request (defaults to repository default branch)',
+      alias: 'b'
+    })
     .option('no-sentry', {
       type: 'boolean',
       description: 'Disable Sentry error tracking and monitoring',
       default: false
+    })
+    .option('auto-cleanup', {
+      type: 'boolean',
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
+      default: true
     })
     .help('h')
     .alias('h', 'help');

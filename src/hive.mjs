@@ -102,9 +102,9 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
         // Build the appropriate issue list command
         let issueCmd;
         if (fetchAllIssues) {
-          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --json url,title,number`;
+          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --json url,title,number,createdAt`;
         } else {
-          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --label "${monitorTag}" --json url,title,number`;
+          issueCmd = `gh issue list --repo ${ownerName}/${repoName} --state open --label "${monitorTag}" --json url,title,number,createdAt`;
         }
 
         // Add delay between repository requests
@@ -303,12 +303,36 @@ const createYargsConfig = (yargsInstance) => {
       alias: 'w',
       default: false
     })
+    .option('issue-order', {
+      type: 'string',
+      description: 'Order issues by publication date: "asc" (oldest first) or "desc" (newest first)',
+      alias: 'o',
+      default: 'asc',
+      choices: ['asc', 'desc']
+    })
     .help('h')
     .alias('h', 'help');
 };
 
-// Check for help flag before processing other arguments
+// Check for version flag before processing other arguments
 const rawArgs = hideBin(process.argv);
+if (rawArgs.includes('--version')) {
+  const { getVersion } = await import('./version.lib.mjs');
+  try {
+    const version = await getVersion();
+    console.log(version);
+  } catch (versionError) {
+    reportError(versionError, {
+      context: 'version_detection',
+      operation: 'get_package_version'
+    });
+    console.error('Error: Unable to determine version');
+    await safeExit(1, 'Error occurred');
+  }
+  await safeExit(0, 'Process completed');
+}
+
+// Check for help flag before processing other arguments
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   // Show help and exit - filter out help flags to avoid duplicate display
   const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
@@ -852,12 +876,12 @@ async function fetchIssues() {
       // Fetch all open issues without label filter using pagination
       let searchCmd;
       if (scope === 'repository') {
-        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --json url,title,number`;
+        searchCmd = `gh issue list --repo ${owner}/${repo} --state open --json url,title,number,createdAt`;
       } else if (scope === 'organization') {
-        searchCmd = `gh search issues org:${owner} is:open --json url,title,number,repository`;
+        searchCmd = `gh search issues org:${owner} is:open --json url,title,number,createdAt,repository`;
       } else {
         // User scope
-        searchCmd = `gh search issues user:${owner} is:open --json url,title,number,repository`;
+        searchCmd = `gh search issues user:${owner} is:open --json url,title,number,createdAt,repository`;
       }
       
       await log('   🔎 Fetching all issues with pagination and rate limiting...');
@@ -900,7 +924,7 @@ async function fetchIssues() {
       
       // For repositories, use gh issue list which works better with new repos
       if (scope === 'repository') {
-        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --json url,title,number`;
+        const listCmd = `gh issue list --repo ${owner}/${repo} --state open --label "${argv.monitorTag}" --json url,title,number,createdAt`;
         await log('   🔎 Fetching labeled issues with pagination and rate limiting...');
         await log(`   🔎 Command: ${listCmd}`, { verbose: true });
         
@@ -932,10 +956,10 @@ async function fetchIssues() {
         
         if (argv.monitorTag.includes(' ')) {
           searchQuery = `${baseQuery} label:"${argv.monitorTag}"`;
-          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,createdAt,repository`;
         } else {
           searchQuery = `${baseQuery} label:${argv.monitorTag}`;
-          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,repository`;
+          searchCmd = `gh search issues '${searchQuery}' --json url,title,number,createdAt,repository`;
         }
         
         await log('   🔎 Fetching labeled issues with pagination and rate limiting...');
@@ -995,7 +1019,18 @@ async function fetchIssues() {
     } else {
       await log(`   📋 Found ${issues.length} issue(s) with label "${argv.monitorTag}"`);
     }
-    
+
+    // Sort issues by publication date (createdAt) based on issue-order option
+    if (issues.length > 0 && issues[0].createdAt) {
+      await log(`   🔄 Sorting issues by publication date (${argv.issueOrder === 'asc' ? 'oldest first' : 'newest first'})...`);
+      issues.sort((a, b) => {
+        const dateA = new Date(a.createdAt);
+        const dateB = new Date(b.createdAt);
+        return argv.issueOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+      await log('   ✅ Issues sorted by publication date');
+    }
+
     // Filter out issues with open PRs if option is enabled
     let issuesToProcess = issues;
     if (argv.skipIssuesWithPrs) {

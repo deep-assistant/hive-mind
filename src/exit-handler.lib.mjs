@@ -10,15 +10,18 @@
 let exitMessageShown = false;
 let getLogPathFunction = null;
 let logFunction = null;
+let cleanupFunction = null;
 
 /**
  * Initialize the exit handler with required dependencies
  * @param {Function} getLogPath - Function that returns the current log path
  * @param {Function} log - Logging function
+ * @param {Function} cleanup - Optional cleanup function to call on exit
  */
-export const initializeExitHandler = (getLogPath, log) => {
+export const initializeExitHandler = (getLogPath, log, cleanup = null) => {
   getLogPathFunction = getLogPath;
   logFunction = log;
+  cleanupFunction = cleanup;
 };
 
 /**
@@ -80,18 +83,39 @@ export const installGlobalExitHandlers = () => {
 
   // Handle SIGINT (CTRL+C)
   process.on('SIGINT', async () => {
+    if (cleanupFunction) {
+      try {
+        await cleanupFunction();
+      } catch (e) {
+        // Ignore cleanup errors on signal
+      }
+    }
     await showExitMessage('Interrupted (CTRL+C)', 130);
     process.exit(130);
   });
 
   // Handle SIGTERM
   process.on('SIGTERM', async () => {
+    if (cleanupFunction) {
+      try {
+        await cleanupFunction();
+      } catch (e) {
+        // Ignore cleanup errors on signal
+      }
+    }
     await showExitMessage('Terminated', 143);
     process.exit(143);
   });
 
   // Handle uncaught exceptions
   process.on('uncaughtException', async (error) => {
+    if (cleanupFunction) {
+      try {
+        await cleanupFunction();
+      } catch (e) {
+        // Ignore cleanup errors on exception
+      }
+    }
     if (logFunction) {
       await logFunction(`\n❌ Uncaught Exception: ${error.message}`, { level: 'error' });
     }
@@ -101,6 +125,13 @@ export const installGlobalExitHandlers = () => {
 
   // Handle unhandled rejections
   process.on('unhandledRejection', async (reason) => {
+    if (cleanupFunction) {
+      try {
+        await cleanupFunction();
+      } catch (e) {
+        // Ignore cleanup errors on rejection
+      }
+    }
     if (logFunction) {
       await logFunction(`\n❌ Unhandled Rejection: ${reason}`, { level: 'error' });
     }

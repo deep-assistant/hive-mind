@@ -5,29 +5,13 @@ import './instrument.mjs';
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
-  // Quick version output without loading modules - get version from package.json or use dev version format
-  const { execSync } = await import('child_process');
-  const { readFileSync } = await import('fs');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const { getGitVersion } = await import('./git.lib.mjs');
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const packagePath = join(__dirname, '..', 'package.json');
-
+  const { getVersion } = await import('./version.lib.mjs');
   try {
-    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-    const currentVersion = packageJson.version;
-    const version = await getGitVersion(execSync, currentVersion);
+    const version = await getVersion();
     console.log(version);
-  } catch (versionError) {
-    reportError(versionError, {
-      context: 'version_detection',
-      operation: 'get_package_version'
-    });
-    // Fallback to hardcoded version if all else fails
-    console.log('0.10.4');
+  } catch {
+    console.error('Error: Unable to determine version');
+    process.exit(1);
   }
   process.exit(0);
 }
@@ -56,7 +40,6 @@ globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
 const { initializeConfig, parseArguments } = config;
-
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
@@ -90,14 +73,12 @@ const { startWatchMode } = watchLib;
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
-
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
-
 // Initialize Sentry integration (unless disabled)
 if (!argv.noSentry) {
   await initializeSentry({
@@ -117,11 +98,16 @@ if (!argv.noSentry) {
     }
   });
 }
-
-// Initialize the exit handler with getAbsoluteLogPath function and Sentry cleanup
-initializeExitHandler(getAbsoluteLogPath, log);
+// Create a cleanup wrapper that will be populated with context later
+let cleanupContext = { tempDir: null, argv: null, limitReached: false };
+const cleanupWrapper = async () => {
+  if (cleanupContext.tempDir && cleanupContext.argv) {
+    await cleanupTempDirectory(cleanupContext.tempDir, cleanupContext.argv, cleanupContext.limitReached);
+  }
+};
+// Initialize the exit handler with getAbsoluteLogPath function and cleanup wrapper
+initializeExitHandler(getAbsoluteLogPath, log, cleanupWrapper);
 installGlobalExitHandlers();
-
 // Log version and raw command at the start
 const versionInfo = await getVersionInfo();
 await log('');
@@ -130,7 +116,6 @@ const rawCommand = process.argv.join(' ');
 await log('🔧 Raw command executed:');
 await log(`   ${rawCommand}`);
 await log('');
-
 // Now handle argument validation that was moved from early checks
 let issueUrl = argv._[0];
 if (!issueUrl) {
@@ -161,7 +146,6 @@ const errorHandlerOptions = {
   sanitizeLogContent,
   $
 };
-
 process.on('uncaughtException', createUncaughtExceptionHandler(errorHandlerOptions));
 process.on('unhandledRejection', createUnhandledRejectionHandler(errorHandlerOptions));
 // Validate GitHub URL requirement and options using validation module
@@ -187,7 +171,6 @@ if (argv.verbose) {
 const claudePath = process.env.CLAUDE_PATH || 'claude';
 // Parse URL components using validation module
 const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
-
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
@@ -255,7 +238,6 @@ if (isPrUrl) {
 
     if (prResult.code !== 0 || !prResult.data) {
       await log('Error: Failed to get PR details', { level: 'error' });
-
       if (prResult.output.includes('Could not resolve to a PullRequest')) {
         await githubLib.handlePRNotFoundError({ prNumber, owner, repo, argv, shouldAttachLogs });
       } else {
@@ -313,6 +295,10 @@ if (isPrUrl) {
 
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
+
+// Populate cleanup context for signal handlers
+cleanupContext.tempDir = tempDir;
+cleanupContext.argv = argv;
 
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
@@ -813,7 +799,13 @@ Issue: ${issueUrl}`;
           }
           
           // Create draft pull request
+          const targetBranch = argv.baseBranch || defaultBranch;
           await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
+          if (argv.baseBranch) {
+            await log(formatAligned('🎯', 'Target branch:', `${targetBranch} (custom)`));
+          } else {
+            await log(formatAligned('🎯', 'Target branch:', `${targetBranch} (default)`));
+          }
           
           // Use full repository reference for cross-repo PRs (forks)
           const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
@@ -855,13 +847,14 @@ ${prBody}`, { verbose: true });
             await fs.writeFile(prBodyFile, prBody);
             
             // Build command with optional assignee and handle forks
+            // Note: targetBranch is already defined above
             let command;
             if (argv.fork && forkedRepo) {
               // For forks, specify the full head reference
               const forkUser = forkedRepo.split('/')[0];
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
             }
             // Only add assignee if user has permissions
             if (currentUser && canAssign) {
@@ -1373,6 +1366,7 @@ ${prBody}`, { verbose: true });
 
   const { success, sessionId } = claudeResult;
   limitReached = claudeResult.limitReached;
+  cleanupContext.limitReached = limitReached;
 
   if (!success) {
     await safeExit(1, 'Claude execution failed');
