@@ -32,6 +32,66 @@ const {
 // Import exit handler
 import { safeExit } from './exit-handler.lib.mjs';
 
+// Get the root repository of any repository
+// Returns the source (root) repository if the repo is a fork, otherwise returns the repo itself
+export const getRootRepository = async (owner, repo) => {
+  try {
+    const result = await $`gh api repos/${owner}/${repo} --jq '{fork: .fork, source: .source.full_name}'`;
+
+    if (result.code !== 0) {
+      return null;
+    }
+
+    const repoInfo = JSON.parse(result.stdout.toString().trim());
+
+    if (repoInfo.fork && repoInfo.source) {
+      return repoInfo.source;
+    } else {
+      return `${owner}/${repo}`;
+    }
+  } catch (error) {
+    reportError(error, {
+      context: 'get_root_repository',
+      owner,
+      repo,
+      operation: 'determine_fork_root'
+    });
+    return null;
+  }
+};
+
+// Check if current user has a fork of the given root repository
+export const checkExistingForkOfRoot = async (rootRepo) => {
+  try {
+    const userResult = await $`gh api user --jq .login`;
+    if (userResult.code !== 0) {
+      return null;
+    }
+    const currentUser = userResult.stdout.toString().trim();
+
+    const forksResult = await $`gh api repos/${rootRepo}/forks --paginate --jq '.[] | select(.owner.login == "${currentUser}") | .full_name'`;
+
+    if (forksResult.code !== 0) {
+      return null;
+    }
+
+    const forks = forksResult.stdout.toString().trim().split('\n').filter(f => f);
+
+    if (forks.length > 0) {
+      return forks[0];
+    } else {
+      return null;
+    }
+  } catch (error) {
+    reportError(error, {
+      context: 'check_existing_fork_of_root',
+      rootRepo,
+      operation: 'search_user_forks'
+    });
+    return null;
+  }
+};
+
 // Create or find temporary directory for cloning the repository
 export const setupTempDirectory = async (argv) => {
   let tempDir;
@@ -90,6 +150,60 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
       await safeExit(1, 'Repository setup failed');
     }
     const currentUser = userResult.stdout.toString().trim();
+
+    // Check for fork conflicts (Issue #344)
+    // Detect if we're trying to fork a repository that shares the same root
+    // as an existing fork we already have
+    await log(`${formatAligned('🔍', 'Detecting fork conflicts...', '')}`);
+    const rootRepo = await getRootRepository(owner, repo);
+
+    if (rootRepo) {
+      const existingFork = await checkExistingForkOfRoot(rootRepo);
+
+      if (existingFork) {
+        const existingForkOwner = existingFork.split('/')[0];
+
+        if (existingForkOwner === currentUser) {
+          const targetRepo = `${owner}/${repo}`;
+          const targetIsRoot = (targetRepo === rootRepo);
+
+          if (!targetIsRoot) {
+            await log('');
+            await log(`${formatAligned('❌', 'FORK CONFLICT DETECTED', '')}`, { level: 'error' });
+            await log('');
+            await log('  🔍 What happened:');
+            await log(`     You are trying to fork ${targetRepo}`);
+            await log(`     But you already have a fork of ${rootRepo}: ${existingFork}`);
+            await log('     GitHub doesn\'t allow multiple forks of the same root repository');
+            await log('');
+            await log('  📦 Root repository analysis:');
+            await log(`     • Target repository: ${targetRepo}`);
+            await log(`     • Root repository: ${rootRepo}`);
+            await log(`     • Your existing fork: ${existingFork}`);
+            await log('');
+            await log('  ⚠️  Why this is a problem:');
+            await log('     GitHub treats forks hierarchically. When you fork a repository,');
+            await log('     GitHub tracks the original source repository. If you try to fork');
+            await log('     a different fork of the same source, GitHub will silently use your');
+            await log('     existing fork instead, causing PRs to be created in the wrong place.');
+            await log('');
+            await log('  💡 How to fix:');
+            await log(`     1. Delete your existing fork: gh repo delete ${existingFork}`);
+            await log(`     2. Then run this command again to fork ${targetRepo}`);
+            await log('');
+            await log('  ℹ️  Alternative:');
+            await log(`     If you want to work on ${targetRepo}, you can work directly`);
+            await log('     on that repository without forking (if you have write access).');
+            await log('');
+            await safeExit(1, 'Repository setup failed due to fork conflict');
+          }
+        }
+      }
+
+      await log(`${formatAligned('✅', 'No fork conflict:', 'Safe to proceed')}`);
+    } else {
+      await log(`${formatAligned('⚠️', 'Warning:', 'Could not determine root repository')}`);
+    }
 
     // Check if fork already exists
     // GitHub may create forks with different names to avoid conflicts
