@@ -1,17 +1,110 @@
 #!/usr/bin/env node
 // start-screen.mjs - Launch solve or hive commands in GNU screen sessions
 
-// Use use-m to dynamically import modules for cross-runtime compatibility
-if (typeof use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+// Inline parseGitHubUrl function to avoid use-m dependency issues
+function parseGitHubUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return {
+      valid: false,
+      error: 'Invalid input: URL must be a non-empty string'
+    };
+  }
+
+  // Trim whitespace and remove trailing slashes
+  let normalizedUrl = url.trim().replace(/\/+$/, '');
+
+  // Check if this looks like a valid GitHub-related input
+  if (/\s/.test(normalizedUrl) || /^[!@#$%^&*()[\]{}|\\:;"'<>,?`~]/.test(normalizedUrl)) {
+    return {
+      valid: false,
+      error: 'Invalid GitHub URL format'
+    };
+  }
+
+  // Handle protocol normalization
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    if (normalizedUrl.startsWith('github.com/')) {
+      normalizedUrl = 'https://' + normalizedUrl;
+    } else if (!normalizedUrl.includes('github.com')) {
+      normalizedUrl = 'https://github.com/' + normalizedUrl;
+    } else {
+      return {
+        valid: false,
+        error: 'Invalid GitHub URL format'
+      };
+    }
+  }
+
+  // Convert http to https
+  if (normalizedUrl.startsWith('http://')) {
+    normalizedUrl = normalizedUrl.replace(/^http:\/\//, 'https://');
+  }
+
+  // Parse the URL
+  let urlObj;
+  try {
+    urlObj = new URL(normalizedUrl);
+  } catch (e) {
+    return {
+      valid: false,
+      error: 'Invalid URL format: ' + e.message
+    };
+  }
+
+  // Must be github.com
+  if (urlObj.hostname !== 'github.com' && urlObj.hostname !== 'www.github.com') {
+    return {
+      valid: false,
+      error: 'Not a GitHub URL'
+    };
+  }
+
+  // Parse the path
+  const pathParts = urlObj.pathname.split('/').filter(part => part.length > 0);
+
+  if (pathParts.length === 0) {
+    return {
+      valid: false,
+      error: 'Invalid GitHub URL: missing owner/repo'
+    };
+  }
+
+  const result = {
+    valid: true,
+    normalized: normalizedUrl,
+    hostname: urlObj.hostname,
+    owner: pathParts[0] || null,
+    repo: pathParts[1] || null,
+    type: 'unknown',
+    path: pathParts.slice(2).join('/'),
+    number: null
+  };
+
+  // Determine the type based on path structure
+  if (pathParts.length === 1) {
+    result.type = 'owner';
+  } else if (pathParts.length === 2) {
+    result.type = 'repo';
+  } else if (pathParts.length >= 4) {
+    const thirdPart = pathParts[2];
+    const fourthPart = pathParts[3];
+
+    if (thirdPart === 'issues' && /^\d+$/.test(fourthPart)) {
+      result.type = 'issue';
+      result.number = parseInt(fourthPart, 10);
+    } else if (thirdPart === 'pull' && /^\d+$/.test(fourthPart)) {
+      result.type = 'pull';
+      result.number = parseInt(fourthPart, 10);
+    }
+  }
+
+  return result;
 }
-
-const { $ } = await use('command-stream');
-const path = (await use('path')).default;
-const { spawn } = await use('child_process');
-
-// Import GitHub URL parsing utility
-import { parseGitHubUrl } from './src/github.lib.mjs';
 
 // Get command line arguments
 const args = process.argv.slice(2);
@@ -95,8 +188,8 @@ console.log(`Screen session name: ${screenName}`);
 // Check if screen session already exists
 async function screenSessionExists(sessionName) {
   try {
-    const result = await $`screen -ls ${sessionName}`;
-    return result.stdout.includes(sessionName);
+    const { stdout } = await execAsync(`screen -ls ${sessionName}`);
+    return stdout.includes(sessionName);
   } catch (error) {
     // screen -ls returns non-zero exit code when no sessions found
     return false;
@@ -110,38 +203,29 @@ try {
   const sessionExists = await screenSessionExists(screenName);
 
   if (sessionExists) {
-    console.log(`Attaching to existing screen session: ${screenName}`);
-    console.log(`Command: ${fullCommand}`);
+    console.log(`Screen session already exists: ${screenName}`);
+    console.log(`Sending command to existing session: ${fullCommand}`);
 
-    // Attach to existing screen session
-    spawn('screen', ['-r', screenName], {
-      stdio: 'inherit',
-      shell: true
-    });
+    // Send command to existing screen session without attaching
+    // Using screen -X to send commands to a named session
+    await execAsync(`screen -S ${screenName} -X stuff "${fullCommand}\n"`);
+
+    console.log(`Command sent to screen session: ${screenName}`);
+    console.log(`To attach to this session, run: screen -r ${screenName}`);
   } else {
-    console.log(`Creating new screen session: ${screenName}`);
+    console.log(`Creating new detached screen session: ${screenName}`);
     console.log(`Command: ${fullCommand}`);
 
-    // Create new screen session and run command
-    // Use -d -m to start detached, then we'll attach
-    const screenArgs = [
-      '-S', screenName,
-      '-d', '-m',
-      'bash', '-c', fullCommand
-    ];
+    // Create new screen session and run command in detached mode
+    // Using exec instead of spawn to ensure we don't inherit stdio
+    await execAsync(`screen -S ${screenName} -d -m bash -c '${fullCommand}'`);
 
-    // Start the screen session
-    await $`screen ${screenArgs}`;
-
-    // Small delay to ensure screen session is created
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Now attach to the created session
-    spawn('screen', ['-r', screenName], {
-      stdio: 'inherit',
-      shell: true
-    });
+    console.log(`Screen session created and running in background: ${screenName}`);
+    console.log(`To attach to this session, run: screen -r ${screenName}`);
   }
+
+  // Exit successfully
+  process.exit(0);
 } catch (error) {
   console.error(`Error managing screen session: ${error.message}`);
   console.error('\nMake sure GNU screen is installed:');
