@@ -799,7 +799,13 @@ Issue: ${issueUrl}`;
           }
           
           // Create draft pull request
+          const targetBranch = argv.baseBranch || defaultBranch;
           await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
+          if (argv.baseBranch) {
+            await log(formatAligned('🎯', 'Target branch:', `${targetBranch} (custom)`));
+          } else {
+            await log(formatAligned('🎯', 'Target branch:', `${targetBranch} (default)`));
+          }
           
           // Use full repository reference for cross-repo PRs (forks)
           const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
@@ -841,13 +847,14 @@ ${prBody}`, { verbose: true });
             await fs.writeFile(prBodyFile, prBody);
             
             // Build command with optional assignee and handle forks
+            // Note: targetBranch is already defined above
             let command;
             if (argv.fork && forkedRepo) {
               // For forks, specify the full head reference
               const forkUser = forkedRepo.split('/')[0];
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
             } else {
-              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${defaultBranch} --head ${branchName}`;
+              command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
             }
             // Only add assignee if user has permissions
             if (currentUser && canAssign) {

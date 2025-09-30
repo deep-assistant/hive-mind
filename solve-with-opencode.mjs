@@ -30,15 +30,35 @@ const args = process.argv.slice(2)
 
 if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
   console.log('GitHub Issue Solver with OpenCode AI')
-  console.log('Usage: ./solve-with-opencode.mjs <github-issue-url>')
+  console.log('Usage: ./solve-with-opencode.mjs <github-issue-url> [options]')
+  console.log('')
+  console.log('Options:')
+  console.log('  --base-branch <branch>  Target branch for the pull request (defaults to repository default)')
+  console.log('  -b <branch>             Alias for --base-branch')
+  console.log('  -h, --help              Show this help message')
   console.log('')
   console.log('Example:')
   console.log('  ./solve-with-opencode.mjs https://github.com/owner/repo/issues/123')
+  console.log('  ./solve-with-opencode.mjs https://github.com/owner/repo/issues/123 --base-branch develop')
   process.exit(0)
 }
 
-// Parse GitHub issue URL
+// Parse GitHub issue URL and options
 const issueUrl = args[0]
+let baseBranch = null
+
+// Parse additional options
+for (let i = 1; i < args.length; i++) {
+  if (args[i] === '--base-branch' || args[i] === '-b') {
+    if (i + 1 < args.length) {
+      baseBranch = args[i + 1]
+      i++ // Skip next arg as it's the value
+    } else {
+      console.error('Error: --base-branch requires a value')
+      process.exit(1)
+    }
+  }
+}
 const urlMatch = issueUrl.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/)
 
 if (!urlMatch) {
@@ -149,6 +169,14 @@ try {
   }
   console.log(`✓ Successfully switched to branch: ${branchName}`)
 
+  // Determine the target branch for the PR
+  const targetBranch = baseBranch || defaultBranch
+  if (baseBranch) {
+    console.log(`\nUsing custom base branch: ${targetBranch}`)
+  } else {
+    console.log(`\nUsing default base branch: ${targetBranch}`)
+  }
+
   // Prepare the prompt for OpenCode
   // Note: OpenCode might have different prompt structure than Claude
   // This is a draft that will need adjustment based on OpenCode's actual CLI interface
@@ -176,10 +204,10 @@ try {
    - When you open pr, describe solution and include tests.
    - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.
 
-4. Workflow and collaboration.  
-   - When you check branch, verify with git branch --show-current.  
-   - When you push, push only to branch ${branchName}.  
-   - When you finish, create a pull request from branch ${branchName}.  
+4. Workflow and collaboration.
+   - When you check branch, verify with git branch --show-current.
+   - When you push, push only to branch ${branchName}.
+   - When you finish, create a pull request from branch ${branchName} to base branch ${targetBranch}.  
    - When you organize workflow, use pull requests instead of direct merges to main or master branches.  
    - When you manage commits, preserve commit history for later analysis.  
    - When you contribute, keep repository history forward-moving with regular commits, pushes, and reverts if needed.  
