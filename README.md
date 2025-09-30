@@ -58,6 +58,9 @@ solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --a
 # Solve GitHub issues automatically
 solve https://github.com/owner/repo/issues/123 --fork --model sonnet
 
+# Solve issue with PR to custom branch
+solve https://github.com/owner/repo/issues/123 --base-branch develop --fork
+
 # Continue working on existing PR
 solve https://github.com/owner/repo/pull/456 --model opus
 
@@ -92,6 +95,7 @@ solve <issue-url> [options]
 
   --model, -m           Model (sonnet, opus)                  [default: sonnet]
   --fork, -f            Fork repo if no write access         [default: false]
+  --base-branch, -b     Target branch for PR                  [default: repo default]
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
