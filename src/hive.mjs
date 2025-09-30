@@ -307,8 +307,35 @@ const createYargsConfig = (yargsInstance) => {
     .alias('h', 'help');
 };
 
-// Check for help flag before processing other arguments
+// Check for version flag before processing other arguments
 const rawArgs = hideBin(process.argv);
+if (rawArgs.includes('--version')) {
+  // Quick version output without loading modules - get version from package.json or use dev version format
+  const { execSync } = await import('child_process');
+  const { readFileSync } = await import('fs');
+  const { dirname, join } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const { getGitVersion } = await import('./git.lib.mjs');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const packagePath = join(__dirname, '..', 'package.json');
+  try {
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+    const currentVersion = packageJson.version;
+    const version = await getGitVersion(execSync, currentVersion);
+    console.log(version);
+  } catch (versionError) {
+    reportError(versionError, {
+      context: 'version_detection',
+      operation: 'get_package_version'
+    });
+    // Fallback to hardcoded version if all else fails
+    console.log('0.10.4');
+  }
+  await safeExit(0, 'Process completed');
+}
+
+// Check for help flag before processing other arguments
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
   // Show help and exit - filter out help flags to avoid duplicate display
   const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
