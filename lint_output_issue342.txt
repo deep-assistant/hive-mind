@@ -1,0 +1,4 @@
+
+> @deep-assistant/hive-mind@0.13.1 lint
+> eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs
+

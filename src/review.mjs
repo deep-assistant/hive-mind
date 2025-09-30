@@ -4,25 +4,13 @@
 const earlyArgs = process.argv.slice(2);
 
 if (earlyArgs.includes('--version')) {
-  // Quick version output without loading modules
-  const { readFileSync } = await import('fs');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const { getGitVersion } = await import('./git.lib.mjs');
-  const { execSync } = await import('child_process');
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const packagePath = join(__dirname, '..', 'package.json');
-
+  const { getVersion } = await import('./version.lib.mjs');
   try {
-    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-    const currentVersion = packageJson.version;
-    const version = await getGitVersion(execSync, currentVersion);
+    const version = await getVersion();
     console.log(version);
   } catch (versionError) {
-    // Fallback to hardcoded version if all else fails
-    console.log('0.10.4');
+    console.error('Error: Unable to determine version');
+    process.exit(1);
   }
   process.exit(0);
 }
@@ -35,7 +23,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   console.log('  --help, -h         Show help');
   console.log('  --resume, -r       Resume from a previous session ID');
   console.log('  --dry-run, -n      Prepare everything but do not execute Claude');
-  console.log('  --model, -m        Model to use (opus or sonnet) [default: opus]');
+  console.log('  --model, -m        Model to use (opus, sonnet, or full model ID) [default: opus]');
   console.log('  --focus, -f        Focus areas for review [default: all]');
   console.log('  --approve          If review passes, approve the PR');
   console.log('  --verbose, -v      Enable verbose logging');
@@ -80,10 +68,10 @@ const argv = yargs(process.argv.slice(2))
   })
   .option('model', {
     type: 'string',
-    description: 'Model to use (opus or sonnet)',
+    description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
     alias: 'm',
     default: 'opus',
-    choices: ['opus', 'sonnet']
+    choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
   })
   .option('focus', {
     type: 'string',

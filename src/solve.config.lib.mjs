@@ -43,10 +43,10 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (opus or sonnet)',
+      description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
       alias: 'm',
       default: 'sonnet',
-      choices: ['opus', 'sonnet']
+      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
     })
     .option('auto-pull-request-creation', {
       type: 'boolean',
@@ -136,6 +136,11 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'boolean',
       description: 'Disable Sentry error tracking and monitoring',
       default: false
+    })
+    .option('auto-cleanup', {
+      type: 'boolean',
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
+      default: true
     })
     .help('h')
     .alias('h', 'help');
