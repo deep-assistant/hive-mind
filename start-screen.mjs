@@ -3,9 +3,11 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { use } from 'use-m';
 
 const execAsync = promisify(exec);
+
+// Load use-m dynamically from unpkg (same pattern as solve.mjs and github.lib.mjs)
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
 
 // Dynamically load parse-github-url using use-m
 const parseGitHubUrlModule = await use('parse-github-url@1.0.3');
