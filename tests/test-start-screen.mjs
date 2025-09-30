@@ -102,7 +102,7 @@ try {
   allPassed = false;
 } catch (error) {
   const output = error.stdout || error.stderr || error.output?.join('') || '';
-  if (output.includes('not supported')) {
+  if (output.includes('Must be \'solve\' or \'hive\'')) {
     console.log('  Invalid command: ✓ PASSED\n');
   } else {
     console.log('  Invalid command: ✗ FAILED - Wrong error message\n');

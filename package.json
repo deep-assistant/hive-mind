@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@sentry/node": "^10.15.0",
-    "@sentry/profiling-node": "^10.15.0"
+    "@sentry/profiling-node": "^10.15.0",
+    "use-m": "^8.13.7"
   }
 }
