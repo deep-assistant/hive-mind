@@ -5,27 +5,13 @@ import './instrument.mjs';
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
-  // Quick version output without loading modules - get version from package.json or use dev version format
-  const { execSync } = await import('child_process');
-  const { readFileSync } = await import('fs');
-  const { dirname, join } = await import('path');
-  const { fileURLToPath } = await import('url');
-  const { getGitVersion } = await import('./git.lib.mjs');
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const packagePath = join(__dirname, '..', 'package.json');
+  const { getVersion } = await import('./version.lib.mjs');
   try {
-    const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
-    const currentVersion = packageJson.version;
-    const version = await getGitVersion(execSync, currentVersion);
+    const version = await getVersion();
     console.log(version);
-  } catch (versionError) {
-    reportError(versionError, {
-      context: 'version_detection',
-      operation: 'get_package_version'
-    });
-    // Fallback to hardcoded version if all else fails
-    console.log('0.10.4');
+  } catch {
+    console.error('Error: Unable to determine version');
+    process.exit(1);
   }
   process.exit(0);
 }
