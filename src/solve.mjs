@@ -118,8 +118,16 @@ if (!argv.noSentry) {
   });
 }
 
-// Initialize the exit handler with getAbsoluteLogPath function and Sentry cleanup
-initializeExitHandler(getAbsoluteLogPath, log);
+// Create a cleanup wrapper that will be populated with context later
+let cleanupContext = { tempDir: null, argv: null, limitReached: false };
+const cleanupWrapper = async () => {
+  if (cleanupContext.tempDir && cleanupContext.argv) {
+    await cleanupTempDirectory(cleanupContext.tempDir, cleanupContext.argv, cleanupContext.limitReached);
+  }
+};
+
+// Initialize the exit handler with getAbsoluteLogPath function and cleanup wrapper
+initializeExitHandler(getAbsoluteLogPath, log, cleanupWrapper);
 installGlobalExitHandlers();
 
 // Log version and raw command at the start
@@ -313,6 +321,10 @@ if (isPrUrl) {
 
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
+
+// Populate cleanup context for signal handlers
+cleanupContext.tempDir = tempDir;
+cleanupContext.argv = argv;
 
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
@@ -1373,6 +1385,7 @@ ${prBody}`, { verbose: true });
 
   const { success, sessionId } = claudeResult;
   limitReached = claudeResult.limitReached;
+  cleanupContext.limitReached = limitReached;
 
   if (!success) {
     await safeExit(1, 'Claude execution failed');
