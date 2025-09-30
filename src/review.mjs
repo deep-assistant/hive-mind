@@ -35,7 +35,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   console.log('  --help, -h         Show help');
   console.log('  --resume, -r       Resume from a previous session ID');
   console.log('  --dry-run, -n      Prepare everything but do not execute Claude');
-  console.log('  --model, -m        Model to use (opus or sonnet) [default: opus]');
+  console.log('  --model, -m        Model to use (opus, sonnet, or full model ID) [default: opus]');
   console.log('  --focus, -f        Focus areas for review [default: all]');
   console.log('  --approve          If review passes, approve the PR');
   console.log('  --verbose, -v      Enable verbose logging');
@@ -80,10 +80,10 @@ const argv = yargs(process.argv.slice(2))
   })
   .option('model', {
     type: 'string',
-    description: 'Model to use (opus or sonnet)',
+    description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
     alias: 'm',
     default: 'opus',
-    choices: ['opus', 'sonnet']
+    choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
   })
   .option('focus', {
     type: 'string',

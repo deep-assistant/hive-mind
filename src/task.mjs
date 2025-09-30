@@ -37,7 +37,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   console.log('  --decompose        Enable decomposition mode [default: true]');
   console.log('  --only-clarify     Only run clarification mode');
   console.log('  --only-decompose   Only run decomposition mode');
-  console.log('  --model, -m        Model to use (opus or sonnet) [default: sonnet]');
+  console.log('  --model, -m        Model to use (opus, sonnet, or full model ID) [default: sonnet]');
   console.log('  --verbose, -v      Enable verbose logging');
   console.log('  --output-format    Output format (text or json) [default: text]');
   process.exit(0);
@@ -57,7 +57,7 @@ const crypto = (await use('crypto')).default;
 const { spawn } = (await use('child_process')).default;
 
 // Import Claude execution functions
-import { validateClaudeConnection } from './claude.lib.mjs';
+import { validateClaudeConnection, mapModelToId } from './claude.lib.mjs';
 
 // Global log file reference
 let logFile = null;
@@ -122,10 +122,10 @@ const argv = yargs(process.argv.slice(2))
   })
   .option('model', {
     type: 'string',
-    description: 'Model to use (opus or sonnet)',
+    description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
     alias: 'm',
     default: 'sonnet',
-    choices: ['opus', 'sonnet']
+    choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
   })
   .option('verbose', {
     type: 'boolean',
@@ -201,11 +201,14 @@ const claudePath = process.env.CLAUDE_PATH || 'claude';
 // Helper function to execute Claude command
 const executeClaude = (prompt, model) => {
   return new Promise((resolve, reject) => {
+    // Map model alias to full ID
+    const mappedModel = mapModelToId(model);
+
     const args = [
       '-p', prompt,
       '--output-format', 'text',
       '--dangerously-skip-permissions',
-      '--model', model
+      '--model', mappedModel
     ];
     
     const child = spawn(claudePath, args, {

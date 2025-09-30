@@ -15,8 +15,21 @@ const path = (await use('path')).default;
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 
+// Model mapping to translate aliases to full model IDs
+export const mapModelToId = (model) => {
+  const modelMap = {
+    'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
+    'opus': 'claude-opus-4-1-20250805',       // Opus 4.1
+  };
+
+  // Return mapped model ID if it's an alias, otherwise return as-is (for full model IDs)
+  return modelMap[model] || model;
+};
+
 // Function to validate Claude CLI connection with retry logic
 export const validateClaudeConnection = async (model = 'sonnet') => {
+  // Map model alias to full ID
+  const mappedModel = mapModelToId(model);
   // Retry configuration for API overload errors
   const maxRetries = 3;
   const baseDelay = 5000; // Start with 5 seconds
@@ -50,17 +63,17 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
       let result;
       try {
         // Primary validation: use printf piping with specified model
-        result = await $`printf hi | claude --model ${model} -p`;
+        result = await $`printf hi | claude --model ${mappedModel} -p`;
       } catch (pipeError) {
         // If piping fails, fallback to the timeout approach as last resort
         await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
         try {
-          result = await $`timeout 60 claude --model ${model} -p hi`;
+          result = await $`timeout 60 claude --model ${mappedModel} -p hi`;
         } catch (timeoutError) {
           if (timeoutError.code === 124) {
             await log('❌ Claude CLI timed out after 60 seconds', { level: 'error' });
             await log('   💡 This may indicate Claude CLI is taking too long to respond', { level: 'error' });
-            await log(`   💡 Try running 'claude --model ${model} -p hi' manually to verify it works`, { level: 'error' });
+            await log(`   💡 Try running 'claude --model ${mappedModel} -p hi' manually to verify it works`, { level: 'error' });
             return false;
           }
           // Re-throw if it's not a timeout error
@@ -539,8 +552,11 @@ export const executeClaudeCommand = async (params) => {
   // Build claude command with optional resume flag
   let execCommand;
 
+  // Map model alias to full ID
+  const mappedModel = mapModelToId(argv.model);
+
   // Build claude command arguments
-  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model}`;
+  let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${mappedModel}`;
 
   if (argv.resume) {
     await log(`🔄 Resuming from session: ${argv.resume}`);
@@ -581,7 +597,7 @@ export const executeClaudeCommand = async (params) => {
       execCommand = $({
         cwd: tempDir,
         mirror: false
-      })`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} -p "${simpleEscapedPrompt}" --append-system-prompt "${simpleEscapedSystem}"`;
+      })`${claudePath} --resume ${argv.resume} --output-format stream-json --verbose --dangerously-skip-permissions --model ${mappedModel} -p "${simpleEscapedPrompt}" --append-system-prompt "${simpleEscapedSystem}"`;
     } else {
       // When not resuming, pass prompt via stdin
       // For system prompt, escape it properly for shell - just escape double quotes
@@ -591,7 +607,7 @@ export const executeClaudeCommand = async (params) => {
         cwd: tempDir,
         stdin: prompt,
         mirror: false
-      })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --model ${argv.model} --append-system-prompt "${simpleEscapedSystem}"`;
+      })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --model ${mappedModel} --append-system-prompt "${simpleEscapedSystem}"`;
     }
 
     await log(`${formatAligned('📋', 'Command details:', '')}`);
