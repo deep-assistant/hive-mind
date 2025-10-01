@@ -278,6 +278,38 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
             break;
           }
 
+          // Check if it's an empty repository (HTTP 403) - this is non-retriable
+          if (forkOutput.includes('HTTP 403') &&
+              (forkOutput.includes('Empty repositories cannot be forked') ||
+               forkOutput.includes('contains no Git content'))) {
+            // Empty repository - provide helpful suggestions
+            await log('');
+            await log(`${formatAligned('❌', 'EMPTY REPOSITORY', '')}`, { level: 'error' });
+            await log('');
+            await log('  🔍 What happened:');
+            await log(`     The repository ${owner}/${repo} is empty and cannot be forked.`);
+            await log('     GitHub doesn\'t allow forking repositories with no content.');
+            await log('');
+            await log('  💡 How to fix:');
+            await log('     Option 1: Work directly on the original repository (if you have write access)');
+            await log(`              Run: solve ${argv.url} --no-fork`);
+            await log('');
+            await log('     Option 2: Wait for the repository owner to add initial content');
+            await log('              Even a simple README.md file would make the repository forkable');
+            await log('');
+            await log('     Option 3: Create your own repository with initial content');
+            await log('              1. Create a new repository with the same name');
+            await log('              2. Add initial content (README.md or any file)');
+            await log('              3. Open an issue/PR there for development');
+            await log('');
+            await log('  ℹ️  Alternative:');
+            await log('     If you have write access to the original repository, you can:');
+            await log('     1. Add a minimal README.md file to make it forkable');
+            await log('     2. Then proceed with normal fork-based workflow');
+            await log('');
+            await safeExit(1, 'Repository setup failed - empty repository');
+          }
+
           // Check if fork was created by another worker even if error message doesn't explicitly say so
           await log(`${formatAligned('🔍', 'Checking:', 'If fork exists after failed creation attempt...')}`);
           const checkResult = await $`gh repo view ${actualForkName} --json name 2>/dev/null`;
