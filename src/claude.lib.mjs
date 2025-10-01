@@ -14,6 +14,7 @@ const path = (await use('path')).default;
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
+import { TIMEOUTS, RETRY_LIMITS } from './config.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs
 export const mapModelToId = (model) => {
@@ -32,7 +33,7 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
   const mappedModel = mapModelToId(model);
   // Retry configuration for API overload errors
   const maxRetries = 3;
-  const baseDelay = 5000; // Start with 5 seconds
+  const baseDelay = TIMEOUTS.RETRY_BASE_DELAY;
   let retryCount = 0;
 
   const attemptValidation = async () => {
@@ -46,7 +47,7 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
       // First try a quick validation approach
       try {
         // Check if Claude CLI is installed and get version
-        const versionResult = await $`timeout 10 claude --version`;
+        const versionResult = await $`timeout ${Math.floor(TIMEOUTS.CLAUDE_CLI / 6000)} claude --version`;
         if (versionResult.code === 0) {
           const version = versionResult.stdout?.toString().trim();
           if (retryCount === 0) {
@@ -68,10 +69,10 @@ export const validateClaudeConnection = async (model = 'sonnet') => {
         // If piping fails, fallback to the timeout approach as last resort
         await log(`⚠️  Pipe validation failed (${pipeError.code}), trying timeout approach...`);
         try {
-          result = await $`timeout 60 claude --model ${mappedModel} -p hi`;
+          result = await $`timeout ${Math.floor(TIMEOUTS.CLAUDE_CLI / 1000)} claude --model ${mappedModel} -p hi`;
         } catch (timeoutError) {
           if (timeoutError.code === 124) {
-            await log('❌ Claude CLI timed out after 60 seconds', { level: 'error' });
+            await log(`❌ Claude CLI timed out after ${Math.floor(TIMEOUTS.CLAUDE_CLI / 1000)} seconds`, { level: 'error' });
             await log('   💡 This may indicate Claude CLI is taking too long to respond', { level: 'error' });
             await log(`   💡 Try running 'claude --model ${mappedModel} -p hi' manually to verify it works`, { level: 'error' });
             return false;
@@ -507,7 +508,7 @@ export const executeClaudeCommand = async (params) => {
 
   // Retry configuration for API overload errors
   const maxRetries = 3;
-  const baseDelay = 5000; // Start with 5 seconds
+  const baseDelay = TIMEOUTS.RETRY_BASE_DELAY;
   let retryCount = 0;
 
   // Function to execute with retry logic
