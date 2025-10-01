@@ -5,7 +5,7 @@
 // to avoid duplicate use-m initialization issues
 
 // Import configuration
-import { AUTO_CONTINUE } from './config.lib.mjs';
+import { autoContinue } from './config.lib.mjs';
 
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
@@ -80,7 +80,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: `Automatically continue with existing PRs for this issue if they are older than ${AUTO_CONTINUE.AGE_THRESHOLD_HOURS} hours`,
+      description: `Automatically continue with existing PRs for this issue if they are older than ${autoContinue.ageThresholdHours} hours`,
       default: false
     })
     .option('auto-continue-limit', {

@@ -5,102 +5,123 @@
  * Provides environment variable overrides with sensible defaults
  */
 
+// Use use-m to dynamically import modules
+if (typeof globalThis.use === 'undefined') {
+  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+}
+
+const getenv = await use('getenv');
+
+// Helper function to safely parse integers with fallback
+const parseIntWithDefault = (envVar, defaultValue) => {
+  const value = getenv(envVar, defaultValue.toString());
+  const parsed = parseInt(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+};
+
+// Helper function to safely parse floats with fallback
+const parseFloatWithDefault = (envVar, defaultValue) => {
+  const value = getenv(envVar, defaultValue.toString());
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+};
+
 // Timeout configurations (in milliseconds)
-export const TIMEOUTS = {
-  CLAUDE_CLI: parseInt(process.env.CLAUDE_TIMEOUT_SECONDS || '60') * 1000,
-  GITHUB_API_DELAY: parseInt(process.env.GITHUB_API_DELAY_MS || '5000'),
-  GITHUB_REPO_DELAY: parseInt(process.env.GITHUB_REPO_DELAY_MS || '2000'),
-  RETRY_BASE_DELAY: parseInt(process.env.RETRY_BASE_DELAY_MS || '5000'),
-  RETRY_BACKOFF_DELAY: parseInt(process.env.RETRY_BACKOFF_DELAY_MS || '1000'),
+export const timeouts = {
+  claudeCli: parseIntWithDefault('CLAUDE_TIMEOUT_SECONDS', 60) * 1000,
+  githubApiDelay: parseIntWithDefault('GITHUB_API_DELAY_MS', 5000),
+  githubRepoDelay: parseIntWithDefault('GITHUB_REPO_DELAY_MS', 2000),
+  retryBaseDelay: parseIntWithDefault('RETRY_BASE_DELAY_MS', 5000),
+  retryBackoffDelay: parseIntWithDefault('RETRY_BACKOFF_DELAY_MS', 1000),
 };
 
 // Auto-continue configurations
-export const AUTO_CONTINUE = {
-  AGE_THRESHOLD_HOURS: parseInt(process.env.AUTO_CONTINUE_AGE_HOURS || '24'),
+export const autoContinue = {
+  ageThresholdHours: parseIntWithDefault('AUTO_CONTINUE_AGE_HOURS', 24),
 };
 
 // GitHub API limits
-export const GITHUB_LIMITS = {
-  COMMENT_MAX_SIZE: parseInt(process.env.GITHUB_COMMENT_MAX_SIZE || '65536'),
-  FILE_MAX_SIZE: parseInt(process.env.GITHUB_FILE_MAX_SIZE || String(25 * 1024 * 1024)), // 25MB default
-  ISSUE_BODY_MAX_SIZE: parseInt(process.env.GITHUB_ISSUE_BODY_MAX_SIZE || '60000'),
-  ATTACHMENT_MAX_SIZE: parseInt(process.env.GITHUB_ATTACHMENT_MAX_SIZE || String(10 * 1024 * 1024)), // 10MB default
-  BUFFER_MAX_SIZE: parseInt(process.env.GITHUB_BUFFER_MAX_SIZE || String(10 * 1024 * 1024)), // 10MB default
+export const githubLimits = {
+  commentMaxSize: parseIntWithDefault('GITHUB_COMMENT_MAX_SIZE', 65536),
+  fileMaxSize: parseIntWithDefault('GITHUB_FILE_MAX_SIZE', 25 * 1024 * 1024),
+  issueBodyMaxSize: parseIntWithDefault('GITHUB_ISSUE_BODY_MAX_SIZE', 60000),
+  attachmentMaxSize: parseIntWithDefault('GITHUB_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024),
+  bufferMaxSize: parseIntWithDefault('GITHUB_BUFFER_MAX_SIZE', 10 * 1024 * 1024),
 };
 
 // Memory and disk configurations
-export const SYSTEM_LIMITS = {
-  MIN_DISK_SPACE_MB: parseInt(process.env.MIN_DISK_SPACE_MB || '500'),
-  DEFAULT_PAGE_SIZE_KB: parseInt(process.env.DEFAULT_PAGE_SIZE_KB || '16'),
+export const systemLimits = {
+  minDiskSpaceMb: parseIntWithDefault('MIN_DISK_SPACE_MB', 500),
+  defaultPageSizeKb: parseIntWithDefault('DEFAULT_PAGE_SIZE_KB', 16),
 };
 
 // Retry configurations
-export const RETRY_LIMITS = {
-  MAX_FORK_RETRIES: parseInt(process.env.MAX_FORK_RETRIES || '5'),
-  MAX_VERIFY_RETRIES: parseInt(process.env.MAX_VERIFY_RETRIES || '5'),
-  MAX_API_RETRIES: parseInt(process.env.MAX_API_RETRIES || '3'),
-  RETRY_BACKOFF_MULTIPLIER: parseFloat(process.env.RETRY_BACKOFF_MULTIPLIER || '2'),
+export const retryLimits = {
+  maxForkRetries: parseIntWithDefault('MAX_FORK_RETRIES', 5),
+  maxVerifyRetries: parseIntWithDefault('MAX_VERIFY_RETRIES', 5),
+  maxApiRetries: parseIntWithDefault('MAX_API_RETRIES', 3),
+  retryBackoffMultiplier: parseFloatWithDefault('RETRY_BACKOFF_MULTIPLIER', 2),
 };
 
 // File and path configurations
-export const FILE_PATHS = {
-  TEMP_DIR: process.env.HIVE_TEMP_DIR || '/tmp',
-  TASK_INFO_FILENAME: process.env.TASK_INFO_FILENAME || 'CLAUDE.md',
-  PROC_MEMINFO: process.env.PROC_MEMINFO || '/proc/meminfo',
+export const filePaths = {
+  tempDir: getenv('HIVE_TEMP_DIR', '/tmp'),
+  taskInfoFilename: getenv('TASK_INFO_FILENAME', 'CLAUDE.md'),
+  procMeminfo: getenv('PROC_MEMINFO', '/proc/meminfo'),
 };
 
 // Text processing configurations
-export const TEXT_PROCESSING = {
-  TOKEN_MASK_MIN_LENGTH: parseInt(process.env.TOKEN_MASK_MIN_LENGTH || '12'),
-  TOKEN_MASK_START_CHARS: parseInt(process.env.TOKEN_MASK_START_CHARS || '5'),
-  TOKEN_MASK_END_CHARS: parseInt(process.env.TOKEN_MASK_END_CHARS || '5'),
-  TEXT_PREVIEW_LENGTH: parseInt(process.env.TEXT_PREVIEW_LENGTH || '100'),
-  LOG_TRUNCATION_LENGTH: parseInt(process.env.LOG_TRUNCATION_LENGTH || '5000'),
+export const textProcessing = {
+  tokenMaskMinLength: parseIntWithDefault('TOKEN_MASK_MIN_LENGTH', 12),
+  tokenMaskStartChars: parseIntWithDefault('TOKEN_MASK_START_CHARS', 5),
+  tokenMaskEndChars: parseIntWithDefault('TOKEN_MASK_END_CHARS', 5),
+  textPreviewLength: parseIntWithDefault('TEXT_PREVIEW_LENGTH', 100),
+  logTruncationLength: parseIntWithDefault('LOG_TRUNCATION_LENGTH', 5000),
 };
 
 // UI/Display configurations
-export const DISPLAY = {
-  LABEL_WIDTH: parseInt(process.env.LABEL_WIDTH || '25'),
+export const display = {
+  labelWidth: parseIntWithDefault('LABEL_WIDTH', 25),
 };
 
 // Sentry configurations
-export const SENTRY = {
-  DSN: process.env.SENTRY_DSN || 'https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440',
-  TRACES_SAMPLE_RATE_DEV: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE_DEV || '1.0'),
-  TRACES_SAMPLE_RATE_PROD: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE_PROD || '0.1'),
-  PROFILE_SESSION_SAMPLE_RATE_DEV: parseFloat(process.env.SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV || '1.0'),
-  PROFILE_SESSION_SAMPLE_RATE_PROD: parseFloat(process.env.SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD || '0.1'),
+export const sentry = {
+  dsn: getenv('SENTRY_DSN', 'https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440'),
+  tracesSampleRateDev: parseFloatWithDefault('SENTRY_TRACES_SAMPLE_RATE_DEV', 1.0),
+  tracesSampleRateProd: parseFloatWithDefault('SENTRY_TRACES_SAMPLE_RATE_PROD', 0.1),
+  profileSessionSampleRateDev: parseFloatWithDefault('SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV', 1.0),
+  profileSessionSampleRateProd: parseFloatWithDefault('SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD', 0.1),
 };
 
 // External URLs
-export const EXTERNAL_URLS = {
-  GITHUB_BASE: process.env.GITHUB_BASE_URL || 'https://github.com',
-  BUN_INSTALL: process.env.BUN_INSTALL_URL || 'https://bun.sh/',
+export const externalUrls = {
+  githubBase: getenv('GITHUB_BASE_URL', 'https://github.com'),
+  bunInstall: getenv('BUN_INSTALL_URL', 'https://bun.sh/'),
 };
 
 // Model configurations
-export const MODEL_CONFIG = {
-  AVAILABLE_MODELS: (process.env.AVAILABLE_MODELS || 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
-  DEFAULT_MODEL: process.env.DEFAULT_MODEL || 'sonnet',
+export const modelConfig = {
+  availableModels: getenv('AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
+  defaultModel: getenv('DEFAULT_MODEL', 'sonnet'),
 };
 
 // Version configurations
-export const VERSION = {
-  FALLBACK: process.env.VERSION_FALLBACK || '0.14.3',
-  DEFAULT: process.env.VERSION_DEFAULT || '0.14.3',
+export const version = {
+  fallback: getenv('VERSION_FALLBACK', '0.14.3'),
+  default: getenv('VERSION_DEFAULT', '0.14.3'),
 };
 
 // Helper function to validate configuration values
 export function validateConfig() {
   // Ensure all numeric values are valid
   const numericConfigs = [
-    ...Object.values(TIMEOUTS),
-    ...Object.values(GITHUB_LIMITS),
-    ...Object.values(SYSTEM_LIMITS),
-    ...Object.values(RETRY_LIMITS),
-    ...Object.values(TEXT_PROCESSING),
-    DISPLAY.LABEL_WIDTH,
-    AUTO_CONTINUE.AGE_THRESHOLD_HOURS,
+    ...Object.values(timeouts),
+    ...Object.values(githubLimits),
+    ...Object.values(systemLimits),
+    ...Object.values(retryLimits).filter(v => typeof v === 'number'),
+    ...Object.values(textProcessing),
+    display.labelWidth,
+    autoContinue.ageThresholdHours,
   ];
 
   for (const value of numericConfigs) {
@@ -111,10 +132,10 @@ export function validateConfig() {
 
   // Ensure sample rates are between 0 and 1
   const sampleRates = [
-    SENTRY.TRACES_SAMPLE_RATE_DEV,
-    SENTRY.TRACES_SAMPLE_RATE_PROD,
-    SENTRY.PROFILE_SESSION_SAMPLE_RATE_DEV,
-    SENTRY.PROFILE_SESSION_SAMPLE_RATE_PROD,
+    sentry.tracesSampleRateDev,
+    sentry.tracesSampleRateProd,
+    sentry.profileSessionSampleRateDev,
+    sentry.profileSessionSampleRateProd,
   ];
 
   for (const rate of sampleRates) {
@@ -124,8 +145,8 @@ export function validateConfig() {
   }
 
   // Ensure required paths exist
-  if (!FILE_PATHS.TEMP_DIR) {
-    throw new Error('TEMP_DIR configuration is required');
+  if (!filePaths.tempDir) {
+    throw new Error('tempDir configuration is required');
   }
 
   return true;
@@ -134,18 +155,18 @@ export function validateConfig() {
 // Export a function to get all configurations as an object (useful for debugging)
 export function getAllConfigurations() {
   return {
-    TIMEOUTS,
-    AUTO_CONTINUE,
-    GITHUB_LIMITS,
-    SYSTEM_LIMITS,
-    RETRY_LIMITS,
-    FILE_PATHS,
-    TEXT_PROCESSING,
-    DISPLAY,
-    SENTRY,
-    EXTERNAL_URLS,
-    MODEL_CONFIG,
-    VERSION,
+    timeouts,
+    autoContinue,
+    githubLimits,
+    systemLimits,
+    retryLimits,
+    filePaths,
+    textProcessing,
+    display,
+    sentry,
+    externalUrls,
+    modelConfig,
+    version,
   };
 }
 

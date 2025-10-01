@@ -1,33 +1,35 @@
 #!/usr/bin/env node
 
-// Test script to validate the configuration module works correctly
+// Test script to validate the updated configuration module works correctly
 
 import {
-  TIMEOUTS,
-  AUTO_CONTINUE,
-  GITHUB_LIMITS,
-  SYSTEM_LIMITS,
-  RETRY_LIMITS,
-  FILE_PATHS,
-  TEXT_PROCESSING,
-  DISPLAY,
-  SENTRY,
-  EXTERNAL_URLS,
-  MODEL_CONFIG,
-  VERSION,
+  timeouts,
+  autoContinue,
+  githubLimits,
+  systemLimits,
+  retryLimits,
+  filePaths,
+  textProcessing,
+  display,
+  sentry,
+  externalUrls,
+  modelConfig,
+  version,
   validateConfig,
   getAllConfigurations
 } from './src/config.lib.mjs';
 
-console.log('Testing configuration module...\n');
+console.log('Testing updated configuration module with getenv and camelCase...\n');
 
-// Test 1: Validate default values
-console.log('1. Testing default values:');
-console.log(`   CLAUDE_TIMEOUT: ${TIMEOUTS.CLAUDE_CLI}ms (${TIMEOUTS.CLAUDE_CLI / 1000}s)`);
-console.log(`   GITHUB_API_DELAY: ${TIMEOUTS.GITHUB_API_DELAY}ms`);
-console.log(`   AUTO_CONTINUE_AGE: ${AUTO_CONTINUE.AGE_THRESHOLD_HOURS} hours`);
-console.log(`   GITHUB_COMMENT_MAX_SIZE: ${GITHUB_LIMITS.COMMENT_MAX_SIZE} bytes`);
-console.log(`   ✅ Default values loaded successfully\n`);
+// Test 1: Validate default values with camelCase
+console.log('1. Testing camelCase property access:');
+console.log(`   timeouts.claudeCli: ${timeouts.claudeCli}ms (${timeouts.claudeCli / 1000}s)`);
+console.log(`   timeouts.githubApiDelay: ${timeouts.githubApiDelay}ms`);
+console.log(`   autoContinue.ageThresholdHours: ${autoContinue.ageThresholdHours} hours`);
+console.log(`   githubLimits.commentMaxSize: ${githubLimits.commentMaxSize} bytes`);
+console.log(`   filePaths.tempDir: ${filePaths.tempDir}`);
+console.log(`   sentry.dsn: ${sentry.dsn.substring(0, 30)}...`);
+console.log(`   ✅ camelCase properties accessible\n`);
 
 // Test 2: Validate configuration
 console.log('2. Validating configuration:');
@@ -44,14 +46,35 @@ console.log('3. Testing environment variable override:');
 const originalValue = process.env.CLAUDE_TIMEOUT_SECONDS;
 process.env.CLAUDE_TIMEOUT_SECONDS = '120';
 
-// Re-import to get new value (in real use, this would be set before import)
 console.log(`   Set CLAUDE_TIMEOUT_SECONDS=120`);
-console.log(`   Note: In production, env vars must be set before module import\n`);
+console.log(`   Note: This test shows env var syntax, but values are read at import time\n`);
 
-// Test 4: Display all configurations
-console.log('4. All configurations:');
+// Test 4: Test getenv functionality with some common config
+console.log('4. Testing getenv configuration sources:');
+console.log(`   Default tempDir: ${filePaths.tempDir}`);
+console.log(`   Default taskInfo: ${filePaths.taskInfoFilename}`);
+console.log(`   Default model: ${modelConfig.defaultModel}`);
+console.log(`   Available models: ${modelConfig.availableModels.slice(0, 2).join(', ')}...`);
+console.log(`   ✅ getenv working correctly\n`);
+
+// Test 5: Display all configurations with new structure
+console.log('5. Configuration structure (sample):');
 const allConfigs = getAllConfigurations();
-console.log(JSON.stringify(allConfigs, null, 2));
+console.log(JSON.stringify({
+  timeouts: {
+    claudeCli: allConfigs.timeouts.claudeCli,
+    githubApiDelay: allConfigs.timeouts.githubApiDelay
+  },
+  githubLimits: {
+    commentMaxSize: allConfigs.githubLimits.commentMaxSize,
+    fileMaxSize: allConfigs.githubLimits.fileMaxSize
+  },
+  autoContinue: allConfigs.autoContinue,
+  sentry: {
+    tracesSampleRateDev: allConfigs.sentry.tracesSampleRateDev,
+    tracesSampleRateProd: allConfigs.sentry.tracesSampleRateProd
+  }
+}, null, 2));
 
 // Clean up
 if (originalValue !== undefined) {
@@ -61,4 +84,8 @@ if (originalValue !== undefined) {
 }
 
 console.log('\n✅ All configuration tests passed!');
-console.log('The configuration module is working correctly.');
+console.log('The updated configuration module is working correctly with:');
+console.log('- getenv from use-m for environment variable handling');
+console.log('- camelCase property names for consistency');
+console.log('- Proper fallback defaults');
+console.log('- Configuration validation');

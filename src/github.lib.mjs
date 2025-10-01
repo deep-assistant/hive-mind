@@ -17,7 +17,7 @@ const { $ } = await use('command-stream');
 // Import log and maskToken from general lib
 import { log, maskToken, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
-import { GITHUB_LIMITS, TIMEOUTS } from './config.lib.mjs';
+import { githubLimits, timeouts } from './config.lib.mjs';
 
 // Helper function to mask GitHub tokens (alias for backward compatibility)
 export const maskGitHubToken = maskToken;
@@ -294,8 +294,8 @@ export async function attachLogToGitHub(options) {
     if (logStats.size === 0) {
       await log('  ⚠️  Log file is empty, skipping upload');
       return false;
-    } else if (logStats.size > GITHUB_LIMITS.FILE_MAX_SIZE) {
-      await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is ${Math.round(GITHUB_LIMITS.FILE_MAX_SIZE / 1024 / 1024)}MB`);
+    } else if (logStats.size > githubLimits.fileMaxSize) {
+      await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is ${Math.round(githubLimits.fileMaxSize / 1024 / 1024)}MB`);
       return false;
     }
 
@@ -350,8 +350,8 @@ ${logContent}
     // Check GitHub comment size limit
     let commentResult;
 
-    if (logComment.length > GITHUB_LIMITS.COMMENT_MAX_SIZE) {
-      await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${GITHUB_LIMITS.COMMENT_MAX_SIZE} chars`);
+    if (logComment.length > githubLimits.commentMaxSize) {
+      await log(`  ⚠️  Log comment too long (${logComment.length} chars), GitHub limit is ${githubLimits.commentMaxSize} chars`);
       await log('  📎 Uploading log as GitHub Gist instead...');
 
       try {
@@ -589,7 +589,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     
     // Add a 5-second delay before making the API call to respect rate limits
     await log('   ⏰ Waiting 5 seconds before API call to respect rate limits...', { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_API_DELAY));
+    await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
     
     const startTime = Date.now();
     
@@ -617,7 +617,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     
     // Add a 5-second delay after the call to be extra safe with rate limits
     await log('   ⏰ Adding 5-second delay after API call to respect rate limits...', { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_API_DELAY));
+    await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
     
     return issues;
   } catch (error) {
@@ -634,7 +634,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     try {
       await log('   🔄 Falling back to default behavior...', { verbose: true });
       const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
-      await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_REPO_DELAY)); // Shorter delay for fallback
+      await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay)); // Shorter delay for fallback
       const output = execSync(fallbackCommand, { encoding: 'utf8' });
       const issues = JSON.parse(output || '[]');
       await log(`   ⚠️  Fallback: fetched ${issues.length} issues (limited to 100)`, { level: 'warning' });
@@ -668,7 +668,7 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
 
     // Add delay to respect rate limits
     await log('   ⏰ Waiting 2 seconds before API call to respect rate limits...', { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_REPO_DELAY));
+    await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
 
     const startTime = Date.now();
 
@@ -721,7 +721,7 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
 
     // Add delay after API call
     await log('   ⏰ Adding 2-second delay after API call to respect rate limits...', { verbose: true });
-    await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_REPO_DELAY));
+    await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
 
     return issues;
 
@@ -797,14 +797,14 @@ export async function batchCheckPullRequestsForIssues(owner, repo, issueNumbers)
         // Add small delay between batches to respect rate limits
         if (i > 0) {
           await log('   ⏰ Waiting 2 seconds before next batch...', { verbose: true });
-          await new Promise(resolve => setTimeout(resolve, TIMEOUTS.GITHUB_REPO_DELAY));
+          await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
         }
 
         // Execute GraphQL query
         const { execSync } = await import('child_process');
         const result = execSync(`gh api graphql -f query='${query}'`, {
           encoding: 'utf8',
-          maxBuffer: GITHUB_LIMITS.BUFFER_MAX_SIZE
+          maxBuffer: githubLimits.bufferMaxSize
         });
 
         const data = JSON.parse(result);

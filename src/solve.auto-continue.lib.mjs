@@ -38,7 +38,7 @@ const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
 // Import configuration
-import { AUTO_CONTINUE } from './config.lib.mjs';
+import { autoContinue } from './config.lib.mjs';
 
 const {
   calculateWaitTime
@@ -140,7 +140,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
 
           // Find PRs that are older than 24 hours
           const now = new Date();
-          const twentyFourHoursAgo = new Date(now.getTime() - AUTO_CONTINUE.AGE_THRESHOLD_HOURS * 60 * 60 * 1000);
+          const twentyFourHoursAgo = new Date(now.getTime() - autoContinue.ageThresholdHours * 60 * 60 * 1000);
 
           for (const pr of prs) {
             const createdAt = new Date(pr.createdAt);
@@ -316,7 +316,7 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
         // Find PRs that are older than 24 hours
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - AUTO_CONTINUE.AGE_THRESHOLD_HOURS * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(now.getTime() - autoContinue.ageThresholdHours * 60 * 60 * 1000);
 
         for (const pr of prs) {
           const createdAt = new Date(pr.createdAt);
