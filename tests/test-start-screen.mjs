@@ -126,6 +126,26 @@ try {
   }
 }
 
+// Test --auto-terminate flag position (should be before command)
+console.log('Testing --auto-terminate flag position...');
+try {
+  const helpOutput = execSync('./start-screen.mjs --help 2>&1', { encoding: 'utf8' });
+  if (helpOutput.includes('[--auto-terminate] <solve|hive>')) {
+    console.log('  --auto-terminate position in usage: ✓ PASSED\n');
+  } else {
+    console.log('  --auto-terminate position in usage: ✗ FAILED - Not in correct position\n');
+    allPassed = false;
+  }
+} catch (error) {
+  const output = error.stdout || error.stderr || error.output?.join('') || '';
+  if (output.includes('[--auto-terminate] <solve|hive>')) {
+    console.log('  --auto-terminate position in usage: ✓ PASSED\n');
+  } else {
+    console.log('  --auto-terminate position in usage: ✗ FAILED - Not in correct position\n');
+    allPassed = false;
+  }
+}
+
 // Summary
 console.log('=' .repeat(50));
 if (allPassed) {
