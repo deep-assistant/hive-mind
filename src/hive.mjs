@@ -29,7 +29,7 @@ const githubLib = await import('./github.lib.mjs');
 const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl } = githubLib;
 
 // Import YouTrack-related functions
-const youTrackLib = await import('./youtrack.lib.mjs');
+const youTrackLib = await import('./youtrack/youtrack.lib.mjs');
 const {
   validateYouTrackConfig,
   testYouTrackConnection,
@@ -37,7 +37,7 @@ const {
 } = youTrackLib;
 
 // Import YouTrack sync functions
-const youTrackSync = await import('./youtrack-sync.mjs');
+const youTrackSync = await import('./youtrack/youtrack-sync.mjs');
 const {
   syncYouTrackToGitHub,
   formatIssuesForHive
