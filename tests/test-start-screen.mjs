@@ -110,6 +110,22 @@ try {
   }
 }
 
+// Test --auto-terminate flag in help output
+console.log('Testing --auto-terminate flag in help output...');
+try {
+  execSync('./start-screen.mjs 2>&1', { encoding: 'utf8' });
+  console.log('  --auto-terminate in help: ✗ FAILED - Should have thrown error\n');
+  allPassed = false;
+} catch (error) {
+  const output = error.stdout || error.stderr || error.output?.join('') || '';
+  if (output.includes('--auto-terminate')) {
+    console.log('  --auto-terminate in help: ✓ PASSED\n');
+  } else {
+    console.log('  --auto-terminate in help: ✗ FAILED - Missing in help text\n');
+    allPassed = false;
+  }
+}
+
 // Summary
 console.log('=' .repeat(50));
 if (allPassed) {

@@ -120,8 +120,9 @@ async function screenSessionExists(sessionName) {
  * @param {string} sessionName - The name of the screen session
  * @param {string} command - The command to run ('solve' or 'hive')
  * @param {string[]} args - Arguments to pass to the command
+ * @param {boolean} autoTerminate - If true, session terminates after command completes
  */
-async function createOrEnterScreen(sessionName, command, args) {
+async function createOrEnterScreen(sessionName, command, args, autoTerminate = false) {
   const sessionExists = await screenSessionExists(sessionName);
 
   if (sessionExists) {
@@ -144,15 +145,27 @@ async function createOrEnterScreen(sessionName, command, args) {
     return arg;
   }).join(' ');
 
-  // Wrap the command in a bash shell that will stay alive after the command finishes
-  // This allows the user to reattach to the screen session after the command completes
-  const fullCommand = `${command} ${quotedArgs}`;
-  const escapedCommand = fullCommand.replace(/'/g, "'\\''");
-  const screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+  let screenCommand;
+  if (autoTerminate) {
+    // Old behavior: session terminates after command completes
+    const fullCommand = `${command} ${quotedArgs}`;
+    screenCommand = `screen -dmS ${sessionName} ${fullCommand}`;
+  } else {
+    // New behavior: wrap the command in a bash shell that will stay alive after the command finishes
+    // This allows the user to reattach to the screen session after the command completes
+    const fullCommand = `${command} ${quotedArgs}`;
+    const escapedCommand = fullCommand.replace(/'/g, "'\\''");
+    screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+  }
 
   try {
     await execAsync(screenCommand);
     console.log(`Started ${command} in detached screen session: ${sessionName}`);
+    if (autoTerminate) {
+      console.log(`Note: Session will terminate after command completes (--auto-terminate mode)`);
+    } else {
+      console.log(`Session will remain active after command completes`);
+    }
     console.log(`To attach to this session, run: screen -r ${sessionName}`);
   } catch (error) {
     console.error('Failed to create screen session:', error.message);
@@ -167,16 +180,31 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
-    console.error('Usage: start-screen <solve|hive> <github-url> [additional-args...]');
+    console.error('Usage: start-screen <solve|hive> <github-url> [--auto-terminate] [additional-args...]');
+    console.error('');
+    console.error('Options:');
+    console.error('  --auto-terminate    Session terminates after command completes (old behavior)');
+    console.error('                      By default, session stays alive for review and reattachment');
+    console.error('');
     console.error('Examples:');
     console.error('  start-screen solve https://github.com/user/repo/issues/123 --dry-run');
     console.error('  start-screen hive https://github.com/user/repo --flag value');
+    console.error('  start-screen solve https://github.com/user/repo/issues/456 --auto-terminate');
     process.exit(1);
   }
 
   const command = args[0];
   const githubUrl = args[1];
   const additionalArgs = args.slice(2);
+
+  // Check for --auto-terminate flag
+  const autoTerminateIndex = additionalArgs.indexOf('--auto-terminate');
+  const autoTerminate = autoTerminateIndex !== -1;
+
+  // Remove --auto-terminate from args passed to the command
+  const commandArgs = autoTerminate
+    ? additionalArgs.filter((_, index) => index !== autoTerminateIndex)
+    : additionalArgs;
 
   // Validate command
   if (command !== 'solve' && command !== 'hive') {
@@ -208,10 +236,10 @@ async function main() {
   }
 
   // Prepare full argument list for the command
-  const fullArgs = [githubUrl, ...additionalArgs];
+  const fullArgs = [githubUrl, ...commandArgs];
 
   // Create or enter the screen session
-  await createOrEnterScreen(sessionName, command, fullArgs);
+  await createOrEnterScreen(sessionName, command, fullArgs, autoTerminate);
 }
 
 // Run the main function
