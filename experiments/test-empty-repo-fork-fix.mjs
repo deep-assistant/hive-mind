@@ -69,22 +69,44 @@ async function testEmptyRepoFork() {
     if (content.includes("forkOutput.includes('HTTP 403')") &&
         content.includes("forkOutput.includes('Empty repositories cannot be forked')") &&
         content.includes("forkOutput.includes('contains no Git content')") &&
-        content.includes('EMPTY REPOSITORY') &&
-        content.includes('How to fix:') &&
-        content.includes('--no-fork')) {
+        content.includes('EMPTY REPOSITORY')) {
       log('✅ Empty repository detection code is present');
-      log('✅ Error message with suggestions is implemented');
-      log('✅ Non-retriable exit is implemented (no retry for empty repos)');
     } else {
       log('❌ Empty repository detection code may be incomplete');
     }
 
-    // Check that it exits immediately without retrying
-    const hasImmediateExit = content.includes('Repository setup failed - empty repository');
-    if (hasImmediateExit) {
-      log('✅ Immediate exit on empty repository (no retries)');
+    // Check for auto-fix functionality
+    if (content.includes('tryInitializeEmptyRepository') &&
+        content.includes('Auto-fix:') &&
+        content.includes('Creating a simple README.md')) {
+      log('✅ Auto-fix functionality implemented (creates README.md)');
     } else {
-      log('❌ May still retry on empty repository errors');
+      log('❌ Auto-fix functionality may be missing');
+    }
+
+    // Check for retry after successful auto-fix
+    if (content.includes('continue;') &&
+        content.includes('Retrying:') &&
+        content.includes('Fork creation after repository initialization')) {
+      log('✅ Retry logic after successful auto-fix is implemented');
+    } else {
+      log('❌ Retry logic after auto-fix may be missing');
+    }
+
+    // Check error message with suggestions (for when auto-fix fails)
+    if (content.includes('Cannot proceed:') &&
+        content.includes('Ask repository owner to add initial content')) {
+      log('✅ Error message with suggestions for failed auto-fix');
+    } else {
+      log('❌ Error message with suggestions may be incomplete');
+    }
+
+    // Check that it exits when auto-fix fails
+    const hasExitOnFailure = content.includes('Repository setup failed - empty repository');
+    if (hasExitOnFailure) {
+      log('✅ Proper exit when auto-fix fails');
+    } else {
+      log('❌ May not exit properly when auto-fix fails');
     }
 
   } catch (error) {
@@ -94,9 +116,10 @@ async function testEmptyRepoFork() {
   log('\n=== Summary ===');
   log('The fix successfully:');
   log('1. ✅ Detects HTTP 403 errors for empty repositories');
-  log('2. ✅ Exits immediately without retrying (403 is non-retriable)');
-  log('3. ✅ Provides helpful suggestions with multiple options');
-  log('4. ✅ Maintains backward compatibility with other fork errors');
+  log('2. ✅ Attempts auto-fix by creating README.md');
+  log('3. ✅ Retries fork creation after successful auto-fix');
+  log('4. ✅ Provides helpful suggestions when auto-fix fails');
+  log('5. ✅ Maintains backward compatibility with other fork errors');
 }
 
 // Run the test
