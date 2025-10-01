@@ -28,87 +28,87 @@ const parseFloatWithDefault = (envVar, defaultValue) => {
 
 // Timeout configurations (in milliseconds)
 export const timeouts = {
-  claudeCli: parseIntWithDefault('CLAUDE_TIMEOUT_SECONDS', 60) * 1000,
-  githubApiDelay: parseIntWithDefault('GITHUB_API_DELAY_MS', 5000),
-  githubRepoDelay: parseIntWithDefault('GITHUB_REPO_DELAY_MS', 2000),
-  retryBaseDelay: parseIntWithDefault('RETRY_BASE_DELAY_MS', 5000),
-  retryBackoffDelay: parseIntWithDefault('RETRY_BACKOFF_DELAY_MS', 1000),
+  claudeCli: parseIntWithDefault('HIVE_MIND_CLAUDE_TIMEOUT_SECONDS', 60) * 1000,
+  githubApiDelay: parseIntWithDefault('HIVE_MIND_GITHUB_API_DELAY_MS', 5000),
+  githubRepoDelay: parseIntWithDefault('HIVE_MIND_GITHUB_REPO_DELAY_MS', 2000),
+  retryBaseDelay: parseIntWithDefault('HIVE_MIND_RETRY_BASE_DELAY_MS', 5000),
+  retryBackoffDelay: parseIntWithDefault('HIVE_MIND_RETRY_BACKOFF_DELAY_MS', 1000),
 };
 
 // Auto-continue configurations
 export const autoContinue = {
-  ageThresholdHours: parseIntWithDefault('AUTO_CONTINUE_AGE_HOURS', 24),
+  ageThresholdHours: parseIntWithDefault('HIVE_MIND_AUTO_CONTINUE_AGE_HOURS', 24),
 };
 
 // GitHub API limits
 export const githubLimits = {
-  commentMaxSize: parseIntWithDefault('GITHUB_COMMENT_MAX_SIZE', 65536),
-  fileMaxSize: parseIntWithDefault('GITHUB_FILE_MAX_SIZE', 25 * 1024 * 1024),
-  issueBodyMaxSize: parseIntWithDefault('GITHUB_ISSUE_BODY_MAX_SIZE', 60000),
-  attachmentMaxSize: parseIntWithDefault('GITHUB_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024),
-  bufferMaxSize: parseIntWithDefault('GITHUB_BUFFER_MAX_SIZE', 10 * 1024 * 1024),
+  commentMaxSize: parseIntWithDefault('HIVE_MIND_GITHUB_COMMENT_MAX_SIZE', 65536),
+  fileMaxSize: parseIntWithDefault('HIVE_MIND_GITHUB_FILE_MAX_SIZE', 25 * 1024 * 1024),
+  issueBodyMaxSize: parseIntWithDefault('HIVE_MIND_GITHUB_ISSUE_BODY_MAX_SIZE', 60000),
+  attachmentMaxSize: parseIntWithDefault('HIVE_MIND_GITHUB_ATTACHMENT_MAX_SIZE', 10 * 1024 * 1024),
+  bufferMaxSize: parseIntWithDefault('HIVE_MIND_GITHUB_BUFFER_MAX_SIZE', 10 * 1024 * 1024),
 };
 
 // Memory and disk configurations
 export const systemLimits = {
-  minDiskSpaceMb: parseIntWithDefault('MIN_DISK_SPACE_MB', 500),
-  defaultPageSizeKb: parseIntWithDefault('DEFAULT_PAGE_SIZE_KB', 16),
+  minDiskSpaceMb: parseIntWithDefault('HIVE_MIND_MIN_DISK_SPACE_MB', 500),
+  defaultPageSizeKb: parseIntWithDefault('HIVE_MIND_DEFAULT_PAGE_SIZE_KB', 16),
 };
 
 // Retry configurations
 export const retryLimits = {
-  maxForkRetries: parseIntWithDefault('MAX_FORK_RETRIES', 5),
-  maxVerifyRetries: parseIntWithDefault('MAX_VERIFY_RETRIES', 5),
-  maxApiRetries: parseIntWithDefault('MAX_API_RETRIES', 3),
-  retryBackoffMultiplier: parseFloatWithDefault('RETRY_BACKOFF_MULTIPLIER', 2),
+  maxForkRetries: parseIntWithDefault('HIVE_MIND_MAX_FORK_RETRIES', 5),
+  maxVerifyRetries: parseIntWithDefault('HIVE_MIND_MAX_VERIFY_RETRIES', 5),
+  maxApiRetries: parseIntWithDefault('HIVE_MIND_MAX_API_RETRIES', 3),
+  retryBackoffMultiplier: parseFloatWithDefault('HIVE_MIND_RETRY_BACKOFF_MULTIPLIER', 2),
 };
 
 // File and path configurations
 export const filePaths = {
-  tempDir: getenv('HIVE_TEMP_DIR', '/tmp'),
-  taskInfoFilename: getenv('TASK_INFO_FILENAME', 'CLAUDE.md'),
-  procMeminfo: getenv('PROC_MEMINFO', '/proc/meminfo'),
+  tempDir: getenv('HIVE_MIND_TEMP_DIR', '/tmp'),
+  taskInfoFilename: getenv('HIVE_MIND_TASK_INFO_FILENAME', 'CLAUDE.md'),
+  procMeminfo: getenv('HIVE_MIND_PROC_MEMINFO', '/proc/meminfo'),
 };
 
 // Text processing configurations
 export const textProcessing = {
-  tokenMaskMinLength: parseIntWithDefault('TOKEN_MASK_MIN_LENGTH', 12),
-  tokenMaskStartChars: parseIntWithDefault('TOKEN_MASK_START_CHARS', 5),
-  tokenMaskEndChars: parseIntWithDefault('TOKEN_MASK_END_CHARS', 5),
-  textPreviewLength: parseIntWithDefault('TEXT_PREVIEW_LENGTH', 100),
-  logTruncationLength: parseIntWithDefault('LOG_TRUNCATION_LENGTH', 5000),
+  tokenMaskMinLength: parseIntWithDefault('HIVE_MIND_TOKEN_MASK_MIN_LENGTH', 12),
+  tokenMaskStartChars: parseIntWithDefault('HIVE_MIND_TOKEN_MASK_START_CHARS', 5),
+  tokenMaskEndChars: parseIntWithDefault('HIVE_MIND_TOKEN_MASK_END_CHARS', 5),
+  textPreviewLength: parseIntWithDefault('HIVE_MIND_TEXT_PREVIEW_LENGTH', 100),
+  logTruncationLength: parseIntWithDefault('HIVE_MIND_LOG_TRUNCATION_LENGTH', 5000),
 };
 
 // UI/Display configurations
 export const display = {
-  labelWidth: parseIntWithDefault('LABEL_WIDTH', 25),
+  labelWidth: parseIntWithDefault('HIVE_MIND_LABEL_WIDTH', 25),
 };
 
 // Sentry configurations
 export const sentry = {
-  dsn: getenv('SENTRY_DSN', 'https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440'),
-  tracesSampleRateDev: parseFloatWithDefault('SENTRY_TRACES_SAMPLE_RATE_DEV', 1.0),
-  tracesSampleRateProd: parseFloatWithDefault('SENTRY_TRACES_SAMPLE_RATE_PROD', 0.1),
-  profileSessionSampleRateDev: parseFloatWithDefault('SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV', 1.0),
-  profileSessionSampleRateProd: parseFloatWithDefault('SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD', 0.1),
+  dsn: getenv('HIVE_MIND_SENTRY_DSN', 'https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440'),
+  tracesSampleRateDev: parseFloatWithDefault('HIVE_MIND_SENTRY_TRACES_SAMPLE_RATE_DEV', 1.0),
+  tracesSampleRateProd: parseFloatWithDefault('HIVE_MIND_SENTRY_TRACES_SAMPLE_RATE_PROD', 0.1),
+  profileSessionSampleRateDev: parseFloatWithDefault('HIVE_MIND_SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV', 1.0),
+  profileSessionSampleRateProd: parseFloatWithDefault('HIVE_MIND_SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD', 0.1),
 };
 
 // External URLs
 export const externalUrls = {
-  githubBase: getenv('GITHUB_BASE_URL', 'https://github.com'),
-  bunInstall: getenv('BUN_INSTALL_URL', 'https://bun.sh/'),
+  githubBase: getenv('HIVE_MIND_GITHUB_BASE_URL', 'https://github.com'),
+  bunInstall: getenv('HIVE_MIND_BUN_INSTALL_URL', 'https://bun.sh/'),
 };
 
 // Model configurations
 export const modelConfig = {
-  availableModels: getenv('AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
-  defaultModel: getenv('DEFAULT_MODEL', 'sonnet'),
+  availableModels: getenv('HIVE_MIND_AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
+  defaultModel: getenv('HIVE_MIND_DEFAULT_MODEL', 'sonnet'),
 };
 
 // Version configurations
 export const version = {
-  fallback: getenv('VERSION_FALLBACK', '0.14.3'),
-  default: getenv('VERSION_DEFAULT', '0.14.3'),
+  fallback: getenv('HIVE_MIND_VERSION_FALLBACK', '0.14.3'),
+  default: getenv('HIVE_MIND_VERSION_DEFAULT', '0.14.3'),
 };
 
 // Helper function to validate configuration values

@@ -17,7 +17,7 @@ import {
   version,
   validateConfig,
   getAllConfigurations
-} from './src/config.lib.mjs';
+} from '../src/config.lib.mjs';
 
 console.log('Testing updated configuration module with getenv and camelCase...\n');
 
