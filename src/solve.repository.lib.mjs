@@ -131,6 +131,51 @@ export const setupTempDirectory = async (argv) => {
   return { tempDir, isResuming };
 };
 
+// Try to initialize an empty repository by creating a simple README.md
+// This makes the repository forkable
+const tryInitializeEmptyRepository = async (owner, repo) => {
+  try {
+    await log(`${formatAligned('🔧', 'Auto-fix:', 'Attempting to initialize empty repository...')}`);
+    await log(`${formatAligned('', '', 'Creating a simple README.md to make repository forkable')}`);
+
+    // Create simple README content with just the repository name
+    const readmeContent = `# ${repo}\n`;
+    const base64Content = Buffer.from(readmeContent).toString('base64');
+
+    // Try to create README.md using GitHub API
+    const createResult = await $`gh api repos/${owner}/${repo}/contents/README.md --method PUT --silent \
+      --field message="Initialize repository with README" \
+      --field content="${base64Content}" 2>&1`;
+
+    if (createResult.code === 0) {
+      await log(`${formatAligned('✅', 'Success:', 'README.md created successfully')}`);
+      await log(`${formatAligned('', '', 'Repository is now forkable, retrying fork creation...')}`);
+      return true;
+    } else {
+      const errorOutput = createResult.stdout.toString() + createResult.stderr.toString();
+      // Check if it's a permission error
+      if (errorOutput.includes('403') || errorOutput.includes('Forbidden') ||
+          errorOutput.includes('not have permission') || errorOutput.includes('Resource not accessible')) {
+        await log(`${formatAligned('❌', 'No access:', 'You do not have write access to this repository')}`);
+        return false;
+      } else {
+        await log(`${formatAligned('❌', 'Failed:', 'Could not create README.md')}`);
+        await log(`   Error: ${errorOutput.split('\n')[0]}`);
+        return false;
+      }
+    }
+  } catch (error) {
+    reportError(error, {
+      context: 'initialize_empty_repository',
+      owner,
+      repo,
+      operation: 'create_readme'
+    });
+    await log(`${formatAligned('❌', 'Error:', 'Failed to initialize repository')}`);
+    return false;
+  }
+};
+
 // Handle fork creation and repository setup
 export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
   let repoToClone = `${owner}/${repo}`;
@@ -276,6 +321,53 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
             await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
             forkExists = true;
             break;
+          }
+
+          // Check if it's an empty repository (HTTP 403) - try to auto-fix
+          if (forkOutput.includes('HTTP 403') &&
+              (forkOutput.includes('Empty repositories cannot be forked') ||
+               forkOutput.includes('contains no Git content'))) {
+            // Empty repository detected - try to initialize it
+            await log('');
+            await log(`${formatAligned('⚠️', 'EMPTY REPOSITORY', 'detected')}`, { level: 'warn' });
+            await log(`${formatAligned('', '', `Repository ${owner}/${repo} contains no content`)}`);
+            await log('');
+
+            // Try to initialize the repository by creating a README.md
+            const initialized = await tryInitializeEmptyRepository(owner, repo);
+
+            if (initialized) {
+              // Success! Repository is now initialized, retry fork creation
+              await log('');
+              await log(`${formatAligned('🔄', 'Retrying:', 'Fork creation after repository initialization...')}`);
+              // Wait a moment for GitHub to process the new file
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Continue to next iteration (retry fork creation)
+              continue;
+            } else {
+              // Failed to initialize - provide helpful suggestions
+              await log('');
+              await log(`${formatAligned('❌', 'Cannot proceed:', 'Unable to initialize empty repository')}`, { level: 'error' });
+              await log('');
+              await log('  🔍 What happened:');
+              await log(`     The repository ${owner}/${repo} is empty and cannot be forked.`);
+              await log('     GitHub doesn\'t allow forking repositories with no content.');
+              await log('     Auto-fix failed: You need write access to initialize the repository.');
+              await log('');
+              await log('  💡 How to fix:');
+              await log('     Option 1: Ask repository owner to add initial content');
+              await log('              Even a simple README.md file would make the repository forkable');
+              await log('');
+              await log('     Option 2: Work directly on the original repository (if you get write access)');
+              await log(`              Run: solve ${argv.url} --no-fork`);
+              await log('');
+              await log('     Option 3: Create your own repository with initial content');
+              await log('              1. Create a new repository with the same name');
+              await log('              2. Add initial content (README.md or any file)');
+              await log('              3. Open an issue/PR there for development');
+              await log('');
+              await safeExit(1, 'Repository setup failed - empty repository');
+            }
           }
 
           // Check if fork was created by another worker even if error message doesn't explicitly say so
