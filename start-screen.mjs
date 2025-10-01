@@ -144,7 +144,11 @@ async function createOrEnterScreen(sessionName, command, args) {
     return arg;
   }).join(' ');
 
-  const screenCommand = `screen -dmS ${sessionName} ${command} ${quotedArgs}`;
+  // Wrap the command in a bash shell that will stay alive after the command finishes
+  // This allows the user to reattach to the screen session after the command completes
+  const fullCommand = `${command} ${quotedArgs}`;
+  const escapedCommand = fullCommand.replace(/'/g, "'\\''");
+  const screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
 
   try {
     await execAsync(screenCommand);
