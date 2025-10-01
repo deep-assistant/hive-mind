@@ -116,6 +116,59 @@ async function screenSessionExists(sessionName) {
 }
 
 /**
+ * Wait for a screen session to be ready to accept commands
+ * A session is considered ready when it's at a shell prompt
+ * @param {string} sessionName - The name of the screen session
+ * @param {number} maxWaitSeconds - Maximum time to wait in seconds (default: 5)
+ * @returns {Promise<boolean>} Whether the session became ready
+ */
+async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
+  const startTime = Date.now();
+  const maxWaitMs = maxWaitSeconds * 1000;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      // Create a temporary file for hardcopy
+      const tempFile = `/tmp/screen-check-${sessionName}-${Date.now()}.txt`;
+
+      // Capture the screen buffer
+      await execAsync(`screen -S ${sessionName} -X hardcopy ${tempFile}`);
+
+      // Wait a moment for the file to be written
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Read the buffer to check for a prompt
+      const { stdout } = await execAsync(`cat ${tempFile} 2>/dev/null || echo ""`);
+
+      // Clean up the temp file
+      await execAsync(`rm -f ${tempFile}`).catch(() => { });
+
+      // Check if the buffer contains a prompt pattern
+      // Common prompt patterns: $ % > # at the end of a line
+      // Also check if the buffer is not empty (session is active)
+      if (stdout.trim().length > 0) {
+        const lines = stdout.split('\n').filter(line => line.trim().length > 0);
+        if (lines.length > 0) {
+          const lastLine = lines[lines.length - 1];
+          // Check for common shell prompt indicators
+          if (lastLine.match(/[\$%>#]\s*$/) || lastLine.includes('bash')) {
+            return true;
+          }
+        }
+      }
+    } catch (error) {
+      // If hardcopy fails, the session might not be ready yet
+    }
+
+    // Wait before checking again
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  // Timeout reached, but we'll try to send the command anyway
+  return false;
+}
+
+/**
  * Create or enter a screen session with the given command
  * @param {string} sessionName - The name of the screen session
  * @param {string} command - The command to run ('solve' or 'hive')
@@ -127,6 +180,18 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   if (sessionExists) {
     console.log(`Screen session '${sessionName}' already exists.`);
+    console.log(`Checking if session is ready to accept commands...`);
+
+    // Wait for the session to be ready (at a prompt)
+    const isReady = await waitForSessionReady(sessionName);
+
+    if (isReady) {
+      console.log(`Session is ready.`);
+    } else {
+      console.log(`Session might still be running a command. Will attempt to send command anyway.`);
+      console.log(`Note: The command will execute once the current operation completes.`);
+    }
+
     console.log(`Sending command to existing session...`);
 
     // Build the full command to send to the existing session
