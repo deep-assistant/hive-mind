@@ -51,7 +51,7 @@ const memoryCheck = await import('./memory-check.mjs');
 const lib = await import('./lib.mjs');
 const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, formatAligned, getVersionInfo } = lib;
 const githubLib = await import('./github.lib.mjs');
-const { sanitizeLogContent, attachLogToGitHub, checkFileInBranch, checkGitHubPermissions } = githubLib;
+const { sanitizeLogContent, attachLogToGitHub } = githubLib;
 const validation = await import('./solve.validation.lib.mjs');
 const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
@@ -72,7 +72,6 @@ const watchLib = await import('./solve.watch.lib.mjs');
 const { startWatchMode } = watchLib;
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
->>>>>>> origin/main:src/solve.mjs
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
@@ -297,7 +296,6 @@ if (isPrUrl) {
   }
 } else {
   // Traditional issue mode
->>>>>>> origin/main:src/solve.mjs
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
@@ -311,8 +309,6 @@ cleanupContext.argv = argv;
 
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
-
-let limitReached = false; // Declare here for access in finally block
 
 try {
   // Set up repository and handle forking
@@ -1375,7 +1371,7 @@ ${prBody}`, { verbose: true });
     $
   });
 
-  const { success, sessionId, messageCount, toolUseCount } = claudeResult;
+  const { success, sessionId } = claudeResult;
   limitReached = claudeResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
@@ -1430,8 +1426,6 @@ ${prBody}`, { verbose: true });
       temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
     }
   });
-} catch (error) {
-  await handleMainExecutionError(error, shouldAttachLogs, owner, repo);
 
   // Post end work session comment and convert PR back to ready if in continue mode
   if (isContinueMode && prNumber && (argv.watch || argv.autoContinue)) {
@@ -1500,7 +1494,6 @@ ${prBody}`, { verbose: true });
     sanitizeLogContent,
     $
   });
->>>>>>> origin/main:src/solve.mjs
 } finally {
   // Clean up temporary directory using repository module
   await cleanupTempDirectory(tempDir, argv, limitReached);

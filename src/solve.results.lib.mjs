@@ -22,8 +22,7 @@ const lib = await import('./lib.mjs');
 const {
   log,
   getLogFile,
-  formatAligned,
-  cleanErrorMessage
+  formatAligned
 } = lib;
 
 // Import exit handler

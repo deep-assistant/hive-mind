@@ -14,7 +14,7 @@ const path = (await use('path')).default;
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
-import { timeouts, retryLimits } from './config.lib.mjs';
+import { timeouts } from './config.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs
 export const mapModelToId = (model) => {

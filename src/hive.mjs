@@ -559,9 +559,9 @@ if (argv.youtrackMode) {
   youTrackConfig = createYouTrackConfigFromEnv();
 
   if (!youTrackConfig) {
-    await log(`❌ YouTrack mode requires environment variables to be set`, { level: 'error' });
-    await log(`   Required: YOUTRACK_URL, YOUTRACK_API_KEY, YOUTRACK_PROJECT_CODE, YOUTRACK_STAGE`, { level: 'error' });
-    await log(`   Example: YOUTRACK_URL=https://mycompany.youtrack.cloud`, { level: 'error' });
+    await log('❌ YouTrack mode requires environment variables to be set', { level: 'error' });
+    await log('   Required: YOUTRACK_URL, YOUTRACK_API_KEY, YOUTRACK_PROJECT_CODE, YOUTRACK_STAGE', { level: 'error' });
+    await log('   Example: YOUTRACK_URL=https://mycompany.youtrack.cloud', { level: 'error' });
     process.exit(1);
   }
 
@@ -584,7 +584,7 @@ if (argv.youtrackMode) {
   // Test YouTrack connection
   const youTrackConnected = await testYouTrackConnection(youTrackConfig);
   if (!youTrackConnected) {
-    await log(`\n❌ Cannot proceed without valid YouTrack connection`, { level: 'error' });
+    await log('\n❌ Cannot proceed without valid YouTrack connection', { level: 'error' });
     process.exit(1);
   }
 }
