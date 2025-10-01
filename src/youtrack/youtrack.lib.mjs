@@ -11,7 +11,7 @@ if (typeof use === 'undefined') {
 const { $ } = await use('command-stream');
 
 // Import log and other utilities from general lib
-import { log, cleanErrorMessage } from './lib.mjs';
+import { log, cleanErrorMessage } from '../lib.mjs';
 
 /**
  * YouTrack API configuration object
