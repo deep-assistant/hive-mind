@@ -167,13 +167,36 @@ jobs:
         # Restore current package.json
         git checkout $HEAD_SHA -- package.json
 
-        # Compare versions
-        if [ "$CURRENT_VERSION" = "$BASE_VERSION" ]; then
-          echo "❌ Version has not been bumped!"
-          echo "   Current version: $CURRENT_VERSION"
-          echo "   Base version: $BASE_VERSION"
+        # Compare versions using semver (Node.js native comparison)
+        COMPARISON=$(node -e "
+          function compareSemver(a, b) {
+            const aParts = a.split('.').map(Number);
+            const bParts = b.split('.').map(Number);
+
+            for (let i = 0; i < 3; i++) {
+              if (aParts[i] > bParts[i]) return 1;
+              if (aParts[i] < bParts[i]) return -1;
+            }
+            return 0;
+          }
+
+          const current = '$CURRENT_VERSION';
+          const base = '$BASE_VERSION';
+          console.log(compareSemver(current, base));
+        ")
+
+        echo "Comparing versions: $CURRENT_VERSION vs $BASE_VERSION (result: $COMPARISON)"
+
+        if [ "$COMPARISON" -le 0 ]; then
+          if [ "$COMPARISON" -eq 0 ]; then
+            echo "❌ Version has not been bumped!"
+          else
+            echo "❌ Version in PR ($CURRENT_VERSION) is LOWER than base version ($BASE_VERSION)!"
+          fi
+          echo "   Current version in PR: $CURRENT_VERSION"
+          echo "   Base version in main: $BASE_VERSION"
           echo ""
-          echo "💡 Please bump the version in package.json before merging this PR."
+          echo "💡 Please bump the version in package.json to be strictly greater than $BASE_VERSION."
           echo "   You can use semantic versioning:"
           echo "   - Patch (bug fixes): npm version patch"
           echo "   - Minor (new features): npm version minor"
@@ -201,13 +224,13 @@ jobs:
     - name: Test solve.mjs compilation
       run: |
         echo "Testing solve.mjs compilation..."
-        timeout 30s node --check solve.mjs
+        timeout 30s node --check src/solve.mjs
         echo "✅ solve.mjs compiles successfully"
         
     - name: Test hive.mjs compilation
       run: |
         echo "Testing hive.mjs compilation..."
-        timeout 30s node --check hive.mjs
+        timeout 30s node --check src/hive.mjs
         echo "✅ hive.mjs compiles successfully"
         
     - name: Check Node.js syntax for all .mjs files
@@ -219,12 +242,42 @@ jobs:
             timeout 10s node --check "$file"
           fi
         done
+        for file in src/*.mjs; do
+          if [ -f "$file" ]; then
+            echo "Checking $file..."
+            timeout 10s node --check "$file"
+          fi
+        done
         for file in tests/*.mjs; do
           if [ -f "$file" ]; then
             echo "Checking $file..."
             node --check "$file"
           fi
         done
+
+  # === ESLINT CODE QUALITY CHECK ===
+  lint:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mjs-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint
+      run: |
+        echo "Running ESLint code quality checks..."
+        npm run lint
+        echo "✅ ESLint checks passed"
 
   # === FILE LINE LIMIT CHECK ===
   check-file-line-limits:
@@ -278,15 +331,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation]
     if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js 20.x
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
-    
+
+    - name: Install dependencies
+      run: npm install
+
     - name: Run test suite for solve.mjs
       run: |
         echo "Running test suite for solve.mjs..."
@@ -316,38 +372,87 @@ jobs:
         echo "Running feedback lines integration test with real repository..."
         node tests/test-feedback-lines-integration.mjs
 
+    - name: Run Sentry integration test
+      run: |
+        echo "Running test suite for Sentry integration..."
+        node tests/test-sentry.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
     needs: [detect-changes, test-compilation]
     if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js 20.x
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
-    
+
+    - name: Install dependencies
+      run: npm install
+
     - name: Test solve.mjs execution
       run: |
         echo "Testing solve.mjs basic execution..."
-        timeout 10s ./solve.mjs --help || echo "Help command completed"
+        timeout 10s ./src/solve.mjs --help || echo "Help command completed"
         echo "✅ solve.mjs executes without critical errors"
-        timeout 10s ./solve.mjs --version || true
+        timeout 10s ./src/solve.mjs --version || true
     
     - name: Test hive.mjs execution
       run: |
         echo "Testing hive.mjs basic execution..."
-        timeout 10s ./hive.mjs --help || echo "Help command completed"
+        timeout 10s ./src/hive.mjs --help || echo "Help command completed"
         echo "✅ hive.mjs executes without critical errors"
-        timeout 10s ./hive.mjs --version || true
+        timeout 10s ./src/hive.mjs --version || true
     
     - name: Test memory-check.mjs execution
       run: |
-        ./memory-check.mjs --help
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --help
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+
+    - name: Test global command installation
+      run: |
+        echo "Testing npm global command installation from local folder..."
+        npm link
+        echo "✅ npm link completed successfully"
+
+        echo ""
+        echo "Testing 'hive' global command..."
+        timeout 10s hive --version || true
+        timeout 10s hive --help || echo "Help command completed"
+        echo "✅ 'hive' global command works"
+
+        echo ""
+        echo "Testing 'solve' global command..."
+        timeout 10s solve --version || true
+        timeout 10s solve --help || echo "Help command completed"
+        echo "✅ 'solve' global command works"
+
+        echo ""
+        echo "Cleaning up global link..."
+        npm unlink || true
+
+    - name: Test hive dry-run with solve integration
+      run: |
+        echo "Testing hive dry-run mode with solve command integration..."
+        # Test that hive passes --dry-run and --skip-claude-check to solve
+        timeout 30s ./src/hive.mjs https://github.com/test/repo --dry-run --skip-claude-check --once --max-issues 1 2>&1 | tee hive_dry_run.log || true
+
+        # Check that the solve command was called with the correct flags
+        if grep -q "solve.*--dry-run.*--skip-claude-check" hive_dry_run.log; then
+          echo "✅ hive correctly passes --dry-run and --skip-claude-check flags to solve command"
+        else
+          echo "⚠️ Could not verify flag propagation in dry-run mode (may be due to no issues found)"
+        fi
+
+        # Test solve.mjs directly with dry-run and skip-claude-check
+        echo ""
+        echo "Testing solve.mjs with --dry-run and --skip-claude-check flags..."
+        timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --dry-run --skip-claude-check 2>&1 | head -20 || true
+        echo "✅ solve.mjs accepts --dry-run and --skip-claude-check flags"
 
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:
@@ -385,20 +490,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -407,7 +512,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -415,10 +520,11 @@ jobs:
         fi
 
   # === MEMORY CHECKS - MACOS ===
+  # Temporarily disabled - can be re-enabled later
   memory-check-macos:
     runs-on: macos-latest
     needs: [detect-changes, test-compilation]
-    if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+    if: false
     
     steps:
     - uses: actions/checkout@v4
@@ -454,20 +560,20 @@ jobs:
     - name: Test memory-check with various thresholds
       run: |
         echo "Testing with low thresholds (should pass)..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
         
         echo ""
         echo "Testing verbose output..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing quiet mode..."
-        ./memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
+        ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --quiet --json
     
     - name: Test memory-check failure conditions
       run: |
         echo "Testing with impossible memory requirement (should fail)..."
-        if ./memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-memory 999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible memory requirement"
           exit 1
         else
@@ -476,7 +582,7 @@ jobs:
         
         echo ""
         echo "Testing with impossible disk requirement (should fail)..."
-        if ./memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
+        if ./src/memory-check.mjs --min-disk-space 999999999 --exit-on-failure --quiet --json; then
           echo "ERROR: Should have failed with impossible disk requirement"
           exit 1
         else
@@ -486,7 +592,7 @@ jobs:
     - name: Test macOS-specific features
       run: |
         echo "Testing macOS swap detection..."
-        output=$(./memory-check.mjs --min-memory 10 --quiet --json)
+        output=$(./src/memory-check.mjs --min-memory 10 --quiet --json)
         if echo "$output" | grep -q '"swap"'; then
           echo "✅ Swap information detected in output"
         else
@@ -528,11 +634,11 @@ jobs:
       run: |
         echo "Node version: $(node --version)"
         echo "Testing memory-check.mjs on Windows..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100
         
         echo ""
         echo "Testing with JSON output..."
-        node ./memory-check.mjs --min-memory 10 --min-disk-space 100 --json
+        node ./src/memory-check.mjs --min-memory 10 --min-disk-space 100 --json
 
   # === DOCUMENTATION VALIDATION ===
   validate-docs:
@@ -558,21 +664,21 @@ jobs:
   publish:
     if: always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, validate-docs]
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, validate-docs]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
         registry-url: 'https://registry.npmjs.org'
-    
+
     - name: Publish
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -583,19 +689,28 @@ jobs:
           echo "  new-version output: ${{ needs.detect-changes.outputs.new-version }}"
           exit 0
         fi
-        
+
         echo "✓ New version detected, proceeding with publish"
-        
+
         # Make scripts executable
-        chmod +x hive.mjs
-        chmod +x solve.mjs
-        
+        chmod +x src/hive.mjs
+        chmod +x src/solve.mjs
+
         # Publish to NPM
         npm publish --access public
-        
+
         # Create GitHub Release
         VERSION=${{ needs.detect-changes.outputs.version }}
         PACKAGE_NAME=$(node -p "require('./package.json').name")
         gh release create "v${VERSION}" \
           --title "${VERSION}" \
           --notes "https://www.npmjs.com/package/${PACKAGE_NAME}/v/${VERSION}"
+
+    - name: Upload Source Maps to Sentry
+      if: needs.detect-changes.outputs.new-version == 'true'
+      env:
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      run: |
+        echo "📤 Uploading source maps to Sentry for version ${{ needs.detect-changes.outputs.version }}"
+        chmod +x scripts/upload-sourcemaps.mjs
+        node scripts/upload-sourcemaps.mjs

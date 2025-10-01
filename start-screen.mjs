@@ -1,0 +1,255 @@
+#!/usr/bin/env node
+// start-screen.mjs - Launch solve or hive commands in GNU screen sessions
+
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+// Load use-m dynamically from unpkg (same pattern as solve.mjs and github.lib.mjs)
+const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+
+// Dynamically load parse-github-url using use-m
+const parseGitHubUrlModule = await use('parse-github-url@1.0.3');
+const parseGitHubUrlLib = parseGitHubUrlModule.default || parseGitHubUrlModule;
+
+// Wrapper function to match our expected interface using parse-github-url from npm via use-m
+function parseGitHubUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return {
+      valid: false,
+      error: 'Invalid input: URL must be a non-empty string'
+    };
+  }
+
+  try {
+    // Use parse-github-url library loaded via use-m
+    const parsed = parseGitHubUrlLib(url);
+
+    if (!parsed || !parsed.owner || !parsed.name) {
+      return {
+        valid: false,
+        error: 'Invalid GitHub URL: missing owner/repo'
+      };
+    }
+
+    const result = {
+      valid: true,
+      normalized: parsed.href || url,
+      hostname: parsed.host || 'github.com',
+      owner: parsed.owner,
+      repo: parsed.name,
+      type: 'unknown',
+      path: parsed.filepath || '',
+      number: null
+    };
+
+    // Determine the type based on branch and filepath
+    // Note: parse-github-url treats "issues" as a branch, not part of filepath
+    if (parsed.branch === 'issues' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
+      result.type = 'issue';
+      result.number = parseInt(parsed.filepath, 10);
+    } else if (parsed.branch === 'pull' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
+      result.type = 'pr';
+      result.number = parseInt(parsed.filepath, 10);
+    } else if (parsed.owner && parsed.name) {
+      result.type = 'repo';
+    } else if (parsed.owner) {
+      result.type = 'owner';
+    }
+
+    return result;
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Invalid GitHub URL format: ' + error.message
+    };
+  }
+}
+
+/**
+ * Generate a screen session name based on the command and GitHub URL
+ * @param {string} command - Either 'solve' or 'hive'
+ * @param {string} githubUrl - GitHub repository or issue URL
+ * @returns {string} The generated screen session name
+ */
+function generateScreenName(command, githubUrl) {
+  const parsed = parseGitHubUrl(githubUrl);
+
+  if (!parsed.valid) {
+    // Fallback to simple naming if parsing fails
+    const sanitized = githubUrl.replace(/[^a-zA-Z0-9-]/g, '-').substring(0, 30);
+    return `${command}-${sanitized}`;
+  }
+
+  // Build name parts
+  const parts = [command];
+
+  if (parsed.owner) {
+    parts.push(parsed.owner);
+  }
+
+  if (parsed.repo) {
+    parts.push(parsed.repo);
+  }
+
+  if (parsed.number) {
+    parts.push(parsed.number);
+  }
+
+  return parts.join('-');
+}
+
+/**
+ * Check if a screen session exists
+ * @param {string} sessionName - The name of the screen session
+ * @returns {Promise<boolean>} Whether the session exists
+ */
+async function screenSessionExists(sessionName) {
+  try {
+    const { stdout } = await execAsync('screen -ls');
+    return stdout.includes(sessionName);
+  } catch (error) {
+    // screen -ls returns non-zero exit code when no sessions exist
+    return false;
+  }
+}
+
+/**
+ * Create or enter a screen session with the given command
+ * @param {string} sessionName - The name of the screen session
+ * @param {string} command - The command to run ('solve' or 'hive')
+ * @param {string[]} args - Arguments to pass to the command
+ * @param {boolean} autoTerminate - If true, session terminates after command completes
+ */
+async function createOrEnterScreen(sessionName, command, args, autoTerminate = false) {
+  const sessionExists = await screenSessionExists(sessionName);
+
+  if (sessionExists) {
+    console.log(`Screen session '${sessionName}' already exists.`);
+    console.log('Creating new detached session with the command...');
+  } else {
+    console.log(`Creating screen session: ${sessionName}`);
+  }
+
+  // Always create a detached session with the command
+  // Quote arguments properly to preserve spaces and special characters
+  const quotedArgs = args.map(arg => {
+    // If arg contains spaces or special chars, wrap in single quotes
+    if (arg.includes(' ') || arg.includes('&') || arg.includes('|') ||
+        arg.includes(';') || arg.includes('$') || arg.includes('*') ||
+        arg.includes('?') || arg.includes('(') || arg.includes(')')) {
+      // Escape single quotes within the argument
+      return `'${arg.replace(/'/g, "'\\''")}'`;
+    }
+    return arg;
+  }).join(' ');
+
+  let screenCommand;
+  if (autoTerminate) {
+    // Old behavior: session terminates after command completes
+    const fullCommand = `${command} ${quotedArgs}`;
+    screenCommand = `screen -dmS ${sessionName} ${fullCommand}`;
+  } else {
+    // New behavior: wrap the command in a bash shell that will stay alive after the command finishes
+    // This allows the user to reattach to the screen session after the command completes
+    const fullCommand = `${command} ${quotedArgs}`;
+    const escapedCommand = fullCommand.replace(/'/g, "'\\''");
+    screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+  }
+
+  try {
+    await execAsync(screenCommand);
+    console.log(`Started ${command} in detached screen session: ${sessionName}`);
+    if (autoTerminate) {
+      console.log(`Note: Session will terminate after command completes (--auto-terminate mode)`);
+    } else {
+      console.log(`Session will remain active after command completes`);
+    }
+    console.log(`To attach to this session, run: screen -r ${sessionName}`);
+  } catch (error) {
+    console.error('Failed to create screen session:', error.message);
+    process.exit(1);
+  }
+}
+
+/**
+ * Main function
+ */
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length < 2) {
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    console.error('');
+    console.error('Options:');
+    console.error('  --auto-terminate    Session terminates after command completes (old behavior)');
+    console.error('                      By default, session stays alive for review and reattachment');
+    console.error('');
+    console.error('Examples:');
+    console.error('  start-screen solve https://github.com/user/repo/issues/123 --dry-run');
+    console.error('  start-screen --auto-terminate solve https://github.com/user/repo/issues/456');
+    console.error('  start-screen hive https://github.com/user/repo --flag value');
+    process.exit(1);
+  }
+
+  // Check for --auto-terminate flag at the beginning
+  let autoTerminate = false;
+  let argsOffset = 0;
+
+  if (args[0] === '--auto-terminate') {
+    autoTerminate = true;
+    argsOffset = 1;
+
+    if (args.length < 3) {
+      console.error('Error: --auto-terminate requires a command and GitHub URL');
+      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      process.exit(1);
+    }
+  }
+
+  const command = args[argsOffset];
+  const githubUrl = args[argsOffset + 1];
+  const commandArgs = args.slice(argsOffset + 2);
+
+  // Validate command
+  if (command !== 'solve' && command !== 'hive') {
+    console.error(`Error: Invalid command '${command}'. Must be 'solve' or 'hive'.`);
+    process.exit(1);
+  }
+
+  // Validate GitHub URL
+  const parsed = parseGitHubUrl(githubUrl);
+  if (!parsed.valid) {
+    console.error(`Error: Invalid GitHub URL. ${parsed.error}`);
+    console.error('Please provide a valid GitHub repository or issue URL.');
+    process.exit(1);
+  }
+
+  // Generate screen session name
+  const sessionName = generateScreenName(command, githubUrl);
+
+  // Check for screen availability
+  try {
+    await execAsync('which screen');
+  } catch (error) {
+    console.error('Error: GNU Screen is not installed or not in PATH.');
+    console.error('Please install it using your package manager:');
+    console.error('  Ubuntu/Debian: sudo apt-get install screen');
+    console.error('  macOS: brew install screen');
+    console.error('  RHEL/CentOS: sudo yum install screen');
+    process.exit(1);
+  }
+
+  // Prepare full argument list for the command
+  const fullArgs = [githubUrl, ...commandArgs];
+
+  // Create or enter the screen session
+  await createOrEnterScreen(sessionName, command, fullArgs, autoTerminate);
+}
+
+// Run the main function
+main().catch((error) => {
+  console.error('Unexpected error:', error);
+  process.exit(1);
+});

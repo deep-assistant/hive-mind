@@ -149,6 +149,32 @@ create_swap_file() {
 apt_update_safe
 
 sudo apt install -y wget curl unzip git sudo ca-certificates gnupg dotnet-sdk-8.0
+# Install Playwright browser dependencies for Ubuntu
+# These are required for Chromium, Firefox, and WebKit to run properly
+echo "[*] Installing Playwright browser dependencies..."
+sudo apt install -y \
+  libnss3 \
+  libnspr4 \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libatspi2.0-0 \
+  libx11-6 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxext6 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libxcb1 \
+  libxkbcommon0 \
+  libpango-1.0-0 \
+  libcairo2 \
+  libasound2 \
+  fonts-liberation \
+  libgtk-3-0 || {
+    echo "[!] Warning: Some browser dependencies failed to install. Playwright may not work correctly."
+  }
 apt_cleanup
 
 # --- Setup swap file ---
@@ -229,6 +255,62 @@ fi
 # --- Global bun packages ---
 echo "[*] Installing global bun packages..."
 bun install -g @anthropic-ai/claude-code @deep-assistant/claude-profiles @deep-assistant/hive-mind
+
+# --- Install Playwright MCP ---
+echo "[*] Installing Playwright MCP server..."
+# Install the playwright MCP package globally via npm (since it requires npm/npx)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 20
+
+# Check if @playwright/mcp is already installed
+if npm list -g @playwright/mcp &>/dev/null; then
+  echo "[*] Playwright MCP already installed, updating..."
+  npm update -g @playwright/mcp
+else
+  echo "[*] Installing Playwright MCP package..."
+  npm install -g @playwright/mcp
+fi
+
+# Install playwright browsers non-interactively
+echo "[*] Installing Playwright browsers..."
+npx playwright install chromium firefox webkit || {
+  echo "[!] Warning: Failed to install some Playwright browsers. This may affect browser automation."
+}
+
+# --- Configure Playwright MCP for Claude CLI ---
+echo "[*] Configuring Playwright MCP for Claude CLI..."
+# Wait for Claude CLI to be available
+if ! command -v claude &>/dev/null; then
+  echo "[!] Claude CLI not found. Waiting for installation to complete..."
+  sleep 2
+fi
+
+# Check if Claude CLI is available now
+if command -v claude &>/dev/null; then
+  # Check if playwright MCP is already configured
+  if claude mcp list 2>/dev/null | grep -q "playwright"; then
+    echo "[*] Playwright MCP already configured in Claude CLI"
+  else
+    # Add the playwright MCP server to Claude CLI configuration
+    # Use npx to ensure we use the correct version
+    echo "[*] Adding Playwright MCP to Claude CLI configuration..."
+    claude mcp add playwright "npx" "@playwright/mcp@latest" 2>/dev/null || {
+      echo "[!] Warning: Could not add Playwright MCP to Claude CLI."
+      echo "    You may need to run manually: claude mcp add playwright npx @playwright/mcp@latest"
+    }
+  fi
+
+  # Verify the configuration
+  if claude mcp get playwright 2>/dev/null | grep -q "playwright"; then
+    echo "[*] ✅ Playwright MCP successfully configured"
+  else
+    echo "[!] ⚠️  Playwright MCP configuration could not be verified"
+  fi
+else
+  echo "[!] Claude CLI is not available. Skipping MCP configuration."
+  echo "    After Claude CLI is installed, run: claude mcp add playwright npx @playwright/mcp@latest"
+fi
 
 # --- Git setup with GitHub identity ---
 echo "[*] Configuring Git with GitHub identity..."

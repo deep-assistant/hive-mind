@@ -1,17 +1,20 @@
 {
   "name": "@deep-assistant/hive-mind",
-  "version": "0.5.0",
+  "version": "0.14.3"
   "description": "AI-powered issue solver and hive mind for collaborative problem solving",
-  "main": "hive.mjs",
+  "main": "src/hive.mjs",
   "type": "module",
   "bin": {
-    "hive": "./hive.mjs",
-    "solve": "./solve.mjs",
-    "task": "./task.mjs",
-    "review": "./review.mjs"
+    "hive": "./src/hive.mjs",
+    "solve": "./src/solve.mjs",
+    "task": "./src/task.mjs",
+    "review": "./src/review.mjs",
+    "start-screen": "./start-screen.mjs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs",
+    "lint:fix": "eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs --fix"
   },
   "repository": {
     "type": "git",
@@ -35,24 +38,15 @@
     "node": ">=18.0.0"
   },
   "files": [
-    "hive.mjs",
-    "solve.mjs",
-    "solve.auto-continue.lib.mjs",
-    "solve.claude-execution.lib.mjs",
-    "solve.config.lib.mjs",
-    "solve.execution.lib.mjs",
-    "solve.feedback.lib.mjs",
-    "solve.repository.lib.mjs",
-    "solve.results.lib.mjs",
-    "solve.validation.lib.mjs",
-    "task.mjs",
-    "review.mjs",
-    "lib.mjs",
-    "claude.lib.mjs",
-    "github.lib.mjs",
-    "youtrack.lib.mjs",
-    "youtrack-sync.mjs",
-    "memory-check.mjs",
+    "src"
     "*.md"
-  ]
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "eslint": "^9.35.0"
+  },
+  "dependencies": {
+    "@sentry/node": "^10.15.0",
+    "@sentry/profiling-node": "^10.15.0"
+  }
 }

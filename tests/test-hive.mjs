@@ -11,7 +11,7 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const hivePath = join(__dirname, '..', 'hive.mjs');
+const hivePath = join(__dirname, '..', 'src', 'hive.mjs');
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -114,7 +114,7 @@ runTest('hive.mjs requires GitHub URL', () => {
 
 // Test 7: Check that it validates URL format
 runTest('hive.mjs validates URL format', () => {
-  const output = execCommand(`${hivePath} not-a-url 2>&1`);
+  const output = execCommand(`${hivePath} "not a valid url!" 2>&1`);
   if (!output.toLowerCase().includes('invalid') && !output.toLowerCase().includes('url')) {
     throw new Error('Should indicate invalid URL format');
   }
@@ -187,8 +187,19 @@ runTest('hive.mjs --attach-logs flag', () => {
   if (!output.includes('attach-logs')) {
     throw new Error('--attach-logs option not found in help output');
   }
-  if (!output.includes('Upload the solution log file')) {
+  if (!output.includes('Upload the solution draft log file')) {
     throw new Error('--attach-logs description not found in help output');
+  }
+});
+
+// Test 14: Check --skip-claude-check flag is available
+runTest('hive.mjs --skip-claude-check flag', () => {
+  const output = execCommand(`${hivePath} --help 2>&1`);
+  if (!output.includes('skip-claude-check')) {
+    throw new Error('--skip-claude-check option not found in help output');
+  }
+  if (!output.includes('Skip Claude connection check')) {
+    throw new Error('--skip-claude-check description not found in help output');
   }
 });
 

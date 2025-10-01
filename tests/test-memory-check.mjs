@@ -15,7 +15,7 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const memoryCheckPath = join(__dirname, '..', 'memory-check.mjs');
+const memoryCheckPath = join(__dirname, '..', 'src', 'memory-check.mjs');
 
 let testsPassed = 0;
 let testsFailed = 0;

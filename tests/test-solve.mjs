@@ -11,7 +11,7 @@ import { dirname, join } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const solvePath = join(__dirname, '..', 'solve.mjs');
+const solvePath = join(__dirname, '..', 'src', 'solve.mjs');
 
 let testsPassed = 0;
 let testsFailed = 0;
@@ -61,10 +61,15 @@ runTest('solve.mjs usage without args', () => {
 
 // Test 3: Check --version output
 runTest('solve.mjs --version', () => {
-  const output = execCommand(`${solvePath} --version 2>&1`);
-  // Version should be a number like 1.0.0
-  if (!output.match(/\d+\.\d+\.\d+/)) {
-    throw new Error('Version output not in expected format');
+  const output = execCommand(`${solvePath} --version 2>&1`).trim();
+  // Version should be either x.y.z or x.y.z.commitSha format
+  if (!output.match(/^\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?$/)) {
+    throw new Error(`Version output not in expected format: ${output}`);
+  }
+  // Should output only the version, no extra text
+  const lines = output.trim().split('\n');
+  if (lines.length !== 1) {
+    throw new Error(`--version should output only the version, found ${lines.length} lines`);
   }
 });
 
@@ -163,6 +168,101 @@ runTest('solve.mjs loads successfully', () => {
   const output = execCommand(`${solvePath} --version 2>&1`);
   if (output.includes('Error:') || output.includes('Cannot find')) {
     throw new Error('Script loading error');
+  }
+});
+
+// Test 13: Check --skip-claude-check flag is available
+runTest('solve.mjs --skip-claude-check flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('skip-claude-check')) {
+    throw new Error('--skip-claude-check option not found in help output');
+  }
+  if (!output.includes('Skip Claude connection check')) {
+    throw new Error('--skip-claude-check description not found in help output');
+  }
+});
+
+// Test 14: Check --auto-close-pull-request-on-fail flag is available
+runTest('solve.mjs --auto-close-pull-request-on-fail flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('auto-close-pull-request-on-fail')) {
+    throw new Error('--auto-close-pull-request-on-fail option not found in help output');
+  }
+  // Check for the description (may be split across lines)
+  if (!output.includes('Automatically close the pull request') && !output.includes('if execution fails')) {
+    throw new Error('--auto-close-pull-request-on-fail description not found in help output');
+  }
+});
+
+// Test 15: Check --attach-logs flag is available
+runTest('solve.mjs --attach-logs flag', () => {
+  const output = execCommand(`${solvePath} --help 2>&1`);
+  if (!output.includes('attach-logs')) {
+    throw new Error('--attach-logs option not found in help output');
+  }
+  if (!output.includes('Upload the solution draft log file')) {
+    throw new Error('--attach-logs description not found in help output');
+  }
+});
+
+// Test 16: Check raw command logging (Issue #209)
+runTest('solve.mjs raw command logging', () => {
+  // Create a temp file to capture log output
+  const tempLogFile = `/tmp/test-solve-log-${Date.now()}.log`;
+
+  // Run solve.mjs with a mock issue URL and capture output
+  const output = execCommand(`LOG_FILE=${tempLogFile} ${solvePath} https://github.com/test/test/issues/1 --dry-run 2>&1`);
+
+  // Check that raw command is logged to console output
+  if (!output.includes('Raw command executed:')) {
+    throw new Error('Raw command not logged to console output');
+  }
+
+  // The raw command should include the full command line
+  if (!output.includes('solve.mjs') || !output.includes('github.com')) {
+    throw new Error('Raw command log should include full command line');
+  }
+
+  // Clean up temp file if created
+  try {
+    execCommand(`rm -f ${tempLogFile}`);
+  } catch {
+    // Ignore cleanup errors
+  }
+});
+
+// Test 17: Check version logging at startup (Issue #260)
+runTest('solve.mjs version logging at startup', () => {
+  // Run solve.mjs with an invalid URL to trigger early exit but still see initial logs
+  const output = execCommand(`${solvePath} invalid-url 2>&1`);
+
+  // Check if version is logged at the beginning
+  const versionLineRegex = /🚀 solve v\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?/;
+  if (!versionLineRegex.test(output)) {
+    throw new Error('Version not logged at startup');
+  }
+
+  // Version should appear before error messages
+  const lines = output.split('\n');
+  let versionLineIndex = -1;
+  let errorLineIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (versionLineRegex.test(lines[i])) {
+      versionLineIndex = i;
+    }
+    if (lines[i].includes('Error:') || lines[i].includes('Invalid')) {
+      errorLineIndex = i;
+      break; // Stop at first error
+    }
+  }
+
+  if (versionLineIndex === -1) {
+    throw new Error('Version line not found');
+  }
+
+  if (errorLineIndex !== -1 && versionLineIndex > errorLineIndex) {
+    throw new Error('Version should be logged before any error messages');
   }
 });
 

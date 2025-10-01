@@ -52,8 +52,14 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 
 ### Core Operations
 ```bash
+# Solve using maximum power
+solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think-ultra-hard
+
 # Solve GitHub issues automatically
 solve https://github.com/owner/repo/issues/123 --fork --model sonnet
+
+# Solve issue with PR to custom branch
+solve https://github.com/owner/repo/issues/123 --base-branch develop --fork
 
 # Continue working on existing PR
 solve https://github.com/owner/repo/pull/456 --model opus
@@ -89,6 +95,7 @@ solve <issue-url> [options]
 
   --model, -m           Model (sonnet, opus)                  [default: sonnet]
   --fork, -f            Fork repo if no write access         [default: false]
+  --base-branch, -b     Target branch for PR                  [default: repo default]
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
@@ -124,14 +131,79 @@ The Hive Mind operates on three layers:
 3. **Human Interface Layer** - Enables human-AI collaboration
 
 ### Data Flow
+
+#### Mode 1: Issue → Pull Request Flow
 ```mermaid
-graph TD
-    A[Human Input] --> B[Hive Mind Orchestrator]
-    B --> C[AI Agent Pool]
-    C --> D[Task Execution]
-    D --> E[Human Feedback Loop]
-    E --> B
+sequenceDiagram
+    participant H as Human
+    participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
+
+    H->>GH: Creates Issue
+    Note over H,GH: Primary human input
+
+    GH->>HM: Issue Available
+    HM->>AI: Assigns Issue
+    AI->>GH: Analyzes Issue
+    AI->>AI: Develops Solution
+    AI->>GH: Creates Draft PR
+
+    Note over H,GH: Human decision point
+    GH->>H: Notifies PR Created
+    H->>GH: Reviews PR
+
+    alt Approve & Merge
+        H->>GH: Merges PR
+        GH->>HM: PR Merged
+    else Request Changes
+        H->>GH: Adds Comments
+        Note over H,GH: Secondary human input
+        GH->>HM: Comments Added
+        HM->>AI: Process Feedback
+        AI->>GH: Updates PR
+    else Close PR
+        H->>GH: Closes PR
+        GH->>HM: PR Closed
+    end
 ```
+
+#### Mode 2: Pull Request → Comments Flow
+```mermaid
+sequenceDiagram
+    participant H as Human
+    participant GH as GitHub
+    participant AI as AI Agent
+    participant HM as Hive Mind
+
+    Note over GH: Existing PR
+    H->>GH: Adds Comment
+    Note over H,GH: Primary human input
+
+    GH->>HM: New Comment Available
+    HM->>AI: Processes Comment
+    AI->>GH: Analyzes Feedback
+    AI->>AI: Updates Solution
+    AI->>GH: Pushes Changes
+
+    Note over H,GH: Human decision point
+    GH->>H: Notifies Changes
+    H->>GH: Reviews Updates
+
+    alt Approve & Merge
+        H->>GH: Merges PR
+        GH->>HM: PR Merged
+    else More Changes Needed
+        H->>GH: Adds More Comments
+        Note over H,GH: Continued human input
+        GH->>HM: Comments Added
+    else Close PR
+        H->>GH: Closes PR
+        GH->>HM: PR Closed
+    end
+```
+
+📖 **For comprehensive data flow documentation including human feedback integration points, see [docs/flow.md](./docs/flow.md)**
 
 ## 📊 Usage Examples
 
