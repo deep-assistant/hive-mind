@@ -10,99 +10,99 @@ All configuration is managed through the `src/config.lib.mjs` module which uses 
 
 ### 1. Timeout Configurations (timeouts)
 
-- `CLAUDE_TIMEOUT_SECONDS`: Claude CLI timeout in seconds (default: 60)
-- `GITHUB_API_DELAY_MS`: Delay between GitHub API calls (default: 5000)
-- `GITHUB_REPO_DELAY_MS`: Delay between repository operations (default: 2000)
-- `RETRY_BASE_DELAY_MS`: Base delay for retry operations (default: 5000)
-- `RETRY_BACKOFF_DELAY_MS`: Backoff delay for retries (default: 1000)
+- `HIVE_MIND_CLAUDE_TIMEOUT_SECONDS`: Claude CLI timeout in seconds (default: 60)
+- `HIVE_MIND_GITHUB_API_DELAY_MS`: Delay between GitHub API calls (default: 5000)
+- `HIVE_MIND_GITHUB_REPO_DELAY_MS`: Delay between repository operations (default: 2000)
+- `HIVE_MIND_RETRY_BASE_DELAY_MS`: Base delay for retry operations (default: 5000)
+- `HIVE_MIND_RETRY_BACKOFF_DELAY_MS`: Backoff delay for retries (default: 1000)
 
 Available as: `timeouts.claudeCli`, `timeouts.githubApiDelay`, etc.
 
 ### 2. Auto-Continue Settings (autoContinue)
 
-- `AUTO_CONTINUE_AGE_HOURS`: Minimum age of PRs before auto-continue (default: 24)
+- `HIVE_MIND_AUTO_CONTINUE_AGE_HOURS`: Minimum age of PRs before auto-continue (default: 24)
 
 Available as: `autoContinue.ageThresholdHours`
 
 ### 3. GitHub API Limits (githubLimits)
 
-- `GITHUB_COMMENT_MAX_SIZE`: Maximum size of GitHub comments (default: 65536)
-- `GITHUB_FILE_MAX_SIZE`: Maximum file size for GitHub operations (default: 26214400 / 25MB)
-- `GITHUB_ISSUE_BODY_MAX_SIZE`: Maximum size of issue body (default: 60000)
-- `GITHUB_ATTACHMENT_MAX_SIZE`: Maximum attachment size (default: 10485760 / 10MB)
-- `GITHUB_BUFFER_MAX_SIZE`: Maximum buffer size for GitHub operations (default: 10485760 / 10MB)
+- `HIVE_MIND_GITHUB_COMMENT_MAX_SIZE`: Maximum size of GitHub comments (default: 65536)
+- `HIVE_MIND_GITHUB_FILE_MAX_SIZE`: Maximum file size for GitHub operations (default: 26214400 / 25MB)
+- `HIVE_MIND_GITHUB_ISSUE_BODY_MAX_SIZE`: Maximum size of issue body (default: 60000)
+- `HIVE_MIND_GITHUB_ATTACHMENT_MAX_SIZE`: Maximum attachment size (default: 10485760 / 10MB)
+- `HIVE_MIND_GITHUB_BUFFER_MAX_SIZE`: Maximum buffer size for GitHub operations (default: 10485760 / 10MB)
 
 Available as: `githubLimits.commentMaxSize`, `githubLimits.fileMaxSize`, etc.
 
 ### 4. System Resource Limits (systemLimits)
 
-- `MIN_DISK_SPACE_MB`: Minimum required disk space in MB (default: 500)
-- `DEFAULT_PAGE_SIZE_KB`: Default memory page size in KB (default: 16)
+- `HIVE_MIND_MIN_DISK_SPACE_MB`: Minimum required disk space in MB (default: 500)
+- `HIVE_MIND_DEFAULT_PAGE_SIZE_KB`: Default memory page size in KB (default: 16)
 
 Available as: `systemLimits.minDiskSpaceMb`, `systemLimits.defaultPageSizeKb`
 
 ### 5. Retry Configurations (retryLimits)
 
-- `MAX_FORK_RETRIES`: Maximum fork creation retries (default: 5)
-- `MAX_VERIFY_RETRIES`: Maximum verification retries (default: 5)
-- `MAX_API_RETRIES`: Maximum API call retries (default: 3)
-- `RETRY_BACKOFF_MULTIPLIER`: Retry backoff multiplier (default: 2)
+- `HIVE_MIND_MAX_FORK_RETRIES`: Maximum fork creation retries (default: 5)
+- `HIVE_MIND_MAX_VERIFY_RETRIES`: Maximum verification retries (default: 5)
+- `HIVE_MIND_MAX_API_RETRIES`: Maximum API call retries (default: 3)
+- `HIVE_MIND_RETRY_BACKOFF_MULTIPLIER`: Retry backoff multiplier (default: 2)
 
 Available as: `retryLimits.maxForkRetries`, `retryLimits.maxVerifyRetries`, etc.
 
 ### 6. File and Path Settings (filePaths)
 
-- `HIVE_TEMP_DIR`: Temporary directory path (default: /tmp)
-- `TASK_INFO_FILENAME`: Task info filename (default: CLAUDE.md)
-- `PROC_MEMINFO`: Path to memory info file (default: /proc/meminfo)
+- `HIVE_MIND_TEMP_DIR`: Temporary directory path (default: /tmp)
+- `HIVE_MIND_TASK_INFO_FILENAME`: Task info filename (default: CLAUDE.md)
+- `HIVE_MIND_PROC_MEMINFO`: Path to memory info file (default: /proc/meminfo)
 
 Available as: `filePaths.tempDir`, `filePaths.taskInfoFilename`, etc.
 
 ### 7. Text Processing (textProcessing)
 
-- `TOKEN_MASK_MIN_LENGTH`: Minimum length for token masking (default: 12)
-- `TOKEN_MASK_START_CHARS`: Characters to show at start when masking (default: 5)
-- `TOKEN_MASK_END_CHARS`: Characters to show at end when masking (default: 5)
-- `TEXT_PREVIEW_LENGTH`: Length of text previews (default: 100)
-- `LOG_TRUNCATION_LENGTH`: Log truncation length (default: 5000)
+- `HIVE_MIND_TOKEN_MASK_MIN_LENGTH`: Minimum length for token masking (default: 12)
+- `HIVE_MIND_TOKEN_MASK_START_CHARS`: Characters to show at start when masking (default: 5)
+- `HIVE_MIND_TOKEN_MASK_END_CHARS`: Characters to show at end when masking (default: 5)
+- `HIVE_MIND_TEXT_PREVIEW_LENGTH`: Length of text previews (default: 100)
+- `HIVE_MIND_LOG_TRUNCATION_LENGTH`: Log truncation length (default: 5000)
 
 Available as: `textProcessing.tokenMaskMinLength`, `textProcessing.textPreviewLength`, etc.
 
 ### 8. Display Settings (display)
 
-- `LABEL_WIDTH`: Width of labels in formatted output (default: 25)
+- `HIVE_MIND_LABEL_WIDTH`: Width of labels in formatted output (default: 25)
 
 Available as: `display.labelWidth`
 
 ### 9. Sentry Error Tracking (sentry)
 
-- `SENTRY_DSN`: Sentry DSN for error tracking (default: provided)
-- `SENTRY_TRACES_SAMPLE_RATE_DEV`: Trace sample rate in development (default: 1.0)
-- `SENTRY_TRACES_SAMPLE_RATE_PROD`: Trace sample rate in production (default: 0.1)
-- `SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV`: Profile sample rate in development (default: 1.0)
-- `SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD`: Profile sample rate in production (default: 0.1)
+- `HIVE_MIND_SENTRY_DSN`: Sentry DSN for error tracking (default: provided)
+- `HIVE_MIND_SENTRY_TRACES_SAMPLE_RATE_DEV`: Trace sample rate in development (default: 1.0)
+- `HIVE_MIND_SENTRY_TRACES_SAMPLE_RATE_PROD`: Trace sample rate in production (default: 0.1)
+- `HIVE_MIND_SENTRY_PROFILE_SESSION_SAMPLE_RATE_DEV`: Profile sample rate in development (default: 1.0)
+- `HIVE_MIND_SENTRY_PROFILE_SESSION_SAMPLE_RATE_PROD`: Profile sample rate in production (default: 0.1)
 
 Available as: `sentry.dsn`, `sentry.tracesSampleRateDev`, etc.
 
 ### 10. External URLs (externalUrls)
 
-- `GITHUB_BASE_URL`: GitHub base URL (default: https://github.com)
+- `HIVE_MIND_GITHUB_BASE_URL`: GitHub base URL (default: https://github.com)
   - Useful for GitHub Enterprise instances
-- `BUN_INSTALL_URL`: Bun installation URL (default: https://bun.sh/)
+- `HIVE_MIND_BUN_INSTALL_URL`: Bun installation URL (default: https://bun.sh/)
 
 Available as: `externalUrls.githubBase`, `externalUrls.bunInstall`
 
 ### 11. Model Configuration (modelConfig)
 
-- `AVAILABLE_MODELS`: Comma-separated list of available models (default: opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805)
-- `DEFAULT_MODEL`: Default model to use (default: sonnet)
+- `HIVE_MIND_AVAILABLE_MODELS`: Comma-separated list of available models (default: opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805)
+- `HIVE_MIND_DEFAULT_MODEL`: Default model to use (default: sonnet)
 
 Available as: `modelConfig.availableModels`, `modelConfig.defaultModel`
 
 ### 12. Version Settings (version)
 
-- `VERSION_FALLBACK`: Fallback version number (default: 0.14.3)
-- `VERSION_DEFAULT`: Default version number (default: 0.14.3)
+- `HIVE_MIND_VERSION_FALLBACK`: Fallback version number (default: 0.14.3)
+- `HIVE_MIND_VERSION_DEFAULT`: Default version number (default: 0.14.3)
 
 Available as: `version.fallback`, `version.default`
 
@@ -112,19 +112,19 @@ Available as: `version.fallback`, `version.default`
 
 ```bash
 # Increase Claude timeout to 2 minutes
-export CLAUDE_TIMEOUT_SECONDS=120
+export HIVE_MIND_CLAUDE_TIMEOUT_SECONDS=120
 
 # Reduce GitHub API delay for faster operations
-export GITHUB_API_DELAY_MS=2000
+export HIVE_MIND_GITHUB_API_DELAY_MS=2000
 
 # Increase auto-continue threshold to 48 hours
-export AUTO_CONTINUE_AGE_HOURS=48
+export HIVE_MIND_AUTO_CONTINUE_AGE_HOURS=48
 
 # Use custom temporary directory
-export HIVE_TEMP_DIR=/var/tmp/hive-mind
+export HIVE_MIND_TEMP_DIR=/var/tmp/hive-mind
 
 # Disable Sentry in production
-export SENTRY_DSN=""
+export HIVE_MIND_SENTRY_DSN=""
 
 # Configure for GitHub Enterprise
 export GITHUB_BASE_URL=https://github.enterprise.com
@@ -134,13 +134,13 @@ export GITHUB_BASE_URL=https://github.enterprise.com
 
 ```bash
 # Run with custom timeouts
-CLAUDE_TIMEOUT_SECONDS=120 RETRY_BASE_DELAY_MS=10000 hive monitor
+HIVE_MIND_CLAUDE_TIMEOUT_SECONDS=120 HIVE_MIND_RETRY_BASE_DELAY_MS=10000 hive monitor
 
 # Run with increased limits
-GITHUB_FILE_MAX_SIZE=52428800 MIN_DISK_SPACE_MB=1000 solve https://github.com/owner/repo/issues/123
+HIVE_MIND_GITHUB_FILE_MAX_SIZE=52428800 HIVE_MIND_MIN_DISK_SPACE_MB=1000 solve https://github.com/owner/repo/issues/123
 
 # Run with custom auto-continue settings
-AUTO_CONTINUE_AGE_HOURS=12 solve --auto-continue https://github.com/owner/repo/issues/456
+HIVE_MIND_AUTO_CONTINUE_AGE_HOURS=12 solve --auto-continue https://github.com/owner/repo/issues/456
 ```
 
 ### Configuration File (Optional)
@@ -149,11 +149,11 @@ You can also create a `.env` file in your project root:
 
 ```bash
 # .env file
-CLAUDE_TIMEOUT_SECONDS=90
-GITHUB_API_DELAY_MS=3000
-AUTO_CONTINUE_AGE_HOURS=36
-HIVE_TEMP_DIR=/opt/hive-mind/tmp
-SENTRY_DSN=your-custom-sentry-dsn
+HIVE_MIND_CLAUDE_TIMEOUT_SECONDS=90
+HIVE_MIND_GITHUB_API_DELAY_MS=3000
+HIVE_MIND_AUTO_CONTINUE_AGE_HOURS=36
+HIVE_MIND_TEMP_DIR=/opt/hive-mind/tmp
+HIVE_MIND_SENTRY_DSN=your-custom-sentry-dsn
 ```
 
 Then source it before running:
