@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import { sentry, version } from './config.lib.mjs';
 
 // Check if Sentry should be disabled
 const shouldDisableSentry = () => {
@@ -25,23 +26,23 @@ const shouldDisableSentry = () => {
 if (!shouldDisableSentry()) {
   try {
     Sentry.init({
-      dsn: "https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440",
+      dsn: sentry.dsn,
       integrations: [
         nodeProfilingIntegration(),
       ],
 
       // Application name
       environment: process.env.NODE_ENV || 'production',
-      release: `hive-mind@${process.env.npm_package_version || '0.12.0'}`,
+      release: `hive-mind@${process.env.npm_package_version || version.default}`,
 
       // Send structured logs to Sentry
       enableLogs: true,
 
       // Tracing
-      tracesSampleRate: process.env.NODE_ENV === 'development' ? 1.0 : 0.1, // 100% in dev, 10% in prod
+      tracesSampleRate: process.env.NODE_ENV === 'development' ? sentry.tracesSampleRateDev : sentry.tracesSampleRateProd,
 
       // Set sampling rate for profiling
-      profileSessionSampleRate: process.env.NODE_ENV === 'development' ? 1.0 : 0.1,
+      profileSessionSampleRate: process.env.NODE_ENV === 'development' ? sentry.profileSessionSampleRateDev : sentry.profileSessionSampleRateProd,
 
       // Trace lifecycle automatically enables profiling during active traces
       profileLifecycle: 'trace',

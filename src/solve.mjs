@@ -1214,11 +1214,11 @@ ${prBody}`, { verbose: true });
   try {
     // Get the issue's last update time
     const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
-    
+
     if (issueResult.code !== 0) {
       throw new Error(`Failed to get issue details: ${issueResult.stderr ? issueResult.stderr.toString() : 'Unknown error'}`);
     }
-    
+
     const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
     await log(formatAligned('📝', 'Issue updated:', issueUpdatedAt.toISOString(), 2));
 

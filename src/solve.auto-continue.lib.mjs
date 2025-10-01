@@ -36,6 +36,10 @@ const validation = await import('./solve.validation.lib.mjs');
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
+
+// Import configuration
+import { autoContinue } from './config.lib.mjs';
+
 const {
   calculateWaitTime
 } = validation;
@@ -136,7 +140,7 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
 
           // Find PRs that are older than 24 hours
           const now = new Date();
-          const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          const twentyFourHoursAgo = new Date(now.getTime() - autoContinue.ageThresholdHours * 60 * 60 * 1000);
 
           for (const pr of prs) {
             const createdAt = new Date(pr.createdAt);
@@ -312,7 +316,7 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
         // Find PRs that are older than 24 hours
         const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(now.getTime() - autoContinue.ageThresholdHours * 60 * 60 * 1000);
 
         for (const pr of prs) {
           const createdAt = new Date(pr.createdAt);

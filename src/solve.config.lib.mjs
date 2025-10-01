@@ -4,6 +4,9 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
+// Import configuration
+import { autoContinue } from './config.lib.mjs';
+
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
   // Import yargs with specific version for hideBin support
@@ -77,7 +80,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: 'Automatically continue with existing PRs for this issue if they are older than 24 hours',
+      description: `Automatically continue with existing PRs for this issue if they are older than ${autoContinue.ageThresholdHours} hours`,
       default: false
     })
     .option('auto-continue-limit', {
