@@ -127,12 +127,14 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   if (sessionExists) {
     console.log(`Screen session '${sessionName}' already exists.`);
-    console.log('Creating new detached session with the command...');
-  } else {
-    console.log(`Creating screen session: ${sessionName}`);
+    console.log(`Reusing existing session instead of creating a new one.`);
+    console.log(`To attach to this session, run: screen -r ${sessionName}`);
+    return;
   }
 
-  // Always create a detached session with the command
+  console.log(`Creating screen session: ${sessionName}`);
+
+  // Create a detached session with the command
   // Quote arguments properly to preserve spaces and special characters
   const quotedArgs = args.map(arg => {
     // If arg contains spaces or special chars, wrap in single quotes
