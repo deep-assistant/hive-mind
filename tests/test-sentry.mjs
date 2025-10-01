@@ -119,10 +119,13 @@ runTest('instrument.mjs has correct imports', () => {
 // Test 7: Check if DSN is configured
 runTest('Sentry DSN is configured', () => {
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
-  const content = fs.readFileSync(instrumentPath, 'utf8');
+  const configPath = join(projectRoot, 'src', 'config.lib.mjs');
+  const instrumentContent = fs.readFileSync(instrumentPath, 'utf8');
+  const configContent = fs.readFileSync(configPath, 'utf8');
 
-  return content.includes('dsn:') &&
-         content.includes('https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440');
+  // DSN should be in config.lib.mjs and referenced in instrument.mjs
+  return instrumentContent.includes('dsn:') &&
+         configContent.includes('https://77b711f23c84cbf74366df82090dc389@o4510072519983104.ingest.us.sentry.io/4510072523325440');
 });
 
 // Test 8: Check environment variable support
