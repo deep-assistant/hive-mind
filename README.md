@@ -88,6 +88,7 @@ review --repo owner/repo --pr 456
 | `hive.mjs` (stable) | AI orchestration & monitoring | Multi-repo monitoring, concurrent workers, issue queue management |
 | `review.mjs` (alpha) | Code review automation | Collaborative AI reviews, automated feedback |
 | `reviewers-hive.mjs` (alpha / experimental) | Review team management | Multi-agent consensus, reviewer assignment |
+| `telegram-bot.mjs` (stable) | Telegram bot interface | Remote command execution, group chat support, diagnostic tools |
 
 ## 🔧 solve Options
 ```bash
@@ -122,6 +123,86 @@ hive <github-url> [options]
   --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
   --fork, -f            Fork repos if no write access       [default: false]
 ```
+
+## 🤖 Telegram Bot
+
+The Hive Mind includes a Telegram bot interface (SwarmMindBot) for remote command execution.
+
+### Setup
+
+1. **Get Bot Token**
+   - Talk to [@BotFather](https://t.me/BotFather) on Telegram
+   - Create a new bot and get your token
+   - Add the bot to your group chat and make it an admin
+
+2. **Configure Environment**
+   ```bash
+   # Copy the example configuration
+   cp .env.example .env
+
+   # Edit and add your bot token
+   echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" >> .env
+
+   # Optional: Restrict to specific chats
+   # Get chat ID using /help command, then add:
+   echo "TELEGRAM_ALLOWED_CHATS=123456789,987654321" >> .env
+   ```
+
+3. **Start the Bot**
+   ```bash
+   # Load environment variables and start
+   source .env && telegram-bot
+   ```
+
+### Bot Commands
+
+All commands work in **group chats only** (not in private messages with the bot):
+
+#### `/solve` - Solve GitHub Issues
+```
+/solve <github-url> [options]
+
+Examples:
+/solve https://github.com/owner/repo/issues/123
+/solve https://github.com/owner/repo/issues/123 --fork --verbose
+/solve https://github.com/owner/repo/issues/123 --fork --auto-continue --attach-logs --verbose --model sonnet --think max
+```
+
+#### `/hive` - Run Hive Orchestration
+```
+/hive <github-url> [options]
+
+Examples:
+/hive https://github.com/owner/repo
+/hive https://github.com/owner/repo --all-issues --max-issues 10
+/hive https://github.com/microsoft --all-issues --concurrency 3
+```
+
+#### `/help` - Get Help and Diagnostic Info
+```
+/help
+
+Shows:
+- Chat ID (needed for TELEGRAM_ALLOWED_CHATS)
+- Chat type
+- Available commands
+- Usage examples
+```
+
+### Features
+
+- ✅ **Group Chat Only**: Commands work only in group chats (not private messages)
+- ✅ **Full Options Support**: All command-line options work in Telegram
+- ✅ **Screen Sessions**: Commands run in detached screen sessions
+- ✅ **Chat Restrictions**: Optional whitelist of allowed chat IDs
+- ✅ **Diagnostic Tools**: Get chat ID and configuration info
+
+### Security Notes
+
+- Only works in group chats where the bot is admin
+- Optional chat ID restrictions via `TELEGRAM_ALLOWED_CHATS`
+- Commands run as the system user running the bot
+- Ensure proper authentication (`gh auth login`, `claude-profiles`)
 
 ## 🏗️ Architecture
 
