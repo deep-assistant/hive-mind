@@ -127,8 +127,37 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   if (sessionExists) {
     console.log(`Screen session '${sessionName}' already exists.`);
-    console.log(`Reusing existing session instead of creating a new one.`);
-    console.log(`To attach to this session, run: screen -r ${sessionName}`);
+    console.log(`Sending command to existing session...`);
+
+    // Build the full command to send to the existing session
+    const quotedArgs = args.map(arg => {
+      // If arg contains spaces or special chars, wrap in single quotes
+      if (arg.includes(' ') || arg.includes('&') || arg.includes('|') ||
+          arg.includes(';') || arg.includes('$') || arg.includes('*') ||
+          arg.includes('?') || arg.includes('(') || arg.includes(')')) {
+        // Escape single quotes within the argument
+        return `'${arg.replace(/'/g, "'\\''")}'`;
+      }
+      return arg;
+    }).join(' ');
+
+    const fullCommand = `${command} ${quotedArgs}`;
+
+    // Escape the command for screen's stuff command
+    // We need to escape special characters for the shell
+    const escapedCommand = fullCommand.replace(/'/g, "'\\''");
+
+    try {
+      // Send the command to the existing screen session
+      // The \n at the end simulates pressing Enter
+      await execAsync(`screen -S ${sessionName} -X stuff '${escapedCommand}\n'`);
+      console.log(`Command sent to session '${sessionName}' successfully.`);
+      console.log(`To attach and view the session, run: screen -r ${sessionName}`);
+    } catch (error) {
+      console.error('Failed to send command to existing screen session:', error.message);
+      console.error('You may need to terminate the old session and try again.');
+      process.exit(1);
+    }
     return;
   }
 
