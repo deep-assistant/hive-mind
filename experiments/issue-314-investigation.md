@@ -4,7 +4,7 @@
 
 Command that fails:
 ```bash
-solve https://github.com/netkeep80/jsonRVM/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think-ultra-hard
+solve https://github.com/netkeep80/jsonRVM/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think max
 ```
 
 ## Key Feedback

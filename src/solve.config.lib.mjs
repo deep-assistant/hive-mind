@@ -125,10 +125,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Directory to save log files (defaults to current working directory)',
       alias: 'l'
     })
-    .option('think-ultra-hard', {
-      type: 'boolean',
-      description: 'Add "You always think ultra hard on every step" to system prompt',
-      default: false
+    .option('think', {
+      type: 'string',
+      description: 'Thinking level: low (Think.), medium (Think hard.), high (Think harder.), max (Ultrathink.)',
+      choices: ['low', 'medium', 'high', 'max'],
+      default: undefined
     })
     .option('base-branch', {
       type: 'string',

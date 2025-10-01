@@ -17,7 +17,7 @@ const argv = {
   attachLogs: true,
   verbose: true,
   model: 'opus',
-  thinkUltraHard: true,
+  think: 'max',
   'attach-logs': true
 };
 
@@ -61,7 +61,7 @@ try {
           if (argv.attachLogs || argv['attach-logs']) commandParts.push('--attach-logs');
           if (argv.verbose) commandParts.push('--verbose');
           if (argv.model && argv.model !== 'sonnet') commandParts.push('--model', argv.model);
-          if (argv.thinkUltraHard) commandParts.push('--think-ultra-hard');
+          if (argv.think) commandParts.push('--think', argv.think);
 
           await log(`   ${commandParts.join(' ')}`);
           await log('');
