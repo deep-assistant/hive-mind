@@ -53,7 +53,7 @@ curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/u
 ### Core Operations
 ```bash
 # Solve using maximum power
-solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think-ultra-hard
+solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think max
 
 # Solve GitHub issues automatically
 solve https://github.com/owner/repo/issues/123 --fork --model sonnet
@@ -101,6 +101,7 @@ solve <issue-url> [options]
   --dry-run, -n         Prepare only, don't execute          [default: false]
   --auto-pull-request-creation  Create draft PR before Claude [default: false]
   --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
+  --think               Thinking level (low, medium, high, max)  [optional]
 ```
 
 ## 🔧 hive Options

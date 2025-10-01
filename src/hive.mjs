@@ -320,10 +320,11 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Automatically continue working on issues with existing PRs (older than 24 hours)',
       default: false
     })
-    .option('think-ultra-hard', {
-      type: 'boolean',
-      description: 'Add "You always think ultra hard on every step" to system prompt',
-      default: false
+    .option('think', {
+      type: 'string',
+      description: 'Thinking level: low (Think.), medium (Think hard.), high (Think harder.), max (Ultrathink.)',
+      choices: ['low', 'medium', 'high', 'max'],
+      default: undefined
     })
     .option('no-sentry', {
       type: 'boolean',
@@ -785,7 +786,7 @@ async function worker(workerId) {
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
         const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
-        const thinkUltraHardFlag = argv.thinkUltraHard ? ' --think-ultra-hard' : '';
+        const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
         const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
 
@@ -818,8 +819,8 @@ async function worker(workerId) {
         if (argv.autoContinue) {
           args.push('--auto-continue');
         }
-        if (argv.thinkUltraHard) {
-          args.push('--think-ultra-hard');
+        if (argv.think) {
+          args.push('--think', argv.think);
         }
         if (argv.noSentry) {
           args.push('--no-sentry');
@@ -829,7 +830,7 @@ async function worker(workerId) {
         }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkUltraHardFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;

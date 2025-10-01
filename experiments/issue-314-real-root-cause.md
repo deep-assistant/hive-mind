@@ -4,7 +4,7 @@
 
 User runs:
 ```bash
-solve https://github.com/netkeep80/jsonRVM/issues/1 --auto-continue --fork --verbose --model opus --think-ultra-hard
+solve https://github.com/netkeep80/jsonRVM/issues/1 --auto-continue --fork --verbose --model opus --think max
 ```
 
 The command fails to access the fork and checkout the correct branch.

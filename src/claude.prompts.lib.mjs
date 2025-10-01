@@ -64,9 +64,15 @@ export const buildUserPrompt = (params) => {
     promptLines.push('');
   }
 
-  // Add "Think ultra hard." if the option is enabled
-  if (argv && argv.thinkUltraHard) {
-    promptLines.push('Think ultra hard.');
+  // Add thinking instruction based on --think level
+  if (argv && argv.think) {
+    const thinkMessages = {
+      low: 'Think.',
+      medium: 'Think hard.',
+      high: 'Think harder.',
+      max: 'Ultrathink.'
+    };
+    promptLines.push(thinkMessages[argv.think]);
   }
 
   // Final instruction
@@ -84,11 +90,20 @@ export const buildUserPrompt = (params) => {
 export const buildSystemPrompt = (params) => {
   const { owner, repo, issueNumber, prNumber, branchName, argv } = params;
 
-  // Check if think-ultra-hard option is enabled
-  const thinkUltraHardLine = argv && argv.thinkUltraHard ? '\nYou always think ultra hard on every step.\n' : '';
+  // Build thinking instruction based on --think level
+  let thinkLine = '';
+  if (argv && argv.think) {
+    const thinkMessages = {
+      low: 'You always think on every step.',
+      medium: 'You always think hard on every step.',
+      high: 'You always think harder on every step.',
+      max: 'You always ultrathink on every step.'
+    };
+    thinkLine = `\n${thinkMessages[argv.think]}\n`;
+  }
 
   // Use backticks for jq commands to avoid quote escaping issues
-  return `You are AI issue solver.${thinkUltraHardLine}
+  return `You are AI issue solver.${thinkLine}
 
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
