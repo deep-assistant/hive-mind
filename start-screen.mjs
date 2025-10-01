@@ -44,17 +44,14 @@ function parseGitHubUrl(url) {
       number: null
     };
 
-    // Determine the type based on path structure
-    if (parsed.filepath) {
-      const pathParts = parsed.filepath.split('/');
-
-      if (pathParts[0] === 'issues' && /^\d+$/.test(pathParts[1])) {
-        result.type = 'issue';
-        result.number = parseInt(pathParts[1], 10);
-      } else if (pathParts[0] === 'pull' && /^\d+$/.test(pathParts[1])) {
-        result.type = 'pr';
-        result.number = parseInt(pathParts[1], 10);
-      }
+    // Determine the type based on branch and filepath
+    // Note: parse-github-url treats "issues" as a branch, not part of filepath
+    if (parsed.branch === 'issues' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
+      result.type = 'issue';
+      result.number = parseInt(parsed.filepath, 10);
+    } else if (parsed.branch === 'pull' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
+      result.type = 'pr';
+      result.number = parseInt(parsed.filepath, 10);
     } else if (parsed.owner && parsed.name) {
       result.type = 'repo';
     } else if (parsed.owner) {
