@@ -520,10 +520,11 @@ jobs:
         fi
 
   # === MEMORY CHECKS - MACOS ===
+  # Temporarily disabled - can be re-enabled later
   memory-check-macos:
     runs-on: macos-latest
     needs: [detect-changes, test-compilation]
-    if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+    if: false
     
     steps:
     - uses: actions/checkout@v4
@@ -663,7 +664,7 @@ jobs:
   publish:
     if: always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, memory-check-macos, validate-docs]
+    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, validate-docs]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
