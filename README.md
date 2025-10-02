@@ -128,6 +128,12 @@ hive <github-url> [options]
 
 The Hive Mind includes a Telegram bot interface (SwarmMindBot) for remote command execution.
 
+### 🚀 Test Drive
+
+Want to see the Hive Mind in action? Join our Telegram channel to watch live pull request creation and AI collaboration:
+
+**[Join https://t.me/hive_mind_pull_requests](https://t.me/hive_mind_pull_requests)**
+
 ### Setup
 
 1. **Get Bot Token**
