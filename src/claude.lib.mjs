@@ -549,6 +549,7 @@ export const executeClaudeCommand = async (params) => {
     let toolUseCount = 0;
     let lastMessage = '';
     let isOverloadError = false;
+    let stderrErrors = [];
 
   // Build claude command with optional resume flag
   let execCommand;
@@ -731,6 +732,11 @@ export const executeClaudeCommand = async (params) => {
         // Log stderr immediately
         if (errorOutput) {
           await log(errorOutput, { stream: 'stderr' });
+          // Track stderr errors for failure detection
+          const trimmed = errorOutput.trim();
+          if (trimmed && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
+            stderrErrors.push(trimmed);
+          }
         }
       } else if (chunk.type === 'exit') {
         exitCode = chunk.code;
@@ -794,6 +800,17 @@ export const executeClaudeCommand = async (params) => {
           await log('\nTo resume this session, run:');
           await log(`   ${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}`);
         }
+      }
+    }
+
+    // Additional failure detection: if no messages were processed and there were stderr errors,
+    // or if the command produced no output at all, treat it as a failure
+    if (!commandFailed && stderrErrors.length > 0 && messageCount === 0 && toolUseCount === 0) {
+      commandFailed = true;
+      await log('\n\n❌ Command failed: No messages processed and errors detected in stderr', { level: 'error' });
+      await log('Stderr errors:', { level: 'error' });
+      for (const err of stderrErrors.slice(0, 5)) {
+        await log(`   ${err.substring(0, 200)}`, { level: 'error' });
       }
     }
 
