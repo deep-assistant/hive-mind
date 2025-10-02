@@ -49,6 +49,6 @@
   "dependencies": {
     "@sentry/node": "^10.15.0",
     "@sentry/profiling-node": "^10.15.0",
-    "telegraf": "^4.12.3"
+    "telegraf": "^4.16.3"
   }
 }
