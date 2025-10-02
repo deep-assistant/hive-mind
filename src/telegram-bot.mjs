@@ -215,7 +215,8 @@ bot.command('solve', async (ctx) => {
     return;
   }
 
-  await ctx.reply(`🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  const requester = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name || 'Unknown';
+  await ctx.reply(`🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
   const result = await executeStartScreen('solve', args);
 
@@ -225,9 +226,7 @@ bot.command('solve', async (ctx) => {
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
     let response = `✅ Solve command started successfully!\n\n`;
-    response += `📊 *Session:* \`${sessionName}\`\n\n`;
-    response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
-    response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
+    response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
@@ -257,7 +256,8 @@ bot.command('hive', async (ctx) => {
     return;
   }
 
-  await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  const requester = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name || 'Unknown';
+  await ctx.reply(`🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
   const result = await executeStartScreen('hive', args);
 
@@ -267,9 +267,7 @@ bot.command('hive', async (ctx) => {
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
     let response = `✅ Hive command started successfully!\n\n`;
-    response += `📊 *Session:* \`${sessionName}\`\n\n`;
-    response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
-    response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
+    response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
