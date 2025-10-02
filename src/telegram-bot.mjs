@@ -1,70 +1,73 @@
 #!/usr/bin/env node
-// telegram-bot.mjs - Telegram bot for SwarmMindBot
 
-import { Telegraf } from 'telegraf';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+if (typeof use === 'undefined') {
+  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+}
 
-const execAsync = promisify(exec);
+const { $ } = await use('command-stream');
 
-// Get bot token from environment variable
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const dotenvxModule = await use('@dotenvx/dotenvx');
+const dotenvx = dotenvxModule.default || dotenvxModule;
+
+dotenvx.config({ quiet: true });
+
+const yargsModule = await use('yargs@17.7.2');
+const yargs = yargsModule.default || yargsModule;
+const { hideBin } = await use('yargs@17.7.2/helpers');
+
+const argv = yargs(hideBin(process.argv))
+  .usage('Usage: hive-telegram-bot [options]')
+  .option('token', {
+    type: 'string',
+    description: 'Telegram bot token from @BotFather',
+    alias: 't'
+  })
+  .option('allowed-chats', {
+    type: 'string',
+    description: 'Comma-separated list of allowed chat IDs',
+    alias: 'a'
+  })
+  .help('h')
+  .alias('h', 'help')
+  .parse();
+
+const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 
 if (!BOT_TOKEN) {
-  console.error('Error: TELEGRAM_BOT_TOKEN environment variable is not set');
+  console.error('Error: TELEGRAM_BOT_TOKEN environment variable or --token option is not set');
   console.error('Please set it with: export TELEGRAM_BOT_TOKEN=your_bot_token');
+  console.error('Or use: hive-telegram-bot --token your_bot_token');
   process.exit(1);
 }
 
-// Create bot instance
+const telegrafModule = await use('telegraf@4.12.3');
+const { Telegraf } = telegrafModule;
+
 const bot = new Telegraf(BOT_TOKEN);
 
-// Allowed chat IDs (optional restriction)
-// If TELEGRAM_ALLOWED_CHATS is set, only accept commands from these chat IDs
-const allowedChatsEnv = process.env.TELEGRAM_ALLOWED_CHATS;
-const allowedChats = allowedChatsEnv
-  ? allowedChatsEnv.split(',').map(id => parseInt(id.trim(), 10))
+const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
+const allowedChats = allowedChatsInput
+  ? allowedChatsInput.split(',').map(id => parseInt(id.trim(), 10))
   : null;
 
-/**
- * Check if the chat is authorized
- * @param {number} chatId - The chat ID to check
- * @returns {boolean} Whether the chat is authorized
- */
 function isChatAuthorized(chatId) {
-  // If no allowed chats are configured, all chats are allowed
   if (!allowedChats) {
     return true;
   }
   return allowedChats.includes(chatId);
 }
 
-/**
- * Check if the message is from a group chat
- * @param {object} ctx - Telegraf context
- * @returns {boolean} Whether the message is from a group chat
- */
 function isGroupChat(ctx) {
   const chatType = ctx.chat?.type;
   return chatType === 'group' || chatType === 'supergroup';
 }
 
-/**
- * Execute a command using start-screen
- * @param {string} command - Either 'solve' or 'hive'
- * @param {string[]} args - Command arguments
- * @returns {Promise<{success: boolean, output: string, error?: string}>}
- */
 async function executeStartScreen(command, args) {
   try {
-    // Build the full command
-    // Quote arguments to preserve spaces and special characters
     const quotedArgs = args.map(arg => {
-      // If arg contains spaces or special chars, wrap in single quotes
       if (arg.includes(' ') || arg.includes('&') || arg.includes('|') ||
           arg.includes(';') || arg.includes('$') || arg.includes('*') ||
           arg.includes('?') || arg.includes('(') || arg.includes(')')) {
-        // Escape single quotes within the argument
         return `'${arg.replace(/'/g, "'\\''")}'`;
       }
       return arg;
@@ -74,11 +77,11 @@ async function executeStartScreen(command, args) {
 
     console.log(`Executing: ${fullCommand}`);
 
-    const { stdout, stderr } = await execAsync(fullCommand);
+    const result = await $`${fullCommand}`.text();
 
     return {
       success: true,
-      output: stdout + (stderr ? `\n${stderr}` : '')
+      output: result
     };
   } catch (error) {
     console.error('Error executing start-screen:', error);
@@ -90,20 +93,13 @@ async function executeStartScreen(command, args) {
   }
 }
 
-/**
- * Parse command arguments from message text
- * @param {string} text - Message text
- * @returns {string[]} Array of arguments
- */
 function parseCommandArgs(text) {
-  // Remove the command part (e.g., "/solve ")
   const argsText = text.replace(/^\/\w+\s*/, '');
 
   if (!argsText.trim()) {
     return [];
   }
 
-  // Simple argument parsing - split by spaces but preserve quoted strings
   const args = [];
   let currentArg = '';
   let inQuotes = false;
@@ -135,11 +131,6 @@ function parseCommandArgs(text) {
   return args;
 }
 
-/**
- * Validate that the first argument is a GitHub URL
- * @param {string[]} args - Command arguments
- * @returns {{valid: boolean, error?: string}}
- */
 function validateGitHubUrl(args) {
   if (args.length === 0) {
     return {
@@ -159,7 +150,6 @@ function validateGitHubUrl(args) {
   return { valid: true };
 }
 
-// /help command - works in both private and group chats
 bot.command('help', async (ctx) => {
   const chatId = ctx.chat.id;
   const chatType = ctx.chat.type;
@@ -195,39 +185,31 @@ bot.command('help', async (ctx) => {
   await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// /solve command - only works in group chats
 bot.command('solve', async (ctx) => {
-  // Check if in group chat
   if (!isGroupChat(ctx)) {
     await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
   }
 
-  // Check if chat is authorized
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
     await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
     return;
   }
 
-  // Parse arguments
   const args = parseCommandArgs(ctx.message.text);
 
-  // Validate GitHub URL
   const validation = validateGitHubUrl(args);
   if (!validation.valid) {
     await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown' });
     return;
   }
 
-  // Send initial message
   await ctx.reply(`🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
-  // Execute the command
   const result = await executeStartScreen('solve', args);
 
   if (result.success) {
-    // Parse the output to extract session name
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
@@ -245,39 +227,31 @@ bot.command('solve', async (ctx) => {
   }
 });
 
-// /hive command - only works in group chats
 bot.command('hive', async (ctx) => {
-  // Check if in group chat
   if (!isGroupChat(ctx)) {
     await ctx.reply('❌ The /hive command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
   }
 
-  // Check if chat is authorized
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
     await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
     return;
   }
 
-  // Parse arguments
   const args = parseCommandArgs(ctx.message.text);
 
-  // Validate GitHub URL
   const validation = validateGitHubUrl(args);
   if (!validation.valid) {
     await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown' });
     return;
   }
 
-  // Send initial message
   await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
-  // Execute the command
   const result = await executeStartScreen('hive', args);
 
   if (result.success) {
-    // Parse the output to extract session name
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
@@ -295,7 +269,6 @@ bot.command('hive', async (ctx) => {
   }
 });
 
-// Start the bot
 console.log('🤖 SwarmMindBot is starting...');
 console.log('Bot token:', BOT_TOKEN.substring(0, 10) + '...');
 if (allowedChats) {
@@ -314,7 +287,6 @@ bot.launch()
     process.exit(1);
   });
 
-// Enable graceful stop
 process.once('SIGINT', () => {
   console.log('\n🛑 Received SIGINT, stopping bot...');
   bot.stop('SIGINT');
