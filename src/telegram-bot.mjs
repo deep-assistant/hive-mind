@@ -79,18 +79,26 @@ async function executeStartScreen(command, args) {
 
     console.log(`Executing: ${fullCommand}`);
 
-    const result = await $`${fullCommand}`.text();
+    const commandResult = await $`${fullCommand}`;
 
-    return {
-      success: true,
-      output: result
-    };
+    if (commandResult.code === 0) {
+      return {
+        success: true,
+        output: commandResult.stdout.toString()
+      };
+    } else {
+      return {
+        success: false,
+        output: commandResult.stdout.toString(),
+        error: commandResult.stderr.toString()
+      };
+    }
   } catch (error) {
     console.error('Error executing start-screen:', error);
     return {
       success: false,
-      output: error.stdout || '',
-      error: error.stderr || error.message
+      output: error.stdout ? error.stdout.toString() : '',
+      error: error.stderr ? error.stderr.toString() : error.message
     };
   }
 }
