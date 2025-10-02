@@ -197,13 +197,13 @@ bot.command('help', async (ctx) => {
 
 bot.command('solve', async (ctx) => {
   if (!isGroupChat(ctx)) {
-    await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.');
+    await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.', { reply_to_message_id: ctx.message.message_id });
     return;
   }
 
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
-    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
+    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`, { reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -211,11 +211,11 @@ bot.command('solve', async (ctx) => {
 
   const validation = validateGitHubUrl(args);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown' });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
-  await ctx.reply(`🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  await ctx.reply(`🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`, { reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('solve', args);
 
@@ -229,23 +229,23 @@ bot.command('solve', async (ctx) => {
     response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
     response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
 
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   } else {
     let response = `❌ Error executing solve command:\n\n`;
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   }
 });
 
 bot.command('hive', async (ctx) => {
   if (!isGroupChat(ctx)) {
-    await ctx.reply('❌ The /hive command only works in group chats. Please add this bot to a group and make it an admin.');
+    await ctx.reply('❌ The /hive command only works in group chats. Please add this bot to a group and make it an admin.', { reply_to_message_id: ctx.message.message_id });
     return;
   }
 
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
-    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
+    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`, { reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -253,11 +253,11 @@ bot.command('hive', async (ctx) => {
 
   const validation = validateGitHubUrl(args);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown' });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
-  await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`, { reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('hive', args);
 
@@ -271,11 +271,11 @@ bot.command('hive', async (ctx) => {
     response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
     response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
 
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   } else {
     let response = `❌ Error executing hive command:\n\n`;
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   }
 });
 
