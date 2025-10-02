@@ -181,11 +181,11 @@ bot.command('help', async (ctx) => {
   message += `⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n`;
   message += `🔧 *Available Options:*\n`;
   message += `• \`--fork\` - Fork the repository\n`;
-  message += `• \`--auto-continue\` - Auto-continue on feedback\n`;
+  message += `• \`--auto-continue\` - Continue working on existing pull request to the issue, if exists\n`;
   message += `• \`--attach-logs\` - Attach logs to PR\n`;
   message += `• \`--verbose\` - Verbose output\n`;
   message += `• \`--model <model>\` - Specify AI model (sonnet/opus/haiku)\n`;
-  message += `• \`--think <level>\` - Thinking level (max/medium/min)\n`;
+  message += `• \`--think <level>\` - Thinking level (low/medium/high/max)\n`;
 
   if (allowedChats) {
     message += `\n🔒 *Restricted Mode:* This bot only accepts commands from authorized chats.\n`;
