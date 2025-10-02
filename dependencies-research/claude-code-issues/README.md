@@ -93,7 +93,33 @@ For commands that may run long, increase the timeout:
 timeout: 240000  // 4 minutes
 ```
 
-### 2. Avoid Sudo in Commands
+### 2. Run Sudo Commands in Background (RECOMMENDED)
+**This is the primary workaround for the EPERM timeout issue.**
+
+When executing sudo commands (especially package installations), run them in the background to avoid timeout-related kill EPERM errors:
+
+```bash
+# Instead of:
+sudo apt-get update && sudo apt-get install -y package
+
+# Use background execution:
+sudo apt-get update && sudo apt-get install -y package &
+
+# Or with Claude Code Bash tool:
+# Set run_in_background: true parameter
+```
+
+**Why this works:**
+- Background processes don't trigger the timeout kill mechanism
+- Avoids the EPERM error when trying to kill privileged processes
+- Process can complete naturally without interference
+- Can monitor output using BashOutput tool
+
+**System Prompt Integration:**
+Our system prompt now instructs Claude to:
+> "When running sudo commands (especially package installations like apt-get, yum, npm install, etc.), always run them in the background to avoid timeout issues and permission errors when the process needs to be killed."
+
+### 3. Avoid Sudo in Commands
 When possible, avoid using sudo in commands executed by Claude:
 ```bash
 # Instead of:
@@ -104,7 +130,7 @@ apt-get install package  # If container already has privileges
 # OR pre-install dependencies in Docker image
 ```
 
-### 3. Better Failure Detection (Our Fix)
+### 4. Better Failure Detection (Our Fix)
 Track stderr errors and detect silent failures:
 ```javascript
 // Track stderr errors

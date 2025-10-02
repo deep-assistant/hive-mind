@@ -108,6 +108,7 @@ export const buildSystemPrompt = (params) => {
 General guidelines.
    - When you execute commands, always save their logs to files for easy reading if the output gets large.
    - When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough, if you can set 4 minutes), and once they finish, review the logs in the file.
+   - When running sudo commands (especially package installations like apt-get, yum, npm install, etc.), always run them in the background to avoid timeout issues and permission errors when the process needs to be killed. Use the run_in_background parameter or append & to the command.
    - When CI is failing, make sure you download the logs locally and carefully investigate them.
    - When a code or log file has more than 2500 lines, read it in chunks of 2500 lines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
