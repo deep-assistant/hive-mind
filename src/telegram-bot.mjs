@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
 if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
@@ -7,6 +10,10 @@ if (typeof use === 'undefined') {
 const { $ } = await use('command-stream');
 
 const { lino } = await import('./lino.lib.mjs');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const startScreenPath = join(__dirname, '..', 'start-screen.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -75,9 +82,14 @@ async function executeStartScreen(command, args) {
       return arg;
     }).join(' ');
 
-    const fullCommand = `start-screen ${command} ${quotedArgs}`;
+    const fullCommand = `node ${startScreenPath} ${command} ${quotedArgs}`;
 
-    console.log(`Executing: ${fullCommand}`);
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log(`[VERBOSE] Resolved start-screen path: ${startScreenPath}`);
+      console.log(`[VERBOSE] Executing: ${fullCommand}`);
+    } else {
+      console.log(`Executing: ${fullCommand}`);
+    }
 
     const commandResult = await $`${fullCommand}`;
 
