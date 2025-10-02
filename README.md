@@ -100,6 +100,7 @@ solve <issue-url> [options]
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
+  --auto-continue       Continue work on existing PRs        [default: false]
   --auto-pull-request-creation  Create draft PR before Claude [default: false]
   --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
   --think               Thinking level (low, medium, high, max)  [optional]
