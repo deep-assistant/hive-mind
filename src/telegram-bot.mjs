@@ -6,6 +6,8 @@ if (typeof use === 'undefined') {
 
 const { $ } = await use('command-stream');
 
+const { lino } = await import('./lino.lib.mjs');
+
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
 
@@ -24,7 +26,7 @@ const argv = yargs(hideBin(process.argv))
   })
   .option('allowed-chats', {
     type: 'string',
-    description: 'Comma-separated list of allowed chat IDs',
+    description: 'Allowed chat IDs in lino notation, e.g., "(\n  123456789\n  987654321\n)"',
     alias: 'a'
   })
   .help('h')
@@ -47,7 +49,7 @@ const bot = new Telegraf(BOT_TOKEN);
 
 const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
 const allowedChats = allowedChatsInput
-  ? allowedChatsInput.split(',').map(id => parseInt(id.trim(), 10))
+  ? lino.parseNumericIds(allowedChatsInput)
   : null;
 
 function isChatAuthorized(chatId) {
@@ -271,8 +273,8 @@ bot.command('hive', async (ctx) => {
 
 console.log('🤖 SwarmMindBot is starting...');
 console.log('Bot token:', BOT_TOKEN.substring(0, 10) + '...');
-if (allowedChats) {
-  console.log('Allowed chats:', allowedChats.join(', '));
+if (allowedChats && allowedChats.length > 0) {
+  console.log('Allowed chats (lino):', lino.format(allowedChats));
 } else {
   console.log('Allowed chats: All (no restrictions)');
 }
