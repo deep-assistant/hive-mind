@@ -549,6 +549,7 @@ export const executeClaudeCommand = async (params) => {
     let toolUseCount = 0;
     let lastMessage = '';
     let isOverloadError = false;
+    let stderrErrors = [];
 
   // Build claude command with optional resume flag
   let execCommand;
@@ -731,6 +732,11 @@ export const executeClaudeCommand = async (params) => {
         // Log stderr immediately
         if (errorOutput) {
           await log(errorOutput, { stream: 'stderr' });
+          // Track stderr errors for failure detection
+          const trimmed = errorOutput.trim();
+          if (trimmed && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
+            stderrErrors.push(trimmed);
+          }
         }
       } else if (chunk.type === 'exit') {
         exitCode = chunk.code;
@@ -794,6 +800,34 @@ export const executeClaudeCommand = async (params) => {
           await log('\nTo resume this session, run:');
           await log(`   ${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}`);
         }
+      }
+    }
+
+    // Additional failure detection: if no messages were processed and there were stderr errors,
+    // or if the command produced no output at all, treat it as a failure
+    //
+    // This is critical for detecting "silent failures" where:
+    // 1. Claude CLI encounters an internal error (e.g., "kill EPERM" from timeout)
+    // 2. The error is logged to stderr but exit code is 0 or exit event is never sent
+    // 3. Result: messageCount=0, toolUseCount=0, but stderrErrors has content
+    //
+    // Common cause: sudo commands that timeout
+    // - Timeout triggers process.kill() in Claude CLI
+    // - If child process runs with sudo (root), parent can't kill it → EPERM error
+    // - Error logged to stderr, but command doesn't properly fail
+    //
+    // Workaround (applied in system prompt):
+    // - Instruct Claude to run sudo commands (installations) in background
+    // - Background processes avoid timeout kill mechanism
+    // - Prevents EPERM errors and false success reports
+    //
+    // See: dependencies-research/claude-code-issues/README.md for full details
+    if (!commandFailed && stderrErrors.length > 0 && messageCount === 0 && toolUseCount === 0) {
+      commandFailed = true;
+      await log('\n\n❌ Command failed: No messages processed and errors detected in stderr', { level: 'error' });
+      await log('Stderr errors:', { level: 'error' });
+      for (const err of stderrErrors.slice(0, 5)) {
+        await log(`   ${err.substring(0, 200)}`, { level: 'error' });
       }
     }
 
