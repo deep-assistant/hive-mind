@@ -52,6 +52,8 @@ const allowedChats = allowedChatsInput
   ? lino.parseNumericIds(allowedChatsInput)
   : null;
 
+const activeSessions = new Map();
+
 function isChatAuthorized(chatId) {
   if (!allowedChats) {
     return true;
@@ -62,6 +64,52 @@ function isChatAuthorized(chatId) {
 function isGroupChat(ctx) {
   const chatType = ctx.chat?.type;
   return chatType === 'group' || chatType === 'supergroup';
+}
+
+async function checkScreenSessionExists(sessionName) {
+  try {
+    const result = await $`screen -ls`;
+    const output = result.stdout?.toString() || result.stderr?.toString() || '';
+    return output.includes(sessionName);
+  } catch (error) {
+    return false;
+  }
+}
+
+async function monitorSessions() {
+  const sessionsToRemove = [];
+
+  for (const [sessionName, sessionInfo] of activeSessions.entries()) {
+    const stillExists = await checkScreenSessionExists(sessionName);
+
+    if (!stillExists) {
+      console.log(`Session ${sessionName} has finished. Sending notification to chat ${sessionInfo.chatId}`);
+
+      try {
+        const endTime = new Date();
+        const duration = Math.round((endTime - sessionInfo.startTime) / 1000);
+        const minutes = Math.floor(duration / 60);
+        const seconds = duration % 60;
+
+        let message = `✅ **Work Session Completed**\n\n`;
+        message += `📊 Session: \`${sessionName}\`\n`;
+        message += `⏱️ Duration: ${minutes}m ${seconds}s\n`;
+        message += `🔗 URL: ${sessionInfo.url}\n\n`;
+        message += `The work session has finished. You can now review the results.`;
+
+        await bot.telegram.sendMessage(sessionInfo.chatId, message, { parse_mode: 'Markdown' });
+
+        sessionsToRemove.push(sessionName);
+      } catch (error) {
+        console.error(`Failed to send completion notification for ${sessionName}:`, error);
+        sessionsToRemove.push(sessionName);
+      }
+    }
+  }
+
+  for (const sessionName of sessionsToRemove) {
+    activeSessions.delete(sessionName);
+  }
 }
 
 async function executeStartScreen(command, args) {
@@ -179,6 +227,8 @@ bot.command('help', async (ctx) => {
   message += `Example: \`/hive https://github.com/owner/repo --model sonnet\`\n\n`;
   message += `*/help* - Show this help message\n\n`;
   message += `⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n`;
+  message += `🔔 *Session Notifications:*\n`;
+  message += `The bot automatically monitors work sessions and sends a notification when they finish.\n\n`;
   message += `🔧 *Available Options:*\n`;
   message += `• \`--fork\` - Fork the repository\n`;
   message += `• \`--auto-continue\` - Auto-continue on feedback\n`;
@@ -224,9 +274,17 @@ bot.command('solve', async (ctx) => {
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
+    activeSessions.set(sessionName, {
+      chatId: chatId,
+      startTime: new Date(),
+      url: args[0],
+      command: 'solve'
+    });
+
     let response = `✅ Solve command started successfully!\n\n`;
     response += `📊 *Session:* \`${sessionName}\`\n\n`;
     response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
+    response += `ℹ️ You will receive a notification when the session finishes.\n\n`;
     response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
@@ -266,9 +324,17 @@ bot.command('hive', async (ctx) => {
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
+    activeSessions.set(sessionName, {
+      chatId: chatId,
+      startTime: new Date(),
+      url: args[0],
+      command: 'hive'
+    });
+
     let response = `✅ Hive command started successfully!\n\n`;
     response += `📊 *Session:* \`${sessionName}\`\n\n`;
     response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
+    response += `ℹ️ You will receive a notification when the session finishes.\n\n`;
     response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
@@ -291,6 +357,9 @@ bot.launch()
   .then(() => {
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
+
+    setInterval(monitorSessions, 30000);
+    console.log('📊 Session monitoring started (checking every 30 seconds)');
   })
   .catch((error) => {
     console.error('❌ Failed to start bot:', error);
