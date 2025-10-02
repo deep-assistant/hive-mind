@@ -146,6 +146,12 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
       default: true
     })
+    .option('language', {
+      type: 'string',
+      description: 'Language for prompts and messages (en for English, ru for Russian)',
+      choices: ['en', 'ru'],
+      default: 'en'
+    })
     .help('h')
     .alias('h', 'help');
 };
