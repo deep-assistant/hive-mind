@@ -42,7 +42,7 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-const telegrafModule = await use('telegraf@4.12.3');
+const telegrafModule = await use('telegraf');
 const { Telegraf } = telegrafModule;
 
 const bot = new Telegraf(BOT_TOKEN);
