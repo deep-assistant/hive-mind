@@ -344,6 +344,12 @@ const createYargsConfig = (yargsInstance) => {
       default: 'asc',
       choices: ['asc', 'desc']
     })
+    .option('language', {
+      type: 'string',
+      description: 'Language for prompts and messages (en for English, ru for Russian)',
+      choices: ['en', 'ru'],
+      default: 'en'
+    })
     .help('h')
     .alias('h', 'help');
 };
