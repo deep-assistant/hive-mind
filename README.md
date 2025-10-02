@@ -94,15 +94,29 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus)                  [default: sonnet]
+  --model, -m           Model (sonnet, opus, or full model ID)  [default: sonnet]
   --fork, -f            Fork repo if no write access         [default: false]
   --base-branch, -b     Target branch for PR                  [default: repo default]
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
-  --auto-pull-request-creation  Create draft PR before Claude [default: false]
-  --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
+  --only-prepare-command  Only prepare and print the claude command  [default: false]
+  --skip-claude-check   Skip Claude connection check          [default: false]
+  --auto-pull-request-creation  Create draft PR before Claude [default: true]
+  --attach-logs         Attach logs to PR (⚠️ sensitive)     [default: false]
+  --auto-close-pull-request-on-fail  Close PR on fail         [default: false]
+  --auto-continue       Continue with existing PRs older than threshold  [default: false]
+  --auto-continue-limit, -c  Auto-continue when limit resets  [default: false]
+  --auto-continue-only-on-new-comments  Fail if no new comments  [default: false]
+  --auto-commit-uncommitted-changes  Auto-commit Claude changes  [default: false]
+  --continue-only-on-feedback  Only continue if feedback detected  [default: false]
+  --watch, -w           Monitor for feedback and auto-restart  [default: false]
+  --watch-interval      Feedback check interval (seconds)     [default: 60]
+  --min-disk-space      Minimum disk space in MB              [default: 500]
+  --log-dir, -l         Directory for log files               [default: cwd]
   --think               Thinking level (low, medium, high, max)  [optional]
+  --no-sentry           Disable Sentry error tracking         [default: false]
+  --auto-cleanup        Delete temp directory on completion   [default: true]
 ```
 
 ## 🔧 hive Options
@@ -111,17 +125,34 @@ hive <github-url> [options]
 
   --monitor-tag, -t     Label to monitor                     [default: "help wanted"]
   --all-issues, -a      Monitor all issues (ignore labels)   [default: false]
+  --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
-  --max-issues          Limit processed issues               [default: unlimited]
+  --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
+  --model, -m           Model (sonnet, opus, or full model ID)  [default: sonnet]
   --interval, -i        Poll interval (seconds)              [default: 300]
+  --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
-  --skip-issues-with-prs  Skip issues with existing PRs     [default: false]
-  --pull-requests-per-issue  Number of PRs per issue        [default: 1]
   --dry-run             List issues without processing       [default: false]
+  --skip-claude-check   Skip Claude connection check         [default: false]
   --verbose, -v         Enable verbose logging               [default: false]
   --min-disk-space      Minimum disk space in MB             [default: 500]
-  --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
-  --fork, -f            Fork repos if no write access       [default: false]
+  --auto-cleanup        Clean temp directories on success    [default: false]
+  --fork, -f            Fork repos if no write access        [default: false]
+  --attach-logs         Attach logs to PRs (⚠️ sensitive)    [default: false]
+  --project-number, -pn  GitHub Project number to monitor
+  --project-owner, -po  GitHub Project owner (org or user)
+  --project-status, -ps  Project status column to monitor    [default: "Ready"]
+  --project-mode, -pm   Enable project-based monitoring      [default: false]
+  --youtrack-mode       Enable YouTrack mode instead of GitHub  [default: false]
+  --youtrack-stage      Override YouTrack stage to monitor
+  --youtrack-project    Override YouTrack project code
+  --target-branch, -tb  Target branch for pull requests      [default: repo default]
+  --log-dir, -l         Directory for log files              [default: cwd]
+  --auto-continue       Auto-continue with existing PRs older than 24h  [default: false]
+  --think               Thinking level (low, medium, high, max)  [optional]
+  --no-sentry           Disable Sentry error tracking        [default: false]
+  --watch, -w           Monitor for feedback and auto-restart  [default: false]
+  --issue-order, -o     Order issues by date (asc, desc)     [default: asc]
 ```
 
 ## 🤖 Telegram Bot
