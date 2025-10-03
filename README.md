@@ -123,6 +123,7 @@ hive <github-url> [options]
   --min-disk-space      Minimum disk space in MB             [default: 500]
   --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
   --fork, -f            Fork repos if no write access       [default: false]
+  --auto-continue       Continue work on existing PRs (24h+) [default: false]
 ```
 
 ## 🤖 Telegram Bot
