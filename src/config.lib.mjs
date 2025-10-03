@@ -61,6 +61,8 @@ export const retryLimits = {
   maxVerifyRetries: parseIntWithDefault('HIVE_MIND_MAX_VERIFY_RETRIES', 5),
   maxApiRetries: parseIntWithDefault('HIVE_MIND_MAX_API_RETRIES', 3),
   retryBackoffMultiplier: parseFloatWithDefault('HIVE_MIND_RETRY_BACKOFF_MULTIPLIER', 2),
+  max503Retries: parseIntWithDefault('HIVE_MIND_MAX_503_RETRIES', 3),
+  initial503RetryDelayMs: parseIntWithDefault('HIVE_MIND_INITIAL_503_RETRY_DELAY_MS', 5 * 60 * 1000), // 5 minutes
 };
 
 // File and path configurations
