@@ -198,7 +198,6 @@ if (autoContinueResult.isContinueMode) {
   prNumber = autoContinueResult.prNumber;
   prBranch = autoContinueResult.prBranch;
   issueNumber = autoContinueResult.issueNumber;
-
   // Only check PR details if we have a PR number
   if (prNumber) {
     // Store PR info globally for error handlers
@@ -283,13 +282,10 @@ if (isPrUrl) {
         await log('   Will clone fork repository for continue mode', { verbose: true });
       }
     }
-
     await log(`📝 PR branch: ${prBranch}`);
-
     // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
     const prBody = prData.body || '';
     const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
-
     if (issueMatch) {
       issueNumber = issueMatch[1];
       await log(`🔗 Found linked issue #${issueNumber}`);
@@ -316,7 +312,6 @@ if (isPrUrl) {
 }
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
-
 // Populate cleanup context for signal handlers
 cleanupContext.tempDir = tempDir;
 cleanupContext.argv = argv;
@@ -367,10 +362,8 @@ try {
     await safeExit(1, 'Default branch detection failed');
   }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
-
   // Ensure we're on a clean default branch
   const statusResult = await $({ cwd: tempDir })`git status --porcelain`;
-
   if (statusResult.code !== 0) {
     await log('Error: Failed to check git status');
     await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
@@ -384,11 +377,9 @@ try {
     await log(`Status output: ${statusOutput}`);
     await safeExit(1, 'Repository has uncommitted changes after clone');
   }
-
   // Create a branch for the issue or checkout existing PR branch
   let branchName;
   let checkoutResult;
-  
   if (isContinueMode && prBranch) {
     // Continue mode: checkout existing PR branch
     branchName = prBranch;

@@ -306,7 +306,6 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
   // Check for existing branches in the repository (main repo or fork)
   let existingBranches = [];
-  const targetRepo = argv.fork ? null : `${owner}/${repo}`; // Will determine fork repo below if needed
 
   if (argv.fork) {
     // When in fork mode, check for existing branches in the fork
