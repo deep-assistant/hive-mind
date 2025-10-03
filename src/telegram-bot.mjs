@@ -79,35 +79,29 @@ async function findStartScreenCommand() {
 
 async function executeStartScreen(command, args) {
   try {
-    // Try start-screen command first
-    let startScreenCmd = 'start-screen';
-    let cmdResolved = false;
-
-    const result = await executeWithCommand(startScreenCmd, command, args);
-
-    if (result.success || !result.error?.includes('not found')) {
-      return result;
-    }
-
-    // Fallback: try to find start-screen with which
-    if (process.env.TELEGRAM_BOT_VERBOSE) {
-      console.log('[VERBOSE] start-screen not found in PATH, trying which...');
-    }
-
+    // Check if start-screen is available BEFORE first execution
     const whichPath = await findStartScreenCommand();
-    if (whichPath) {
-      if (process.env.TELEGRAM_BOT_VERBOSE) {
-        console.log(`[VERBOSE] Found start-screen at: ${whichPath}`);
-      }
-      startScreenCmd = whichPath;
-      cmdResolved = true;
-      return await executeWithCommand(startScreenCmd, command, args);
-    } else {
-      console.warn('⚠️  WARNING: start-screen command not found in PATH');
-      console.warn('    Please ensure @deep-assistant/hive-mind is properly installed');
-      console.warn('    You may need to run: npm install -g @deep-assistant/hive-mind');
-      return result; // Return original error
+
+    if (!whichPath) {
+      const warningMsg = '⚠️  WARNING: start-screen command not found in PATH\n' +
+                        'Please ensure @deep-assistant/hive-mind is properly installed\n' +
+                        'You may need to run: npm install -g @deep-assistant/hive-mind';
+      console.warn(warningMsg);
+
+      // Still try to execute with 'start-screen' in case it's available in PATH but 'which' failed
+      return {
+        success: false,
+        warning: warningMsg,
+        error: 'start-screen command not found in PATH'
+      };
     }
+
+    // Use the resolved path from which
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log(`[VERBOSE] Found start-screen at: ${whichPath}`);
+    }
+
+    return await executeWithCommand(whichPath, command, args);
   } catch (error) {
     console.error('Error executing start-screen:', error);
     return {
@@ -287,6 +281,11 @@ bot.command('solve', async (ctx) => {
 
   const result = await executeStartScreen('solve', args);
 
+  if (result.warning) {
+    await ctx.reply(`⚠️  ${result.warning}`, { parse_mode: 'Markdown' });
+    return;
+  }
+
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
@@ -328,6 +327,11 @@ bot.command('hive', async (ctx) => {
   await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
   const result = await executeStartScreen('hive', args);
+
+  if (result.warning) {
+    await ctx.reply(`⚠️  ${result.warning}`, { parse_mode: 'Markdown' });
+    return;
+  }
 
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
