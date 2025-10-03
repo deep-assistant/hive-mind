@@ -304,6 +304,50 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
   const issueNumber = urlNumber;
   await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
 
+  // When in fork mode, also check for existing branches in the fork
+  let forkBranches = [];
+  if (argv.fork) {
+    try {
+      // Get current user to determine fork name
+      const userResult = await $`gh api user --jq .login`;
+      if (userResult.code === 0) {
+        const currentUser = userResult.stdout.toString().trim();
+        const forkRepo = `${currentUser}/${repo}`;
+
+        // Check if fork exists
+        const forkCheckResult = await $`gh repo view ${forkRepo} --json name 2>/dev/null`;
+        if (forkCheckResult.code === 0) {
+          await log(`🔍 Fork mode: Checking for existing branches in ${forkRepo}...`);
+
+          // List all branches in the fork that match the pattern issue-{issueNumber}-*
+          const branchPattern = `issue-${issueNumber}-`;
+          const branchListResult = await $`gh api repos/${forkRepo}/branches --jq '.[].name'`;
+
+          if (branchListResult.code === 0) {
+            const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
+            forkBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+
+            if (forkBranches.length > 0) {
+              await log(`📋 Found ${forkBranches.length} existing branch(es) in fork matching pattern '${branchPattern}*':`);
+              for (const branch of forkBranches) {
+                await log(`  • ${branch}`);
+              }
+            }
+          }
+        }
+      }
+    } catch (forkBranchError) {
+      reportError(forkBranchError, {
+        context: 'check_fork_branches',
+        owner,
+        repo,
+        issueNumber,
+        operation: 'search_fork_branches'
+      });
+      await log(`⚠️  Warning: Could not check for existing branches in fork: ${forkBranchError.message}`, { level: 'warning' });
+    }
+  }
+
   try {
     // Get all PRs linked to this issue
     const prListResult = await $`gh pr list --repo ${owner}/${repo} --search "linked:issue-${issueNumber}" --json number,createdAt,headRefName,isDraft,state --limit 10`;
@@ -390,6 +434,48 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     });
     await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
     await log('   Continuing with normal flow...');
+  }
+
+  // If no suitable PR was found but we have existing fork branches, use the first one
+  if (forkBranches.length > 0) {
+    // Sort branches by name (newest hash suffix last) and use the most recent one
+    const sortedBranches = forkBranches.sort();
+    const selectedBranch = sortedBranches[sortedBranches.length - 1];
+
+    await log(`✅ Using existing fork branch: ${selectedBranch}`);
+    await log(`   Found ${forkBranches.length} matching branch(es), selected most recent`);
+
+    // Check if there's a PR for this branch
+    try {
+      const prForBranchResult = await $`gh pr list --repo ${owner}/${repo} --head ${selectedBranch} --json number --limit 1`;
+      if (prForBranchResult.code === 0) {
+        const prsForBranch = JSON.parse(prForBranchResult.stdout.toString().trim() || '[]');
+        if (prsForBranch.length > 0) {
+          const existingPrNumber = prsForBranch[0].number;
+          await log(`   Existing PR found: #${existingPrNumber}`);
+
+          return {
+            isContinueMode: true,
+            prNumber: existingPrNumber,
+            prBranch: selectedBranch,
+            issueNumber
+          };
+        }
+      }
+    } catch (prCheckError) {
+      // If we can't check for PR, still continue with the branch
+      await log(`⚠️  Warning: Could not check for existing PR for branch: ${prCheckError.message}`, { level: 'warning' });
+    }
+
+    // No PR exists yet for this branch, but we can still use the branch
+    await log(`   No existing PR for this branch - will create PR from existing branch`);
+
+    return {
+      isContinueMode: true,
+      prNumber: null, // No PR yet
+      prBranch: selectedBranch,
+      issueNumber
+    };
   }
 
   return { isContinueMode: false, issueNumber };
