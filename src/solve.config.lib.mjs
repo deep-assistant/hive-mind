@@ -89,6 +89,11 @@ export const createYargsConfig = (yargsInstance) => {
       default: false,
       alias: 'c'
     })
+    .option('auto-resume-on-errors', {
+      type: 'boolean',
+      description: 'Automatically resume on network errors (503, etc.) with exponential backoff',
+      default: false
+    })
     .option('auto-continue-only-on-new-comments', {
       type: 'boolean',
       description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
@@ -143,8 +148,8 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-cleanup', {
       type: 'boolean',
-      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
-      default: true
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
+      default: undefined
     })
     .help('h')
     .alias('h', 'help');

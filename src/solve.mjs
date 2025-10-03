@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
-
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
@@ -86,7 +85,6 @@ if (!argv.noSentry) {
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
-
   // Add breadcrumb for solve operation
   addBreadcrumb({
     category: 'solve',
@@ -174,6 +172,17 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
+// Detect repository visibility and set auto-cleanup default if not explicitly set
+if (argv.autoCleanup === undefined) {
+  const { detectRepositoryVisibility } = githubLib;
+  const { isPublic } = await detectRepositoryVisibility(owner, repo);
+  // For public repos: keep temp directories (default false)
+  // For private repos: clean up temp directories (default true)
+  argv.autoCleanup = !isPublic;
+  if (argv.verbose) {
+    await log(`   Auto-cleanup default: ${argv.autoCleanup} (repository is ${isPublic ? 'public' : 'private'})`, { verbose: true });
+  }
+}
 // Determine mode and get issue details
 let issueNumber;
 let prNumber;
@@ -189,35 +198,44 @@ if (autoContinueResult.isContinueMode) {
   prNumber = autoContinueResult.prNumber;
   prBranch = autoContinueResult.prBranch;
   issueNumber = autoContinueResult.issueNumber;
-  // Store PR info globally for error handlers
-  global.createdPR = { number: prNumber };
-  // Check if PR is from a fork and get fork owner, merge status, and PR state
-  if (argv.verbose) {
-    await log('   Checking if PR is from a fork...', { verbose: true });
-  }
-  try {
-    const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
-    if (prCheckResult.code === 0) {
-      const prCheckData = JSON.parse(prCheckResult.stdout.toString());
-      // Extract merge status and PR state
-      mergeStateStatus = prCheckData.mergeStateStatus;
-      prState = prCheckData.state;
-      if (argv.verbose) {
-        await log(`   PR state: ${prState || 'UNKNOWN'}`, { verbose: true });
-        await log(`   Merge status: ${mergeStateStatus || 'UNKNOWN'}`, { verbose: true });
-      }
-      if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
-        forkOwner = prCheckData.headRepositoryOwner.login;
-        await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+  // Only check PR details if we have a PR number
+  if (prNumber) {
+    // Store PR info globally for error handlers
+    global.createdPR = { number: prNumber };
+    // Check if PR is from a fork and get fork owner, merge status, and PR state
+    if (argv.verbose) {
+      await log('   Checking if PR is from a fork...', { verbose: true });
+    }
+    try {
+      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
+      if (prCheckResult.code === 0) {
+        const prCheckData = JSON.parse(prCheckResult.stdout.toString());
+        // Extract merge status and PR state
+        mergeStateStatus = prCheckData.mergeStateStatus;
+        prState = prCheckData.state;
         if (argv.verbose) {
-          await log(`   Fork owner: ${forkOwner}`, { verbose: true });
-          await log('   Will clone fork repository for continue mode', { verbose: true });
+          await log(`   PR state: ${prState || 'UNKNOWN'}`, { verbose: true });
+          await log(`   Merge status: ${mergeStateStatus || 'UNKNOWN'}`, { verbose: true });
+        }
+        if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
+          forkOwner = prCheckData.headRepositoryOwner.login;
+          await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+          if (argv.verbose) {
+            await log(`   Fork owner: ${forkOwner}`, { verbose: true });
+            await log('   Will clone fork repository for continue mode', { verbose: true });
+          }
         }
       }
+    } catch (forkCheckError) {
+      if (argv.verbose) {
+        await log(`   Warning: Could not check fork status: ${forkCheckError.message}`, { verbose: true });
+      }
     }
-  } catch (forkCheckError) {
+  } else {
+    // We have a branch but no PR - we'll use the existing branch and create a PR later
+    await log(`🔄 Using existing branch: ${prBranch} (no PR yet - will create one)`);
     if (argv.verbose) {
-      await log(`   Warning: Could not check fork status: ${forkCheckError.message}`, { verbose: true });
+      await log('   Branch will be checked out and PR will be created during auto-PR creation phase', { verbose: true });
     }
   }
 } else if (isIssueUrl) {
@@ -242,7 +260,6 @@ if (isPrUrl) {
       repo,
       jsonFields: 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner'
     });
-
     if (prResult.code !== 0 || !prResult.data) {
       await log('Error: Failed to get PR details', { level: 'error' });
       if (prResult.output.includes('Could not resolve to a PullRequest')) {
@@ -250,15 +267,12 @@ if (isPrUrl) {
       } else {
         await log(`Error: ${prResult.stderr || 'Unknown error'}`, { level: 'error' });
       }
-
       await safeExit(1, 'Failed to get PR details');
     }
-
     const prData = prResult.data;
     prBranch = prData.headRefName;
     mergeStateStatus = prData.mergeStateStatus;
     prState = prData.state;
-
     // Check if this is a fork PR
     if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
       forkOwner = prData.headRepositoryOwner.login;
@@ -268,13 +282,10 @@ if (isPrUrl) {
         await log('   Will clone fork repository for continue mode', { verbose: true });
       }
     }
-
     await log(`📝 PR branch: ${prBranch}`);
-
     // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
     const prBody = prData.body || '';
     const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
-
     if (issueMatch) {
       issueNumber = issueMatch[1];
       await log(`🔗 Found linked issue #${issueNumber}`);
@@ -299,17 +310,13 @@ if (isPrUrl) {
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
-
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
-
 // Populate cleanup context for signal handlers
 cleanupContext.tempDir = tempDir;
 cleanupContext.argv = argv;
-
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
-
 try {
   // Set up repository and handle forking
   const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner);
@@ -318,16 +325,13 @@ try {
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
   // Set up upstream remote and sync fork if needed
   await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
-
   // Set up pr-fork remote if we're continuing someone else's fork PR with --fork flag
   const prForkRemote = await setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode);
-
   // Set up git authentication using gh
   const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
   if (authSetupResult.code !== 0) {
     await log('Note: gh auth setup-git had issues, continuing anyway\n');
   }
-
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
   
@@ -358,10 +362,8 @@ try {
     await safeExit(1, 'Default branch detection failed');
   }
   await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
-
   // Ensure we're on a clean default branch
   const statusResult = await $({ cwd: tempDir })`git status --porcelain`;
-
   if (statusResult.code !== 0) {
     await log('Error: Failed to check git status');
     await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
@@ -375,11 +377,9 @@ try {
     await log(`Status output: ${statusOutput}`);
     await safeExit(1, 'Repository has uncommitted changes after clone');
   }
-
   // Create a branch for the issue or checkout existing PR branch
   let branchName;
   let checkoutResult;
-  
   if (isContinueMode && prBranch) {
     // Continue mode: checkout existing PR branch
     branchName = prBranch;
