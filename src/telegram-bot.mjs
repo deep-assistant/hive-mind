@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { spawn } from 'child_process';
+import { promisify } from 'util';
+import { exec as execCallback } from 'child_process';
+
+const exec = promisify(execCallback);
 
 if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
 
-const { $ } = await use('command-stream');
-
 const { lino } = await import('./lino.lib.mjs');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const startScreenPath = join(__dirname, '..', 'start-screen.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -71,52 +68,111 @@ function isGroupChat(ctx) {
   return chatType === 'group' || chatType === 'supergroup';
 }
 
+async function findStartScreenCommand() {
+  try {
+    const { stdout } = await exec('which start-screen');
+    return stdout.trim();
+  } catch (error) {
+    return null;
+  }
+}
+
 async function executeStartScreen(command, args) {
   try {
-    const quotedArgs = args.map(arg => {
-      if (arg.includes(' ') || arg.includes('&') || arg.includes('|') ||
-          arg.includes(';') || arg.includes('$') || arg.includes('*') ||
-          arg.includes('?') || arg.includes('(') || arg.includes(')')) {
-        return `'${arg.replace(/'/g, "'\\''")}'`;
-      }
-      return arg;
-    }).join(' ');
+    // Try start-screen command first
+    let startScreenCmd = 'start-screen';
+    let cmdResolved = false;
 
-    const fullCommand = `node ${startScreenPath} ${command} ${quotedArgs}`;
+    const result = await executeWithCommand(startScreenCmd, command, args);
 
-    if (process.env.TELEGRAM_BOT_VERBOSE) {
-      console.log(`[VERBOSE] Resolved start-screen path: ${startScreenPath}`);
-      console.log(`[VERBOSE] Executing: ${fullCommand}`);
-    } else {
-      console.log(`Executing: ${fullCommand}`);
+    if (result.success || !result.error?.includes('not found')) {
+      return result;
     }
 
-    const commandResult = await $`${fullCommand}`;
+    // Fallback: try to find start-screen with which
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log('[VERBOSE] start-screen not found in PATH, trying which...');
+    }
 
-    if (commandResult.code === 0) {
-      return {
-        success: true,
-        output: commandResult.stdout.toString()
-      };
+    const whichPath = await findStartScreenCommand();
+    if (whichPath) {
+      if (process.env.TELEGRAM_BOT_VERBOSE) {
+        console.log(`[VERBOSE] Found start-screen at: ${whichPath}`);
+      }
+      startScreenCmd = whichPath;
+      cmdResolved = true;
+      return await executeWithCommand(startScreenCmd, command, args);
     } else {
-      return {
-        success: false,
-        output: commandResult.stdout.toString(),
-        error: commandResult.stderr.toString()
-      };
+      console.warn('⚠️  WARNING: start-screen command not found in PATH');
+      console.warn('    Please ensure @deep-assistant/hive-mind is properly installed');
+      console.warn('    You may need to run: npm install -g @deep-assistant/hive-mind');
+      return result; // Return original error
     }
   } catch (error) {
     console.error('Error executing start-screen:', error);
     return {
       success: false,
-      output: error.stdout ? error.stdout.toString() : '',
-      error: error.stderr ? error.stderr.toString() : error.message
+      output: '',
+      error: error.message
     };
   }
 }
 
+function executeWithCommand(startScreenCmd, command, args) {
+  return new Promise((resolve) => {
+    const allArgs = [command, ...args];
+
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log(`[VERBOSE] Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
+    } else {
+      console.log(`Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
+    }
+
+    const child = spawn(startScreenCmd, allArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error) => {
+      resolve({
+        success: false,
+        output: stdout,
+        error: error.message
+      });
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({
+          success: true,
+          output: stdout
+        });
+      } else {
+        resolve({
+          success: false,
+          output: stdout,
+          error: stderr || `Command exited with code ${code}`
+        });
+      }
+    });
+  });
+}
+
 function parseCommandArgs(text) {
-  const argsText = text.replace(/^\/\w+\s*/, '');
+  // Use only first line and trim it
+  const firstLine = text.split('\n')[0].trim();
+  const argsText = firstLine.replace(/^\/\w+\s*/, '');
 
   if (!argsText.trim()) {
     return [];
