@@ -174,6 +174,21 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
+
+// Detect repository visibility and set auto-cleanup default if not explicitly set
+if (argv.autoCleanup === undefined) {
+  const { detectRepositoryVisibility } = githubLib;
+  const { isPublic } = await detectRepositoryVisibility(owner, repo);
+
+  // For public repos: keep temp directories (default false)
+  // For private repos: clean up temp directories (default true)
+  argv.autoCleanup = !isPublic;
+
+  if (argv.verbose) {
+    await log(`   Auto-cleanup default: ${argv.autoCleanup} (repository is ${isPublic ? 'public' : 'private'})`, { verbose: true });
+  }
+}
+
 // Determine mode and get issue details
 let issueNumber;
 let prNumber;

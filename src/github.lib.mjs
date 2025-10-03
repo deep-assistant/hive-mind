@@ -1288,6 +1288,48 @@ export async function handlePRNotFoundError({ prNumber, owner, repo, argv, shoul
   }
 }
 
+/**
+ * Detect if a repository is public or private
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @returns {Promise<{isPublic: boolean, visibility: string|null}>} Repository visibility info
+ */
+export async function detectRepositoryVisibility(owner, repo) {
+  try {
+    const visibilityResult = await $`gh api repos/${owner}/${repo} --jq .visibility`;
+
+    if (visibilityResult.code === 0) {
+      const visibility = visibilityResult.stdout.toString().trim();
+      const isPublic = visibility === 'public';
+
+      if (global.verboseMode) {
+        await log(`   Repository visibility: ${visibility}`, { verbose: true });
+      }
+
+      return { isPublic, visibility };
+    }
+
+    // If API call failed, default to assuming public (safer to keep temp directories)
+    if (global.verboseMode) {
+      await log('   Warning: Could not detect repository visibility, defaulting to public', { verbose: true });
+    }
+    return { isPublic: true, visibility: null };
+  } catch (error) {
+    reportError(error, {
+      context: 'detect_repository_visibility',
+      owner,
+      repo,
+      operation: 'get_repo_visibility'
+    });
+
+    // Default to public (safer to keep temp directories on error)
+    if (global.verboseMode) {
+      await log(`   Warning: Error detecting visibility: ${cleanErrorMessage(error)}`, { verbose: true });
+    }
+    return { isPublic: true, visibility: null };
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -1306,5 +1348,6 @@ export default {
   isGitHubUrlType,
   ghPrView,
   ghIssueView,
-  handlePRNotFoundError
+  handlePRNotFoundError,
+  detectRepositoryVisibility
 };
