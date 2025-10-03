@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
-
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
@@ -86,7 +85,6 @@ if (!argv.noSentry) {
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
-
   // Add breadcrumb for solve operation
   addBreadcrumb({
     category: 'solve',
@@ -174,6 +172,17 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
+// Detect repository visibility and set auto-cleanup default if not explicitly set
+if (argv.autoCleanup === undefined) {
+  const { detectRepositoryVisibility } = githubLib;
+  const { isPublic } = await detectRepositoryVisibility(owner, repo);
+  // For public repos: keep temp directories (default false)
+  // For private repos: clean up temp directories (default true)
+  argv.autoCleanup = !isPublic;
+  if (argv.verbose) {
+    await log(`   Auto-cleanup default: ${argv.autoCleanup} (repository is ${isPublic ? 'public' : 'private'})`, { verbose: true });
+  }
+}
 // Determine mode and get issue details
 let issueNumber;
 let prNumber;
@@ -242,7 +251,6 @@ if (isPrUrl) {
       repo,
       jsonFields: 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner'
     });
-
     if (prResult.code !== 0 || !prResult.data) {
       await log('Error: Failed to get PR details', { level: 'error' });
       if (prResult.output.includes('Could not resolve to a PullRequest')) {
@@ -250,15 +258,12 @@ if (isPrUrl) {
       } else {
         await log(`Error: ${prResult.stderr || 'Unknown error'}`, { level: 'error' });
       }
-
       await safeExit(1, 'Failed to get PR details');
     }
-
     const prData = prResult.data;
     prBranch = prData.headRefName;
     mergeStateStatus = prData.mergeStateStatus;
     prState = prData.state;
-
     // Check if this is a fork PR
     if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
       forkOwner = prData.headRepositoryOwner.login;
@@ -299,17 +304,14 @@ if (isPrUrl) {
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
-
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
 
 // Populate cleanup context for signal handlers
 cleanupContext.tempDir = tempDir;
 cleanupContext.argv = argv;
-
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
-
 try {
   // Set up repository and handle forking
   const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner);
@@ -318,16 +320,13 @@ try {
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
   // Set up upstream remote and sync fork if needed
   await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
-
   // Set up pr-fork remote if we're continuing someone else's fork PR with --fork flag
   const prForkRemote = await setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode);
-
   // Set up git authentication using gh
   const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
   if (authSetupResult.code !== 0) {
     await log('Note: gh auth setup-git had issues, continuing anyway\n');
   }
-
   // Verify we're on the default branch and get its name
   const defaultBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
   

@@ -821,7 +821,7 @@ export const executeClaudeCommand = async (params) => {
     // - Background processes avoid timeout kill mechanism
     // - Prevents EPERM errors and false success reports
     //
-    // See: dependencies-research/claude-code-issues/README.md for full details
+    // See: docs/dependencies-research/claude-code-issues/README.md for full details
     if (!commandFailed && stderrErrors.length > 0 && messageCount === 0 && toolUseCount === 0) {
       commandFailed = true;
       await log('\n\n❌ Command failed: No messages processed and errors detected in stderr', { level: 'error' });
