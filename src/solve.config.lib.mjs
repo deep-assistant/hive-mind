@@ -89,6 +89,11 @@ export const createYargsConfig = (yargsInstance) => {
       default: false,
       alias: 'c'
     })
+    .option('auto-resume-on-errors', {
+      type: 'boolean',
+      description: 'Automatically resume on network errors (503, etc.) with exponential backoff',
+      default: false
+    })
     .option('auto-continue-only-on-new-comments', {
       type: 'boolean',
       description: 'Explicitly fail on absence of new comments in auto-continue or continue mode',
