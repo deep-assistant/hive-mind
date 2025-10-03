@@ -317,7 +317,7 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: 'Automatically continue working on issues with existing PRs (older than 24 hours)',
+      description: 'Pass --auto-continue to solve for each issue (continues with existing PRs instead of creating new ones)',
       default: false
     })
     .option('think', {
@@ -539,7 +539,7 @@ if (argv.projectMode) {
 if (argv.skipIssuesWithPrs && argv.autoContinue) {
   await log('❌ Conflicting options: --skip-issues-with-prs and --auto-continue cannot be used together', { level: 'error' });
   await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
-  await log('   --auto-continue: Works on issues with existing PRs (older than 24 hours)', { level: 'error' });
+  await log('   --auto-continue: Continues with existing PRs instead of creating new ones', { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
