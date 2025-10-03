@@ -468,7 +468,7 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     }
 
     // No PR exists yet for this branch, but we can still use the branch
-    await log(`   No existing PR for this branch - will create PR from existing branch`);
+    await log('   No existing PR for this branch - will create PR from existing branch');
 
     return {
       isContinueMode: true,
