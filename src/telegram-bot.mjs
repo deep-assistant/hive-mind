@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
+import { spawn } from 'child_process';
+import { promisify } from 'util';
+import { exec as execCallback } from 'child_process';
+
+const exec = promisify(execCallback);
+
 if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
-
-const { $ } = await use('command-stream');
 
 const { lino } = await import('./lino.lib.mjs');
 
@@ -64,47 +68,105 @@ function isGroupChat(ctx) {
   return chatType === 'group' || chatType === 'supergroup';
 }
 
+async function findStartScreenCommand() {
+  try {
+    const { stdout } = await exec('which start-screen');
+    return stdout.trim();
+  } catch (error) {
+    return null;
+  }
+}
+
 async function executeStartScreen(command, args) {
   try {
-    const quotedArgs = args.map(arg => {
-      if (arg.includes(' ') || arg.includes('&') || arg.includes('|') ||
-          arg.includes(';') || arg.includes('$') || arg.includes('*') ||
-          arg.includes('?') || arg.includes('(') || arg.includes(')')) {
-        return `'${arg.replace(/'/g, "'\\''")}'`;
-      }
-      return arg;
-    }).join(' ');
+    // Check if start-screen is available BEFORE first execution
+    const whichPath = await findStartScreenCommand();
 
-    const fullCommand = `start-screen ${command} ${quotedArgs}`;
+    if (!whichPath) {
+      const warningMsg = '⚠️  WARNING: start-screen command not found in PATH\n' +
+                        'Please ensure @deep-assistant/hive-mind is properly installed\n' +
+                        'You may need to run: npm install -g @deep-assistant/hive-mind';
+      console.warn(warningMsg);
 
-    console.log(`Executing: ${fullCommand}`);
-
-    const commandResult = await $`${fullCommand}`;
-
-    if (commandResult.code === 0) {
-      return {
-        success: true,
-        output: commandResult.stdout.toString()
-      };
-    } else {
+      // Still try to execute with 'start-screen' in case it's available in PATH but 'which' failed
       return {
         success: false,
-        output: commandResult.stdout.toString(),
-        error: commandResult.stderr.toString()
+        warning: warningMsg,
+        error: 'start-screen command not found in PATH'
       };
     }
+
+    // Use the resolved path from which
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log(`[VERBOSE] Found start-screen at: ${whichPath}`);
+    }
+
+    return await executeWithCommand(whichPath, command, args);
   } catch (error) {
     console.error('Error executing start-screen:', error);
     return {
       success: false,
-      output: error.stdout ? error.stdout.toString() : '',
-      error: error.stderr ? error.stderr.toString() : error.message
+      output: '',
+      error: error.message
     };
   }
 }
 
+function executeWithCommand(startScreenCmd, command, args) {
+  return new Promise((resolve) => {
+    const allArgs = [command, ...args];
+
+    if (process.env.TELEGRAM_BOT_VERBOSE) {
+      console.log(`[VERBOSE] Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
+    } else {
+      console.log(`Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
+    }
+
+    const child = spawn(startScreenCmd, allArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error) => {
+      resolve({
+        success: false,
+        output: stdout,
+        error: error.message
+      });
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({
+          success: true,
+          output: stdout
+        });
+      } else {
+        resolve({
+          success: false,
+          output: stdout,
+          error: stderr || `Command exited with code ${code}`
+        });
+      }
+    });
+  });
+}
+
 function parseCommandArgs(text) {
-  const argsText = text.replace(/^\/\w+\s*/, '');
+  // Use only first line and trim it
+  const firstLine = text.split('\n')[0].trim();
+  const argsText = firstLine.replace(/^\/\w+\s*/, '');
 
   if (!argsText.trim()) {
     return [];
@@ -219,6 +281,11 @@ bot.command('solve', async (ctx) => {
 
   const result = await executeStartScreen('solve', args);
 
+  if (result.warning) {
+    await ctx.reply(`⚠️  ${result.warning}`, { parse_mode: 'Markdown' });
+    return;
+  }
+
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
@@ -260,6 +327,11 @@ bot.command('hive', async (ctx) => {
   await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
 
   const result = await executeStartScreen('hive', args);
+
+  if (result.warning) {
+    await ctx.reply(`⚠️  ${result.warning}`, { parse_mode: 'Markdown' });
+    return;
+  }
 
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
