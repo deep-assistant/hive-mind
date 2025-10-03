@@ -304,9 +304,12 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
   const issueNumber = urlNumber;
   await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
 
-  // When in fork mode, also check for existing branches in the fork
-  let forkBranches = [];
+  // Check for existing branches in the repository (main repo or fork)
+  let existingBranches = [];
+  const targetRepo = argv.fork ? null : `${owner}/${repo}`; // Will determine fork repo below if needed
+
   if (argv.fork) {
+    // When in fork mode, check for existing branches in the fork
     try {
       // Get current user to determine fork name
       const userResult = await $`gh api user --jq .login`;
@@ -325,11 +328,11 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
           if (branchListResult.code === 0) {
             const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
-            forkBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+            existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
 
-            if (forkBranches.length > 0) {
-              await log(`📋 Found ${forkBranches.length} existing branch(es) in fork matching pattern '${branchPattern}*':`);
-              for (const branch of forkBranches) {
+            if (existingBranches.length > 0) {
+              await log(`📋 Found ${existingBranches.length} existing branch(es) in fork matching pattern '${branchPattern}*':`);
+              for (const branch of existingBranches) {
                 await log(`  • ${branch}`);
               }
             }
@@ -345,6 +348,36 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
         operation: 'search_fork_branches'
       });
       await log(`⚠️  Warning: Could not check for existing branches in fork: ${forkBranchError.message}`, { level: 'warning' });
+    }
+  } else {
+    // NOT in fork mode - check for existing branches in the main repository
+    try {
+      await log(`🔍 Checking for existing branches in ${owner}/${repo}...`);
+
+      // List all branches in the main repo that match the pattern issue-{issueNumber}-*
+      const branchPattern = `issue-${issueNumber}-`;
+      const branchListResult = await $`gh api repos/${owner}/${repo}/branches --jq '.[].name'`;
+
+      if (branchListResult.code === 0) {
+        const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
+        existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+
+        if (existingBranches.length > 0) {
+          await log(`📋 Found ${existingBranches.length} existing branch(es) in main repo matching pattern '${branchPattern}*':`);
+          for (const branch of existingBranches) {
+            await log(`  • ${branch}`);
+          }
+        }
+      }
+    } catch (mainBranchError) {
+      reportError(mainBranchError, {
+        context: 'check_main_repo_branches',
+        owner,
+        repo,
+        issueNumber,
+        operation: 'search_main_repo_branches'
+      });
+      await log(`⚠️  Warning: Could not check for existing branches in main repo: ${mainBranchError.message}`, { level: 'warning' });
     }
   }
 
@@ -436,14 +469,15 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     await log('   Continuing with normal flow...');
   }
 
-  // If no suitable PR was found but we have existing fork branches, use the first one
-  if (forkBranches.length > 0) {
+  // If no suitable PR was found but we have existing branches, use the first one
+  if (existingBranches.length > 0) {
     // Sort branches by name (newest hash suffix last) and use the most recent one
-    const sortedBranches = forkBranches.sort();
+    const sortedBranches = existingBranches.sort();
     const selectedBranch = sortedBranches[sortedBranches.length - 1];
 
-    await log(`✅ Using existing fork branch: ${selectedBranch}`);
-    await log(`   Found ${forkBranches.length} matching branch(es), selected most recent`);
+    const repoType = argv.fork ? 'fork' : 'main repo';
+    await log(`✅ Using existing branch from ${repoType}: ${selectedBranch}`);
+    await log(`   Found ${existingBranches.length} matching branch(es), selected most recent`);
 
     // Check if there's a PR for this branch
     try {
@@ -463,6 +497,13 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
         }
       }
     } catch (prCheckError) {
+      reportError(prCheckError, {
+        context: 'check_pr_for_existing_branch',
+        owner,
+        repo,
+        selectedBranch,
+        operation: 'search_pr_for_branch'
+      });
       // If we can't check for PR, still continue with the branch
       await log(`⚠️  Warning: Could not check for existing PR for branch: ${prCheckError.message}`, { level: 'warning' });
     }

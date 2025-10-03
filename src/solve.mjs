@@ -198,35 +198,45 @@ if (autoContinueResult.isContinueMode) {
   prNumber = autoContinueResult.prNumber;
   prBranch = autoContinueResult.prBranch;
   issueNumber = autoContinueResult.issueNumber;
-  // Store PR info globally for error handlers
-  global.createdPR = { number: prNumber };
-  // Check if PR is from a fork and get fork owner, merge status, and PR state
-  if (argv.verbose) {
-    await log('   Checking if PR is from a fork...', { verbose: true });
-  }
-  try {
-    const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
-    if (prCheckResult.code === 0) {
-      const prCheckData = JSON.parse(prCheckResult.stdout.toString());
-      // Extract merge status and PR state
-      mergeStateStatus = prCheckData.mergeStateStatus;
-      prState = prCheckData.state;
-      if (argv.verbose) {
-        await log(`   PR state: ${prState || 'UNKNOWN'}`, { verbose: true });
-        await log(`   Merge status: ${mergeStateStatus || 'UNKNOWN'}`, { verbose: true });
-      }
-      if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
-        forkOwner = prCheckData.headRepositoryOwner.login;
-        await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+
+  // Only check PR details if we have a PR number
+  if (prNumber) {
+    // Store PR info globally for error handlers
+    global.createdPR = { number: prNumber };
+    // Check if PR is from a fork and get fork owner, merge status, and PR state
+    if (argv.verbose) {
+      await log('   Checking if PR is from a fork...', { verbose: true });
+    }
+    try {
+      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
+      if (prCheckResult.code === 0) {
+        const prCheckData = JSON.parse(prCheckResult.stdout.toString());
+        // Extract merge status and PR state
+        mergeStateStatus = prCheckData.mergeStateStatus;
+        prState = prCheckData.state;
         if (argv.verbose) {
-          await log(`   Fork owner: ${forkOwner}`, { verbose: true });
-          await log('   Will clone fork repository for continue mode', { verbose: true });
+          await log(`   PR state: ${prState || 'UNKNOWN'}`, { verbose: true });
+          await log(`   Merge status: ${mergeStateStatus || 'UNKNOWN'}`, { verbose: true });
+        }
+        if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
+          forkOwner = prCheckData.headRepositoryOwner.login;
+          await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+          if (argv.verbose) {
+            await log(`   Fork owner: ${forkOwner}`, { verbose: true });
+            await log('   Will clone fork repository for continue mode', { verbose: true });
+          }
         }
       }
+    } catch (forkCheckError) {
+      if (argv.verbose) {
+        await log(`   Warning: Could not check fork status: ${forkCheckError.message}`, { verbose: true });
+      }
     }
-  } catch (forkCheckError) {
+  } else {
+    // We have a branch but no PR - we'll use the existing branch and create a PR later
+    await log(`🔄 Using existing branch: ${prBranch} (no PR yet - will create one)`);
     if (argv.verbose) {
-      await log(`   Warning: Could not check fork status: ${forkCheckError.message}`, { verbose: true });
+      await log('   Branch will be checked out and PR will be created during auto-PR creation phase', { verbose: true });
     }
   }
 } else if (isIssueUrl) {
