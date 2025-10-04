@@ -229,13 +229,15 @@ if ! nvm ls 20 | grep -q 'v20'; then
 fi
 nvm use 20
 
-# --- Install Playwright OS dependencies first (as root with full env) ---
-echo "[*] Installing Playwright OS dependencies..."
+# --- Install Playwright OS dependencies first (as root via absolute npx path) ---
+echo "[*] Installing Playwright OS dependencies with npx (requires sudo)..."
 NPX_PATH="$(command -v npx || true)"
 if [ -z "$NPX_PATH" ]; then
   echo "[!] npx not found after Node setup; aborting Playwright deps install."
 else
-  sudo bash -lc "$NPX_PATH playwright install-deps" || {
+  # MINIMAL FIX: ensure root sees the same Node as hive by exporting PATH with node's bin dir
+  NODE_BIN_DIR="$(dirname "$(command -v node)")"
+  sudo env "PATH=$NODE_BIN_DIR:$PATH" "$NPX_PATH" playwright@latest install-deps || {
     echo "[!] Warning: 'npx playwright install-deps' failed. You may need to install deps manually."
   }
 fi
