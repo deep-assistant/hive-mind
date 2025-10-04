@@ -7,38 +7,38 @@
 const feedback = await import('./solve.feedback.lib.mjs');
 const { detectAndCountFeedback } = feedback;
 
+
+
 export async function prepareFeedbackAndTimestamps({
   prNumber,
-  branchName,
+  branchName: _branchName,
   owner,
   repo,
   issueNumber,
-  isContinueMode,
-  mergeStateStatus,
-  prState,
-  argv,
+  isContinueMode: _isContinueMode,
+  mergeStateStatus: _mergeStateStatus,
+  prState: _prState,
+  argv: _argv,
   log,
   formatAligned,
-  cleanErrorMessage,
+  cleanErrorMessage: _cleanErrorMessage,
   $
 }) {
   // Count new comments and detect feedback
-  const feedback = await import('./solve.feedback.lib.mjs');
-  const { detectAndCountFeedback } = feedback;
   let { feedbackLines } = await detectAndCountFeedback({
     prNumber,
-    branchName,
+    branchName: _branchName,
     owner,
     repo,
     issueNumber,
-    isContinueMode,
-    argv,
-    mergeStateStatus,
-    prState,
+    isContinueMode: _isContinueMode,
+    argv: _argv,
+    mergeStateStatus: _mergeStateStatus,
+    prState: _prState,
     workStartTime: null, // Will be set by session management
     log,
     formatAligned,
-    cleanErrorMessage,
+    cleanErrorMessage: _cleanErrorMessage,
     $
   });
 
@@ -120,7 +120,8 @@ export async function prepareFeedbackAndTimestamps({
 export async function checkUncommittedChanges({
   tempDir,
   argv,
-  log
+  log,
+  $
 }) {
   // Check for uncommitted changes before running Claude
   // Only add to feedback if auto-commit is disabled

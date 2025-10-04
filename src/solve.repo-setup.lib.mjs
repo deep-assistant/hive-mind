@@ -11,7 +11,7 @@ export async function setupRepositoryAndClone({
   tempDir,
   isContinueMode,
   log,
-  formatAligned,
+  formatAligned: _formatAligned,
   $
 }) {
   // Set up repository and handle forking
@@ -86,7 +86,7 @@ export async function verifyDefaultBranchAndStatus({
     await log('     • Git command issues');
     await log('');
     await log('  🔧 How to fix:');
-    await log(`     1. Check repository: gh repo view ${owner}/${repo}`);
+    await log('     1. Check repository status');
     await log(`     2. Verify locally: cd ${tempDir} && git branch`);
     await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
     await log('');

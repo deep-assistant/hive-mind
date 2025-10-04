@@ -12,15 +12,13 @@ export async function handleAutoPrCreation({
   repo,
   defaultBranch,
   forkedRepo,
-  prForkOwner,
   isContinueMode,
   log,
   formatAligned,
   $,
   reportError,
   path,
-  fs,
-  crypto
+  fs
 }) {
   if (!argv.autoPullRequestCreation || isContinueMode) {
     return null;

@@ -56,17 +56,15 @@ const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrl
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const { processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
-const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSync, setupPrForkRemote, checkoutPrBranch, cleanupTempDirectory } = repository;
+const { setupTempDirectory, cleanupTempDirectory } = repository;
 const results = await import('./solve.results.lib.mjs');
 const { cleanupClaudeFile, showSessionSummary, verifyResults } = results;
 const claudeLib = await import('./claude.lib.mjs');
 const { executeClaude } = claudeLib;
-const feedback = await import('./solve.feedback.lib.mjs');
-const { detectAndCountFeedback } = feedback;
+
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
 const { createUncaughtExceptionHandler, createUnhandledRejectionHandler, handleMainExecutionError } = errorHandlers;
-const branchErrors = await import('./solve.branch-errors.lib.mjs');
-const { handleBranchCheckoutError, handleBranchCreationError, handleBranchVerificationError } = branchErrors;
+
 const watchLib = await import('./solve.watch.lib.mjs');
 const { startWatchMode } = watchLib;
 const exitHandler = await import('./exit-handler.lib.mjs');
@@ -340,7 +338,7 @@ cleanupContext.argv = argv;
 let limitReached = false;
 try {
   // Set up repository and clone using the new module
-  const { repoToClone, forkedRepo, upstreamRemote, prForkRemote, prForkOwner } = await setupRepositoryAndClone({
+  const { forkedRepo } = await setupRepositoryAndClone({
     argv,
     owner,
     repo,
@@ -395,15 +393,13 @@ try {
     repo,
     defaultBranch,
     forkedRepo,
-    prForkOwner,
     isContinueMode,
     log,
     formatAligned,
     $,
     reportError,
     path,
-    fs,
-    crypto
+    fs
   });
 
   if (autoPrResult) {
@@ -1073,7 +1069,7 @@ ${prBody}`, { verbose: true });
   // Now we have the PR URL if one was created
 
   // Start work session using the new module
-  const workStartTime = await startWorkSession({
+  await startWorkSession({
     isContinueMode,
     prNumber,
     argv,
@@ -1099,6 +1095,9 @@ ${prBody}`, { verbose: true });
     $
   });
 
+  // Initialize feedback lines
+  let feedbackLines = null;
+
   // Merge feedback lines
   if (preparedFeedbackLines && preparedFeedbackLines.length > 0) {
     if (!feedbackLines) {
@@ -1111,7 +1110,8 @@ ${prBody}`, { verbose: true });
   const uncommittedFeedbackLines = await checkUncommittedChanges({
     tempDir,
     argv,
-    log
+    log,
+    $
   });
   if (uncommittedFeedbackLines && uncommittedFeedbackLines.length > 0) {
     if (!feedbackLines) {
