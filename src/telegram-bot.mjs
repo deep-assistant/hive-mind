@@ -49,7 +49,11 @@ if (!BOT_TOKEN) {
 const telegrafModule = await use('telegraf');
 const { Telegraf } = telegrafModule;
 
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new Telegraf(BOT_TOKEN, {
+  // Remove the default 90-second timeout for message handlers
+  // This is important because command handlers (like /solve) spawn long-running processes
+  handlerTimeout: Infinity
+});
 
 const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
 const allowedChats = allowedChatsInput
@@ -351,6 +355,20 @@ bot.command('hive', async (ctx) => {
   }
 });
 
+// Add global error handler for uncaught errors in middleware
+bot.catch((error, ctx) => {
+  console.error('Unhandled error while processing update', ctx.update.update_id);
+  console.error('Error:', error);
+
+  // Try to notify the user about the error
+  if (ctx?.reply) {
+    ctx.reply('❌ An error occurred while processing your request. Please try again or contact support.')
+      .catch(replyError => {
+        console.error('Failed to send error message to user:', replyError);
+      });
+  }
+});
+
 console.log('🤖 SwarmMindBot is starting...');
 console.log('Bot token:', BOT_TOKEN.substring(0, 10) + '...');
 if (allowedChats && allowedChats.length > 0) {
@@ -366,6 +384,11 @@ bot.launch()
   })
   .catch((error) => {
     console.error('❌ Failed to start bot:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n')
+    });
     process.exit(1);
   });
 
