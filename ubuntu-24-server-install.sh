@@ -229,14 +229,13 @@ if ! nvm ls 20 | grep -q 'v20'; then
 fi
 nvm use 20
 
-# --- Install Playwright OS dependencies first (as root via absolute npx path) ---
-echo "[*] Installing Playwright OS dependencies with npx (requires sudo)..."
+# --- Install Playwright OS dependencies first (as root with full env) ---
+echo "[*] Installing Playwright OS dependencies..."
 NPX_PATH="$(command -v npx || true)"
 if [ -z "$NPX_PATH" ]; then
   echo "[!] npx not found after Node setup; aborting Playwright deps install."
 else
-  # Use absolute path under sudo so it works with sudoers secure_path
-  sudo "$NPX_PATH" playwright@latest install-deps || {
+  sudo bash -lc "$NPX_PATH playwright install-deps" || {
     echo "[!] Warning: 'npx playwright install-deps' failed. You may need to install deps manually."
   }
 fi
