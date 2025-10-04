@@ -30,7 +30,7 @@ apt_cleanup() {
   echo "[*] Cleaning up apt cache..."
   sudo apt-get clean
   sudo apt-get autoclean
-  sudo apt-get autoremove
+  sudo apt-get autoremove -y
   sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 }
 
@@ -130,7 +130,7 @@ create_swap_file() {
     if [ ! -f /etc/fstab.backup ]; then
       sudo cp /etc/fstab /etc/fstab.backup
     fi
-    echo "$new_swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+    echo "$new_swapfile none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
   fi
 
   # Verify swap is active and show final status
@@ -165,10 +165,10 @@ if ! command -v gh &>/dev/null; then
   # Use official installation method from GitHub CLI maintainers
   sudo mkdir -p -m 755 /etc/apt/keyrings
   out=$(mktemp)
-  wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg
-  cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+  wget -nv -O"$out" https://cli.github.com/packages/githubcli-archive-keyring.gpg
+  cat "$out" | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
   sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-  rm -f $out
+  rm -f "$out"
 
   sudo mkdir -p -m 755 /etc/apt/sources.list.d
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -235,7 +235,7 @@ NPX_PATH="$(command -v npx || true)"
 if [ -z "$NPX_PATH" ]; then
   echo "[!] npx not found after Node setup; aborting Playwright deps install."
 else
-  # MINIMAL FIX: ensure root sees the same Node as hive by exporting PATH with node's bin dir
+  # Ensure root sees the same Node as hive by exporting PATH with node's bin dir
   NODE_BIN_DIR="$(dirname "$(command -v node)")"
   sudo env "PATH=$NODE_BIN_DIR:$PATH" "$NPX_PATH" playwright@latest install-deps || {
     echo "[!] Warning: 'npx playwright install-deps' failed. You may need to install deps manually."
@@ -258,7 +258,7 @@ fi
 
 # --- Now install Playwright browsers (after deps to avoid warnings) ---
 echo "[*] Installing Playwright browsers..."
-# MINIMAL FIX: ensure CLI exists to avoid npx "no deps" warning
+# Ensure CLI exists so we don't get the npx "install without dependencies" banner
 if ! command -v playwright >/dev/null 2>&1; then
   echo "[*] Installing Playwright CLI globally to avoid npx warning..."
   npm install -g @playwright/test
@@ -307,7 +307,17 @@ git config --global user.name "$(gh api user --jq .login)"
 git config --global user.email "$(gh api user/emails --jq '.[] | select(.primary==true).email')"
 gh auth setup-git
 
-(cd ~ && git clone https://github.com/deep-assistant/hive-mind || true)
+# --- Clone or update hive-mind repo (idempotent, no fatal logs) ---
+REPO_DIR="$HOME/hive-mind"
+if [ -d "$REPO_DIR/.git" ]; then
+  echo "[*] Updating existing hive-mind repository..."
+  git -C "$REPO_DIR" fetch --all --prune || echo "[!] Warning: fetch failed (continuing)."
+  git -C "$REPO_DIR" pull --ff-only || echo "[!] Warning: pull failed (continuing)."
+elif [ -d "$REPO_DIR" ]; then
+  echo "[!] Directory '$REPO_DIR' exists but is not a git repo; skipping clone."
+else
+  (cd "$HOME" && git clone https://github.com/deep-assistant/hive-mind) || echo "[!] Warning: clone failed (continuing)."
+fi
 
 EOF_HIVE
 
