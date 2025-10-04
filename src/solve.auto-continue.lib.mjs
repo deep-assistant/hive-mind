@@ -323,7 +323,7 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
           // List all branches in the fork that match the pattern issue-{issueNumber}-*
           const branchPattern = `issue-${issueNumber}-`;
-          const branchListResult = await $`gh api repos/${forkRepo}/branches --jq '.[].name'`;
+          const branchListResult = await $`gh api --paginate repos/${forkRepo}/branches --jq '.[].name'`;
 
           if (branchListResult.code === 0) {
             const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
@@ -355,7 +355,7 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
       // List all branches in the main repo that match the pattern issue-{issueNumber}-*
       const branchPattern = `issue-${issueNumber}-`;
-      const branchListResult = await $`gh api repos/${owner}/${repo}/branches --jq '.[].name'`;
+      const branchListResult = await $`gh api --paginate repos/${owner}/${repo}/branches --jq '.[].name'`;
 
       if (branchListResult.code === 0) {
         const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
