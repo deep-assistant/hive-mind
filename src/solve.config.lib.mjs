@@ -174,8 +174,7 @@ export const parseArguments = async (yargs, hideBin) => {
   // Post-processing: Fix model default for opencode tool
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
   // so we need to handle this manually after parsing
-  const rawArgsString = rawArgs.join(' ');
-  const modelExplicitlyProvided = rawArgsString.includes('--model') || rawArgsString.includes('-m');
+  const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
 
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode
