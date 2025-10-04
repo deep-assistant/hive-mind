@@ -25,9 +25,9 @@ export const mapModelToId = (model) => {
     'sonnet': 'anthropic/claude-3-5-sonnet',
     'opus': 'anthropic/claude-3-opus',
     'gemini': 'google/gemini-pro',
-    'grok': 'opencode/grok-code',
-    'grok-code': 'opencode/grok-code',
-    'grok-code-fast-1': 'opencode/grok-code',
+    'grok': 'xai/grok-code-fast-1',
+    'grok-code': 'xai/grok-code-fast-1',
+    'grok-code-fast-1': 'xai/grok-code-fast-1',
   };
 
   // Return mapped model ID if it's an alias, otherwise return as-is
