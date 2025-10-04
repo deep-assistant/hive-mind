@@ -169,5 +169,18 @@ export const createYargsConfig = (yargsInstance) => {
 // Parse command line arguments - now needs yargs and hideBin passed in
 export const parseArguments = async (yargs, hideBin) => {
   const rawArgs = hideBin(process.argv);
-  return await createYargsConfig(yargs(rawArgs)).argv;
+  const argv = await createYargsConfig(yargs(rawArgs)).argv;
+
+  // Post-processing: Fix model default for opencode tool
+  // Yargs doesn't properly handle dynamic defaults based on other arguments,
+  // so we need to handle this manually after parsing
+  const rawArgsString = rawArgs.join(' ');
+  const modelExplicitlyProvided = rawArgsString.includes('--model') || rawArgsString.includes('-m');
+
+  if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for opencode
+    argv.model = 'grok-code-fast-1';
+  }
+
+  return argv;
 };
