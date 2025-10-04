@@ -36,17 +36,19 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
       alias: 'n'
     })
-    .option('skip-claude-check', {
+    .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
+      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
       alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
+      default: (currentParsedArgs) => {
+        // Dynamic default based on tool selection
+        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+      }
     })
     .option('auto-pull-request-creation', {
       type: 'boolean',
@@ -147,6 +149,12 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'boolean',
       description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
       default: undefined
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
     })
     .help('h')
     .alias('h', 'help');

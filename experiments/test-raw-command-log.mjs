@@ -39,7 +39,7 @@ async function testRawCommandLogging() {
   // Test with a mock GitHub URL to see raw command logging
   console.log('2. Testing with mock GitHub URL:');
   const testUrl = 'https://github.com/test/repo/issues/999';
-  const testProcess = spawn('node', [solvePath, testUrl, '--dry-run', '--skip-claude-check'], {
+  const testProcess = spawn('node', [solvePath, testUrl, '--dry-run', '--skip-tool-check'], {
     stdio: 'pipe'
   });
 

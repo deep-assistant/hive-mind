@@ -233,10 +233,16 @@ const createYargsConfig = (yargsInstance) => {
       description: 'List issues that would be processed without actually processing them',
       default: false
     })
-    .option('skip-claude-check', {
+    .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      description: 'Skip tool connection check (useful in CI environments)',
       default: false
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
     })
     .option('verbose', {
       type: 'boolean',
@@ -784,7 +790,8 @@ async function worker(workerId) {
         const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
         const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
-        const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
+        const skipToolCheckFlag = argv.skipToolCheck ? ' --skip-tool-check' : '';
+        const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
         const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
@@ -795,6 +802,9 @@ async function worker(workerId) {
 
         // Build arguments array to avoid shell parsing issues
         const args = [issueUrl, '--model', argv.model];
+        if (argv.tool) {
+          args.push('--tool', argv.tool);
+        }
         if (argv.fork) {
           args.push('--fork');
         }
@@ -813,8 +823,8 @@ async function worker(workerId) {
         if (argv.dryRun) {
           args.push('--dry-run');
         }
-        if (argv.skipClaudeCheck) {
-          args.push('--skip-claude-check');
+        if (argv.skipToolCheck) {
+          args.push('--skip-tool-check');
         }
         if (argv.autoContinue) {
           args.push('--auto-continue');
@@ -830,7 +840,7 @@ async function worker(workerId) {
         }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;

@@ -232,42 +232,74 @@ export const watchForFeedback = async (params) => {
           await log(formatAligned('🔄', 'Restarting:', 'Re-running Claude to handle feedback...'));
         }
 
-        // Import necessary modules for claude execution
-        const claudeExecLib = await import('./claude.lib.mjs');
-        const { executeClaude } = claudeExecLib;
+        // Import necessary modules for tool execution
         const memoryCheck = await import('./memory-check.mjs');
         const { getResourceSnapshot } = memoryCheck;
 
-        // Get claude path
-        const claudePath = argv.claudePath || 'claude';
+        let toolResult;
+        if (argv.tool === 'opencode') {
+          // Use OpenCode
+          const opencodeExecLib = await import('./opencode.lib.mjs');
+          const { executeOpenCode } = opencodeExecLib;
 
-        // Execute Claude directly with the feedback
-        const claudeResult = await executeClaude({
-          issueUrl,
-          issueNumber,
-          prNumber,
-          prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
-          branchName,
-          tempDir,
-          isContinueMode: true,
-          mergeStateStatus,
-          forkedRepo: argv.fork,
-          feedbackLines,
-          owner,
-          repo,
-          argv,
-          log,
-          formatAligned,
-          getResourceSnapshot,
-          claudePath,
-          $
-        });
+          // Get opencode path
+          const opencodePath = argv.opencodePath || 'opencode';
 
-        if (!claudeResult.success) {
-          await log(formatAligned('⚠️', 'Claude execution failed', 'Will retry in next check', 2));
+          toolResult = await executeOpenCode({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            owner,
+            repo,
+            argv,
+            log,
+            formatAligned,
+            getResourceSnapshot,
+            opencodePath,
+            $
+          });
+        } else {
+          // Use Claude (default)
+          const claudeExecLib = await import('./claude.lib.mjs');
+          const { executeClaude } = claudeExecLib;
+
+          // Get claude path
+          const claudePath = argv.claudePath || 'claude';
+
+          toolResult = await executeClaude({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            owner,
+            repo,
+            argv,
+            log,
+            formatAligned,
+            getResourceSnapshot,
+            claudePath,
+            $
+          });
+        }
+
+        if (!toolResult.success) {
+          await log(formatAligned('⚠️', `${argv.tool.toUpperCase()} execution failed`, 'Will retry in next check', 2));
         } else {
           await log('');
-          await log(formatAligned('✅', 'Claude execution completed:', 'Resuming watch mode...'));
+          await log(formatAligned('✅', `${argv.tool.toUpperCase()} execution completed:`, 'Resuming watch mode...'));
         }
 
         // Note: lastCheckTime tracking removed as it was not being used

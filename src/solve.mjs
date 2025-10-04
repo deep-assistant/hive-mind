@@ -60,7 +60,7 @@ const { setupTempDirectory, setupRepository, cloneRepository, setupUpstreamAndSy
 const results = await import('./solve.results.lib.mjs');
 const { cleanupClaudeFile, showSessionSummary, verifyResults } = results;
 const claudeLib = await import('./claude.lib.mjs');
-const { executeClaude, checkForUncommittedChanges } = claudeLib;
+const { executeClaude } = claudeLib;
 const feedback = await import('./solve.feedback.lib.mjs');
 const { detectAndCountFeedback } = feedback;
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
@@ -74,6 +74,15 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
+
+// Conditionally import tool-specific functions after argv is parsed
+let checkForUncommittedChanges;
+if (argv.tool === 'opencode') {
+  const opencodeLib = await import('./opencode.lib.mjs');
+  checkForUncommittedChanges = opencodeLib.checkForUncommittedChanges;
+} else {
+  checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
+}
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
@@ -154,9 +163,9 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
   await safeExit(1, 'Feedback validation failed');
 }
 // Perform all system checks using validation module
-// Skip Claude validation in dry-run mode or when --skip-claude-check is enabled
-const skipClaudeCheck = argv.dryRun || argv.skipClaudeCheck;
-if (!(await performSystemChecks(argv.minDiskSpace || 500, skipClaudeCheck, argv.model))) {
+// Skip tool validation in dry-run mode or when --skip-tool-check is enabled
+const skipToolCheck = argv.dryRun || argv.skipToolCheck;
+if (!(await performSystemChecks(argv.minDiskSpace || 500, skipToolCheck, argv.model, argv))) {
   await safeExit(1, 'System checks failed');
 }
 // URL validation debug logging
@@ -1346,37 +1355,70 @@ ${prBody}`, { verbose: true });
     }
   }
 
-  // Execute Claude command with all prompts and settings
-  const claudeResult = await executeClaude({
-    issueUrl,
-    issueNumber,
-    prNumber,
-    prUrl,
-    branchName,
-    tempDir,
-    isContinueMode,
-    mergeStateStatus,
-    forkedRepo,
-    feedbackLines,
-    forkActionsUrl,
-    owner,
-    repo,
-    argv,
-    log,
-    setLogFile,
-    getLogFile,
-    formatAligned,
-    getResourceSnapshot,
-    claudePath,
-    $
-  });
+  // Execute tool command with all prompts and settings
+  let toolResult;
+  if (argv.tool === 'opencode') {
+    const opencodeLib = await import('./opencode.lib.mjs');
+    const { executeOpenCode } = opencodeLib;
+    const opencodePath = process.env.OPENCODE_PATH || 'opencode';
 
-  const { success, sessionId } = claudeResult;
-  limitReached = claudeResult.limitReached;
+    toolResult = await executeOpenCode({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      opencodePath,
+      $
+    });
+  } else {
+    // Default to Claude
+    const claudeResult = await executeClaude({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      claudePath,
+      $
+    });
+    toolResult = claudeResult;
+  }
+
+  const { success, sessionId } = toolResult;
+  limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
   if (!success) {
-    await safeExit(1, 'Claude execution failed');
+    await safeExit(1, `${argv.tool.toUpperCase()} execution failed`);
   }
 
   // Check for uncommitted changes

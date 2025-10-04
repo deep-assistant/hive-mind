@@ -251,9 +251,9 @@ function testSolveFeedbackLines(prUrl) {
   const solvePath = path.join(__dirname, '..', 'src', 'solve.mjs');
 
   // Debug: Show what command we're running
-  console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose --skip-claude-check`);
+  console.log(`   📝 Running: node solve.mjs "${prUrl}" --dry-run --verbose --skip-tool-check`);
 
-  const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose --skip-claude-check 2>&1`, { silent: true });
+  const solveResult = $(`node ${solvePath} "${prUrl}" --dry-run --verbose --skip-tool-check 2>&1`, { silent: true });
 
   if (solveResult.code !== 0) {
     console.log(`   ⚠️  solve.mjs exited with code ${solveResult.code} (expected for --dry-run)`);
