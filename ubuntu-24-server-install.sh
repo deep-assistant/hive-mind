@@ -244,7 +244,7 @@ fi
 
 # --- Global bun packages ---
 echo "[*] Installing global bun packages..."
-bun install -g @anthropic-ai/claude-code @deep-assistant/claude-profiles @deep-assistant/hive-mind
+bun install -g @deep-assistant/hive-mind @deep-assistant/claude-profiles @anthropic-ai/claude-code @openai/codex @qwen-code/qwen-code
 
 # --- Install Playwright MCP ---
 echo "[*] Installing Playwright MCP server..."
