@@ -72,6 +72,18 @@ const { startWatchMode } = watchLib;
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
 const getResourceSnapshot = memoryCheck.getResourceSnapshot;
+
+// Import new modular components
+const autoPrLib = await import('./solve.auto-pr.lib.mjs');
+const { handleAutoPrCreation } = autoPrLib;
+const repoSetupLib = await import('./solve.repo-setup.lib.mjs');
+const { setupRepositoryAndClone, verifyDefaultBranchAndStatus } = repoSetupLib;
+const branchLib = await import('./solve.branch.lib.mjs');
+const { createOrCheckoutBranch } = branchLib;
+const sessionLib = await import('./solve.session.lib.mjs');
+const { startWorkSession, endWorkSession } = sessionLib;
+const preparationLib = await import('./solve.preparation.lib.mjs');
+const { prepareFeedbackAndTimestamps, checkUncommittedChanges, checkForkActions } = preparationLib;
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
 
@@ -327,177 +339,87 @@ cleanupContext.argv = argv;
 // Initialize limitReached variable outside try block for finally clause
 let limitReached = false;
 try {
-  // Set up repository and handle forking
-  const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner);
+  // Set up repository and clone using the new module
+  const { repoToClone, forkedRepo, upstreamRemote, prForkRemote, prForkOwner } = await setupRepositoryAndClone({
+    argv,
+    owner,
+    repo,
+    forkOwner,
+    tempDir,
+    isContinueMode,
+    log,
+    formatAligned,
+    $
+  });
 
-  // Clone repository and set up remotes
-  await cloneRepository(repoToClone, tempDir, argv, owner, repo);
-  // Set up upstream remote and sync fork if needed
-  await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
-  // Set up pr-fork remote if we're continuing someone else's fork PR with --fork flag
-  const prForkRemote = await setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode);
-  // Set up git authentication using gh
-  const authSetupResult = await $({ cwd: tempDir })`gh auth setup-git 2>&1`;
-  if (authSetupResult.code !== 0) {
-    await log('Note: gh auth setup-git had issues, continuing anyway\n');
-  }
-  // Verify we're on the default branch and get its name
-  const defaultBranchResult = await $({ cwd: tempDir })`git branch --show-current`;
-  
-  if (defaultBranchResult.code !== 0) {
-    await log('Error: Failed to get current branch');
-    await log(defaultBranchResult.stderr ? defaultBranchResult.stderr.toString() : 'Unknown error');
-    await safeExit(1, 'Failed to get current branch');
-  }
-
-  const defaultBranch = defaultBranchResult.stdout.toString().trim();
-  if (!defaultBranch) {
-    await log('');
-    await log(`${formatAligned('❌', 'DEFAULT BRANCH DETECTION FAILED', '')}`, { level: 'error' });
-    await log('');
-    await log('  🔍 What happened:');
-    await log('     Unable to determine the repository\'s default branch.');
-    await log('');
-    await log('  💡 This might mean:');
-    await log('     • Repository is empty (no commits)');
-    await log('     • Unusual repository configuration');
-    await log('     • Git command issues');
-    await log('');
-    await log('  🔧 How to fix:');
-    await log(`     1. Check repository: gh repo view ${owner}/${repo}`);
-    await log(`     2. Verify locally: cd ${tempDir} && git branch`);
-    await log(`     3. Check remote: cd ${tempDir} && git branch -r`);
-    await log('');
-    await safeExit(1, 'Default branch detection failed');
-  }
-  await log(`\n${formatAligned('📌', 'Default branch:', defaultBranch)}`);
-  // Ensure we're on a clean default branch
-  const statusResult = await $({ cwd: tempDir })`git status --porcelain`;
-  if (statusResult.code !== 0) {
-    await log('Error: Failed to check git status');
-    await log(statusResult.stderr ? statusResult.stderr.toString() : 'Unknown error');
-    await safeExit(1, 'Failed to check git status');
-  }
-  
-  // Note: Empty output means clean working directory
-  const statusOutput = statusResult.stdout.toString().trim();
-  if (statusOutput) {
-    await log('Error: Repository has uncommitted changes after clone');
-    await log(`Status output: ${statusOutput}`);
-    await safeExit(1, 'Repository has uncommitted changes after clone');
-  }
-  // Create a branch for the issue or checkout existing PR branch
-  let branchName;
-  let checkoutResult;
-  if (isContinueMode && prBranch) {
-    // Continue mode: checkout existing PR branch
-    branchName = prBranch;
-    checkoutResult = await checkoutPrBranch(tempDir, branchName, prForkRemote, prForkOwner);
-  } else {
-    // Traditional mode: create new branch for issue
-    const randomHex = crypto.randomBytes(4).toString('hex');
-    branchName = `issue-${issueNumber}-${randomHex}`;
-    await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
-    
-    // IMPORTANT: Don't use 2>&1 here as it can interfere with exit codes
-    // Git checkout -b outputs to stderr but that's normal
-    checkoutResult = await $({ cwd: tempDir })`git checkout -b ${branchName}`;
-  }
-
-  if (checkoutResult.code !== 0) {
-    const errorOutput = (checkoutResult.stderr || checkoutResult.stdout || 'Unknown error').toString().trim();
-    await log('');
-
-    if (isContinueMode) {
-      await handleBranchCheckoutError({
-        branchName,
-        prNumber,
-        errorOutput,
-        issueUrl,
-        owner,
-        repo,
-        tempDir,
-        argv,
-        formatAligned,
-        log,
-        $
-      });
-    } else {
-      await handleBranchCreationError({
-        branchName,
-        errorOutput,
-        tempDir,
-        owner,
-        repo,
-        formatAligned,
-        log
-      });
-    }
-    
-    await log('');
-    await log(`  📂 Working directory: ${tempDir}`);
-    await safeExit(1, 'Branch operation failed');
-  }
-  
-  // CRITICAL: Verify the branch was checked out and we switched to it
-  await log(`${formatAligned('🔍', 'Verifying:', isContinueMode ? 'Branch checkout...' : 'Branch creation...')}`);
-  const verifyResult = await $({ cwd: tempDir })`git branch --show-current`;
-  
-  if (verifyResult.code !== 0 || !verifyResult.stdout) {
-    await log('');
-    await log(`${formatAligned('❌', 'BRANCH VERIFICATION FAILED', '')}`, { level: 'error' });
-    await log('');
-    await log('  🔍 What happened:');
-    await log(`     Unable to verify branch after ${isContinueMode ? 'checkout' : 'creation'} attempt.`);
-    await log('');
-    await log('  🔧 Debug commands to try:');
-    await log(`     cd ${tempDir} && git branch -a`);
-    await log(`     cd ${tempDir} && git status`);
-    await log('');
-    await safeExit(1, 'Branch verification failed');
-  }
-  
-  const actualBranch = verifyResult.stdout.toString().trim();
-  if (actualBranch !== branchName) {
-    // Branch wasn't actually created/checked out or we didn't switch to it
-    await handleBranchVerificationError({
-      isContinueMode,
-      branchName,
-      actualBranch,
-      prNumber,
-      owner,
-      repo,
-      tempDir,
-      formatAligned,
-      log,
-      $
-    });
-    await safeExit(1, 'Branch verification mismatch');
-  }
-  
-  if (isContinueMode) {
-    await log(`${formatAligned('✅', 'Branch checked out:', branchName)}`);
-    await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
-    if (argv.verbose) {
-      await log('   Branch operation: Checkout existing PR branch', { verbose: true });
-      await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
-    }
-  } else {
-    await log(`${formatAligned('✅', 'Branch created:', branchName)}`);
-    await log(`${formatAligned('✅', 'Current branch:', actualBranch)}`);
-    if (argv.verbose) {
-      await log('   Branch operation: Create new branch', { verbose: true });
-      await log(`   Branch verification: ${actualBranch === branchName ? 'Matches expected' : 'MISMATCH!'}`, { verbose: true });
-    }
-  }
+  // Verify default branch and status using the new module
+  const defaultBranch = await verifyDefaultBranchAndStatus({
+    tempDir,
+    log,
+    formatAligned,
+    $
+  });
+  // Create or checkout branch using the new module
+  const branchName = await createOrCheckoutBranch({
+    isContinueMode,
+    prBranch,
+    issueNumber,
+    tempDir,
+    defaultBranch,
+    argv,
+    log,
+    formatAligned,
+    $,
+    crypto
+  });
 
   // Initialize PR variables early
   let prUrl = null;
-  
+
   // In continue mode, we already have the PR details
   if (isContinueMode) {
     prUrl = issueUrl; // The input URL is the PR URL
     // prNumber is already set from earlier when we parsed the PR
+  }
+
+  // Don't build the prompt yet - we'll build it after we have all the information
+  // This includes PR URL (if created) and comment info (if in continue mode)
+
+  // Handle auto PR creation using the new module
+  const autoPrResult = await handleAutoPrCreation({
+    argv,
+    tempDir,
+    branchName,
+    issueNumber,
+    owner,
+    repo,
+    defaultBranch,
+    forkedRepo,
+    prForkOwner,
+    isContinueMode,
+    log,
+    formatAligned,
+    $,
+    reportError,
+    path,
+    fs,
+    crypto
+  });
+
+  if (autoPrResult) {
+    prUrl = autoPrResult.prUrl;
+    if (autoPrResult.prNumber) {
+      prNumber = autoPrResult.prNumber;
+    }
+  }
+
+  if (isContinueMode) {
+    await log(`\n${formatAligned('🔄', 'Continue mode:', 'ACTIVE')}`);
+    await log(formatAligned('', 'Using existing PR:', `#${prNumber}`, 2));
+    await log(formatAligned('', 'PR URL:', prUrl, 2));
+  } else if (!argv.autoPullRequestCreation) {
+    await log(`\n${formatAligned('⏭️', 'Auto PR creation:', 'DISABLED')}`);
+    await log(formatAligned('', 'Workflow:', 'AI will create the PR', 2));
   }
   
   // Don't build the prompt yet - we'll build it after we have all the information
@@ -1150,210 +1072,63 @@ ${prBody}`, { verbose: true });
 
   // Now we have the PR URL if one was created
 
-  // Record work start time and convert PR to draft if in continue/watch mode
-  const workStartTime = new Date();
-  if (isContinueMode && prNumber && (argv.watch || argv.autoContinue)) {
-    await log(`\n${formatAligned('🚀', 'Starting work session:', workStartTime.toISOString())}`);
+  // Start work session using the new module
+  const workStartTime = await startWorkSession({
+    isContinueMode,
+    prNumber,
+    argv,
+    log,
+    formatAligned,
+    $
+  });
 
-    // Convert PR back to draft if not already
-    try {
-      const prStatusResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json isDraft --jq .isDraft`;
-      if (prStatusResult.code === 0) {
-        const isDraft = prStatusResult.stdout.toString().trim() === 'true';
-        if (!isDraft) {
-          await log(formatAligned('📝', 'Converting PR:', 'Back to draft mode...', 2));
-          const convertResult = await $`gh pr ready ${prNumber} --repo ${owner}/${repo} --undo`;
-          if (convertResult.code === 0) {
-            await log(formatAligned('✅', 'PR converted:', 'Now in draft mode', 2));
-          } else {
-            await log('Warning: Could not convert PR to draft', { level: 'warning' });
-          }
-        } else {
-          await log(formatAligned('✅', 'PR status:', 'Already in draft mode', 2));
-        }
-      }
-    } catch (error) {
-      reportError(error, {
-        context: 'convert_pr_to_draft',
-        prNumber,
-        operation: 'pr_status_change'
-      });
-      await log('Warning: Could not check/convert PR draft status', { level: 'warning' });
-    }
-
-    // Post a comment marking the start of work session
-    try {
-      const startComment = `🤖 **AI Work Session Started**\n\nStarting automated work session at ${workStartTime.toISOString()}\n\nThe PR has been converted to draft mode while work is in progress.\n\n_This comment marks the beginning of an AI work session. Please wait working session to finish, and provide your feedback._`;
-      const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${startComment}`;
-      if (commentResult.code === 0) {
-        await log(formatAligned('💬', 'Posted:', 'Work session start comment', 2));
-      }
-    } catch (error) {
-      reportError(error, {
-        context: 'post_start_comment',
-        prNumber,
-        operation: 'create_pr_comment'
-      });
-      await log('Warning: Could not post work start comment', { level: 'warning' });
-    }
-  }
-
-  // Count new comments and detect feedback
-  let { feedbackLines } = await detectAndCountFeedback({
+  // Prepare feedback and timestamps using the new module
+  const { feedbackLines: preparedFeedbackLines, referenceTime } = await prepareFeedbackAndTimestamps({
     prNumber,
     branchName,
     owner,
     repo,
     issueNumber,
     isContinueMode,
-    argv,
     mergeStateStatus,
     prState,
-    workStartTime: isContinueMode && (argv.watch || argv.autoContinue) ? workStartTime : null,
+    argv,
     log,
     formatAligned,
     cleanErrorMessage,
     $
   });
 
-  // Get timestamps from GitHub servers before executing the command
-  await log(`${formatAligned('📅', 'Getting timestamps:', 'From GitHub servers...')}`);
-
-  let referenceTime;
-  try {
-    // Get the issue's last update time
-    const issueResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber} --jq .updated_at`;
-
-    if (issueResult.code !== 0) {
-      throw new Error(`Failed to get issue details: ${issueResult.stderr ? issueResult.stderr.toString() : 'Unknown error'}`);
+  // Merge feedback lines
+  if (preparedFeedbackLines && preparedFeedbackLines.length > 0) {
+    if (!feedbackLines) {
+      feedbackLines = [];
     }
-
-    const issueUpdatedAt = new Date(issueResult.stdout.toString().trim());
-    await log(formatAligned('📝', 'Issue updated:', issueUpdatedAt.toISOString(), 2));
-
-    // Get the last comment's timestamp (if any)
-    const commentsResult = await $`gh api repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-    
-    if (commentsResult.code !== 0) {
-      await log(`Warning: Failed to get comments: ${commentsResult.stderr ? commentsResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
-      // Continue anyway, comments are optional
-    }
-    
-    const comments = JSON.parse(commentsResult.stdout.toString().trim() || '[]');
-    const lastCommentTime = comments.length > 0 ? new Date(comments[comments.length - 1].created_at) : null;
-    if (lastCommentTime) {
-      await log(formatAligned('💬', 'Last comment:', lastCommentTime.toISOString(), 2));
-    } else {
-      await log(formatAligned('💬', 'Comments:', 'None found', 2));
-    }
-
-    // Get the most recent pull request's timestamp
-    const prsResult = await $`gh pr list --repo ${owner}/${repo} --limit 1 --json createdAt`;
-    
-    if (prsResult.code !== 0) {
-      await log(`Warning: Failed to get PRs: ${prsResult.stderr ? prsResult.stderr.toString() : 'Unknown error'}`, { level: 'warning' });
-      // Continue anyway, PRs are optional for timestamp calculation
-    }
-    
-    const prs = JSON.parse(prsResult.stdout.toString().trim() || '[]');
-    const lastPrTime = prs.length > 0 ? new Date(prs[0].createdAt) : null;
-    if (lastPrTime) {
-      await log(formatAligned('🔀', 'Recent PR:', lastPrTime.toISOString(), 2));
-    } else {
-      await log(formatAligned('🔀', 'Pull requests:', 'None found', 2));
-    }
-
-    // Use the most recent timestamp as reference
-    referenceTime = issueUpdatedAt;
-    if (lastCommentTime && lastCommentTime > referenceTime) {
-      referenceTime = lastCommentTime;
-    }
-    if (lastPrTime && lastPrTime > referenceTime) {
-      referenceTime = lastPrTime;
-    }
-
-    await log(`\n${formatAligned('✅', 'Reference time:', referenceTime.toISOString())}`);
-  } catch (timestampError) {
-    reportError(timestampError, {
-      context: 'get_reference_timestamp',
-      prNumber,
-      issueNumber,
-      operation: 'fetch_github_timestamps'
-    });
-    await log('Warning: Could not get GitHub timestamps, using current time as reference', { level: 'warning' });
-    await log(`  Error: ${timestampError.message}`);
-    referenceTime = new Date();
-    await log(`  Fallback timestamp: ${referenceTime.toISOString()}`);
+    feedbackLines.push(...preparedFeedbackLines);
   }
 
-  // Check for uncommitted changes before running Claude
-  // Only add to feedback if auto-commit is disabled
-  if (!argv['auto-commit-uncommitted-changes']) {
-    await log('\n🔍 Checking for uncommitted changes to include as feedback...');
-    try {
-      const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
-      if (gitStatusResult.code === 0) {
-        const statusOutput = gitStatusResult.stdout.toString().trim();
-        if (statusOutput) {
-          await log('📝 Found uncommitted changes - adding to feedback');
-
-          // Add uncommitted changes info to feedbackLines
-          if (!feedbackLines) {
-            feedbackLines = [];
-          }
-
-          feedbackLines.push('');
-          feedbackLines.push('⚠️ UNCOMMITTED CHANGES DETECTED:');
-          feedbackLines.push('The following uncommitted changes were found in the repository:');
-          feedbackLines.push('');
-
-          for (const line of statusOutput.split('\n')) {
-            feedbackLines.push(`  ${line}`);
-          }
-
-          feedbackLines.push('');
-          feedbackLines.push('Please review and handle these changes appropriately.');
-          feedbackLines.push('Consider committing important changes or cleaning up unnecessary files.');
-        } else {
-          await log('✅ No uncommitted changes found');
-        }
-      }
-    } catch (gitError) {
-      reportError(gitError, {
-        context: 'check_uncommitted_changes',
-        tempDir,
-        operation: 'git_status'
-      });
-      await log(`⚠️ Warning: Could not check git status: ${gitError.message}`, { level: 'warning' });
+  // Check for uncommitted changes and merge with feedback
+  const uncommittedFeedbackLines = await checkUncommittedChanges({
+    tempDir,
+    argv,
+    log
+  });
+  if (uncommittedFeedbackLines && uncommittedFeedbackLines.length > 0) {
+    if (!feedbackLines) {
+      feedbackLines = [];
     }
+    feedbackLines.push(...uncommittedFeedbackLines);
   }
 
-  // Check for GitHub Actions on fork repository if applicable
-  let forkActionsUrl = null;
-  if (argv.fork && forkedRepo) {
-    try {
-      // Get fork owner from forkedRepo (format: owner/repo)
-      const forkOwner = forkedRepo.split('/')[0];
-      const forkRepo = forkedRepo.split('/')[1];
-
-      // Check if workflows directory exists in the fork
-      const workflowsResult = await $`gh api repos/${forkOwner}/${forkRepo}/contents/.github/workflows --jq '.[].name' 2>/dev/null`;
-
-      if (workflowsResult.code === 0) {
-        const workflows = workflowsResult.stdout.toString().trim();
-        if (workflows) {
-          // Workflows exist, construct the actions URL for the branch
-          forkActionsUrl = `https://github.com/${forkOwner}/${forkRepo}/actions?query=branch%3A${encodeURIComponent(branchName)}`;
-          await log(`${formatAligned('📦', 'Fork workflows detected:', forkActionsUrl)}`);
-        }
-      }
-    } catch {
-      // No workflows or error checking - that's fine, forkActionsUrl stays null
-      if (argv.verbose) {
-        await log('No GitHub Actions workflows found on fork', { verbose: true });
-      }
-    }
-  }
+  // Check for fork actions
+  const forkActionsUrl = await checkForkActions({
+    argv,
+    forkedRepo,
+    branchName,
+    log,
+    formatAligned,
+    $
+  });
 
   // Execute tool command with all prompts and settings
   let toolResult;
@@ -1469,53 +1244,15 @@ ${prBody}`, { verbose: true });
     }
   });
 
-  // Post end work session comment and convert PR back to ready if in continue mode
-  if (isContinueMode && prNumber && (argv.watch || argv.autoContinue)) {
-    const workEndTime = new Date();
-    await log(`\n${formatAligned('🏁', 'Ending work session:', workEndTime.toISOString())}`);
-
-    // Post a comment marking the end of work session
-    try {
-      const endComment = `🤖 **AI Work Session Completed**\n\nWork session ended at ${workEndTime.toISOString()}\n\nThe PR will be converted back to ready for review.\n\n_This comment marks the end of an AI work session. New comments after this time will be considered as feedback._`;
-      const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${endComment}`;
-      if (commentResult.code === 0) {
-        await log(formatAligned('💬', 'Posted:', 'Work session end comment', 2));
-      }
-    } catch (error) {
-      reportError(error, {
-        context: 'post_end_comment',
-        prNumber,
-        operation: 'create_pr_comment'
-      });
-      await log('Warning: Could not post work end comment', { level: 'warning' });
-    }
-
-    // Convert PR back to ready for review
-    try {
-      const prStatusResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json isDraft --jq .isDraft`;
-      if (prStatusResult.code === 0) {
-        const isDraft = prStatusResult.stdout.toString().trim() === 'true';
-        if (isDraft) {
-          await log(formatAligned('🔀', 'Converting PR:', 'Back to ready for review...', 2));
-          const convertResult = await $`gh pr ready ${prNumber} --repo ${owner}/${repo}`;
-          if (convertResult.code === 0) {
-            await log(formatAligned('✅', 'PR converted:', 'Ready for review', 2));
-          } else {
-            await log('Warning: Could not convert PR to ready', { level: 'warning' });
-          }
-        } else {
-          await log(formatAligned('✅', 'PR status:', 'Already ready for review', 2));
-        }
-      }
-    } catch (error) {
-      reportError(error, {
-        context: 'convert_pr_to_ready',
-        prNumber,
-        operation: 'pr_status_change'
-      });
-      await log('Warning: Could not convert PR to ready status', { level: 'warning' });
-    }
-  }
+  // End work session using the new module
+  await endWorkSession({
+    isContinueMode,
+    prNumber,
+    argv,
+    log,
+    formatAligned,
+    $
+  });
 } catch (error) {
   reportError(error, {
     context: 'solve_main',
