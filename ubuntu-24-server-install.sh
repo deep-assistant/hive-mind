@@ -258,7 +258,12 @@ fi
 
 # --- Now install Playwright browsers (after deps to avoid warnings) ---
 echo "[*] Installing Playwright browsers..."
-npx playwright install chromium firefox webkit || {
+# MINIMAL FIX: ensure CLI exists to avoid npx "no deps" warning
+if ! command -v playwright >/dev/null 2>&1; then
+  echo "[*] Installing Playwright CLI globally to avoid npx warning..."
+  npm install -g @playwright/test
+fi
+playwright install chromium firefox webkit || {
   echo "[!] Warning: Failed to install some Playwright browsers. This may affect browser automation."
 }
 
