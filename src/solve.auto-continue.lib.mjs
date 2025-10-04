@@ -478,21 +478,31 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     await log(`✅ Using existing branch from ${repoType}: ${selectedBranch}`);
     await log(`   Found ${existingBranches.length} matching branch(es), selected most recent`);
 
-    // Check if there's a PR for this branch
+    // Check if there's a PR for this branch (including merged/closed PRs)
     try {
-      const prForBranchResult = await $`gh pr list --repo ${owner}/${repo} --head ${selectedBranch} --json number --limit 1`;
+      const prForBranchResult = await $`gh pr list --repo ${owner}/${repo} --head ${selectedBranch} --state all --json number,state --limit 10`;
       if (prForBranchResult.code === 0) {
         const prsForBranch = JSON.parse(prForBranchResult.stdout.toString().trim() || '[]');
         if (prsForBranch.length > 0) {
-          const existingPrNumber = prsForBranch[0].number;
-          await log(`   Existing PR found: #${existingPrNumber}`);
+          // Check if any PR is MERGED or CLOSED
+          const mergedOrClosedPr = prsForBranch.find(pr => pr.state === 'MERGED' || pr.state === 'CLOSED');
+          if (mergedOrClosedPr) {
+            await log(`   Branch ${selectedBranch} has a ${mergedOrClosedPr.state} PR #${mergedOrClosedPr.number} - cannot reuse`);
+            await log(`   Will create a new branch for issue #${issueNumber}`);
+            return { isContinueMode: false, issueNumber };
+          }
 
-          return {
-            isContinueMode: true,
-            prNumber: existingPrNumber,
-            prBranch: selectedBranch,
-            issueNumber
-          };
+          // All PRs are OPEN - find the first open PR
+          const openPr = prsForBranch.find(pr => pr.state === 'OPEN');
+          if (openPr) {
+            await log(`   Existing open PR found: #${openPr.number}`);
+            return {
+              isContinueMode: true,
+              prNumber: openPr.number,
+              prBranch: selectedBranch,
+              issueNumber
+            };
+          }
         }
       }
     } catch (prCheckError) {
