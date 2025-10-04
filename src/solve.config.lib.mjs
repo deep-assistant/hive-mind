@@ -41,6 +41,12 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
+    .option('tool-check', {
+      type: 'boolean',
+      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
+      default: true,
+      hidden: true
+    })
     .option('model', {
       type: 'string',
       description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
