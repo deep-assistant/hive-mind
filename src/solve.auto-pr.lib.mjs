@@ -35,7 +35,21 @@ export async function handleAutoPrCreation({
     // Create CLAUDE.md file with the task details
     await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
 
+    // Check if CLAUDE.md already exists and read its content
+    const claudeMdPath = path.join(tempDir, 'CLAUDE.md');
+    let existingContent = null;
+    try {
+      existingContent = await fs.readFile(claudeMdPath, 'utf8');
+    } catch (err) {
+      // File doesn't exist, which is fine
+      if (err.code !== 'ENOENT') {
+        throw err;
+      }
+    }
+
     // Write initial task info to CLAUDE.md
+    // Include timestamp to ensure content is unique even if issue URL is the same
+    const timestamp = new Date().toISOString();
     const initialTaskInfo = `Issue to solve: ${argv._[0]}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
@@ -43,7 +57,16 @@ Your forked repository: ${forkedRepo}
 Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
-    await fs.writeFile(path.join(tempDir, 'CLAUDE.md'), initialTaskInfo);
+
+    // If content hasn't changed, add a timestamp to make it unique
+    let finalContent = initialTaskInfo;
+    if (existingContent && existingContent.trim() === initialTaskInfo.trim()) {
+      await log('   CLAUDE.md exists with same content, adding timestamp...', { verbose: true });
+      finalContent = `${initialTaskInfo}
+Generated at: ${timestamp}`;
+    }
+
+    await fs.writeFile(claudeMdPath, finalContent);
     await log(formatAligned('✅', 'File created:', 'CLAUDE.md'));
 
     // Add and commit the file
@@ -59,9 +82,40 @@ Proceed.`;
     }
 
     // Verify the file was actually staged
+    const statusResult = await $({ cwd: tempDir })`git status --short`;
+    const gitStatus = statusResult.stdout ? statusResult.stdout.toString().trim() : '';
+
     if (argv.verbose) {
-      const statusResult = await $({ cwd: tempDir })`git status --short`;
-      await log(`   Git status after add: ${statusResult.stdout ? statusResult.stdout.toString().trim() : 'empty'}`);
+      await log(`   Git status after add: ${gitStatus || 'empty'}`);
+    }
+
+    // Check if anything was actually staged
+    if (!gitStatus || gitStatus.length === 0) {
+      await log('');
+      await log(formatAligned('❌', 'GIT ADD FAILED:', 'Nothing was staged'), { level: 'error' });
+      await log('');
+      await log('  🔍 What happened:');
+      await log('     CLAUDE.md was created but git did not stage any changes.');
+      await log('');
+      await log('  💡 Possible causes:');
+      await log('     • CLAUDE.md already exists with identical content');
+      await log('     • The file is in .gitignore');
+      await log('     • File system sync issue');
+      await log('');
+      await log('  🔧 Troubleshooting steps:');
+      await log(`     1. Check file exists: ls -la "${tempDir}/CLAUDE.md"`);
+      await log(`     2. Check git status: cd "${tempDir}" && git status`);
+      await log(`     3. Check .gitignore: grep CLAUDE "${tempDir}/.gitignore"`);
+      await log(`     4. Force add: cd "${tempDir}" && git add -f CLAUDE.md`);
+      await log('');
+      await log('  📂 Debug information:');
+      await log(`     Working directory: ${tempDir}`);
+      await log(`     Branch: ${branchName}`);
+      if (existingContent) {
+        await log('     Note: CLAUDE.md already existed (attempted to update with timestamp)');
+      }
+      await log('');
+      throw new Error('Git add staged nothing - CLAUDE.md may be unchanged or ignored');
     }
 
     await log(formatAligned('📝', 'Creating commit:', 'With CLAUDE.md file'));
@@ -76,9 +130,47 @@ Issue: ${argv._[0]}`;
     const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
 
     if (commitResult.code !== 0) {
-      await log('❌ Failed to create initial commit', { level: 'error' });
-      await log(`   Error: ${commitResult.stderr ? commitResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
-      await log(`   stdout: ${commitResult.stdout ? commitResult.stdout.toString() : 'none'}`, { verbose: true });
+      const commitStderr = commitResult.stderr ? commitResult.stderr.toString() : '';
+      const commitStdout = commitResult.stdout ? commitResult.stdout.toString() : '';
+
+      await log('');
+      await log(formatAligned('❌', 'COMMIT FAILED:', 'Could not create initial commit'), { level: 'error' });
+      await log('');
+      await log('  🔍 What happened:');
+      await log('     Git commit command failed after staging CLAUDE.md.');
+      await log('');
+
+      // Check for specific error patterns
+      if (commitStdout.includes('nothing to commit') || commitStdout.includes('working tree clean')) {
+        await log('  💡 Root cause:');
+        await log('     Git reports "nothing to commit, working tree clean".');
+        await log('     This means no changes were staged, despite running git add.');
+        await log('');
+        await log('  🔎 Why this happens:');
+        await log('     • CLAUDE.md already exists with identical content');
+        await log('     • File content did not actually change');
+        await log('     • Previous run may have left CLAUDE.md in the repository');
+        await log('');
+        await log('  🔧 How to fix:');
+        await log('     Option 1: Remove CLAUDE.md and try again');
+        await log(`       cd "${tempDir}" && git rm CLAUDE.md && git commit -m "Remove CLAUDE.md"`);
+        await log('');
+        await log('     Option 2: Skip auto-PR creation');
+        await log('       Run solve.mjs without --auto-pull-request-creation flag');
+        await log('');
+      } else {
+        await log('  📦 Error output:');
+        if (commitStderr) await log(`     stderr: ${commitStderr}`);
+        if (commitStdout) await log(`     stdout: ${commitStdout}`);
+        await log('');
+      }
+
+      await log('  📂 Debug information:');
+      await log(`     Working directory: ${tempDir}`);
+      await log(`     Branch: ${branchName}`);
+      await log(`     Git status: ${gitStatus || '(empty)'}`);
+      await log('');
+
       throw new Error('Failed to create initial commit');
     } else {
       await log(formatAligned('✅', 'Commit created:', 'Successfully with CLAUDE.md'));
