@@ -173,8 +173,8 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
   await safeExit(1, 'Feedback validation failed');
 }
 // Perform all system checks using validation module
-// Skip tool validation in dry-run mode or when --skip-tool-check is enabled
-const skipToolCheck = argv.dryRun || argv.skipToolCheck;
+// Skip tool validation in dry-run mode or when --skip-tool-check or --no-tool-check is enabled
+const skipToolCheck = argv.dryRun || argv.skipToolCheck || !argv.toolCheck;
 if (!(await performSystemChecks(argv.minDiskSpace || 500, skipToolCheck, argv.model, argv))) {
   await safeExit(1, 'System checks failed');
 }

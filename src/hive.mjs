@@ -238,6 +238,12 @@ const createYargsConfig = (yargsInstance) => {
       description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
+    .option('tool-check', {
+      type: 'boolean',
+      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
+      default: true,
+      hidden: true
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
@@ -790,7 +796,7 @@ async function worker(workerId) {
         const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
         const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
-        const skipToolCheckFlag = argv.skipToolCheck ? ' --skip-tool-check' : '';
+        const skipToolCheckFlag = (argv.skipToolCheck || !argv.toolCheck) ? ' --skip-tool-check' : '';
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
@@ -823,7 +829,7 @@ async function worker(workerId) {
         if (argv.dryRun) {
           args.push('--dry-run');
         }
-        if (argv.skipToolCheck) {
+        if (argv.skipToolCheck || !argv.toolCheck) {
           args.push('--skip-tool-check');
         }
         if (argv.autoContinue) {
