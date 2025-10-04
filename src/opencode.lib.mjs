@@ -19,14 +19,15 @@ import { timeouts, retryLimits } from './config.lib.mjs';
 // Model mapping to translate aliases to full model IDs for OpenCode
 export const mapModelToId = (model) => {
   const modelMap = {
-    'gpt4': 'gpt-4',
-    'gpt4o': 'gpt-4o',
-    'claude': 'claude-3-5-sonnet',
-    'sonnet': 'claude-3-5-sonnet',
-    'opus': 'claude-3-opus',
-    'gemini': 'gemini-pro',
-    'grok': 'grok-code-fast-1',
-    'grok-code-fast-1': 'grok-code-fast-1',
+    'gpt4': 'openai/gpt-4',
+    'gpt4o': 'openai/gpt-4o',
+    'claude': 'anthropic/claude-3-5-sonnet',
+    'sonnet': 'anthropic/claude-3-5-sonnet',
+    'opus': 'anthropic/claude-3-opus',
+    'gemini': 'google/gemini-pro',
+    'grok': 'opencode/grok-code',
+    'grok-code': 'opencode/grok-code',
+    'grok-code-fast-1': 'opencode/grok-code',
   };
 
   // Return mapped model ID if it's an alias, otherwise return as-is
@@ -67,7 +68,8 @@ export const validateOpenCodeConnection = async (model = 'gpt4o') => {
       }
 
       // Test basic OpenCode functionality
-      const testResult = await $`printf "test" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel} --dry-run`;
+      // Note: opencode doesn't have --dry-run flag, so we'll just test with a simple prompt
+      const testResult = await $`printf "test" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
@@ -269,35 +271,34 @@ export const executeOpenCodeCommand = async (params) => {
       opencodeArgs = `run --resume ${argv.resume} --model ${mappedModel}`;
     }
 
-    // For OpenCode, we need to handle prompts differently
-    // OpenCode typically accepts prompts via stdin or files
+    // For OpenCode, we pass the prompt via stdin
+    // The system prompt is typically not supported separately in opencode
+    // We'll combine system and user prompts into a single message
+    const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
+
+    // Write the combined prompt to a file for piping
     const promptFile = path.join(tempDir, 'opencode_prompt.txt');
-    const systemPromptFile = path.join(tempDir, 'opencode_system.txt');
+    await fs.writeFile(promptFile, combinedPrompt);
 
-    // Write prompts to files
-    await fs.writeFile(promptFile, prompt);
-    await fs.writeFile(systemPromptFile, systemPrompt);
-
-    opencodeArgs += ` --prompt-file "${promptFile}" --system-file "${systemPromptFile}"`;
-
-    // Build the full command
-    const fullCommand = `(cd "${tempDir}" && ${opencodePath} ${opencodeArgs})`;
+    // Build the full command - pipe the prompt file to opencode
+    const fullCommand = `(cd "${tempDir}" && cat "${promptFile}" | ${opencodePath} ${opencodeArgs})`;
 
     await log(`\n${formatAligned('📝', 'Raw command:', '')}`);
     await log(`${fullCommand}`);
     await log('');
 
     try {
+      // Pipe the prompt file to opencode via stdin
       if (argv.resume) {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`${opencodePath} run --resume ${argv.resume} --model ${mappedModel} --prompt-file "${promptFile}" --system-file "${systemPromptFile}"`;
+        })`cat ${promptFile} | ${opencodePath} run --resume ${argv.resume} --model ${mappedModel}`;
       } else {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`${opencodePath} run --model ${mappedModel} --prompt-file "${promptFile}" --system-file "${systemPromptFile}"`;
+        })`cat ${promptFile} | ${opencodePath} run --model ${mappedModel}`;
       }
 
       await log(`${formatAligned('📋', 'Command details:', '')}`);

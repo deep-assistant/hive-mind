@@ -53,7 +53,7 @@ export const createYargsConfig = (yargsInstance) => {
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
-        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+        return currentParsedArgs?.tool === 'opencode' ? 'grok' : 'sonnet';
       }
     })
     .option('auto-pull-request-creation', {
