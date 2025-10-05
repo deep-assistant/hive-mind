@@ -371,6 +371,40 @@ try {
     crypto
   });
 
+  // Auto-merge default branch to pull request branch if enabled
+  let autoMergeFeedbackLines = [];
+  if (isContinueMode && argv['auto-merge-default-branch-to-pull-request-branch']) {
+    await log(`\n${formatAligned('🔀', 'Auto-merging:', `Merging ${defaultBranch} into ${branchName}`)}`);
+    try {
+      const mergeResult = await $({ cwd: tempDir })`git merge ${defaultBranch} --no-edit`;
+      if (mergeResult.code === 0) {
+        await log(`${formatAligned('✅', 'Merge successful:', 'Pushing merged branch...')}`);
+        const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+        if (pushResult.code === 0) {
+          await log(`${formatAligned('✅', 'Push successful:', 'Branch updated with latest changes')}`);
+        } else {
+          await log(`${formatAligned('⚠️', 'Push failed:', 'Merge completed but push failed')}`, { level: 'warning' });
+          await log(`  Error: ${pushResult.stderr?.toString() || 'Unknown error'}`, { level: 'warning' });
+        }
+      } else {
+        // Merge failed - likely due to conflicts
+        await log(`${formatAligned('⚠️', 'Merge failed:', 'Conflicts detected')}`, { level: 'warning' });
+        autoMergeFeedbackLines.push('');
+        autoMergeFeedbackLines.push('⚠️ AUTOMATIC MERGE FAILED:');
+        autoMergeFeedbackLines.push(`git merge ${defaultBranch} was executed but resulted in conflicts that should be resolved first.`);
+        autoMergeFeedbackLines.push('Please resolve the merge conflicts and commit the changes.');
+        autoMergeFeedbackLines.push('');
+      }
+    } catch (mergeError) {
+      await log(`${formatAligned('❌', 'Merge error:', mergeError.message)}`, { level: 'error' });
+      autoMergeFeedbackLines.push('');
+      autoMergeFeedbackLines.push('⚠️ AUTOMATIC MERGE ERROR:');
+      autoMergeFeedbackLines.push(`git merge ${defaultBranch} failed with error: ${mergeError.message}`);
+      autoMergeFeedbackLines.push('Please check the repository state and resolve any issues.');
+      autoMergeFeedbackLines.push('');
+    }
+  }
+
   // Initialize PR variables early
   let prUrl = null;
 
@@ -450,6 +484,14 @@ try {
 
   // Initialize feedback lines
   let feedbackLines = null;
+
+  // Add auto-merge feedback lines if any
+  if (autoMergeFeedbackLines && autoMergeFeedbackLines.length > 0) {
+    if (!feedbackLines) {
+      feedbackLines = [];
+    }
+    feedbackLines.push(...autoMergeFeedbackLines);
+  }
 
   // Merge feedback lines
   if (preparedFeedbackLines && preparedFeedbackLines.length > 0) {
