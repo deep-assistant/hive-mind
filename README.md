@@ -47,7 +47,7 @@ npm install -g @deep-assistant/hive-mind
 
 ### Installation on Ubuntu 24.04 server
 ```bash
-curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
+curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
 ```
 
 ### Core Operations
