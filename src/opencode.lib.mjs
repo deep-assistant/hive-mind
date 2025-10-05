@@ -35,7 +35,7 @@ export const mapModelToId = (model) => {
 };
 
 // Function to validate OpenCode connection
-export const validateOpenCodeConnection = async (model = 'gpt4o') => {
+export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => {
   // Map model alias to full ID
   const mappedModel = mapModelToId(model);
 
@@ -54,7 +54,7 @@ export const validateOpenCodeConnection = async (model = 'gpt4o') => {
 
       // Check if OpenCode CLI is installed and get version
       try {
-        const versionResult = await $`timeout ${Math.floor(timeouts.opencodeCli / 6000)} opencode --version`;
+        const versionResult = await $`timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode --version`;
         if (versionResult.code === 0) {
           const version = versionResult.stdout?.toString().trim();
           if (retryCount === 0) {
@@ -67,9 +67,9 @@ export const validateOpenCodeConnection = async (model = 'gpt4o') => {
         }
       }
 
-      // Test basic OpenCode functionality
-      // Note: opencode doesn't have --dry-run flag, so we'll just test with a simple prompt
-      const testResult = await $`printf "test" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
+      // Test basic OpenCode functionality with a simple "hi" message
+      // Check for non-error result to validate the connection
+      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
