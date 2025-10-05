@@ -10,9 +10,9 @@ const mapModelToId = (model) => {
     'sonnet': 'anthropic/claude-3-5-sonnet',
     'opus': 'anthropic/claude-3-opus',
     'gemini': 'google/gemini-pro',
-    'grok': 'opencode/grok-code',
-    'grok-code': 'opencode/grok-code',
-    'grok-code-fast-1': 'opencode/grok-code',
+    'grok': 'xai/grok-code-fast-1',
+    'grok-code': 'xai/grok-code-fast-1',
+    'grok-code-fast-1': 'xai/grok-code-fast-1',
   };
 
   return modelMap[model] || model;
@@ -22,9 +22,9 @@ console.log('Testing opencode model mapping fixes...\n');
 
 // Test model mappings
 const testCases = [
-  { input: 'grok', expected: 'opencode/grok-code' },
-  { input: 'grok-code', expected: 'opencode/grok-code' },
-  { input: 'grok-code-fast-1', expected: 'opencode/grok-code' },
+  { input: 'grok', expected: 'xai/grok-code-fast-1' },
+  { input: 'grok-code', expected: 'xai/grok-code-fast-1' },
+  { input: 'grok-code-fast-1', expected: 'xai/grok-code-fast-1' },
   { input: 'sonnet', expected: 'anthropic/claude-3-5-sonnet' },
   { input: 'opus', expected: 'anthropic/claude-3-opus' },
   { input: 'gpt4o', expected: 'openai/gpt-4o' },
