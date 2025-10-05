@@ -33,8 +33,29 @@ const argv = yargs(hideBin(process.argv))
     description: 'Allowed chat IDs in lino notation, e.g., "(\n  123456789\n  987654321\n)"',
     alias: 'a'
   })
+  .option('solve-overrides', {
+    type: 'string',
+    description: 'Override options for /solve command in lino notation, e.g., "(\n  --auto-continue\n  --attach-logs\n)"'
+  })
+  .option('hive-overrides', {
+    type: 'string',
+    description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"'
+  })
+  .option('solve', {
+    type: 'boolean',
+    description: 'Enable /solve command (use --no-solve to disable)',
+    default: true
+  })
+  .option('hive', {
+    type: 'boolean',
+    description: 'Enable /hive command (use --no-hive to disable)',
+    default: true
+  })
   .help('h')
   .alias('h', 'help')
+  .parserConfiguration({
+    'boolean-negation': true
+  })
   .parse();
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
@@ -59,6 +80,25 @@ const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.
 const allowedChats = allowedChatsInput
   ? lino.parseNumericIds(allowedChatsInput)
   : null;
+
+// Parse override options
+const solveOverridesInput = argv.solveOverrides || argv['solve-overrides'] || process.env.TELEGRAM_SOLVE_OVERRIDES;
+const solveOverrides = solveOverridesInput
+  ? lino.parse(solveOverridesInput).filter(line => line.trim())
+  : [];
+
+const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || process.env.TELEGRAM_HIVE_OVERRIDES;
+const hiveOverrides = hiveOverridesInput
+  ? lino.parse(hiveOverridesInput).filter(line => line.trim())
+  : [];
+
+// Command enable/disable flags
+// Note: yargs automatically supports --no-solve and --no-hive for negation
+// Check both the camelCase and kebab-case versions
+const solveEnabled = argv.solve !== false &&
+  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
+const hiveEnabled = argv.hive !== false &&
+  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
 
 function isChatAuthorized(chatId) {
   if (!allowedChats) {
@@ -207,6 +247,49 @@ function parseCommandArgs(text) {
   return args;
 }
 
+function mergeArgsWithOverrides(userArgs, overrides) {
+  if (!overrides || overrides.length === 0) {
+    return userArgs;
+  }
+
+  // Parse overrides to identify flags and their values
+  const overrideFlags = new Map(); // Map of flag -> value (or null for boolean flags)
+
+  for (let i = 0; i < overrides.length; i++) {
+    const arg = overrides[i];
+    if (arg.startsWith('--')) {
+      // Check if next item is a value (doesn't start with --)
+      if (i + 1 < overrides.length && !overrides[i + 1].startsWith('--')) {
+        overrideFlags.set(arg, overrides[i + 1]);
+        i++; // Skip the value in next iteration
+      } else {
+        overrideFlags.set(arg, null); // Boolean flag
+      }
+    }
+  }
+
+  // Filter user args to remove any that conflict with overrides
+  const filteredArgs = [];
+  for (let i = 0; i < userArgs.length; i++) {
+    const arg = userArgs[i];
+    if (arg.startsWith('--')) {
+      // If this flag exists in overrides, skip it and its value
+      if (overrideFlags.has(arg)) {
+        // Skip the flag
+        // Also skip next arg if it's a value (doesn't start with --)
+        if (i + 1 < userArgs.length && !userArgs[i + 1].startsWith('--')) {
+          i++; // Skip the value too
+        }
+        continue;
+      }
+    }
+    filteredArgs.push(arg);
+  }
+
+  // Merge: filtered user args + overrides
+  return [...filteredArgs, ...overrides];
+}
+
 function validateGitHubUrl(args) {
   if (args.length === 0) {
     return {
@@ -237,12 +320,31 @@ bot.command('help', async (ctx) => {
   message += `• Chat Type: ${chatType}\n`;
   message += `• Chat Title: ${chatTitle}\n\n`;
   message += `📝 *Available Commands:*\n\n`;
-  message += `*/solve* - Solve a GitHub issue\n`;
-  message += `Usage: \`/solve <github-url> [options]\`\n`;
-  message += `Example: \`/solve https://github.com/owner/repo/issues/123 --verbose\`\n\n`;
-  message += `*/hive* - Run hive command\n`;
-  message += `Usage: \`/hive <github-url> [options]\`\n`;
-  message += `Example: \`/hive https://github.com/owner/repo --model sonnet\`\n\n`;
+
+  if (solveEnabled) {
+    message += `*/solve* - Solve a GitHub issue\n`;
+    message += `Usage: \`/solve <github-url> [options]\`\n`;
+    message += `Example: \`/solve https://github.com/owner/repo/issues/123 --verbose\`\n`;
+    if (solveOverrides.length > 0) {
+      message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
+    }
+    message += `\n`;
+  } else {
+    message += `*/solve* - ❌ Disabled\n\n`;
+  }
+
+  if (hiveEnabled) {
+    message += `*/hive* - Run hive command\n`;
+    message += `Usage: \`/hive <github-url> [options]\`\n`;
+    message += `Example: \`/hive https://github.com/owner/repo --model sonnet\`\n`;
+    if (hiveOverrides.length > 0) {
+      message += `🔒 Locked options: \`${hiveOverrides.join(' ')}\`\n`;
+    }
+    message += `\n`;
+  } else {
+    message += `*/hive* - ❌ Disabled\n\n`;
+  }
+
   message += `*/help* - Show this help message\n\n`;
   message += `⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n`;
   message += `🔧 *Available Options:*\n`;
@@ -262,6 +364,11 @@ bot.command('help', async (ctx) => {
 });
 
 bot.command('solve', async (ctx) => {
+  if (!solveEnabled) {
+    await ctx.reply('❌ The /solve command is disabled on this bot instance.');
+    return;
+  }
+
   if (!isGroupChat(ctx)) {
     await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
@@ -273,15 +380,22 @@ bot.command('solve', async (ctx) => {
     return;
   }
 
-  const args = parseCommandArgs(ctx.message.text);
+  const userArgs = parseCommandArgs(ctx.message.text);
 
-  const validation = validateGitHubUrl(args);
+  const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
     await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown' });
     return;
   }
 
-  await ctx.reply(`🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  // Merge user args with overrides
+  const args = mergeArgsWithOverrides(userArgs, solveOverrides);
+
+  let statusMsg = `🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  if (solveOverrides.length > 0) {
+    statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
+  }
+  await ctx.reply(statusMsg);
 
   const result = await executeStartScreen('solve', args);
 
@@ -309,6 +423,11 @@ bot.command('solve', async (ctx) => {
 });
 
 bot.command('hive', async (ctx) => {
+  if (!hiveEnabled) {
+    await ctx.reply('❌ The /hive command is disabled on this bot instance.');
+    return;
+  }
+
   if (!isGroupChat(ctx)) {
     await ctx.reply('❌ The /hive command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
@@ -320,15 +439,22 @@ bot.command('hive', async (ctx) => {
     return;
   }
 
-  const args = parseCommandArgs(ctx.message.text);
+  const userArgs = parseCommandArgs(ctx.message.text);
 
-  const validation = validateGitHubUrl(args);
+  const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
     await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown' });
     return;
   }
 
-  await ctx.reply(`🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`);
+  // Merge user args with overrides
+  const args = mergeArgsWithOverrides(userArgs, hiveOverrides);
+
+  let statusMsg = `🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  if (hiveOverrides.length > 0) {
+    statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
+  }
+  await ctx.reply(statusMsg);
 
   const result = await executeStartScreen('hive', args);
 
@@ -375,6 +501,16 @@ if (allowedChats && allowedChats.length > 0) {
   console.log('Allowed chats (lino):', lino.format(allowedChats));
 } else {
   console.log('Allowed chats: All (no restrictions)');
+}
+console.log('Commands enabled:', {
+  solve: solveEnabled,
+  hive: hiveEnabled
+});
+if (solveOverrides.length > 0) {
+  console.log('Solve overrides (lino):', lino.format(solveOverrides));
+}
+if (hiveOverrides.length > 0) {
+  console.log('Hive overrides (lino):', lino.format(hiveOverrides));
 }
 
 bot.launch()
