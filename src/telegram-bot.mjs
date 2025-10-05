@@ -41,18 +41,21 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"'
   })
-  .option('no-solve', {
+  .option('solve', {
     type: 'boolean',
-    description: 'Disable /solve command',
-    default: false
+    description: 'Enable /solve command (use --no-solve to disable)',
+    default: true
   })
-  .option('no-hive', {
+  .option('hive', {
     type: 'boolean',
-    description: 'Disable /hive command',
-    default: false
+    description: 'Enable /hive command (use --no-hive to disable)',
+    default: true
   })
   .help('h')
   .alias('h', 'help')
+  .parserConfiguration({
+    'boolean-negation': true
+  })
   .parse();
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
@@ -90,8 +93,12 @@ const hiveOverrides = hiveOverridesInput
   : [];
 
 // Command enable/disable flags
-const solveEnabled = !(argv.noSolve || argv['no-solve'] || process.env.TELEGRAM_NO_SOLVE === 'true');
-const hiveEnabled = !(argv.noHive || argv['no-hive'] || process.env.TELEGRAM_NO_HIVE === 'true');
+// Note: yargs automatically supports --no-solve and --no-hive for negation
+// Check both the camelCase and kebab-case versions
+const solveEnabled = argv.solve !== false &&
+  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
+const hiveEnabled = argv.hive !== false &&
+  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
 
 function isChatAuthorized(chatId) {
   if (!allowedChats) {
