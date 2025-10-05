@@ -191,6 +191,21 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
+
+// Early check: Verify repository write permissions BEFORE doing any work
+// This prevents wasting AI tokens when user doesn't have access and --fork is not used
+const { checkRepositoryWritePermission } = githubLib;
+const hasWriteAccess = await checkRepositoryWritePermission(owner, repo, {
+  useFork: argv.fork,
+  issueUrl: issueUrl
+});
+
+if (!hasWriteAccess) {
+  await log('');
+  await log('❌ Cannot proceed without repository write access or --fork option', { level: 'error' });
+  await safeExit(1, 'Permission check failed');
+}
+
 // Detect repository visibility and set auto-cleanup default if not explicitly set
 if (argv.autoCleanup === undefined) {
   const { detectRepositoryVisibility } = githubLib;
