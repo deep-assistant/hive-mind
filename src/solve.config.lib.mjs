@@ -162,6 +162,16 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['claude', 'opencode'],
       default: 'claude'
     })
+    .option('git-username', {
+      type: 'string',
+      description: 'Set local git user.name in the project folder',
+      alias: 'gu'
+    })
+    .option('git-email', {
+      type: 'string',
+      description: 'Set local git user.email in the project folder',
+      alias: 'ge'
+    })
     .help('h')
     .alias('h', 'help');
 };

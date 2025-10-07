@@ -355,6 +355,16 @@ const createYargsConfig = (yargsInstance) => {
       default: 'asc',
       choices: ['asc', 'desc']
     })
+    .option('git-username', {
+      type: 'string',
+      description: 'Set local git user.name in the project folder',
+      alias: 'gu'
+    })
+    .option('git-email', {
+      type: 'string',
+      description: 'Set local git user.email in the project folder',
+      alias: 'ge'
+    })
     .help('h')
     .alias('h', 'help');
 };
@@ -801,6 +811,8 @@ async function worker(workerId) {
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
         const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
+        const gitUsernameFlag = argv['git-username'] ? ` --git-username "${argv['git-username']}"` : '';
+        const gitEmailFlag = argv['git-email'] ? ` --git-email "${argv['git-email']}"` : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
         const { spawn } = await import('child_process');
@@ -843,9 +855,15 @@ async function worker(workerId) {
         if (argv.watch) {
           args.push('--watch');
         }
+        if (argv['git-username']) {
+          args.push('--git-username', argv['git-username']);
+        }
+        if (argv['git-email']) {
+          args.push('--git-email', argv['git-email']);
+        }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}${gitUsernameFlag}${gitEmailFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;
