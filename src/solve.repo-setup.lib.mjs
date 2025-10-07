@@ -30,6 +30,33 @@ export async function setupRepositoryAndClone({
     await log('Note: gh auth setup-git had issues, continuing anyway\n');
   }
 
+  // Set up git user configuration if provided
+  if (argv['git-username'] || argv['git-email']) {
+    await log('🔧 Setting up git user configuration...');
+
+    if (argv['git-username']) {
+      await log(`   📝 Setting git user.name to "${argv['git-username']}"`);
+      const usernameResult = await $({ cwd: tempDir })`git config user.name "${argv['git-username']}"`;
+      if (usernameResult.code !== 0) {
+        await log('   ⚠️  Warning: Failed to set git user.name', { level: 'warning' });
+        await log(`      Error: ${usernameResult.stderr ? usernameResult.stderr.toString().trim() : 'Unknown error'}`, { level: 'warning' });
+      } else {
+        await log('   ✅ Git user.name set successfully');
+      }
+    }
+
+    if (argv['git-email']) {
+      await log(`   📧 Setting git user.email to "${argv['git-email']}"`);
+      const emailResult = await $({ cwd: tempDir })`git config user.email "${argv['git-email']}"`;
+      if (emailResult.code !== 0) {
+        await log('   ⚠️  Warning: Failed to set git user.email', { level: 'warning' });
+        await log(`      Error: ${emailResult.stderr ? emailResult.stderr.toString().trim() : 'Unknown error'}`, { level: 'warning' });
+      } else {
+        await log('   ✅ Git user.email set successfully');
+      }
+    }
+  }
+
   return { repoToClone, forkedRepo, upstreamRemote, prForkRemote, prForkOwner };
 }
 
