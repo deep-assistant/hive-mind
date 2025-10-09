@@ -15,7 +15,6 @@ const use = globalThis.use;
 const { $ } = await use('command-stream');
 
 const path = (await use('path')).default;
-const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
