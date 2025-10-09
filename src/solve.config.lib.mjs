@@ -159,6 +159,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
       default: undefined
     })
+    .option('auto-merge-default-branch-to-pull-request-branch', {
+      type: 'boolean',
+      description: 'Automatically merge the default branch to the pull request branch when continuing work (only in continue mode)',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
@@ -197,6 +202,7 @@ export const createYargsConfig = (yargsInstance) => {
       'base-branch', 'baseBranch', 'b',
       'no-sentry', 'noSentry',
       'auto-cleanup', 'autoCleanup',
+      'auto-merge-default-branch-to-pull-request-branch', 'autoMergeDefaultBranchToPullRequestBranch',
       'tool',
       '_', '$0'
     ])));
