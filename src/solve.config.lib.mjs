@@ -39,7 +39,7 @@ export const DEFINED_OPTIONS = new Set([
   'think',
   'base-branch', 'baseBranch', 'b',
   'tool',
-  'v', 'f', 'n', 'c', // single-char aliases
+  'v', 'f', 'n', 'c', 'w', // single-char aliases
   '_', '$0'
 ]);
 

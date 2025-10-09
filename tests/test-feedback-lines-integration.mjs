@@ -276,12 +276,6 @@ function testSolveFeedbackLines(prUrl) {
   // Debug: Check if prompt was found
   if (!output.includes('Issue to solve:')) {
     console.log('   ⚠️  No prompt found in output (missing "Issue to solve:")');
-    console.log('   ℹ️  This may happen in CI without ANTHROPIC_API_KEY');
-
-    // If solve.mjs failed to generate prompt, throw a skip error
-    const skipError = new Error('SKIP_TEST_NO_API_KEY');
-    skipError.isSkipError = true;
-    throw skipError;
   }
 
   // Check for feedback lines in the output
@@ -398,14 +392,6 @@ async function runIntegrationTest() {
     if (error.isPermissionError || error.message === 'SKIP_TEST_NO_PERMISSIONS') {
       console.log('\\n⚠️  Integration test SKIPPED: GitHub token lacks repository creation permissions');
       console.log('   ℹ️  This is expected in CI environments with restricted tokens');
-      console.log('   ℹ️  The unit tests already verify the feedback lines logic');
-      cleanup();
-      return true; // Return success (test skipped, not failed)
-    }
-    // Check if it's a skip error due to missing API key - skip test gracefully
-    if (error.isSkipError || error.message === 'SKIP_TEST_NO_API_KEY') {
-      console.log('\\n⚠️  Integration test SKIPPED: Environment may be missing ANTHROPIC_API_KEY');
-      console.log('   ℹ️  This is expected in CI environments without API access');
       console.log('   ℹ️  The unit tests already verify the feedback lines logic');
       cleanup();
       return true; // Return success (test skipped, not failed)
