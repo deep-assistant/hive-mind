@@ -55,6 +55,10 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
+// Import strict options validation
+const yargsStrictLib = await import('./yargs-strict.lib.mjs');
+const { createStrictOptionsCheck } = yargsStrictLib;
+
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
 // The cleanupTempDirectories function has been moved to lib.mjs
@@ -356,7 +360,46 @@ const createYargsConfig = (yargsInstance) => {
       choices: ['asc', 'desc']
     })
     .help('h')
-    .alias('h', 'help');
+    .alias('h', 'help')
+    // Apply strict options validation to reject unrecognized options
+    // This prevents issues like #453 where —fork (em-dash) is not recognized
+    .check(createStrictOptionsCheck(new Set([
+      'help', 'h', 'version',
+      'github-url', 'githubUrl',
+      'monitor-tag', 'monitorTag', 't',
+      'all-issues', 'allIssues', 'a',
+      'skip-issues-with-prs', 'skipIssuesWithPrs', 's',
+      'concurrency', 'c',
+      'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
+      'model', 'm',
+      'interval', 'i',
+      'max-issues', 'maxIssues',
+      'dry-run', 'dryRun',
+      'skip-tool-check', 'skipToolCheck',
+      'tool-check', 'toolCheck',
+      'tool',
+      'verbose', 'v',
+      'once',
+      'min-disk-space', 'minDiskSpace',
+      'auto-cleanup', 'autoCleanup',
+      'fork', 'f',
+      'attach-logs', 'attachLogs',
+      'project-number', 'projectNumber', 'pn',
+      'project-owner', 'projectOwner', 'po',
+      'project-status', 'projectStatus', 'ps',
+      'project-mode', 'projectMode', 'pm',
+      'youtrack-mode', 'youtrackMode',
+      'youtrack-stage', 'youtrackStage',
+      'youtrack-project', 'youtrackProject',
+      'target-branch', 'targetBranch', 'tb',
+      'log-dir', 'logDir', 'l',
+      'auto-continue', 'autoContinue',
+      'think',
+      'no-sentry', 'noSentry',
+      'watch', 'w',
+      'issue-order', 'issueOrder', 'o',
+      '_', '$0'
+    ])));
 };
 
 // Check for version flag before processing other arguments
