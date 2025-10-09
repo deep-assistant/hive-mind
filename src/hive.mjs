@@ -359,47 +359,72 @@ const createYargsConfig = (yargsInstance) => {
       default: 'asc',
       choices: ['asc', 'desc']
     })
+    .parserConfiguration({
+      'boolean-negation': true
+    })
     .help('h')
     .alias('h', 'help')
     // Apply strict options validation to reject unrecognized options
     // This prevents issues like #453 where —fork (em-dash) is not recognized
-    .check(createStrictOptionsCheck(new Set([
-      'help', 'h', 'version',
-      'github-url', 'githubUrl',
-      'monitor-tag', 'monitorTag', 't',
-      'all-issues', 'allIssues', 'a',
-      'skip-issues-with-prs', 'skipIssuesWithPrs', 's',
-      'concurrency', 'c',
-      'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
-      'model', 'm',
-      'interval', 'i',
-      'max-issues', 'maxIssues',
-      'dry-run', 'dryRun',
-      'skip-tool-check', 'skipToolCheck',
-      'tool-check', 'toolCheck',
-      'tool',
-      'verbose', 'v',
-      'once',
-      'min-disk-space', 'minDiskSpace',
-      'auto-cleanup', 'autoCleanup',
-      'fork', 'f',
-      'attach-logs', 'attachLogs',
-      'project-number', 'projectNumber', 'pn',
-      'project-owner', 'projectOwner', 'po',
-      'project-status', 'projectStatus', 'ps',
-      'project-mode', 'projectMode', 'pm',
-      'youtrack-mode', 'youtrackMode',
-      'youtrack-stage', 'youtrackStage',
-      'youtrack-project', 'youtrackProject',
-      'target-branch', 'targetBranch', 'tb',
-      'log-dir', 'logDir', 'l',
-      'auto-continue', 'autoContinue',
-      'think',
-      'no-sentry', 'noSentry',
-      'watch', 'w',
-      'issue-order', 'issueOrder', 'o',
-      '_', '$0'
-    ])));
+    .check(createStrictOptionsCheck((() => {
+      // Define boolean options that support --no- prefix
+      const booleanOptions = [
+        'all-issues', 'allIssues',
+        'skip-issues-with-prs', 'skipIssuesWithPrs',
+        'dry-run', 'dryRun',
+        'skip-tool-check', 'skipToolCheck',
+        'tool-check', 'toolCheck',
+        'verbose',
+        'once',
+        'auto-cleanup', 'autoCleanup',
+        'fork',
+        'attach-logs', 'attachLogs',
+        'auto-continue', 'autoContinue',
+        'no-sentry', 'noSentry',
+        'watch',
+      ];
+
+      const options = new Set([
+        'help', 'h', 'version',
+        'github-url', 'githubUrl',
+        'monitor-tag', 'monitorTag', 't',
+        'concurrency', 'c',
+        'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
+        'model', 'm',
+        'interval', 'i',
+        'max-issues', 'maxIssues',
+        'tool',
+        'min-disk-space', 'minDiskSpace',
+        'project-number', 'projectNumber', 'pn',
+        'project-owner', 'projectOwner', 'po',
+        'project-status', 'projectStatus', 'ps',
+        'project-mode', 'projectMode', 'pm',
+        'youtrack-mode', 'youtrackMode',
+        'youtrack-stage', 'youtrackStage',
+        'youtrack-project', 'youtrackProject',
+        'target-branch', 'targetBranch', 'tb',
+        'log-dir', 'logDir', 'l',
+        'think',
+        'issue-order', 'issueOrder', 'o',
+        'v', 'a', 's', 'f', 'w', // single-char aliases
+        '_', '$0'
+      ]);
+
+      // Add boolean options and their --no- variants
+      for (const option of booleanOptions) {
+        options.add(option);
+        // Add --no- variant (kebab-case)
+        if (option.includes('-')) {
+          options.add(`no-${option}`);
+        }
+        // Add no prefix variant (camelCase)
+        if (!option.includes('-')) {
+          options.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
+        }
+      }
+
+      return options;
+    })()));
 };
 
 // Check for version flag before processing other arguments
