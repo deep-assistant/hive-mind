@@ -182,37 +182,37 @@ export const checkFileInBranch = async (owner, repo, fileName, branchName) => {
 // Helper function to check GitHub permissions and warn about missing scopes
 export const checkGitHubPermissions = async () => {
   const { $ } = await use('command-stream');
-  
+
   try {
     await log('\n🔐 Checking GitHub authentication and permissions...');
-    
+
     // Get auth status including token scopes
     const authStatusResult = await $`gh auth status 2>&1`;
     const authOutput = authStatusResult.stdout.toString() + authStatusResult.stderr.toString();
-    
+
     if (authStatusResult.code !== 0 || authOutput.includes('not logged into any GitHub hosts')) {
       await log('❌ GitHub authentication error: Not logged in', { level: 'error' });
       await log('   To fix this, run: gh auth login', { level: 'error' });
       return false;
     }
-    
+
     await log('✅ GitHub authentication: OK');
-    
+
     // Parse the auth status output to extract token scopes
     const scopeMatch = authOutput.match(/Token scopes:\s*(.+)/);
     if (!scopeMatch) {
       await log('⚠️  Warning: Could not determine token scopes from auth status', { level: 'warning' });
       return true; // Continue despite not being able to check scopes
     }
-    
+
     // Extract individual scopes from the format: 'scope1', 'scope2', 'scope3'
     const scopeString = scopeMatch[1];
     const scopes = scopeString.match(/'([^']+)'/g)?.map(s => s.replace(/'/g, '')) || [];
     await log(`📋 Token scopes: ${scopes.join(', ')}`);
-    
+
     // Check for important scopes and warn if missing
     const warnings = [];
-    
+
     if (!scopes.includes('workflow')) {
       warnings.push({
         scope: 'workflow',
@@ -220,7 +220,7 @@ export const checkGitHubPermissions = async () => {
         solution: 'Run: gh auth refresh -h github.com -s workflow'
       });
     }
-    
+
     if (!scopes.includes('repo')) {
       warnings.push({
         scope: 'repo',
@@ -228,28 +228,135 @@ export const checkGitHubPermissions = async () => {
         solution: 'Run: gh auth refresh -h github.com -s repo'
       });
     }
-    
+
     // Display warnings
     if (warnings.length > 0) {
       await log('\n⚠️  Permission warnings detected:', { level: 'warning' });
-      
+
       for (const warning of warnings) {
         await log(`\n   Missing scope: '${warning.scope}'`, { level: 'warning' });
         await log(`   Impact: ${warning.issue}`, { level: 'warning' });
         await log(`   Solution: ${warning.solution}`, { level: 'warning' });
       }
-      
+
       await log('\n   💡 You can continue, but some operations may fail due to insufficient permissions.', { level: 'warning' });
       await log('   💡 To avoid issues, it\'s recommended to refresh your authentication with the missing scopes.', { level: 'warning' });
     } else {
       await log('✅ All required permissions: Available');
     }
-    
+
     return true;
   } catch (error) {
     await log(`⚠️  Warning: Could not check GitHub permissions: ${maskToken(error.message || error.toString())}`, { level: 'warning' });
     await log('   Continuing anyway, but some operations may fail if permissions are insufficient', { level: 'warning' });
     return true; // Continue despite permission check failure
+  }
+};
+
+/**
+ * Check if the current user has write (push) permissions to a specific repository
+ * This helps fail early before wasting AI tokens when --fork option is not used
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {Object} options - Configuration options
+ * @param {boolean} options.useFork - Whether --fork flag is enabled
+ * @param {string} options.issueUrl - Original issue URL for error messages
+ * @returns {Promise<boolean>} True if has write access OR fork mode is enabled, false otherwise
+ */
+export const checkRepositoryWritePermission = async (owner, repo, options = {}) => {
+  const { useFork = false, issueUrl = '' } = options;
+
+  // Skip check if fork mode is enabled - user will work in their own fork
+  if (useFork) {
+    await log('✅ Repository access check: Skipped (fork mode enabled)', { verbose: true });
+    return true;
+  }
+
+  try {
+    await log('🔍 Checking repository write permissions...');
+
+    // Use GitHub API to check repository permissions
+    const permResult = await $`gh api repos/${owner}/${repo} --jq .permissions`;
+
+    if (permResult.code !== 0) {
+      // API call failed - might be a private repo or network issue
+      const errorOutput = (permResult.stderr ? permResult.stderr.toString() : '') +
+                         (permResult.stdout ? permResult.stdout.toString() : '');
+
+      // If it's a 404, the repo doesn't exist or we don't have read access
+      if (errorOutput.includes('404') || errorOutput.includes('Not Found')) {
+        await log('❌ Repository not found or no access', { level: 'error' });
+        await log(`   Repository: ${owner}/${repo}`, { level: 'error' });
+        return false;
+      }
+
+      // For other errors, warn but continue (repo might still be accessible)
+      await log(`⚠️  Warning: Could not check repository permissions: ${cleanErrorMessage(errorOutput)}`, { level: 'warning' });
+      return true;
+    }
+
+    // Parse permissions
+    const permissions = JSON.parse(permResult.stdout.toString().trim());
+
+    // Check if user has push (write) access
+    if (permissions.push === true || permissions.admin === true || permissions.maintain === true) {
+      await log('✅ Repository write access: Confirmed');
+      return true;
+    }
+
+    // No write access - provide helpful error message
+    await log('');
+    await log('❌ NO WRITE ACCESS TO REPOSITORY', { level: 'error' });
+    await log('');
+    await log(`   Repository: ${owner}/${repo}`, { level: 'error' });
+    await log(`   Your permissions: ${JSON.stringify(permissions)}`, { level: 'error' });
+    await log('');
+    await log('   ⚠️  You cannot push changes to this repository.', { level: 'error' });
+    await log('   This would waste AI tokens processing a solution that cannot be uploaded.', { level: 'error' });
+    await log('');
+    await log('   📋 SOLUTIONS:', { level: 'error' });
+    await log('');
+    await log('   ✅ RECOMMENDED: Use the --fork option', { level: 'error' });
+    await log('      This will automatically:', { level: 'error' });
+    await log('      • Create or use your existing fork', { level: 'error' });
+    await log('      • Push changes to your fork', { level: 'error' });
+    await log('      • Create a PR from your fork to the original repository', { level: 'error' });
+    await log('');
+
+    // Get current user to suggest their fork
+    try {
+      const userResult = await $`gh api user --jq .login`;
+      if (userResult.code === 0) {
+        const currentUser = userResult.stdout.toString().trim();
+        await log('      Run this command:', { level: 'error' });
+        await log(`      solve ${issueUrl} --fork`, { level: 'error' });
+        await log('');
+        await log(`      Your fork will be: ${currentUser}/${repo}`, { level: 'error' });
+      }
+    } catch {
+      // Ignore user lookup errors
+    }
+
+    await log('');
+    await log('   Alternative: Request collaborator access', { level: 'error' });
+    await log('      Ask the repository owner to add you as a collaborator:', { level: 'error' });
+    await log(`      https://github.com/${owner}/${repo}/settings/access`, { level: 'error' });
+    await log('');
+
+    return false;
+
+  } catch (error) {
+    reportError(error, {
+      context: 'check_repository_write_permission',
+      owner,
+      repo,
+      operation: 'verify_write_access'
+    });
+
+    // On unexpected errors, warn but allow to continue (better than blocking)
+    await log(`⚠️  Warning: Error checking repository permissions: ${cleanErrorMessage(error)}`, { level: 'warning' });
+    await log('   Continuing anyway - will fail later if permissions are insufficient', { level: 'warning' });
+    return true;
   }
 };
 
@@ -1338,6 +1445,7 @@ export default {
   sanitizeLogContent,
   checkFileInBranch,
   checkGitHubPermissions,
+  checkRepositoryWritePermission,
   attachLogToGitHub,
   fetchAllIssuesWithPagination,
   fetchProjectIssues,
