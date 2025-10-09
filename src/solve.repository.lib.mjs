@@ -613,8 +613,8 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                   await log('');
 
                   // Check if user has enabled automatic force push
-                  if (argv.allowForkForcePush) {
-                    await log('  🔄 Auto-resolution ENABLED (--allow-fork-force-push):');
+                  if (argv.allowForkDivergenceResolutionUsingForcePushWithLease) {
+                    await log('  🔄 Auto-resolution ENABLED (--allow-fork-divergence-resolution-using-force-push-with-lease):');
                     await log('     Attempting to force-push with --force-with-lease...');
                     await log('');
 
@@ -666,7 +666,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('  💡 Your options:');
                     await log('');
                     await log('     Option 1: Enable automatic force-push (DANGEROUS)');
-                    await log('              Add --allow-fork-force-push flag to your command');
+                    await log('              Add --allow-fork-divergence-resolution-using-force-push-with-lease flag to your command');
                     await log('              This will automatically sync your fork with upstream using force-with-lease');
                     await log('');
                     await log('     Option 2: Manually resolve the divergence');
@@ -682,7 +682,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('              May cause merge conflicts in pull requests');
                     await log('');
                     await log('  🔧 To proceed with auto-resolution, restart with:');
-                    await log(`     solve ${argv.url || argv._[0]} --allow-fork-force-push`);
+                    await log(`     solve ${argv.url || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
                     await log('');
                     await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
                   }

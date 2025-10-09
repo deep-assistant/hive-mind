@@ -34,7 +34,7 @@ export const DEFINED_OPTIONS = new Set([
   'no-sentry', 'noSentry',
   'auto-cleanup', 'autoCleanup',
   'auto-merge-default-branch-to-pull-request-branch', 'autoMergeDefaultBranchToPullRequestBranch',
-  'allow-fork-force-push', 'allowForkForcePush',
+  'allow-fork-divergence-resolution-using-force-push-with-lease', 'allowForkDivergenceResolutionUsingForcePushWithLease',
   'tool',
   '_', '$0'
 ]);
@@ -196,7 +196,7 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically merge the default branch to the pull request branch when continuing work (only in continue mode)',
       default: false
     })
-    .option('allow-fork-force-push', {
+    .option('allow-fork-divergence-resolution-using-force-push-with-lease', {
       type: 'boolean',
       description: 'Allow automatic force-push (--force-with-lease) when fork diverges from upstream (DANGEROUS: can overwrite fork history)',
       default: false
