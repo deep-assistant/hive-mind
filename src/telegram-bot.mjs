@@ -216,13 +216,16 @@ function parseCommandArgs(text) {
     return [];
   }
 
+  // Replace em-dash (—) with double-dash (--) to fix Telegram auto-replacement
+  const normalizedArgsText = argsText.replace(/—/g, '--');
+
   const args = [];
   let currentArg = '';
   let inQuotes = false;
   let quoteChar = null;
 
-  for (let i = 0; i < argsText.length; i++) {
-    const char = argsText[i];
+  for (let i = 0; i < normalizedArgsText.length; i++) {
+    const char = normalizedArgsText[i];
 
     if ((char === '"' || char === "'") && !inQuotes) {
       inQuotes = true;
