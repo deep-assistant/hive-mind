@@ -21,6 +21,22 @@ const yargsModule = await use('yargs@17.7.2');
 const yargs = yargsModule.default || yargsModule;
 const { hideBin } = await use('yargs@17.7.2/helpers');
 
+// Import strict options validation
+const yargsStrictLib = await import('./yargs-strict.lib.mjs');
+const { validateStrictOptions } = yargsStrictLib;
+
+// Define all valid options for strict validation
+const DEFINED_OPTIONS = new Set([
+  'help', 'h', 'version',
+  'token', 't',
+  'allowed-chats', 'allowedChats', 'a',
+  'solve-overrides', 'solveOverrides',
+  'hive-overrides', 'hiveOverrides',
+  'solve', 'no-solve', 'noSolve',
+  'hive', 'no-hive', 'noHive',
+  '_', '$0'
+]);
+
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
   .option('token', {
@@ -57,6 +73,9 @@ const argv = yargs(hideBin(process.argv))
     'boolean-negation': true
   })
   .parse();
+
+// Apply strict options validation to reject unrecognized options
+validateStrictOptions(argv, DEFINED_OPTIONS);
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 

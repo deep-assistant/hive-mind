@@ -24,6 +24,17 @@ export const looksLikeUrl = (str) => {
 };
 
 /**
+ * Helper to convert between camelCase and kebab-case
+ */
+const toKebabCase = (str) => {
+  return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+};
+
+const toCamelCase = (str) => {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+};
+
+/**
  * Creates a yargs check function that validates against explicitly defined options
  * @param {Set<string>} definedOptions - Set of explicitly defined option names (including aliases)
  * @param {boolean} exitOnError - Whether to exit process on error (default: false, throw instead)
@@ -31,7 +42,8 @@ export const looksLikeUrl = (str) => {
  */
 export const createStrictOptionsCheck = (definedOptions, exitOnError = false) => {
   return (argv) => {
-    const errors = [];
+    const seenErrors = new Set(); // Track unique errors to avoid duplicates
+    const seenNormalized = new Set(); // Track normalized forms to avoid duplicate reporting
 
     // Check argv keys against our explicitly defined options
     for (const key of Object.keys(argv)) {
@@ -45,7 +57,19 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = false) =>
       const normalizedKey = key.replace(/^-+/, '');
 
       if (!definedOptions.has(key) && !definedOptions.has(normalizedKey)) {
-        errors.push(`Unknown option: ${key}`);
+        // Yargs creates both camelCase and kebab-case versions of options
+        // To avoid duplicate errors, normalize and check if we've already seen this
+        const kebabForm = toKebabCase(normalizedKey);
+        const camelForm = toCamelCase(normalizedKey);
+
+        // If we haven't seen either form, add the kebab-case version (more readable)
+        if (!seenNormalized.has(kebabForm) && !seenNormalized.has(camelForm)) {
+          // Prefer kebab-case for error messages
+          const errorKey = normalizedKey.includes('-') ? normalizedKey : kebabForm;
+          seenErrors.add(errorKey);
+          seenNormalized.add(kebabForm);
+          seenNormalized.add(camelForm);
+        }
       }
     }
 
@@ -53,12 +77,13 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = false) =>
     if (argv._ && Array.isArray(argv._)) {
       for (const arg of argv._) {
         if (typeof arg === 'string' && looksLikeOption(arg)) {
-          errors.push(`Unrecognized option: ${arg}`);
+          seenErrors.add(arg);
         }
       }
     }
 
-    if (errors.length > 0) {
+    if (seenErrors.size > 0) {
+      const errors = Array.from(seenErrors).map(key => `Unknown option: ${key}`);
       const errorMessage = errors.join('\n');
       if (exitOnError) {
         console.error(errorMessage);
