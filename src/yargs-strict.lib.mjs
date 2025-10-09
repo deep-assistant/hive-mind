@@ -16,10 +16,10 @@ export const looksLikeOption = (str) => {
 /**
  * Creates a yargs check function that validates against explicitly defined options
  * @param {Set<string>} definedOptions - Set of explicitly defined option names (including aliases)
- * @param {boolean} exitOnError - Whether to exit process on error (default: true)
+ * @param {boolean} exitOnError - Whether to exit process on error (default: false, throw instead)
  * @returns {Function} - Check function for yargs
  */
-export const createStrictOptionsCheck = (definedOptions, exitOnError = true) => {
+export const createStrictOptionsCheck = (definedOptions, exitOnError = false) => {
   return (argv) => {
     const errors = [];
 
@@ -57,6 +57,21 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = true) => 
 
     return true;
   };
+};
+
+/**
+ * Validates argv against defined options and exits with error if invalid
+ * This should be called AFTER argv is parsed and initial logging is done
+ * @param {object} argv - Parsed argv object
+ * @param {Set<string>} definedOptions - Set of explicitly defined option names
+ */
+export const validateStrictOptions = (argv, definedOptions) => {
+  try {
+    createStrictOptionsCheck(definedOptions, false)(argv);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 };
 
 /**
