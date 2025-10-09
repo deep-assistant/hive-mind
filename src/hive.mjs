@@ -212,10 +212,9 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use for solve (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
+      description: 'Model to use for solve (opus, sonnet, or any model ID supported by the tool)',
       alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
+      default: 'sonnet'
     })
     .option('interval', {
       type: 'number',
