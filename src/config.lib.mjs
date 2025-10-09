@@ -29,6 +29,7 @@ const parseFloatWithDefault = (envVar, defaultValue) => {
 // Timeout configurations (in milliseconds)
 export const timeouts = {
   claudeCli: parseIntWithDefault('HIVE_MIND_CLAUDE_TIMEOUT_SECONDS', 60) * 1000,
+  opencodeCli: parseIntWithDefault('HIVE_MIND_OPENCODE_TIMEOUT_SECONDS', 60) * 1000,
   githubApiDelay: parseIntWithDefault('HIVE_MIND_GITHUB_API_DELAY_MS', 5000),
   githubRepoDelay: parseIntWithDefault('HIVE_MIND_GITHUB_REPO_DELAY_MS', 2000),
   retryBaseDelay: parseIntWithDefault('HIVE_MIND_RETRY_BASE_DELAY_MS', 5000),
@@ -61,6 +62,8 @@ export const retryLimits = {
   maxVerifyRetries: parseIntWithDefault('HIVE_MIND_MAX_VERIFY_RETRIES', 5),
   maxApiRetries: parseIntWithDefault('HIVE_MIND_MAX_API_RETRIES', 3),
   retryBackoffMultiplier: parseFloatWithDefault('HIVE_MIND_RETRY_BACKOFF_MULTIPLIER', 2),
+  max503Retries: parseIntWithDefault('HIVE_MIND_MAX_503_RETRIES', 3),
+  initial503RetryDelayMs: parseIntWithDefault('HIVE_MIND_INITIAL_503_RETRY_DELAY_MS', 5 * 60 * 1000), // 5 minutes
 };
 
 // File and path configurations
@@ -103,6 +106,8 @@ export const externalUrls = {
 export const modelConfig = {
   availableModels: getenv('HIVE_MIND_AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
   defaultModel: getenv('HIVE_MIND_DEFAULT_MODEL', 'sonnet'),
+  // Allow any model ID - validation is delegated to the tool implementation
+  restrictModels: getenv('HIVE_MIND_RESTRICT_MODELS', 'false').toLowerCase() === 'true',
 };
 
 // Version configurations

@@ -12,7 +12,7 @@ async function testLogFileContent() {
   console.log('Testing raw command in log file...\n');
 
   const testUrl = 'https://github.com/test/repo/issues/888';
-  const testProcess = spawn('node', [solvePath, testUrl, '--dry-run', '--skip-claude-check', '--verbose'], {
+  const testProcess = spawn('node', [solvePath, testUrl, '--dry-run', '--skip-tool-check', '--verbose'], {
     stdio: 'pipe'
   });
 

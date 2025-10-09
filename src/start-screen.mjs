@@ -116,6 +116,62 @@ async function screenSessionExists(sessionName) {
 }
 
 /**
+ * Wait for a screen session to be ready to accept commands
+ * A session is considered ready when it can execute a test command
+ * @param {string} sessionName - The name of the screen session
+ * @param {number} maxWaitSeconds - Maximum time to wait in seconds (default: 5)
+ * @returns {Promise<boolean>} Whether the session became ready
+ */
+async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
+  const startTime = Date.now();
+  const maxWaitMs = maxWaitSeconds * 1000;
+
+  // Use a unique marker file for this check to avoid conflicts
+  const markerFile = `/tmp/screen-ready-${sessionName}-${Date.now()}.marker`;
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      // Send a test command that creates a marker file
+      // This command will only execute when the session is actually ready at a prompt
+      await execAsync(`screen -S ${sessionName} -X stuff "touch ${markerFile} 2>/dev/null\n"`);
+
+      // Wait for the marker file to appear
+      const checkStartTime = Date.now();
+      const checkTimeout = 1000; // 1 second to check if marker appears
+
+      while (Date.now() - checkStartTime < checkTimeout) {
+        try {
+          const { code } = await execAsync(`test -f ${markerFile}`);
+          if (code === 0) {
+            // Marker file exists, session is ready!
+            // Clean up the marker file
+            await execAsync(`rm -f ${markerFile}`).catch(() => { });
+            return true;
+          }
+        } catch (error) {
+          // Marker file doesn't exist yet
+        }
+
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // Marker file didn't appear, session is still busy
+      // Clean up any leftover marker file from the queued command
+      await execAsync(`rm -f ${markerFile}`).catch(() => { });
+    } catch (error) {
+      // Error sending test command or checking marker
+    }
+
+    // Wait before trying again
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  // Timeout reached, session is not ready
+  return false;
+}
+
+/**
  * Create or enter a screen session with the given command
  * @param {string} sessionName - The name of the screen session
  * @param {string} command - The command to run ('solve' or 'hive')
@@ -127,6 +183,18 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   if (sessionExists) {
     console.log(`Screen session '${sessionName}' already exists.`);
+    console.log(`Checking if session is ready to accept commands...`);
+
+    // Wait for the session to be ready (at a prompt)
+    const isReady = await waitForSessionReady(sessionName);
+
+    if (isReady) {
+      console.log(`Session is ready.`);
+    } else {
+      console.log(`Session might still be running a command. Will attempt to send command anyway.`);
+      console.log(`Note: The command will execute once the current operation completes.`);
+    }
+
     console.log(`Sending command to existing session...`);
 
     // Build the full command to send to the existing session
@@ -225,8 +293,17 @@ async function main() {
   }
 
   // Check for --auto-terminate flag at the beginning
+  // Also validate that first arg is not an unrecognized option with em-dash or other invalid dash
   let autoTerminate = false;
   let argsOffset = 0;
+
+  // Check for various dash characters in first argument (em-dash \u2014, en-dash \u2013, etc.)
+  if (args[0] && /^[\u2010\u2011\u2012\u2013\u2014]/.test(args[0])) {
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    console.error('Note: Use regular hyphens (--) not em-dashes or en-dashes.');
+    process.exit(1);
+  }
 
   if (args[0] === '--auto-terminate') {
     autoTerminate = true;
@@ -235,6 +312,24 @@ async function main() {
     if (args.length < 3) {
       console.error('Error: --auto-terminate requires a command and GitHub URL');
       console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      process.exit(1);
+    }
+  } else if (args[0] && args[0].startsWith('-') && args[0] !== '--help' && args[0] !== '-h') {
+    // First arg is an unrecognized option
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    process.exit(1);
+  }
+
+  // Check if the next arg (after --auto-terminate if present) looks like an unrecognized option
+  if (args[argsOffset] && args[argsOffset].startsWith('-')) {
+    // Check for various dash characters (em-dash, en-dash, etc.)
+    const firstArg = args[argsOffset];
+    const hasInvalidDash = /^[\u2010\u2011\u2012\u2013\u2014]/.test(firstArg);
+    if (hasInvalidDash || (firstArg.startsWith('-') && firstArg !== '--help' && firstArg !== '-h')) {
+      console.error(`Unknown option: ${firstArg}`);
+      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      console.error('Expected command to be "solve" or "hive", not an option.');
       process.exit(1);
     }
   }

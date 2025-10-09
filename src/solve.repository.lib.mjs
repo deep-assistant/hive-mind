@@ -131,6 +131,51 @@ export const setupTempDirectory = async (argv) => {
   return { tempDir, isResuming };
 };
 
+// Try to initialize an empty repository by creating a simple README.md
+// This makes the repository forkable
+const tryInitializeEmptyRepository = async (owner, repo) => {
+  try {
+    await log(`${formatAligned('🔧', 'Auto-fix:', 'Attempting to initialize empty repository...')}`);
+    await log(`${formatAligned('', '', 'Creating a simple README.md to make repository forkable')}`);
+
+    // Create simple README content with just the repository name
+    const readmeContent = `# ${repo}\n`;
+    const base64Content = Buffer.from(readmeContent).toString('base64');
+
+    // Try to create README.md using GitHub API
+    const createResult = await $`gh api repos/${owner}/${repo}/contents/README.md --method PUT --silent \
+      --field message="Initialize repository with README" \
+      --field content="${base64Content}" 2>&1`;
+
+    if (createResult.code === 0) {
+      await log(`${formatAligned('✅', 'Success:', 'README.md created successfully')}`);
+      await log(`${formatAligned('', '', 'Repository is now forkable, retrying fork creation...')}`);
+      return true;
+    } else {
+      const errorOutput = createResult.stdout.toString() + createResult.stderr.toString();
+      // Check if it's a permission error
+      if (errorOutput.includes('403') || errorOutput.includes('Forbidden') ||
+          errorOutput.includes('not have permission') || errorOutput.includes('Resource not accessible')) {
+        await log(`${formatAligned('❌', 'No access:', 'You do not have write access to this repository')}`);
+        return false;
+      } else {
+        await log(`${formatAligned('❌', 'Failed:', 'Could not create README.md')}`);
+        await log(`   Error: ${errorOutput.split('\n')[0]}`);
+        return false;
+      }
+    }
+  } catch (error) {
+    reportError(error, {
+      context: 'initialize_empty_repository',
+      owner,
+      repo,
+      operation: 'create_readme'
+    });
+    await log(`${formatAligned('❌', 'Error:', 'Failed to initialize repository')}`);
+    return false;
+  }
+};
+
 // Handle fork creation and repository setup
 export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
   let repoToClone = `${owner}/${repo}`;
@@ -276,6 +321,53 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
             await log(`${formatAligned('ℹ️', 'Fork exists:', actualForkName)}`);
             forkExists = true;
             break;
+          }
+
+          // Check if it's an empty repository (HTTP 403) - try to auto-fix
+          if (forkOutput.includes('HTTP 403') &&
+              (forkOutput.includes('Empty repositories cannot be forked') ||
+               forkOutput.includes('contains no Git content'))) {
+            // Empty repository detected - try to initialize it
+            await log('');
+            await log(`${formatAligned('⚠️', 'EMPTY REPOSITORY', 'detected')}`, { level: 'warn' });
+            await log(`${formatAligned('', '', `Repository ${owner}/${repo} contains no content`)}`);
+            await log('');
+
+            // Try to initialize the repository by creating a README.md
+            const initialized = await tryInitializeEmptyRepository(owner, repo);
+
+            if (initialized) {
+              // Success! Repository is now initialized, retry fork creation
+              await log('');
+              await log(`${formatAligned('🔄', 'Retrying:', 'Fork creation after repository initialization...')}`);
+              // Wait a moment for GitHub to process the new file
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Continue to next iteration (retry fork creation)
+              continue;
+            } else {
+              // Failed to initialize - provide helpful suggestions
+              await log('');
+              await log(`${formatAligned('❌', 'Cannot proceed:', 'Unable to initialize empty repository')}`, { level: 'error' });
+              await log('');
+              await log('  🔍 What happened:');
+              await log(`     The repository ${owner}/${repo} is empty and cannot be forked.`);
+              await log('     GitHub doesn\'t allow forking repositories with no content.');
+              await log('     Auto-fix failed: You need write access to initialize the repository.');
+              await log('');
+              await log('  💡 How to fix:');
+              await log('     Option 1: Ask repository owner to add initial content');
+              await log('              Even a simple README.md file would make the repository forkable');
+              await log('');
+              await log('     Option 2: Work directly on the original repository (if you get write access)');
+              await log(`              Run: solve ${argv.url} --no-fork`);
+              await log('');
+              await log('     Option 3: Create your own repository with initial content');
+              await log('              1. Create a new repository with the same name');
+              await log('              2. Add initial content (README.md or any file)');
+              await log('              3. Open an issue/PR there for development');
+              await log('');
+              await safeExit(1, 'Repository setup failed - empty repository');
+            }
           }
 
           // Check if fork was created by another worker even if error message doesn't explicitly say so
@@ -425,7 +517,7 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
 };
 
 // Set up upstream remote and sync fork
-export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo) => {
+export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo, argv) => {
   if (!forkedRepo || !upstreamRemote) return;
 
   await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
@@ -499,18 +591,112 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
               if (pushResult.code === 0) {
                 await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
               } else {
-                // Fork sync failed - exit immediately as per maintainer feedback
-                await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
-                if (pushResult.stderr) {
-                  const errorMsg = pushResult.stderr.toString().trim();
+                // Check if it's a non-fast-forward error (fork has diverged from upstream)
+                const errorMsg = pushResult.stderr ? pushResult.stderr.toString().trim() : '';
+                const isNonFastForward = errorMsg.includes('non-fast-forward') ||
+                                        errorMsg.includes('rejected') ||
+                                        errorMsg.includes('tip of your current branch is behind');
+
+                if (isNonFastForward) {
+                  // Fork has diverged from upstream
+                  await log('');
+                  await log(`${formatAligned('⚠️', 'FORK DIVERGENCE DETECTED', '')}`, { level: 'warn' });
+                  await log('');
+                  await log('  🔍 What happened:');
+                  await log(`     Your fork's ${upstreamDefaultBranch} branch has different commits than upstream`);
+                  await log('     This typically occurs when upstream had a force push (e.g., git reset --hard)');
+                  await log('');
+                  await log('  📦 Current state:');
+                  await log(`     • Fork: ${forkedRepo}`);
+                  await log(`     • Upstream: ${owner}/${repo}`);
+                  await log(`     • Branch: ${upstreamDefaultBranch}`);
+                  await log('');
+
+                  // Check if user has enabled automatic force push
+                  if (argv.allowForkDivergenceResolutionUsingForcePushWithLease) {
+                    await log('  🔄 Auto-resolution ENABLED (--allow-fork-divergence-resolution-using-force-push-with-lease):');
+                    await log('     Attempting to force-push with --force-with-lease...');
+                    await log('');
+
+                    // Use --force-with-lease for safer force push
+                    // This will only force push if the remote hasn't changed since our last fetch
+                    await log(`${formatAligned('🔄', 'Force pushing:', 'Syncing fork with upstream (--force-with-lease)')}`);
+                    const forcePushResult = await $({ cwd: tempDir })`git push --force-with-lease origin ${upstreamDefaultBranch}`;
+
+                    if (forcePushResult.code === 0) {
+                      await log(`${formatAligned('✅', 'Fork synced:', 'Successfully force-pushed to align with upstream')}`);
+                      await log('');
+                    } else {
+                      // Force push also failed - this is a more serious issue
+                      await log('');
+                      await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to sync fork with upstream')}`, { level: 'error' });
+                      await log('');
+                      await log('  🔍 What happened:');
+                      await log(`     Fork branch ${upstreamDefaultBranch} has diverged from upstream`);
+                      await log('     Both normal push and force-with-lease push failed');
+                      await log('');
+                      await log('  📦 Error details:');
+                      const forceErrorMsg = forcePushResult.stderr ? forcePushResult.stderr.toString().trim() : '';
+                      for (const line of forceErrorMsg.split('\n')) {
+                        if (line.trim()) await log(`     ${line}`);
+                      }
+                      await log('');
+                      await log('  💡 Possible causes:');
+                      await log('     • Fork branch is protected (branch protection rules prevent force push)');
+                      await log('     • Someone else pushed to fork after our fetch');
+                      await log('     • Insufficient permissions to force push');
+                      await log('');
+                      await log('  🔧 Manual resolution:');
+                      await log(`     1. Visit your fork: https://github.com/${forkedRepo}`);
+                      await log('     2. Check branch protection settings');
+                      await log('     3. Manually sync fork with upstream:');
+                      await log('        git fetch upstream');
+                      await log(`        git reset --hard upstream/${upstreamDefaultBranch}`);
+                      await log(`        git push --force origin ${upstreamDefaultBranch}`);
+                      await log('');
+                      await safeExit(1, 'Repository setup failed - fork sync failed');
+                    }
+                  } else {
+                    // Flag is not enabled - provide guidance
+                    await log('  ⚠️  RISKS of force-pushing:');
+                    await log('     • Overwrites fork history - any unique commits in your fork will be LOST');
+                    await log('     • Other collaborators working on your fork may face conflicts');
+                    await log('     • Cannot be undone - use with extreme caution');
+                    await log('');
+                    await log('  💡 Your options:');
+                    await log('');
+                    await log('     Option 1: Enable automatic force-push (DANGEROUS)');
+                    await log('              Add --allow-fork-divergence-resolution-using-force-push-with-lease flag to your command');
+                    await log('              This will automatically sync your fork with upstream using force-with-lease');
+                    await log('');
+                    await log('     Option 2: Manually resolve the divergence');
+                    await log('              1. Decide if you need any commits unique to your fork');
+                    await log('              2. If yes, cherry-pick them after syncing');
+                    await log('              3. If no, manually force-push:');
+                    await log('                 git fetch upstream');
+                    await log(`                 git reset --hard upstream/${upstreamDefaultBranch}`);
+                    await log(`                 git push --force origin ${upstreamDefaultBranch}`);
+                    await log('');
+                    await log('     Option 3: Work without syncing fork (NOT RECOMMENDED)');
+                    await log('              Your fork will remain out-of-sync with upstream');
+                    await log('              May cause merge conflicts in pull requests');
+                    await log('');
+                    await log('  🔧 To proceed with auto-resolution, restart with:');
+                    await log(`     solve ${argv.url || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
+                    await log('');
+                    await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
+                  }
+                } else {
+                  // Some other push error (not divergence-related)
+                  await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
                   await log(`${formatAligned('', 'Push error:', errorMsg)}`);
+                  await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
+                  await log(`${formatAligned('', 'Solution draft:', 'Fork sync is required for proper workflow')}`);
+                  await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
+                  await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
+                  await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);
+                  await safeExit(1, 'Repository setup failed');
                 }
-                await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
-                await log(`${formatAligned('', 'Solution draft:', 'Fork sync is required for proper workflow')}`);
-                await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
-                await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
-                await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);
-                await safeExit(1, 'Repository setup failed');
               }
 
               // Step 4: Return to the original branch if it was different

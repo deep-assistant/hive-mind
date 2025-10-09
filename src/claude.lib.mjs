@@ -14,7 +14,7 @@ const path = (await use('path')).default;
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
-import { timeouts } from './config.lib.mjs';
+import { timeouts, retryLimits } from './config.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs
 export const mapModelToId = (model) => {
@@ -549,6 +549,8 @@ export const executeClaudeCommand = async (params) => {
     let toolUseCount = 0;
     let lastMessage = '';
     let isOverloadError = false;
+    let is503Error = false;
+    let stderrErrors = [];
 
   // Build claude command with optional resume flag
   let execCommand;
@@ -689,18 +691,26 @@ export const executeClaudeCommand = async (params) => {
               lastMessage = data.error || JSON.stringify(data);
             }
 
-            // Check for API overload error
+            // Check for API overload error and 503 errors
             if (data.type === 'assistant' && data.message && data.message.content) {
               const content = Array.isArray(data.message.content) ? data.message.content : [data.message.content];
               for (const item of content) {
                 if (item.type === 'text' && item.text) {
-                  // Check for the specific error pattern from the issue
+                  // Check for the specific 500 overload error pattern
                   if (item.text.includes('API Error: 500') &&
                       item.text.includes('api_error') &&
                       item.text.includes('Overloaded')) {
                     isOverloadError = true;
                     lastMessage = item.text;
                     await log('⚠️ Detected API overload error', { verbose: true });
+                  }
+                  // Check for 503 errors
+                  if (item.text.includes('API Error: 503') ||
+                      (item.text.includes('503') && item.text.includes('upstream connect error')) ||
+                      (item.text.includes('503') && item.text.includes('remote connection failure'))) {
+                    is503Error = true;
+                    lastMessage = item.text;
+                    await log('⚠️ Detected 503 network error', { verbose: true });
                   }
                 }
               }
@@ -731,6 +741,11 @@ export const executeClaudeCommand = async (params) => {
         // Log stderr immediately
         if (errorOutput) {
           await log(errorOutput, { stream: 'stderr' });
+          // Track stderr errors for failure detection
+          const trimmed = errorOutput.trim();
+          if (trimmed && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
+            stderrErrors.push(trimmed);
+          }
         }
       } else if (chunk.type === 'exit') {
         exitCode = chunk.code;
@@ -772,6 +787,61 @@ export const executeClaudeCommand = async (params) => {
       }
     }
 
+    // Check if this is a 503 error that should be retried (only if --auto-resume-on-errors is enabled)
+    if ((commandFailed || is503Error) && argv.autoResumeOnErrors &&
+        (is503Error ||
+         lastMessage.includes('API Error: 503') ||
+         (lastMessage.includes('503') && lastMessage.includes('upstream connect error')) ||
+         (lastMessage.includes('503') && lastMessage.includes('remote connection failure')))) {
+
+      if (retryCount < retryLimits.max503Retries) {
+        // Calculate exponential backoff delay starting from 5 minutes
+        const delay = retryLimits.initial503RetryDelayMs * Math.pow(retryLimits.retryBackoffMultiplier, retryCount);
+        const delayMinutes = Math.round(delay / (1000 * 60));
+        await log(`\n⚠️ 503 network error detected. Retrying in ${delayMinutes} minutes...`, { level: 'warning' });
+        await log(`   Error: ${lastMessage.substring(0, 200)}`, { verbose: true });
+        await log(`   Retry ${retryCount + 1}/${retryLimits.max503Retries}`, { verbose: true });
+
+        // Show countdown for long waits
+        if (delay > 60000) {
+          const countdownInterval = 60000; // Every minute
+          let remainingMs = delay;
+          const countdownTimer = setInterval(async () => {
+            remainingMs -= countdownInterval;
+            if (remainingMs > 0) {
+              const remainingMinutes = Math.round(remainingMs / (1000 * 60));
+              await log(`⏳ ${remainingMinutes} minutes remaining until retry...`);
+            }
+          }, countdownInterval);
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delay));
+          clearInterval(countdownTimer);
+        } else {
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        await log('\n🔄 Retrying now...');
+
+        // Increment retry count and retry
+        retryCount++;
+        return await executeWithRetry();
+      } else {
+        await log(`\n\n❌ 503 network error persisted after ${retryLimits.max503Retries} retries`, { level: 'error' });
+        await log('   The Anthropic API appears to be experiencing network issues.', { level: 'error' });
+        await log('   Please try again later or check https://status.anthropic.com/', { level: 'error' });
+        return {
+          success: false,
+          sessionId,
+          limitReached: false,
+          messageCount,
+          toolUseCount,
+          is503Error: true
+        };
+      }
+    }
+
     if (commandFailed) {
       // Check if we hit a rate limit
       if (lastMessage.includes('rate_limit_exceeded') ||
@@ -797,6 +867,34 @@ export const executeClaudeCommand = async (params) => {
       }
     }
 
+    // Additional failure detection: if no messages were processed and there were stderr errors,
+    // or if the command produced no output at all, treat it as a failure
+    //
+    // This is critical for detecting "silent failures" where:
+    // 1. Claude CLI encounters an internal error (e.g., "kill EPERM" from timeout)
+    // 2. The error is logged to stderr but exit code is 0 or exit event is never sent
+    // 3. Result: messageCount=0, toolUseCount=0, but stderrErrors has content
+    //
+    // Common cause: sudo commands that timeout
+    // - Timeout triggers process.kill() in Claude CLI
+    // - If child process runs with sudo (root), parent can't kill it → EPERM error
+    // - Error logged to stderr, but command doesn't properly fail
+    //
+    // Workaround (applied in system prompt):
+    // - Instruct Claude to run sudo commands (installations) in background
+    // - Background processes avoid timeout kill mechanism
+    // - Prevents EPERM errors and false success reports
+    //
+    // See: docs/dependencies-research/claude-code-issues/README.md for full details
+    if (!commandFailed && stderrErrors.length > 0 && messageCount === 0 && toolUseCount === 0) {
+      commandFailed = true;
+      await log('\n\n❌ Command failed: No messages processed and errors detected in stderr', { level: 'error' });
+      await log('Stderr errors:', { level: 'error' });
+      for (const err of stderrErrors.slice(0, 5)) {
+        await log(`   ${err.substring(0, 200)}`, { level: 'error' });
+      }
+    }
+
     // Check if command failed
     if (commandFailed) {
       // Take resource snapshot after failure
@@ -805,11 +903,8 @@ export const executeClaudeCommand = async (params) => {
       await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`, { verbose: true });
       await log(`   Load: ${resourcesAfter.load}`, { verbose: true });
 
-      // If --attach-logs is enabled, ensure we attach failure logs
-      if (argv.attachLogs && sessionId) {
-        await log('\n📄 Attempting to attach failure logs to PR/Issue...');
-        // The attach logs logic will handle this in the catch block below
-      }
+      // Log attachment will be handled by solve.mjs when it receives success=false
+      await log('', { verbose: true });
 
       return {
         success: false,
@@ -846,6 +941,27 @@ export const executeClaudeCommand = async (params) => {
         // Calculate exponential backoff delay
         const delay = baseDelay * Math.pow(2, retryCount);
         await log(`\n⚠️ API overload error in exception. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Increment retry count and retry
+        retryCount++;
+        return await executeWithRetry();
+      }
+    }
+
+    // Check if this is a 503 error in the exception (only if --auto-resume-on-errors is enabled)
+    if (argv.autoResumeOnErrors &&
+        (errorStr.includes('API Error: 503') ||
+         (errorStr.includes('503') && errorStr.includes('upstream connect error')) ||
+         (errorStr.includes('503') && errorStr.includes('remote connection failure')))) {
+
+      if (retryCount < retryLimits.max503Retries) {
+        // Calculate exponential backoff delay starting from 5 minutes
+        const delay = retryLimits.initial503RetryDelayMs * Math.pow(retryLimits.retryBackoffMultiplier, retryCount);
+        const delayMinutes = Math.round(delay / (1000 * 60));
+        await log(`\n⚠️ 503 network error in exception. Retrying in ${delayMinutes} minutes...`, { level: 'warning' });
 
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, delay));

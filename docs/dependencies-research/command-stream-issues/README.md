@@ -21,6 +21,7 @@ This directory contains reproducible test cases for issues encountered with the 
 15. **issue-15-timeout-claude-cli.mjs** - Claude CLI commands timeout issues
 16. **issue-16-unwanted-stdout.mjs** - Unwanted stdout output even with mirror:false
 17. **issue-17-trace-logs-in-ci.mjs** - command-stream emits trace logs when CI=true environment variable is set
+18. **issue-18-auto-quoting-control.mjs** - Lack of ability to turn off auto-quoting causes full command strings to be misinterpreted
 
 ## Critical Issues
 
@@ -35,6 +36,8 @@ This directory contains reproducible test cases for issues encountered with the 
 ⚠️ **Issue #14 - CWD with CD Pattern Failure**: The pattern `$`cd ${dir} && command`` doesn't work as expected. Commands appear to succeed but don't actually execute in the specified directory. This causes critical failures with git operations where files aren't staged or committed despite success codes. Always use `$({ cwd: dir })`command`` instead.
 
 ⚠️ **Issue #17 - Trace Logs in CI Environment**: When the `CI` environment variable is set to `true` (as in GitHub Actions), command-stream emits trace logs to stderr in the format `[TRACE 2025-01-14T12:34:56.789Z] ...`. These logs appear even with `mirror: false` and `capture: true` options, breaking JSON parsing and causing test failures. Workaround: redirect stderr with `2>/dev/null` or filter trace logs from output.
+
+⚠️ **Issue #18 - Auto-Quoting Control**: command-stream lacks the ability to turn off auto-quoting, which causes full command strings to be misinterpreted as quoted commands. This breaks telegram bot command execution and similar use cases where pre-constructed command strings need to be executed. Always use `child_process.spawn()` or `execSync()` for commands requiring precise argument control.
 
 ## Running the Tests
 
@@ -211,6 +214,7 @@ When dealing with user-generated or complex content, prefer Node.js fs operation
    - **GitHub PR creation**: Use execSync for `gh pr create` to capture PR URL (critical issue #11)
    - Authentication operations: Fall back to child_process when command-stream fails silently
    - **CI environments**: Add `2>/dev/null` to commands or filter trace logs (critical issue #17)
+   - **Full command strings**: Use spawn() or execSync() for pre-constructed commands (critical issue #18)
 
 ## Alternative Approaches
 
