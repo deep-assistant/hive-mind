@@ -348,6 +348,11 @@ function validateGitHubUrl(args) {
 }
 
 bot.command('help', async (ctx) => {
+  // Ignore forwarded or reply messages
+  if (isForwardedOrReply(ctx)) {
+    return;
+  }
+
   const chatId = ctx.chat.id;
   const chatType = ctx.chat.type;
   const chatTitle = ctx.chat.title || 'Private Chat';
