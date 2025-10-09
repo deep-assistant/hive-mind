@@ -903,11 +903,8 @@ export const executeClaudeCommand = async (params) => {
       await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`, { verbose: true });
       await log(`   Load: ${resourcesAfter.load}`, { verbose: true });
 
-      // If --attach-logs is enabled, ensure we attach failure logs
-      if (argv.attachLogs && sessionId) {
-        await log('\n📄 Attempting to attach failure logs to PR/Issue...');
-        // The attach logs logic will handle this in the catch block below
-      }
+      // Log attachment will be handled by solve.mjs when it receives success=false
+      await log('', { verbose: true });
 
       return {
         success: false,

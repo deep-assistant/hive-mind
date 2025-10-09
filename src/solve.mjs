@@ -596,6 +596,32 @@ try {
   cleanupContext.limitReached = limitReached;
 
   if (!success) {
+    // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
+    if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
+      await log('\n📄 Attaching failure logs to Pull Request...');
+      try {
+        const logUploadSuccess = await attachLogToGitHub({
+          logFile: getLogFile(),
+          targetType: 'pr',
+          targetNumber: global.createdPR.number,
+          owner,
+          repo,
+          $,
+          log,
+          sanitizeLogContent,
+          errorMessage: `${argv.tool.toUpperCase()} execution failed`
+        });
+
+        if (logUploadSuccess) {
+          await log('  ✅ Failure logs uploaded successfully');
+        } else {
+          await log('  ⚠️  Failed to upload logs', { verbose: true });
+        }
+      } catch (uploadError) {
+        await log(`  ⚠️  Error uploading logs: ${uploadError.message}`, { verbose: true });
+      }
+    }
+
     await safeExit(1, `${argv.tool.toUpperCase()} execution failed`);
   }
 
