@@ -666,7 +666,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('  💡 Your options:');
                     await log('');
                     await log('     Option 1: Enable automatic force-push (DANGEROUS)');
-                    await log(`              Add --allow-fork-force-push flag to your command`);
+                    await log('              Add --allow-fork-force-push flag to your command');
                     await log('              This will automatically sync your fork with upstream using force-with-lease');
                     await log('');
                     await log('     Option 2: Manually resolve the divergence');
