@@ -131,6 +131,22 @@ function isGroupChat(ctx) {
   return chatType === 'group' || chatType === 'supergroup';
 }
 
+function isForwardedOrReply(ctx) {
+  const message = ctx.message;
+  if (!message) {
+    return false;
+  }
+  // Check if message is forwarded (has forward_origin field)
+  if (message.forward_origin) {
+    return true;
+  }
+  // Check if message is a reply (has reply_to_message field)
+  if (message.reply_to_message) {
+    return true;
+  }
+  return false;
+}
+
 async function findStartScreenCommand() {
   try {
     const { stdout } = await exec('which start-screen');
@@ -391,6 +407,11 @@ bot.command('solve', async (ctx) => {
     return;
   }
 
+  // Ignore forwarded or reply messages
+  if (isForwardedOrReply(ctx)) {
+    return;
+  }
+
   if (!isGroupChat(ctx)) {
     await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
@@ -447,6 +468,11 @@ bot.command('solve', async (ctx) => {
 bot.command('hive', async (ctx) => {
   if (!hiveEnabled) {
     await ctx.reply('❌ The /hive command is disabled on this bot instance.');
+    return;
+  }
+
+  // Ignore forwarded or reply messages
+  if (isForwardedOrReply(ctx)) {
     return;
   }
 
