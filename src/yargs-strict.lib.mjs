@@ -14,6 +14,16 @@ export const looksLikeOption = (str) => {
 };
 
 /**
+ * Helper to check if a string looks like a URL
+ * @param {string} str - String to check
+ * @returns {boolean} - True if string looks like a URL
+ */
+export const looksLikeUrl = (str) => {
+  // Check for common URL patterns: http://, https://, ftp://, etc.
+  return /^[a-z]+:\/\//.test(str);
+};
+
+/**
  * Creates a yargs check function that validates against explicitly defined options
  * @param {Set<string>} definedOptions - Set of explicitly defined option names (including aliases)
  * @param {boolean} exitOnError - Whether to exit process on error (default: false, throw instead)
@@ -27,6 +37,9 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = false) =>
     for (const key of Object.keys(argv)) {
       // Skip special keys
       if (key === '_' || key === '$0') continue;
+
+      // Skip keys that look like URLs (yargs parses https://... as --https://...)
+      if (looksLikeUrl(key)) continue;
 
       // Check if this key is in our defined options or is a variant (--key, etc.)
       const normalizedKey = key.replace(/^-+/, '');
