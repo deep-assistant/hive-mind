@@ -23,6 +23,32 @@ That means it can lead to unexpected side effects.
 
 There is also a known issue of space leakage. So you need to make sure you are able to reinstall your virtual machine to clear space and/or any damage to the virtual machine.
 
+### ⚠️ CRITICAL: Token and Sensitive Data Security
+
+**THIS SOFTWARE CANNOT GUARANTEE ANY SAFETY FOR YOUR TOKENS OR OTHER SENSITIVE DATA ON THE VIRTUAL MACHINE.**
+
+There are infinite ways to extract tokens from a virtual machine connected to the internet. This includes but is not limited to:
+
+- **Claude MAX tokens** - Required for AI operations
+- **GitHub tokens** - Required for repository access
+- **API keys and credentials** - Any sensitive data on the system
+
+**IMPORTANT SECURITY CONSIDERATIONS:**
+
+- Running on a developer machine is **ABSOLUTELY UNSAFE**
+- Running on a virtual machine is **LESS UNSAFE** but still has risks
+- Even though your developer machine data isn't directly exposed, the VM still contains sensitive tokens
+- Any token stored on an internet-connected system can potentially be compromised
+
+**USE THIS SOFTWARE ENTIRELY AT YOUR OWN RISK AND RESPONSIBILITY.**
+
+We strongly recommend:
+- Using dedicated, isolated virtual machines
+- Rotating tokens regularly
+- Monitoring token usage for suspicious activity
+- Never using production tokens or credentials
+- Being prepared to revoke and replace all tokens used with this system
+
 Minimum system requirements to run `hive.mjs`:
 ```
 1 CPU Core
