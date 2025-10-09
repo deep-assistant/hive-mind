@@ -632,9 +632,9 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('');
                     await log('  🔧 Manual resolution:');
                     await log(`     1. Visit your fork: https://github.com/${forkedRepo}`);
-                    await log(`     2. Check branch protection settings`);
-                    await log(`     3. Manually sync fork with upstream:`);
-                    await log(`        git fetch upstream`);
+                    await log('     2. Check branch protection settings');
+                    await log('     3. Manually sync fork with upstream:');
+                    await log('        git fetch upstream');
                     await log(`        git reset --hard upstream/${upstreamDefaultBranch}`);
                     await log(`        git push --force origin ${upstreamDefaultBranch}`);
                     await log('');
