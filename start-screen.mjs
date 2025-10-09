@@ -293,8 +293,17 @@ async function main() {
   }
 
   // Check for --auto-terminate flag at the beginning
+  // Also validate that first arg is not an unrecognized option with em-dash or other invalid dash
   let autoTerminate = false;
   let argsOffset = 0;
+
+  // Check for various dash characters in first argument (em-dash \u2014, en-dash \u2013, etc.)
+  if (args[0] && /^[\u2010\u2011\u2012\u2013\u2014]/.test(args[0])) {
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    console.error('Note: Use regular hyphens (--) not em-dashes or en-dashes.');
+    process.exit(1);
+  }
 
   if (args[0] === '--auto-terminate') {
     autoTerminate = true;
@@ -303,6 +312,24 @@ async function main() {
     if (args.length < 3) {
       console.error('Error: --auto-terminate requires a command and GitHub URL');
       console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      process.exit(1);
+    }
+  } else if (args[0] && args[0].startsWith('-') && args[0] !== '--help' && args[0] !== '-h') {
+    // First arg is an unrecognized option
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    process.exit(1);
+  }
+
+  // Check if the next arg (after --auto-terminate if present) looks like an unrecognized option
+  if (args[argsOffset] && args[argsOffset].startsWith('-')) {
+    // Check for various dash characters (em-dash, en-dash, etc.)
+    const firstArg = args[argsOffset];
+    const hasInvalidDash = /^[\u2010\u2011\u2012\u2013\u2014]/.test(firstArg);
+    if (hasInvalidDash || (firstArg.startsWith('-') && firstArg !== '--help' && firstArg !== '-h')) {
+      console.error(`Unknown option: ${firstArg}`);
+      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      console.error('Expected command to be "solve" or "hive", not an option.');
       process.exit(1);
     }
   }
