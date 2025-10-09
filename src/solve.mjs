@@ -38,7 +38,10 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
-const { initializeConfig, parseArguments } = config;
+const { initializeConfig, parseArguments, DEFINED_OPTIONS } = config;
+// Import strict options validation
+const yargsStrictLib = await import('./yargs-strict.lib.mjs');
+const { validateStrictOptions } = yargsStrictLib;
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
@@ -133,6 +136,11 @@ const rawCommand = process.argv.join(' ');
 await log('🔧 Raw command executed:');
 await log(`   ${rawCommand}`);
 await log('');
+
+// Validate strict options after logging (issue #453)
+// This prevents unrecognized options like —fork (em-dash) from being silently ignored
+validateStrictOptions(argv, DEFINED_OPTIONS);
+
 // Now handle argument validation that was moved from early checks
 let issueUrl = argv._[0];
 if (!issueUrl) {
@@ -191,6 +199,21 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 // Store owner and repo globally for error handlers
 global.owner = owner;
 global.repo = repo;
+
+// Early check: Verify repository write permissions BEFORE doing any work
+// This prevents wasting AI tokens when user doesn't have access and --fork is not used
+const { checkRepositoryWritePermission } = githubLib;
+const hasWriteAccess = await checkRepositoryWritePermission(owner, repo, {
+  useFork: argv.fork,
+  issueUrl: issueUrl
+});
+
+if (!hasWriteAccess) {
+  await log('');
+  await log('❌ Cannot proceed without repository write access or --fork option', { level: 'error' });
+  await safeExit(1, 'Permission check failed');
+}
+
 // Detect repository visibility and set auto-cleanup default if not explicitly set
 if (argv.autoCleanup === undefined) {
   const { detectRepositoryVisibility } = githubLib;
@@ -371,6 +394,40 @@ try {
     crypto
   });
 
+  // Auto-merge default branch to pull request branch if enabled
+  let autoMergeFeedbackLines = [];
+  if (isContinueMode && argv['auto-merge-default-branch-to-pull-request-branch']) {
+    await log(`\n${formatAligned('🔀', 'Auto-merging:', `Merging ${defaultBranch} into ${branchName}`)}`);
+    try {
+      const mergeResult = await $({ cwd: tempDir })`git merge ${defaultBranch} --no-edit`;
+      if (mergeResult.code === 0) {
+        await log(`${formatAligned('✅', 'Merge successful:', 'Pushing merged branch...')}`);
+        const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+        if (pushResult.code === 0) {
+          await log(`${formatAligned('✅', 'Push successful:', 'Branch updated with latest changes')}`);
+        } else {
+          await log(`${formatAligned('⚠️', 'Push failed:', 'Merge completed but push failed')}`, { level: 'warning' });
+          await log(`  Error: ${pushResult.stderr?.toString() || 'Unknown error'}`, { level: 'warning' });
+        }
+      } else {
+        // Merge failed - likely due to conflicts
+        await log(`${formatAligned('⚠️', 'Merge failed:', 'Conflicts detected')}`, { level: 'warning' });
+        autoMergeFeedbackLines.push('');
+        autoMergeFeedbackLines.push('⚠️ AUTOMATIC MERGE FAILED:');
+        autoMergeFeedbackLines.push(`git merge ${defaultBranch} was executed but resulted in conflicts that should be resolved first.`);
+        autoMergeFeedbackLines.push('Please resolve the merge conflicts and commit the changes.');
+        autoMergeFeedbackLines.push('');
+      }
+    } catch (mergeError) {
+      await log(`${formatAligned('❌', 'Merge error:', mergeError.message)}`, { level: 'error' });
+      autoMergeFeedbackLines.push('');
+      autoMergeFeedbackLines.push('⚠️ AUTOMATIC MERGE ERROR:');
+      autoMergeFeedbackLines.push(`git merge ${defaultBranch} failed with error: ${mergeError.message}`);
+      autoMergeFeedbackLines.push('Please check the repository state and resolve any issues.');
+      autoMergeFeedbackLines.push('');
+    }
+  }
+
   // Initialize PR variables early
   let prUrl = null;
 
@@ -450,6 +507,14 @@ try {
 
   // Initialize feedback lines
   let feedbackLines = null;
+
+  // Add auto-merge feedback lines if any
+  if (autoMergeFeedbackLines && autoMergeFeedbackLines.length > 0) {
+    if (!feedbackLines) {
+      feedbackLines = [];
+    }
+    feedbackLines.push(...autoMergeFeedbackLines);
+  }
 
   // Merge feedback lines
   if (preparedFeedbackLines && preparedFeedbackLines.length > 0) {
@@ -546,6 +611,32 @@ try {
   cleanupContext.limitReached = limitReached;
 
   if (!success) {
+    // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
+    if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
+      await log('\n📄 Attaching failure logs to Pull Request...');
+      try {
+        const logUploadSuccess = await attachLogToGitHub({
+          logFile: getLogFile(),
+          targetType: 'pr',
+          targetNumber: global.createdPR.number,
+          owner,
+          repo,
+          $,
+          log,
+          sanitizeLogContent,
+          errorMessage: `${argv.tool.toUpperCase()} execution failed`
+        });
+
+        if (logUploadSuccess) {
+          await log('  ✅ Failure logs uploaded successfully');
+        } else {
+          await log('  ⚠️  Failed to upload logs', { verbose: true });
+        }
+      } catch (uploadError) {
+        await log(`  ⚠️  Error uploading logs: ${uploadError.message}`, { verbose: true });
+      }
+    }
+
     await safeExit(1, `${argv.tool.toUpperCase()} execution failed`);
   }
 

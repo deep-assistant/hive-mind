@@ -49,6 +49,9 @@ import * as memoryCheck from './memory-check.mjs';
 // Import Claude execution functions
 import { executeClaude, executeClaudeCommand, validateClaudeConnection } from './claude.lib.mjs';
 
+// Import strict options validation
+import { createStrictOptionsCheck } from './yargs-strict.lib.mjs';
+
 // Configure command line arguments - GitHub PR URL as positional argument
 const argv = yargs(process.argv.slice(2))
   .usage('Usage: $0 <pr-url> [options]')
@@ -93,6 +96,19 @@ const argv = yargs(process.argv.slice(2))
   .demandCommand(1, 'The GitHub pull request URL is required')
   .help('h')
   .alias('h', 'help')
+  // Apply strict options validation to reject unrecognized options
+  // This prevents issues like #453 where —fork (em-dash) is not recognized
+  .check(createStrictOptionsCheck(new Set([
+    'help', 'h', 'version',
+    'pr-url', 'prUrl',
+    'resume', 'r',
+    'dry-run', 'dryRun', 'n',
+    'model', 'm',
+    'focus', 'f',
+    'approve',
+    'verbose', 'v',
+    '_', '$0'
+  ])))
   .argv;
 
 const prUrl = argv._[0];

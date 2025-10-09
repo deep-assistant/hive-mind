@@ -4,6 +4,40 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
+// Define all valid options for strict validation
+export const DEFINED_OPTIONS = new Set([
+  'help', 'h', 'version',
+  'issue-url', 'issueUrl',
+  'resume', 'r',
+  'only-prepare-command', 'onlyPrepareCommand',
+  'dry-run', 'dryRun', 'n',
+  'skip-tool-check', 'skipToolCheck',
+  'tool-check', 'toolCheck',
+  'model', 'm',
+  'auto-pull-request-creation', 'autoPullRequestCreation',
+  'verbose', 'v',
+  'fork', 'f',
+  'attach-logs', 'attachLogs',
+  'auto-close-pull-request-on-fail', 'autoClosePullRequestOnFail',
+  'auto-continue', 'autoContinue',
+  'auto-continue-limit', 'autoContinueLimit', 'c',
+  'auto-resume-on-errors', 'autoResumeOnErrors',
+  'auto-continue-only-on-new-comments', 'autoContinueOnlyOnNewComments',
+  'auto-commit-uncommitted-changes', 'autoCommitUncommittedChanges',
+  'continue-only-on-feedback', 'continueOnlyOnFeedback',
+  'watch', 'w',
+  'watch-interval', 'watchInterval',
+  'min-disk-space', 'minDiskSpace',
+  'log-dir', 'logDir', 'l',
+  'think',
+  'base-branch', 'baseBranch', 'b',
+  'no-sentry', 'noSentry',
+  'auto-cleanup', 'autoCleanup',
+  'auto-merge-default-branch-to-pull-request-branch', 'autoMergeDefaultBranchToPullRequestBranch',
+  'tool',
+  '_', '$0'
+]);
+
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
   // Import yargs with specific version for hideBin support
@@ -155,6 +189,11 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'boolean',
       description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
       default: undefined
+    })
+    .option('auto-merge-default-branch-to-pull-request-branch', {
+      type: 'boolean',
+      description: 'Automatically merge the default branch to the pull request branch when continuing work (only in continue mode)',
+      default: false
     })
     .option('tool', {
       type: 'string',
