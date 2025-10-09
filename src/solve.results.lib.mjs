@@ -47,27 +47,34 @@ const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
 // Revert the CLAUDE.md commit to restore original state
-export const cleanupClaudeFile = async (tempDir, branchName) => {
+export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
   try {
     await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
 
-    // Get the first commit hash (the one that added/modified CLAUDE.md)
-    const firstCommitResult = await $({ cwd: tempDir })`git log --format=%H --reverse 2>&1`;
-    if (firstCommitResult.code !== 0) {
-      await log('   Warning: Could not get commit history', { verbose: true });
-      return;
+    let commitToRevert = claudeCommitHash;
+
+    // If commit hash wasn't provided (e.g., in continue mode), fall back to finding it
+    if (!commitToRevert) {
+      await log('   No commit hash provided, searching for first commit...', { verbose: true });
+      const firstCommitResult = await $({ cwd: tempDir })`git log --format=%H --reverse 2>&1`;
+      if (firstCommitResult.code !== 0) {
+        await log('   Warning: Could not get commit history', { verbose: true });
+        return;
+      }
+
+      const commits = firstCommitResult.stdout.toString().trim().split('\n');
+      if (commits.length === 0) {
+        await log('   Warning: No commits found in branch', { verbose: true });
+        return;
+      }
+
+      commitToRevert = commits[0];
+    } else {
+      await log(`   Using saved commit hash: ${commitToRevert.substring(0, 7)}...`, { verbose: true });
     }
 
-    const commits = firstCommitResult.stdout.toString().trim().split('\n');
-    if (commits.length === 0) {
-      await log('   Warning: No commits found in branch', { verbose: true });
-      return;
-    }
-
-    const firstCommit = commits[0];
-
-    // Revert the first commit (the CLAUDE.md commit)
-    const revertResult = await $({ cwd: tempDir })`git revert ${firstCommit} --no-edit 2>&1`;
+    // Revert the CLAUDE.md commit
+    const revertResult = await $({ cwd: tempDir })`git revert ${commitToRevert} --no-edit 2>&1`;
     if (revertResult.code === 0) {
       await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert'));
 

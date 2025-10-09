@@ -30,6 +30,7 @@ export async function handleAutoPrCreation({
 
   let prUrl = null;
   let prNumber = null;
+  let claudeCommitHash = null;
 
   try {
     // Create CLAUDE.md file with the task details
@@ -180,6 +181,13 @@ Issue: ${argv._[0]}`;
       await log(formatAligned('✅', 'Commit created:', 'Successfully with CLAUDE.md'));
       if (argv.verbose) {
         await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
+      }
+
+      // Get the commit hash of the CLAUDE.md commit we just created
+      const commitHashResult = await $({ cwd: tempDir })`git log --format=%H -1 2>&1`;
+      if (commitHashResult.code === 0) {
+        claudeCommitHash = commitHashResult.stdout.toString().trim();
+        await log(`   Commit hash: ${claudeCommitHash.substring(0, 7)}...`, { verbose: true });
       }
 
       // Verify commit was created before pushing
@@ -759,5 +767,5 @@ ${prBody}`, { verbose: true });
     await log('   Continuing without PR...');
   }
 
-  return { prUrl, prNumber };
+  return { prUrl, prNumber, claudeCommitHash };
 }

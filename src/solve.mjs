@@ -459,10 +459,14 @@ try {
     fs
   });
 
+  let claudeCommitHash = null;
   if (autoPrResult) {
     prUrl = autoPrResult.prUrl;
     if (autoPrResult.prNumber) {
       prNumber = autoPrResult.prNumber;
+    }
+    if (autoPrResult.claudeCommitHash) {
+      claudeCommitHash = autoPrResult.claudeCommitHash;
     }
   }
 
@@ -644,7 +648,7 @@ try {
   const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, argv['auto-commit-uncommitted-changes']);
 
   // Remove CLAUDE.md now that Claude command has finished
-  await cleanupClaudeFile(tempDir, branchName);
+  await cleanupClaudeFile(tempDir, branchName, claudeCommitHash);
 
   // Show summary of session and log file
   await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
