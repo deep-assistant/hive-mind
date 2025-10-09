@@ -38,8 +38,10 @@ export async function handleAutoPrCreation({
     // Check if CLAUDE.md already exists and read its content
     const claudeMdPath = path.join(tempDir, 'CLAUDE.md');
     let existingContent = null;
+    let fileExisted = false;
     try {
       existingContent = await fs.readFile(claudeMdPath, 'utf8');
+      fileExisted = true;
     } catch (err) {
       // File doesn't exist, which is fine
       if (err.code !== 'ENOENT') {
@@ -47,10 +49,8 @@ export async function handleAutoPrCreation({
       }
     }
 
-    // Write initial task info to CLAUDE.md
-    // Include timestamp to ensure content is unique even if issue URL is the same
-    const timestamp = new Date().toISOString();
-    const initialTaskInfo = `Issue to solve: ${argv._[0]}
+    // Build task info section
+    const taskInfo = `Issue to solve: ${argv._[0]}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
@@ -58,12 +58,16 @@ Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
 
-    // If content hasn't changed, add a timestamp to make it unique
-    let finalContent = initialTaskInfo;
-    if (existingContent && existingContent.trim() === initialTaskInfo.trim()) {
-      await log('   CLAUDE.md exists with same content, adding timestamp...', { verbose: true });
-      finalContent = `${initialTaskInfo}
-Generated at: ${timestamp}`;
+    // If CLAUDE.md already exists, append the task info with separator
+    // Otherwise, create new file with just the task info
+    let finalContent;
+    if (fileExisted && existingContent) {
+      await log('   CLAUDE.md already exists, appending task info...', { verbose: true });
+      // Remove any trailing whitespace and add separator
+      const trimmedExisting = existingContent.trimEnd();
+      finalContent = `${trimmedExisting}\n\n---\n\n${taskInfo}`;
+    } else {
+      finalContent = taskInfo;
     }
 
     await fs.writeFile(claudeMdPath, finalContent);

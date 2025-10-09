@@ -47,35 +47,50 @@ const {
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
-// Remove CLAUDE.md and commit the deletion
+// Revert the CLAUDE.md commit to restore original state
 export const cleanupClaudeFile = async (tempDir, branchName) => {
   try {
-    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+    await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
 
-    // Commit the deletion
-    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
-    if (deleteCommitResult.code === 0) {
-      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+    // Get the first commit hash (the one that added/modified CLAUDE.md)
+    const firstCommitResult = await $({ cwd: tempDir })`git log --format=%H --reverse 2>&1`;
+    if (firstCommitResult.code !== 0) {
+      await log('   Warning: Could not get commit history', { verbose: true });
+      return;
+    }
 
-      // Push the deletion
-      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-      if (pushDeleteResult.code === 0) {
-        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+    const commits = firstCommitResult.stdout.toString().trim().split('\n');
+    if (commits.length === 0) {
+      await log('   Warning: No commits found in branch', { verbose: true });
+      return;
+    }
+
+    const firstCommit = commits[0];
+
+    // Revert the first commit (the CLAUDE.md commit)
+    const revertResult = await $({ cwd: tempDir })`git revert ${firstCommit} --no-edit 2>&1`;
+    if (revertResult.code === 0) {
+      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert'));
+
+      // Push the revert
+      const pushRevertResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+      if (pushRevertResult.code === 0) {
+        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md revert to GitHub'));
       } else {
-        await log('   Warning: Could not push CLAUDE.md deletion', { verbose: true });
+        await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
       }
     } else {
-      await log('   Warning: Could not commit CLAUDE.md deletion', { verbose: true });
+      await log('   Warning: Could not revert CLAUDE.md commit', { verbose: true });
+      await log(`   Revert output: ${revertResult.stderr || revertResult.stdout}`, { verbose: true });
     }
   } catch (e) {
     reportError(e, {
       context: 'cleanup_claude_file',
       tempDir,
-      operation: 'remove_claude_md'
+      operation: 'revert_claude_md_commit'
     });
-    // File might not exist or already removed, that's fine
-    await log('   CLAUDE.md already removed or not found', { verbose: true });
+    // If revert fails, that's okay - the task is still complete
+    await log('   CLAUDE.md revert failed or not needed', { verbose: true });
   }
 };
 
