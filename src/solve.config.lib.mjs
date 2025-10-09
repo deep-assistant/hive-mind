@@ -5,7 +5,7 @@
 // to avoid duplicate use-m initialization issues
 
 // Import strict options validation
-import { createStrictOptionsCheck, looksLikeOption } from './yargs-strict.lib.mjs';
+import { createStrictOptionsCheck } from './yargs-strict.lib.mjs';
 
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
