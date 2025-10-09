@@ -11,6 +11,10 @@
 
 It is also possible to connect this AI to collective human intelligence, meaning this system can communicate with humans for requirements, expertise, feedback.
 
+[![Universal Problem Solving Algorithm](https://github.com/user-attachments/assets/1d91e911-9ba4-456e-a00a-14cdd60d9a0a)](https://github.com/konard/problem-solving)
+
+Inspired by [konard/problem-solving](https://github.com/konard/problem-solving)
+
 ## ⚠️ WARNING
 
 It is UNSAFE to run this software on your developer machine.
