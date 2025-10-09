@@ -591,18 +591,66 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
               if (pushResult.code === 0) {
                 await log(`${formatAligned('✅', 'Fork updated:', 'Default branch pushed to fork')}`);
               } else {
-                // Fork sync failed - exit immediately as per maintainer feedback
-                await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
-                if (pushResult.stderr) {
-                  const errorMsg = pushResult.stderr.toString().trim();
+                // Check if it's a non-fast-forward error (fork has diverged from upstream)
+                const errorMsg = pushResult.stderr ? pushResult.stderr.toString().trim() : '';
+                const isNonFastForward = errorMsg.includes('non-fast-forward') ||
+                                        errorMsg.includes('rejected') ||
+                                        errorMsg.includes('tip of your current branch is behind');
+
+                if (isNonFastForward) {
+                  // Fork has diverged from upstream - we need to force push
+                  await log(`${formatAligned('⚠️', 'Fork diverged:', 'Fork branch has different commits than upstream')}`);
+                  await log(`${formatAligned('', 'Detected:', 'Non-fast-forward error - fork and upstream have diverged')}`);
+                  await log(`${formatAligned('', 'Resolution:', 'Using force-with-lease to sync fork with upstream')}`);
+
+                  // Use --force-with-lease for safer force push
+                  // This will only force push if the remote hasn't changed since our last fetch
+                  await log(`${formatAligned('🔄', 'Force pushing:', 'Syncing fork with upstream (--force-with-lease)')}`);
+                  const forcePushResult = await $({ cwd: tempDir })`git push --force-with-lease origin ${upstreamDefaultBranch}`;
+
+                  if (forcePushResult.code === 0) {
+                    await log(`${formatAligned('✅', 'Fork synced:', 'Successfully force-pushed to align with upstream')}`);
+                  } else {
+                    // Force push also failed - this is a more serious issue
+                    await log('');
+                    await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to sync fork with upstream')}`, { level: 'error' });
+                    await log('');
+                    await log('  🔍 What happened:');
+                    await log(`     Fork branch ${upstreamDefaultBranch} has diverged from upstream`);
+                    await log('     Both normal push and force-with-lease push failed');
+                    await log('');
+                    await log('  📦 Error details:');
+                    const forceErrorMsg = forcePushResult.stderr ? forcePushResult.stderr.toString().trim() : '';
+                    for (const line of forceErrorMsg.split('\n')) {
+                      if (line.trim()) await log(`     ${line}`);
+                    }
+                    await log('');
+                    await log('  💡 Possible causes:');
+                    await log('     • Fork branch is protected (branch protection rules prevent force push)');
+                    await log('     • Someone else pushed to fork after our fetch');
+                    await log('     • Insufficient permissions to force push');
+                    await log('');
+                    await log('  🔧 Manual resolution:');
+                    await log(`     1. Visit your fork: https://github.com/${forkedRepo}`);
+                    await log(`     2. Check branch protection settings`);
+                    await log(`     3. Manually sync fork with upstream:`);
+                    await log(`        git fetch upstream`);
+                    await log(`        git reset --hard upstream/${upstreamDefaultBranch}`);
+                    await log(`        git push --force origin ${upstreamDefaultBranch}`);
+                    await log('');
+                    await safeExit(1, 'Repository setup failed - fork sync failed');
+                  }
+                } else {
+                  // Some other push error (not divergence-related)
+                  await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
                   await log(`${formatAligned('', 'Push error:', errorMsg)}`);
+                  await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
+                  await log(`${formatAligned('', 'Solution draft:', 'Fork sync is required for proper workflow')}`);
+                  await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
+                  await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
+                  await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);
+                  await safeExit(1, 'Repository setup failed');
                 }
-                await log(`${formatAligned('', 'Reason:', 'Fork must be updated or process must stop')}`);
-                await log(`${formatAligned('', 'Solution draft:', 'Fork sync is required for proper workflow')}`);
-                await log(`${formatAligned('', 'Next steps:', '1. Check GitHub permissions for the fork')}`);
-                await log(`${formatAligned('', '', '2. Ensure fork is not protected')}`);
-                await log(`${formatAligned('', '', '3. Try again after resolving fork issues')}`);
-                await safeExit(1, 'Repository setup failed');
               }
 
               // Step 4: Return to the original branch if it was different
