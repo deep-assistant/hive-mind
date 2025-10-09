@@ -4,6 +4,9 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
+// Import strict options validation
+import { createStrictOptionsCheck, looksLikeOption } from './yargs-strict.lib.mjs';
+
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
   // Import yargs with specific version for hideBin support
@@ -163,7 +166,40 @@ export const createYargsConfig = (yargsInstance) => {
       default: 'claude'
     })
     .help('h')
-    .alias('h', 'help');
+    .alias('h', 'help')
+    // Apply strict options validation to reject unrecognized options
+    // This prevents issues like #453 where —fork (em-dash) is not recognized
+    .check(createStrictOptionsCheck(new Set([
+      'help', 'h', 'version',
+      'issue-url', 'issueUrl',
+      'resume', 'r',
+      'only-prepare-command', 'onlyPrepareCommand',
+      'dry-run', 'dryRun', 'n',
+      'skip-tool-check', 'skipToolCheck',
+      'tool-check', 'toolCheck',
+      'model', 'm',
+      'auto-pull-request-creation', 'autoPullRequestCreation',
+      'verbose', 'v',
+      'fork', 'f',
+      'attach-logs', 'attachLogs',
+      'auto-close-pull-request-on-fail', 'autoClosePullRequestOnFail',
+      'auto-continue', 'autoContinue',
+      'auto-continue-limit', 'autoContinueLimit', 'c',
+      'auto-resume-on-errors', 'autoResumeOnErrors',
+      'auto-continue-only-on-new-comments', 'autoContinueOnlyOnNewComments',
+      'auto-commit-uncommitted-changes', 'autoCommitUncommittedChanges',
+      'continue-only-on-feedback', 'continueOnlyOnFeedback',
+      'watch', 'w',
+      'watch-interval', 'watchInterval',
+      'min-disk-space', 'minDiskSpace',
+      'log-dir', 'logDir', 'l',
+      'think',
+      'base-branch', 'baseBranch', 'b',
+      'no-sentry', 'noSentry',
+      'auto-cleanup', 'autoCleanup',
+      'tool',
+      '_', '$0'
+    ])));
 };
 
 // Parse command line arguments - now needs yargs and hideBin passed in
