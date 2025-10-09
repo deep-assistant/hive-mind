@@ -35,7 +35,7 @@ export const mapModelToId = (model) => {
 };
 
 // Function to validate OpenCode connection
-export const validateOpenCodeConnection = async (model = 'gpt4o') => {
+export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => {
   // Map model alias to full ID
   const mappedModel = mapModelToId(model);
 
@@ -54,7 +54,7 @@ export const validateOpenCodeConnection = async (model = 'gpt4o') => {
 
       // Check if OpenCode CLI is installed and get version
       try {
-        const versionResult = await $`timeout ${Math.floor(timeouts.opencodeCli / 6000)} opencode --version`;
+        const versionResult = await $`timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode --version`;
         if (versionResult.code === 0) {
           const version = versionResult.stdout?.toString().trim();
           if (retryCount === 0) {
@@ -67,9 +67,9 @@ export const validateOpenCodeConnection = async (model = 'gpt4o') => {
         }
       }
 
-      // Test basic OpenCode functionality
-      // Note: opencode doesn't have --dry-run flag, so we'll just test with a simple prompt
-      const testResult = await $`printf "test" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
+      // Test basic OpenCode functionality with a simple "hi" message
+      // Check for non-error result to validate the connection
+      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
@@ -314,10 +314,7 @@ export const executeOpenCodeCommand = async (params) => {
       let exitCode = 0;
       let sessionId = null;
       let limitReached = false;
-      let messageCount = 0;
-      let toolUseCount = 0;
       let lastMessage = '';
-      let stderrErrors = [];
 
       for await (const chunk of execCommand.stream()) {
         if (chunk.type === 'stdout') {
@@ -330,10 +327,6 @@ export const executeOpenCodeCommand = async (params) => {
           const errorOutput = chunk.data.toString();
           if (errorOutput) {
             await log(errorOutput, { stream: 'stderr' });
-            const trimmed = errorOutput.trim();
-            if (trimmed && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
-              stderrErrors.push(trimmed);
-            }
           }
         } else if (chunk.type === 'exit') {
           exitCode = chunk.code;
@@ -347,18 +340,7 @@ export const executeOpenCodeCommand = async (params) => {
         } else {
           await log(`\n\n❌ OpenCode command failed with exit code ${exitCode}`, { level: 'error' });
         }
-      }
 
-      // Check for additional failure detection
-      if (!exitCode && stderrErrors.length > 0 && messageCount === 0 && toolUseCount === 0) {
-        await log('\n\n❌ Command failed: No output processed and errors detected in stderr', { level: 'error' });
-        for (const err of stderrErrors.slice(0, 5)) {
-          await log(`   ${err.substring(0, 200)}`, { level: 'error' });
-        }
-        exitCode = 1;
-      }
-
-      if (exitCode !== 0) {
         const resourcesAfter = await getResourceSnapshot();
         await log('\n📈 System resources after execution:', { verbose: true });
         await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`, { verbose: true });
@@ -367,9 +349,7 @@ export const executeOpenCodeCommand = async (params) => {
         return {
           success: false,
           sessionId,
-          limitReached,
-          messageCount,
-          toolUseCount
+          limitReached
         };
       }
 
@@ -378,9 +358,7 @@ export const executeOpenCodeCommand = async (params) => {
       return {
         success: true,
         sessionId,
-        limitReached,
-        messageCount,
-        toolUseCount
+        limitReached
       };
     } catch (error) {
       reportError(error, {
@@ -394,9 +372,7 @@ export const executeOpenCodeCommand = async (params) => {
       return {
         success: false,
         sessionId: null,
-        limitReached: false,
-        messageCount: 0,
-        toolUseCount: 0
+        limitReached: false
       };
     }
   };

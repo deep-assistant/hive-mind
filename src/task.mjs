@@ -47,6 +47,9 @@ const { spawn } = (await use('child_process')).default;
 // Import Claude execution functions
 import { validateClaudeConnection, mapModelToId } from './claude.lib.mjs';
 
+// Import strict options validation
+import { createStrictOptionsCheck } from './yargs-strict.lib.mjs';
+
 // Global log file reference
 let logFile = null;
 
@@ -152,6 +155,20 @@ const argv = yargs(process.argv.slice(2))
   })
   .help()
   .alias('h', 'help')
+  // Apply strict options validation to reject unrecognized options
+  // This prevents issues like #453 where —fork (em-dash) is not recognized
+  .check(createStrictOptionsCheck(new Set([
+    'help', 'h', 'version',
+    'task-description', 'taskDescription',
+    'clarify',
+    'decompose',
+    'only-clarify', 'onlyClarify',
+    'only-decompose', 'onlyDecompose',
+    'model', 'm',
+    'verbose', 'v',
+    'output-format', 'outputFormat', 'o',
+    '_', '$0'
+  ])))
   .argv;
 
 const taskDescription = argv._[0];

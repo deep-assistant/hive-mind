@@ -328,7 +328,7 @@ export const checkRepositoryWritePermission = async (owner, repo, options = {}) 
       const userResult = await $`gh api user --jq .login`;
       if (userResult.code === 0) {
         const currentUser = userResult.stdout.toString().trim();
-        await log(`      Run this command:`, { level: 'error' });
+        await log('      Run this command:', { level: 'error' });
         await log(`      solve ${issueUrl} --fork`, { level: 'error' });
         await log('');
         await log(`      Your fork will be: ${currentUser}/${repo}`, { level: 'error' });
@@ -339,7 +339,7 @@ export const checkRepositoryWritePermission = async (owner, repo, options = {}) 
 
     await log('');
     await log('   Alternative: Request collaborator access', { level: 'error' });
-    await log(`      Ask the repository owner to add you as a collaborator:`, { level: 'error' });
+    await log('      Ask the repository owner to add you as a collaborator:', { level: 'error' });
     await log(`      https://github.com/${owner}/${repo}/settings/access`, { level: 'error' });
     await log('');
 
