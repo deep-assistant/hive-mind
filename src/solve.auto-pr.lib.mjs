@@ -50,6 +50,23 @@ export async function handleAutoPrCreation({
       }
     }
 
+    // Support for AGENTS.md standard (https://agents.md)
+    // If CLAUDE.md doesn't exist but AGENTS.md does, use AGENTS.md content
+    if (!fileExisted) {
+      const agentsMdPath = path.join(tempDir, 'AGENTS.md');
+      try {
+        const agentsContent = await fs.readFile(agentsMdPath, 'utf8');
+        existingContent = agentsContent;
+        fileExisted = true;
+        await log('   Found AGENTS.md, using it as base for CLAUDE.md...', { verbose: true });
+      } catch (err) {
+        // AGENTS.md doesn't exist either, which is fine
+        if (err.code !== 'ENOENT') {
+          throw err;
+        }
+      }
+    }
+
     // Build task info section
     const taskInfo = `Issue to solve: ${argv._[0]}
 Your prepared branch: ${branchName}
