@@ -11,6 +11,7 @@ if (typeof use === 'undefined') {
 }
 
 const { lino } = await import('./lino.lib.mjs');
+const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -439,12 +440,12 @@ bot.command('solve', async (ctx) => {
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, solveOverrides);
 
-  const requester = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name || 'Unknown';
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
   let statusMsg = `🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (solveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
   }
-  await ctx.reply(statusMsg);
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown' });
 
   const result = await executeStartScreen('solve', args);
 
@@ -502,12 +503,12 @@ bot.command('hive', async (ctx) => {
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, hiveOverrides);
 
-  const requester = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name || 'Unknown';
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
   let statusMsg = `🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (hiveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
   }
-  await ctx.reply(statusMsg);
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown' });
 
   const result = await executeStartScreen('hive', args);
 
