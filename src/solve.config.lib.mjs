@@ -4,8 +4,58 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
-// Import configuration
-import { autoContinue } from './config.lib.mjs';
+// Define all valid options for strict validation
+// Include both kebab-case, camelCase, and --no- variants for boolean options
+const BOOLEAN_OPTIONS = [
+  'only-prepare-command', 'onlyPrepareCommand',
+  'dry-run', 'dryRun',
+  'skip-tool-check', 'skipToolCheck',
+  'tool-check', 'toolCheck',
+  'auto-pull-request-creation', 'autoPullRequestCreation',
+  'verbose',
+  'fork',
+  'attach-logs', 'attachLogs',
+  'auto-close-pull-request-on-fail', 'autoClosePullRequestOnFail',
+  'auto-continue', 'autoContinue',
+  'auto-continue-limit', 'autoContinueLimit',
+  'auto-resume-on-errors', 'autoResumeOnErrors',
+  'auto-continue-only-on-new-comments', 'autoContinueOnlyOnNewComments',
+  'auto-commit-uncommitted-changes', 'autoCommitUncommittedChanges',
+  'continue-only-on-feedback', 'continueOnlyOnFeedback',
+  'watch',
+  'no-sentry', 'noSentry',
+  'auto-cleanup', 'autoCleanup',
+  'auto-merge-default-branch-to-pull-request-branch', 'autoMergeDefaultBranchToPullRequestBranch',
+];
+
+export const DEFINED_OPTIONS = new Set([
+  'help', 'h', 'version',
+  'issue-url', 'issueUrl',
+  'resume', 'r',
+  'model', 'm',
+  'watch-interval', 'watchInterval',
+  'min-disk-space', 'minDiskSpace',
+  'log-dir', 'logDir', 'l',
+  'think',
+  'base-branch', 'baseBranch', 'b',
+  'allow-fork-divergence-resolution-using-force-push-with-lease', 'allowForkDivergenceResolutionUsingForcePushWithLease',
+  'tool',
+  'v', 'f', 'n', 'c', 'w', // single-char aliases
+  '_', '$0'
+]);
+
+// Add all boolean options and their --no- variants
+for (const option of BOOLEAN_OPTIONS) {
+  DEFINED_OPTIONS.add(option);
+  // Add --no- variant (kebab-case)
+  if (option.includes('-')) {
+    DEFINED_OPTIONS.add(`no-${option}`);
+  }
+  // Add no prefix variant (camelCase)
+  if (!option.includes('-')) {
+    DEFINED_OPTIONS.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
+  }
+}
 
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
@@ -39,17 +89,25 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
       alias: 'n'
     })
-    .option('skip-claude-check', {
+    .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      description: 'Skip tool connection check (useful in CI environments)',
       default: false
+    })
+    .option('tool-check', {
+      type: 'boolean',
+      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
+      default: true,
+      hidden: true
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
+      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
       alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
+      default: (currentParsedArgs) => {
+        // Dynamic default based on tool selection
+        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+      }
     })
     .option('auto-pull-request-creation', {
       type: 'boolean',
@@ -80,7 +138,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: `Automatically continue with existing PRs for this issue if they are older than ${autoContinue.ageThresholdHours} hours`,
+      description: 'Continue with existing PR when issue URL is provided (instead of creating new PR)',
       default: false
     })
     .option('auto-continue-limit', {
@@ -88,6 +146,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically continue when Claude limit resets (waits until reset time)',
       default: false,
       alias: 'c'
+    })
+    .option('auto-resume-on-errors', {
+      type: 'boolean',
+      description: 'Automatically resume on network errors (503, etc.) with exponential backoff',
+      default: false
     })
     .option('auto-continue-only-on-new-comments', {
       type: 'boolean',
@@ -143,8 +206,27 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-cleanup', {
       type: 'boolean',
-      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
-      default: true
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
+      default: undefined
+    })
+    .option('auto-merge-default-branch-to-pull-request-branch', {
+      type: 'boolean',
+      description: 'Automatically merge the default branch to the pull request branch when continuing work (only in continue mode)',
+      default: false
+    })
+    .option('allow-fork-divergence-resolution-using-force-push-with-lease', {
+      type: 'boolean',
+      description: 'Allow automatic force-push (--force-with-lease) when fork diverges from upstream (DANGEROUS: can overwrite fork history)',
+      default: false
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
+    })
+    .parserConfiguration({
+      'boolean-negation': true
     })
     .help('h')
     .alias('h', 'help');
@@ -153,5 +235,17 @@ export const createYargsConfig = (yargsInstance) => {
 // Parse command line arguments - now needs yargs and hideBin passed in
 export const parseArguments = async (yargs, hideBin) => {
   const rawArgs = hideBin(process.argv);
-  return await createYargsConfig(yargs(rawArgs)).argv;
+  const argv = await createYargsConfig(yargs(rawArgs)).argv;
+
+  // Post-processing: Fix model default for opencode tool
+  // Yargs doesn't properly handle dynamic defaults based on other arguments,
+  // so we need to handle this manually after parsing
+  const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
+
+  if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for opencode
+    argv.model = 'grok-code-fast-1';
+  }
+
+  return argv;
 };

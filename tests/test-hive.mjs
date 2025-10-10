@@ -192,14 +192,25 @@ runTest('hive.mjs --attach-logs flag', () => {
   }
 });
 
-// Test 14: Check --skip-claude-check flag is available
-runTest('hive.mjs --skip-claude-check flag', () => {
+// Test 14: Check --skip-tool-check flag is available
+runTest('hive.mjs --skip-tool-check flag', () => {
   const output = execCommand(`${hivePath} --help 2>&1`);
-  if (!output.includes('skip-claude-check')) {
-    throw new Error('--skip-claude-check option not found in help output');
+  if (!output.includes('skip-tool-check')) {
+    throw new Error('--skip-tool-check option not found in help output');
   }
-  if (!output.includes('Skip Claude connection check')) {
-    throw new Error('--skip-claude-check description not found in help output');
+  if (!output.includes('Skip tool connection check')) {
+    throw new Error('--skip-tool-check description not found in help output');
+  }
+});
+
+// Test 15: Check --tool flag is available
+runTest('hive.mjs --tool flag', () => {
+  const output = execCommand(`${hivePath} --help 2>&1`);
+  if (!output.includes('--tool')) {
+    throw new Error('--tool option not found in help output');
+  }
+  if (!output.includes('AI tool to use for solving issues')) {
+    throw new Error('--tool description not found in help output');
   }
 });
 

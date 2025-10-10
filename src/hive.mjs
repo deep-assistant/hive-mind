@@ -55,6 +55,10 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
+// Import strict options validation
+const yargsStrictLib = await import('./yargs-strict.lib.mjs');
+const { createStrictOptionsCheck } = yargsStrictLib;
+
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
 // The cleanupTempDirectories function has been moved to lib.mjs
@@ -212,10 +216,9 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use for solve (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
+      description: 'Model to use for solve (opus, sonnet, or any model ID supported by the tool)',
       alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
+      default: 'sonnet'
     })
     .option('interval', {
       type: 'number',
@@ -233,10 +236,22 @@ const createYargsConfig = (yargsInstance) => {
       description: 'List issues that would be processed without actually processing them',
       default: false
     })
-    .option('skip-claude-check', {
+    .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      description: 'Skip tool connection check (useful in CI environments)',
       default: false
+    })
+    .option('tool-check', {
+      type: 'boolean',
+      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
+      default: true,
+      hidden: true
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
     })
     .option('verbose', {
       type: 'boolean',
@@ -317,7 +332,7 @@ const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: 'Automatically continue working on issues with existing PRs (older than 24 hours)',
+      description: 'Pass --auto-continue to solve for each issue (continues with existing PRs instead of creating new ones)',
       default: false
     })
     .option('think', {
@@ -344,8 +359,72 @@ const createYargsConfig = (yargsInstance) => {
       default: 'asc',
       choices: ['asc', 'desc']
     })
+    .parserConfiguration({
+      'boolean-negation': true
+    })
     .help('h')
-    .alias('h', 'help');
+    .alias('h', 'help')
+    // Apply strict options validation to reject unrecognized options
+    // This prevents issues like #453 where —fork (em-dash) is not recognized
+    .check(createStrictOptionsCheck((() => {
+      // Define boolean options that support --no- prefix
+      const booleanOptions = [
+        'all-issues', 'allIssues',
+        'skip-issues-with-prs', 'skipIssuesWithPrs',
+        'dry-run', 'dryRun',
+        'skip-tool-check', 'skipToolCheck',
+        'tool-check', 'toolCheck',
+        'verbose',
+        'once',
+        'auto-cleanup', 'autoCleanup',
+        'fork',
+        'attach-logs', 'attachLogs',
+        'auto-continue', 'autoContinue',
+        'no-sentry', 'noSentry',
+        'watch',
+      ];
+
+      const options = new Set([
+        'help', 'h', 'version',
+        'github-url', 'githubUrl',
+        'monitor-tag', 'monitorTag', 't',
+        'concurrency', 'c',
+        'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
+        'model', 'm',
+        'interval', 'i',
+        'max-issues', 'maxIssues',
+        'tool',
+        'min-disk-space', 'minDiskSpace',
+        'project-number', 'projectNumber', 'pn',
+        'project-owner', 'projectOwner', 'po',
+        'project-status', 'projectStatus', 'ps',
+        'project-mode', 'projectMode', 'pm',
+        'youtrack-mode', 'youtrackMode',
+        'youtrack-stage', 'youtrackStage',
+        'youtrack-project', 'youtrackProject',
+        'target-branch', 'targetBranch', 'tb',
+        'log-dir', 'logDir', 'l',
+        'think',
+        'issue-order', 'issueOrder', 'o',
+        'v', 'a', 's', 'f', 'w', // single-char aliases
+        '_', '$0'
+      ]);
+
+      // Add boolean options and their --no- variants
+      for (const option of booleanOptions) {
+        options.add(option);
+        // Add --no- variant (kebab-case)
+        if (option.includes('-')) {
+          options.add(`no-${option}`);
+        }
+        // Add no prefix variant (camelCase)
+        if (!option.includes('-')) {
+          options.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
+        }
+      }
+
+      return options;
+    })()));
 };
 
 // Check for version flag before processing other arguments
@@ -539,7 +618,7 @@ if (argv.projectMode) {
 if (argv.skipIssuesWithPrs && argv.autoContinue) {
   await log('❌ Conflicting options: --skip-issues-with-prs and --auto-continue cannot be used together', { level: 'error' });
   await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
-  await log('   --auto-continue: Works on issues with existing PRs (older than 24 hours)', { level: 'error' });
+  await log('   --auto-continue: Continues with existing PRs instead of creating new ones', { level: 'error' });
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
@@ -784,7 +863,8 @@ async function worker(workerId) {
         const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
         const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
-        const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
+        const skipToolCheckFlag = (argv.skipToolCheck || !argv.toolCheck) ? ' --skip-tool-check' : '';
+        const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
         const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
@@ -795,6 +875,9 @@ async function worker(workerId) {
 
         // Build arguments array to avoid shell parsing issues
         const args = [issueUrl, '--model', argv.model];
+        if (argv.tool) {
+          args.push('--tool', argv.tool);
+        }
         if (argv.fork) {
           args.push('--fork');
         }
@@ -813,8 +896,8 @@ async function worker(workerId) {
         if (argv.dryRun) {
           args.push('--dry-run');
         }
-        if (argv.skipClaudeCheck) {
-          args.push('--skip-claude-check');
+        if (argv.skipToolCheck || !argv.toolCheck) {
+          args.push('--skip-tool-check');
         }
         if (argv.autoContinue) {
           args.push('--auto-continue');
@@ -830,7 +913,7 @@ async function worker(workerId) {
         }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;

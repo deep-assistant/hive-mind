@@ -11,6 +11,10 @@
 
 It is also possible to connect this AI to collective human intelligence, meaning this system can communicate with humans for requirements, expertise, feedback.
 
+[![Universal Problem Solving Algorithm](https://github.com/user-attachments/assets/1d91e911-9ba4-456e-a00a-14cdd60d9a0a)](https://github.com/konard/problem-solving)
+
+Inspired by [konard/problem-solving](https://github.com/konard/problem-solving)
+
 ## ⚠️ WARNING
 
 It is UNSAFE to run this software on your developer machine.
@@ -22,6 +26,32 @@ This software uses full autonomous mode of Claude Code, that means it is free to
 That means it can lead to unexpected side effects.
 
 There is also a known issue of space leakage. So you need to make sure you are able to reinstall your virtual machine to clear space and/or any damage to the virtual machine.
+
+### ⚠️ CRITICAL: Token and Sensitive Data Security
+
+**THIS SOFTWARE CANNOT GUARANTEE ANY SAFETY FOR YOUR TOKENS OR OTHER SENSITIVE DATA ON THE VIRTUAL MACHINE.**
+
+There are infinite ways to extract tokens from a virtual machine connected to the internet. This includes but is not limited to:
+
+- **Claude MAX tokens** - Required for AI operations
+- **GitHub tokens** - Required for repository access
+- **API keys and credentials** - Any sensitive data on the system
+
+**IMPORTANT SECURITY CONSIDERATIONS:**
+
+- Running on a developer machine is **ABSOLUTELY UNSAFE**
+- Running on a virtual machine is **LESS UNSAFE** but still has risks
+- Even though your developer machine data isn't directly exposed, the VM still contains sensitive tokens
+- Any token stored on an internet-connected system can potentially be compromised
+
+**USE THIS SOFTWARE ENTIRELY AT YOUR OWN RISK AND RESPONSIBILITY.**
+
+We strongly recommend:
+- Using dedicated, isolated virtual machines
+- Rotating tokens regularly
+- Monitoring token usage for suspicious activity
+- Never using production tokens or credentials
+- Being prepared to revoke and replace all tokens used with this system
 
 Minimum system requirements to run `hive.mjs`:
 ```
@@ -47,7 +77,7 @@ npm install -g @deep-assistant/hive-mind
 
 ### Installation on Ubuntu 24.04 server
 ```bash
-curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
+curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
 ```
 
 ### Core Operations
@@ -94,15 +124,31 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus)                  [default: sonnet]
+  --model, -m           Model (sonnet, opus, or full model ID)  [default: sonnet]
+   --tool                AI tool (claude, opencode)           [default: claude]
   --fork, -f            Fork repo if no write access         [default: false]
   --base-branch, -b     Target branch for PR                  [default: repo default]
   --resume, -r          Resume from session ID
   --verbose, -v         Enable verbose logging                [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
-  --auto-pull-request-creation  Create draft PR before Claude [default: false]
-  --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
+  --only-prepare-command  Only prepare and print the claude command  [default: false]
+  --skip-tool-check     Skip tool connection check            [default: false]
+  --auto-pull-request-creation  Create draft PR before Claude [default: true]
+  --attach-logs         Attach logs to PR (⚠️ sensitive)     [default: false]
+  --auto-close-pull-request-on-fail  Close PR on fail         [default: false]
+  --auto-continue       Continue with existing PR when issue URL is provided  [default: false]
+  --auto-continue-limit, -c  Auto-continue when limit resets  [default: false]
+  --auto-resume-on-errors  Auto-resume on network errors (503, etc.)  [default: false]
+  --auto-continue-only-on-new-comments  Fail if no new comments  [default: false]
+  --auto-commit-uncommitted-changes  Auto-commit Claude changes  [default: false]
+  --continue-only-on-feedback  Only continue if feedback detected  [default: false]
+  --watch, -w           Monitor for feedback and auto-restart  [default: false]
+  --watch-interval      Feedback check interval (seconds)     [default: 60]
+  --min-disk-space      Minimum disk space in MB              [default: 500]
+  --log-dir, -l         Directory for log files               [default: cwd]
   --think               Thinking level (low, medium, high, max)  [optional]
+  --no-sentry           Disable Sentry error tracking         [default: false]
+  --auto-cleanup        Delete temp directory on completion   [default: varies]
 ```
 
 ## 🔧 hive Options
@@ -111,17 +157,35 @@ hive <github-url> [options]
 
   --monitor-tag, -t     Label to monitor                     [default: "help wanted"]
   --all-issues, -a      Monitor all issues (ignore labels)   [default: false]
+  --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
-  --max-issues          Limit processed issues               [default: unlimited]
+  --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
+  --model, -m           Model (depends on --tool)              [default: sonnet for claude, grok-code-fast-1 for opencode]
+  --tool                AI tool (claude, opencode)           [default: claude]
   --interval, -i        Poll interval (seconds)              [default: 300]
+  --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
-  --skip-issues-with-prs  Skip issues with existing PRs     [default: false]
-  --pull-requests-per-issue  Number of PRs per issue        [default: 1]
   --dry-run             List issues without processing       [default: false]
+  --skip-tool-check     Skip tool connection check           [default: false]
   --verbose, -v         Enable verbose logging               [default: false]
   --min-disk-space      Minimum disk space in MB             [default: 500]
   --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
-  --fork, -f            Fork repos if no write access       [default: false]
+  --fork, -f            Fork repos if no write access        [default: false]
+  --attach-logs         Attach logs to PRs (⚠️ sensitive)    [default: false]
+  --project-number, -pn  GitHub Project number to monitor
+  --project-owner, -po  GitHub Project owner (org or user)
+  --project-status, -ps  Project status column to monitor    [default: "Ready"]
+  --project-mode, -pm   Enable project-based monitoring      [default: false]
+  --youtrack-mode       Enable YouTrack mode instead of GitHub  [default: false]
+  --youtrack-stage      Override YouTrack stage to monitor
+  --youtrack-project    Override YouTrack project code
+  --target-branch, -tb  Target branch for pull requests      [default: repo default]
+  --log-dir, -l         Directory for log files              [default: cwd]
+  --auto-continue       Pass --auto-continue to solve for each issue  [default: false]
+  --think               Thinking level (low, medium, high, max)  [optional]
+  --no-sentry           Disable Sentry error tracking        [default: false]
+  --watch, -w           Monitor for feedback and auto-restart  [default: false]
+  --issue-order, -o     Order issues by date (asc, desc)     [default: asc]
 ```
 
 ## 🤖 Telegram Bot
@@ -156,8 +220,7 @@ Want to see the Hive Mind in action? Join our Telegram channel where you can exe
 
 3. **Start the Bot**
    ```bash
-   # Load environment variables and start
-   source .env && telegram-bot
+   hive-telegram-bot
    ```
 
 ### Bot Commands

@@ -117,7 +117,7 @@ async function screenSessionExists(sessionName) {
 
 /**
  * Wait for a screen session to be ready to accept commands
- * A session is considered ready when it's at a shell prompt
+ * A session is considered ready when it can execute a test command
  * @param {string} sessionName - The name of the screen session
  * @param {number} maxWaitSeconds - Maximum time to wait in seconds (default: 5)
  * @returns {Promise<boolean>} Whether the session became ready
@@ -126,45 +126,48 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
   const startTime = Date.now();
   const maxWaitMs = maxWaitSeconds * 1000;
 
+  // Use a unique marker file for this check to avoid conflicts
+  const markerFile = `/tmp/screen-ready-${sessionName}-${Date.now()}.marker`;
+
   while (Date.now() - startTime < maxWaitMs) {
     try {
-      // Create a temporary file for hardcopy
-      const tempFile = `/tmp/screen-check-${sessionName}-${Date.now()}.txt`;
+      // Send a test command that creates a marker file
+      // This command will only execute when the session is actually ready at a prompt
+      await execAsync(`screen -S ${sessionName} -X stuff "touch ${markerFile} 2>/dev/null\n"`);
 
-      // Capture the screen buffer
-      await execAsync(`screen -S ${sessionName} -X hardcopy ${tempFile}`);
+      // Wait for the marker file to appear
+      const checkStartTime = Date.now();
+      const checkTimeout = 1000; // 1 second to check if marker appears
 
-      // Wait a moment for the file to be written
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Read the buffer to check for a prompt
-      const { stdout } = await execAsync(`cat ${tempFile} 2>/dev/null || echo ""`);
-
-      // Clean up the temp file
-      await execAsync(`rm -f ${tempFile}`).catch(() => { });
-
-      // Check if the buffer contains a prompt pattern
-      // Common prompt patterns: $ % > # at the end of a line
-      // Also check if the buffer is not empty (session is active)
-      if (stdout.trim().length > 0) {
-        const lines = stdout.split('\n').filter(line => line.trim().length > 0);
-        if (lines.length > 0) {
-          const lastLine = lines[lines.length - 1];
-          // Check for common shell prompt indicators
-          if (lastLine.match(/[\$%>#]\s*$/) || lastLine.includes('bash')) {
+      while (Date.now() - checkStartTime < checkTimeout) {
+        try {
+          const { code } = await execAsync(`test -f ${markerFile}`);
+          if (code === 0) {
+            // Marker file exists, session is ready!
+            // Clean up the marker file
+            await execAsync(`rm -f ${markerFile}`).catch(() => { });
             return true;
           }
+        } catch (error) {
+          // Marker file doesn't exist yet
         }
+
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+
+      // Marker file didn't appear, session is still busy
+      // Clean up any leftover marker file from the queued command
+      await execAsync(`rm -f ${markerFile}`).catch(() => { });
     } catch (error) {
-      // If hardcopy fails, the session might not be ready yet
+      // Error sending test command or checking marker
     }
 
-    // Wait before checking again
+    // Wait before trying again
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  // Timeout reached, but we'll try to send the command anyway
+  // Timeout reached, session is not ready
   return false;
 }
 
@@ -290,8 +293,17 @@ async function main() {
   }
 
   // Check for --auto-terminate flag at the beginning
+  // Also validate that first arg is not an unrecognized option with em-dash or other invalid dash
   let autoTerminate = false;
   let argsOffset = 0;
+
+  // Check for various dash characters in first argument (em-dash \u2014, en-dash \u2013, etc.)
+  if (args[0] && /^[\u2010\u2011\u2012\u2013\u2014]/.test(args[0])) {
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    console.error('Note: Use regular hyphens (--) not em-dashes or en-dashes.');
+    process.exit(1);
+  }
 
   if (args[0] === '--auto-terminate') {
     autoTerminate = true;
@@ -300,6 +312,24 @@ async function main() {
     if (args.length < 3) {
       console.error('Error: --auto-terminate requires a command and GitHub URL');
       console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      process.exit(1);
+    }
+  } else if (args[0] && args[0].startsWith('-') && args[0] !== '--help' && args[0] !== '-h') {
+    // First arg is an unrecognized option
+    console.error(`Unknown option: ${args[0]}`);
+    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    process.exit(1);
+  }
+
+  // Check if the next arg (after --auto-terminate if present) looks like an unrecognized option
+  if (args[argsOffset] && args[argsOffset].startsWith('-')) {
+    // Check for various dash characters (em-dash, en-dash, etc.)
+    const firstArg = args[argsOffset];
+    const hasInvalidDash = /^[\u2010\u2011\u2012\u2013\u2014]/.test(firstArg);
+    if (hasInvalidDash || (firstArg.startsWith('-') && firstArg !== '--help' && firstArg !== '-h')) {
+      console.error(`Unknown option: ${firstArg}`);
+      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+      console.error('Expected command to be "solve" or "hive", not an option.');
       process.exit(1);
     }
   }
