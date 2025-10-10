@@ -22,7 +22,8 @@ export const buildUserPrompt = (params) => {
     feedbackLines,
     owner,
     repo,
-    argv
+    argv,
+    contributingGuidelines
   } = params;
 
   const promptLines = [];
@@ -52,6 +53,12 @@ export const buildUserPrompt = (params) => {
     if (branchName && params.forkActionsUrl) {
       promptLines.push(`GitHub Actions on your fork: ${params.forkActionsUrl}`);
     }
+  }
+
+  // Add contributing guidelines if available
+  if (contributingGuidelines) {
+    promptLines.push('');
+    promptLines.push(contributingGuidelines);
   }
 
   // Add blank line
@@ -151,6 +158,7 @@ Preparing pull request.
    - When you open pr, describe solution draft and include tests.
    - When there is a package with version and GitHub Actions workflows for automatic release, update the version (or other necessary release trigger) in your pull request to prepare for next release.
    - When you update existing pr ${prNumber}, use gh pr edit to modify title and description.
+   - When you are about to commit or push code, ALWAYS run local CI checks first if they are available in contributing guidelines (like ruff check, mypy, eslint, etc.) to catch errors before pushing.
    - When you finalize the pull request:
       follow style from merged prs for code, title, and description,
       make sure no uncommitted changes corresponding to the original requirements are left behind,
