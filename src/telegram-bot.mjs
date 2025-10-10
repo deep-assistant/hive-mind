@@ -11,6 +11,7 @@ if (typeof use === 'undefined') {
 }
 
 const { lino } = await import('./lino.lib.mjs');
+const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -439,11 +440,12 @@ bot.command('solve', async (ctx) => {
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, solveOverrides);
 
-  let statusMsg = `🚀 Starting solve command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
+  let statusMsg = `🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (solveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
   }
-  await ctx.reply(statusMsg);
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown' });
 
   const result = await executeStartScreen('solve', args);
 
@@ -458,9 +460,7 @@ bot.command('solve', async (ctx) => {
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
     let response = `✅ Solve command started successfully!\n\n`;
-    response += `📊 *Session:* \`${sessionName}\`\n\n`;
-    response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
-    response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
+    response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
@@ -503,11 +503,12 @@ bot.command('hive', async (ctx) => {
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, hiveOverrides);
 
-  let statusMsg = `🚀 Starting hive command...\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
+  let statusMsg = `🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (hiveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
   }
-  await ctx.reply(statusMsg);
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown' });
 
   const result = await executeStartScreen('hive', args);
 
@@ -522,9 +523,7 @@ bot.command('hive', async (ctx) => {
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
     let response = `✅ Hive command started successfully!\n\n`;
-    response += `📊 *Session:* \`${sessionName}\`\n\n`;
-    response += `📝 To attach to the session:\n\`\`\`\nscreen -r ${sessionName}\n\`\`\`\n\n`;
-    response += `Output:\n\`\`\`\n${result.output.trim()}\n\`\`\``;
+    response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
