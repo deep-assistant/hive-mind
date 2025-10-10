@@ -220,8 +220,7 @@ Want to see the Hive Mind in action? Join our Telegram channel where you can exe
 
 3. **Start the Bot**
    ```bash
-   # Load environment variables and start
-   source .env && telegram-bot
+   hive-telegram-bot
    ```
 
 ### Bot Commands
