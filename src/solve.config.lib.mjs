@@ -14,6 +14,7 @@ const BOOLEAN_OPTIONS = [
   'auto-pull-request-creation', 'autoPullRequestCreation',
   'verbose',
   'fork',
+  'auto-fork', 'autoFork',
   'attach-logs', 'attachLogs',
   'auto-close-pull-request-on-fail', 'autoClosePullRequestOnFail',
   'auto-continue', 'autoContinue',
@@ -124,6 +125,11 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'boolean',
       description: 'Fork the repository if you don\'t have write access',
       alias: 'f',
+      default: false
+    })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repositories without write access (fails for private repos)',
       default: false
     })
     .option('attach-logs', {
