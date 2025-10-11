@@ -13,6 +13,7 @@ export async function handleAutoPrCreation({
   defaultBranch,
   forkedRepo,
   isContinueMode,
+  prNumber,
   log,
   formatAligned,
   $,
@@ -20,7 +21,15 @@ export async function handleAutoPrCreation({
   path,
   fs
 }) {
-  if (!argv.autoPullRequestCreation || isContinueMode) {
+  // Skip auto-PR creation if:
+  // 1. Auto-PR creation is disabled AND we're not in continue mode with no PR
+  // 2. Continue mode is active AND we already have a PR
+  if (!argv.autoPullRequestCreation && !(isContinueMode && !prNumber)) {
+    return null;
+  }
+
+  if (isContinueMode && prNumber) {
+    // Continue mode with existing PR - skip PR creation
     return null;
   }
 
@@ -29,7 +38,7 @@ export async function handleAutoPrCreation({
   await log('');
 
   let prUrl = null;
-  let prNumber = null;
+  let localPrNumber = null;
   let claudeCommitHash = null;
 
   try {
@@ -539,21 +548,21 @@ ${prBody}`, { verbose: true });
           if (prUrl) {
             const prMatch = prUrl.match(/\/pull\/(\d+)/);
             if (prMatch) {
-              prNumber = prMatch[1];
+              localPrNumber = prMatch[1];
 
               // CRITICAL: Verify the PR was actually created by querying GitHub API
               // This is essential because gh pr create can return a URL but PR creation might have failed
               await log(formatAligned('🔍', 'Verifying:', 'PR creation...'), { verbose: true });
-              const verifyResult = await $({ silent: true })`gh pr view ${prNumber} --repo ${owner}/${repo} --json number,url,state 2>&1`;
+              const verifyResult = await $({ silent: true })`gh pr view ${localPrNumber} --repo ${owner}/${repo} --json number,url,state 2>&1`;
 
               if (verifyResult.code === 0) {
                 try {
                   const prData = JSON.parse(verifyResult.stdout.toString().trim());
                   if (prData.number && prData.url) {
                     await log(formatAligned('✅', 'Verification:', 'PR exists on GitHub'), { verbose: true });
-                    // Update prUrl and prNumber from verified data
+                    // Update prUrl and localPrNumber from verified data
                     prUrl = prData.url;
-                    prNumber = String(prData.number);
+                    localPrNumber = String(prData.number);
                   } else {
                     throw new Error('PR data incomplete');
                   }
@@ -581,8 +590,8 @@ ${prBody}`, { verbose: true });
                 throw new Error('PR creation failed - PR does not exist on GitHub');
               }
               // Store PR info globally for error handlers
-              global.createdPR = { number: prNumber, url: prUrl };
-              await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
+              global.createdPR = { number: localPrNumber, url: prUrl };
+              await log(formatAligned('✅', 'PR created:', `#${localPrNumber}`));
               await log(formatAligned('📍', 'PR URL:', prUrl));
               if (currentUser && canAssign) {
                 await log(formatAligned('👤', 'Assigned to:', currentUser));
@@ -593,7 +602,7 @@ ${prBody}`, { verbose: true });
               // CLAUDE.md will be removed after Claude command completes
 
               // Link the issue to the PR in GitHub's Development section using GraphQL API
-              await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${prNumber}...`));
+              await log(formatAligned('🔗', 'Linking:', `Issue #${issueNumber} to PR #${localPrNumber}...`));
               try {
                 // First, get the node IDs for both the issue and the PR
                 const issueNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { issue(number: ${issueNumber}) { id } } }' --jq .data.repository.issue.id`;
@@ -605,7 +614,7 @@ ${prBody}`, { verbose: true });
                 const issueNodeId = issueNodeResult.stdout.toString().trim();
                 await log(`   Issue node ID: ${issueNodeId}`, { verbose: true });
 
-                const prNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { id } } }' --jq .data.repository.pullRequest.id`;
+                const prNodeResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${localPrNumber}) { id } } }' --jq .data.repository.pullRequest.id`;
 
                 if (prNodeResult.code !== 0) {
                   throw new Error(`Failed to get PR node ID: ${prNodeResult.stderr}`);
@@ -621,12 +630,12 @@ ${prBody}`, { verbose: true });
                 // 2. For cross-repo (fork) PRs, we need "Fixes owner/repo#N"
 
                 // Let's verify the link was created
-                const linkCheckResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${prNumber}) { closingIssuesReferences(first: 10) { nodes { number } } } } }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number'`;
+                const linkCheckResult = await $`gh api graphql -f query='query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${localPrNumber}) { closingIssuesReferences(first: 10) { nodes { number } } } } }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number'`;
 
                 if (linkCheckResult.code === 0) {
                   const linkedIssues = linkCheckResult.stdout.toString().trim().split('\n').filter(n => n);
                   if (linkedIssues.includes(issueNumber)) {
-                    await log(formatAligned('✅', 'Link verified:', `Issue #${issueNumber} → PR #${prNumber}`));
+                    await log(formatAligned('✅', 'Link verified:', `Issue #${issueNumber} → PR #${localPrNumber}`));
                   } else {
                     // This is a problem - the link wasn't created
                     await log('');
@@ -710,10 +719,10 @@ ${prBody}`, { verbose: true });
               try {
                 const prData = JSON.parse(prListResult.stdout.toString().trim());
                 prUrl = prData.url;
-                prNumber = prData.number;
+                localPrNumber = prData.number;
                 // Store PR info globally for error handlers
-                global.createdPR = { number: prNumber, url: prUrl };
-                await log(formatAligned('✅', 'PR created:', `#${prNumber} (without assignee)`));
+                global.createdPR = { number: localPrNumber, url: prUrl };
+                await log(formatAligned('✅', 'PR created:', `#${localPrNumber} (without assignee)`));
                 await log(formatAligned('📍', 'PR URL:', prUrl));
                 await log('');
                 await log('  ℹ️  Note: The PR was created successfully but user assignment failed.');
@@ -875,5 +884,5 @@ ${prBody}`, { verbose: true });
     throw new Error(`PR creation failed: ${prError.message}`);
   }
 
-  return { prUrl, prNumber, claudeCommitHash };
+  return { prUrl, prNumber: localPrNumber, claudeCommitHash };
 }
