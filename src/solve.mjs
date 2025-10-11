@@ -200,6 +200,49 @@ const { owner, repo, urlNumber } = parseUrlComponents(issueUrl);
 global.owner = owner;
 global.repo = repo;
 
+// Handle --auto-fork option: automatically fork public repositories without write access
+if (argv.autoFork && !argv.fork) {
+  const { detectRepositoryVisibility } = githubLib;
+  const { isPublic } = await detectRepositoryVisibility(owner, repo);
+
+  if (!isPublic) {
+    await log('');
+    await log('❌ --auto-fork failed: Repository is private', { level: 'error' });
+    await log('');
+    await log('   🔍 What happened:', { level: 'error' });
+    await log(`      Repository ${owner}/${repo} is private`, { level: 'error' });
+    await log('      --auto-fork only works with public repositories', { level: 'error' });
+    await log('');
+    await log('   💡 Solutions:', { level: 'error' });
+    await log('      • Use --fork flag instead (works for both public and private repos)', { level: 'error' });
+    await log('      • Request collaborator access to work directly on the repo', { level: 'error' });
+    await log('');
+    await safeExit(1, 'Auto-fork failed - private repository');
+  }
+
+  // Check if we have write access
+  await log('🔍 Checking repository access for auto-fork...');
+  const permResult = await $`gh api repos/${owner}/${repo} --jq .permissions`;
+
+  if (permResult.code === 0) {
+    const permissions = JSON.parse(permResult.stdout.toString().trim());
+    const hasWriteAccess = permissions.push === true || permissions.admin === true || permissions.maintain === true;
+
+    if (!hasWriteAccess) {
+      // No write access to public repo - automatically enable fork mode
+      await log('✅ Auto-fork: No write access detected, enabling fork mode');
+      argv.fork = true;
+    } else {
+      // Has write access - work directly on the repo
+      await log('✅ Auto-fork: Write access detected, working directly on repository');
+    }
+  } else {
+    // Could not check permissions - assume no access and fork
+    await log('⚠️  Auto-fork: Could not check permissions, enabling fork mode');
+    argv.fork = true;
+  }
+}
+
 // Early check: Verify repository write permissions BEFORE doing any work
 // This prevents wasting AI tokens when user doesn't have access and --fork is not used
 const { checkRepositoryWritePermission } = githubLib;
