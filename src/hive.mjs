@@ -280,6 +280,11 @@ const createYargsConfig = (yargsInstance) => {
       alias: 'f',
       default: false
     })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repositories without write access (fails for private repos)',
+      default: false
+    })
     .option('attach-logs', {
       type: 'boolean',
       description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
@@ -378,6 +383,7 @@ const createYargsConfig = (yargsInstance) => {
         'once',
         'auto-cleanup', 'autoCleanup',
         'fork',
+        'auto-fork', 'autoFork',
         'attach-logs', 'attachLogs',
         'auto-continue', 'autoContinue',
         'no-sentry', 'noSentry',
@@ -734,6 +740,9 @@ await log(`   🤖 Model: ${argv.model}`);
 if (argv.fork) {
   await log('   🍴 Fork: ENABLED (will fork repos if no write access)');
 }
+if (argv.autoFork) {
+  await log('   🍴 Auto-Fork: ENABLED (will auto-fork public repos without write access)');
+}
 if (argv.autoContinue) {
   await log('   🔄 Auto-Continue: ENABLED (will work on issues with existing PRs)');
 }
@@ -858,6 +867,7 @@ async function worker(workerId) {
 
         const startTime = Date.now();
         const forkFlag = argv.fork ? ' --fork' : '';
+        const autoForkFlag = argv.autoFork ? ' --auto-fork' : '';
         const verboseFlag = argv.verbose ? ' --verbose' : '';
         const attachLogsFlag = argv.attachLogs ? ' --attach-logs' : '';
         const targetBranchFlag = argv.targetBranch ? ` --target-branch ${argv.targetBranch}` : '';
@@ -880,6 +890,9 @@ async function worker(workerId) {
         }
         if (argv.fork) {
           args.push('--fork');
+        }
+        if (argv.autoFork) {
+          args.push('--auto-fork');
         }
         if (argv.verbose) {
           args.push('--verbose');
@@ -913,7 +926,7 @@ async function worker(workerId) {
         }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${autoForkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;

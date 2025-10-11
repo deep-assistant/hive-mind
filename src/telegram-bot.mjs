@@ -393,6 +393,7 @@ bot.command('help', async (ctx) => {
   message += `⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n`;
   message += `🔧 *Available Options:*\n`;
   message += `• \`--fork\` - Fork the repository\n`;
+  message += `• \`--auto-fork\` - Automatically fork public repos without write access\n`;
   message += `• \`--auto-continue\` - Continue working on existing pull request to the issue, if exists\n`;
   message += `• \`--attach-logs\` - Attach logs to PR\n`;
   message += `• \`--verbose\` - Verbose output\n`;
