@@ -718,13 +718,13 @@ ${prBody}`, { verbose: true });
               await log('');
               await log('  💡 Why this happened:');
               await log('     GitHub rejected the PR creation command entirely.');
-              await log(`     This usually means the specified assignee doesn't have access to the repo.`);
+              await log('     This usually means the specified assignee doesn\'t have access to the repo.');
               await log('');
               await log('  🔧 How to fix:');
               await log('');
               await log('     Option 1: The assignee validation is too strict');
               await log('     This is a bug in GitHub CLI or the repository settings.');
-              await log(`     Try creating PR manually without --assignee flag:`);
+              await log('     Try creating PR manually without --assignee flag:');
               await log(`       cd ${tempDir}`);
               await log(`       gh pr create --draft --title "Fix issue #${issueNumber}" --body "Fixes #${issueNumber}"`);
               await log('');
@@ -826,9 +826,9 @@ ${prBody}`, { verbose: true });
     await log('');
     await log('  Option 3: Debug the issue');
     await log(`     cd ${tempDir}`);
-    await log(`     git status`);
-    await log(`     git log --oneline -5`);
-    await log(`     gh pr create --draft  # Try manually to see detailed error`);
+    await log('     git status');
+    await log('     git log --oneline -5');
+    await log('     gh pr create --draft  # Try manually to see detailed error');
     await log('');
 
     // Re-throw the error to stop execution
