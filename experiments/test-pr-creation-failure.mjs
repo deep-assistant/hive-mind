@@ -123,6 +123,25 @@ if (allOptionsPresent) {
   process.exit(1);
 }
 
+// Test 5: Check for PR verification after creation
+console.log('\nTest 5: Checking PR verification after creation');
+if (autoPrLibContent.includes('gh pr view') &&
+    autoPrLibContent.includes('Verifying:') &&
+    autoPrLibContent.includes('PR exists on GitHub')) {
+  console.log('✅ PASS: PR verification is performed after creation');
+} else {
+  console.log('❌ FAIL: PR verification not found');
+  process.exit(1);
+}
+
+// Check that verification failure is handled
+if (autoPrLibContent.includes('PR does not exist on GitHub')) {
+  console.log('✅ PASS: Verification failure handling present');
+} else {
+  console.log('❌ FAIL: Verification failure not handled');
+  process.exit(1);
+}
+
 console.log('\n' + '='.repeat(60));
 console.log('All tests passed! ✅');
 console.log('\nSummary:');
@@ -130,3 +149,4 @@ console.log('- PR creation failures now stop the entire solve command');
 console.log('- Clear error messages explain what went wrong');
 console.log('- Multiple recovery options are provided to the user');
 console.log('- Special handling for assignment failures with PR verification');
+console.log('- PR creation is verified with gh pr view after creation');

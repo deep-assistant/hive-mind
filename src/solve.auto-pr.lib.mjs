@@ -540,6 +540,46 @@ ${prBody}`, { verbose: true });
             const prMatch = prUrl.match(/\/pull\/(\d+)/);
             if (prMatch) {
               prNumber = prMatch[1];
+
+              // CRITICAL: Verify the PR was actually created by querying GitHub API
+              // This is essential because gh pr create can return a URL but PR creation might have failed
+              await log(formatAligned('🔍', 'Verifying:', 'PR creation...'), { verbose: true });
+              const verifyResult = await $({ silent: true })`gh pr view ${prNumber} --repo ${owner}/${repo} --json number,url,state 2>&1`;
+
+              if (verifyResult.code === 0) {
+                try {
+                  const prData = JSON.parse(verifyResult.stdout.toString().trim());
+                  if (prData.number && prData.url) {
+                    await log(formatAligned('✅', 'Verification:', 'PR exists on GitHub'), { verbose: true });
+                    // Update prUrl and prNumber from verified data
+                    prUrl = prData.url;
+                    prNumber = String(prData.number);
+                  } else {
+                    throw new Error('PR data incomplete');
+                  }
+                } catch (parseErr) {
+                  await log('❌ PR verification failed: Could not parse PR data', { level: 'error' });
+                  throw new Error('PR creation verification failed - invalid response');
+                }
+              } else {
+                // PR does not exist - gh pr create must have failed silently
+                await log('');
+                await log(formatAligned('❌', 'FATAL ERROR:', 'PR creation failed'), { level: 'error' });
+                await log('');
+                await log('  🔍 What happened:');
+                await log('     The gh pr create command returned a URL, but the PR does not exist on GitHub.');
+                await log('');
+                await log('  🔧 How to fix:');
+                await log('     1. Check if PR exists manually:');
+                await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName}`);
+                await log('     2. Try creating PR manually:');
+                await log(`        cd ${tempDir}`);
+                await log(`        gh pr create --draft --title "Fix issue #${issueNumber}" --body "Fixes #${issueNumber}"`);
+                await log('     3. Check GitHub authentication:');
+                await log('        gh auth status');
+                await log('');
+                throw new Error('PR creation failed - PR does not exist on GitHub');
+              }
               // Store PR info globally for error handlers
               global.createdPR = { number: prNumber, url: prUrl };
               await log(formatAligned('✅', 'PR created:', `#${prNumber}`));
