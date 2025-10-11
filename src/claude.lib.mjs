@@ -743,7 +743,11 @@ export const executeClaudeCommand = async (params) => {
           await log(errorOutput, { stream: 'stderr' });
           // Track stderr errors for failure detection
           const trimmed = errorOutput.trim();
-          if (trimmed && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
+          // Exclude warnings (messages starting with ⚠️) from being treated as errors
+          // Example: "⚠️  [BashTool] Pre-flight check is taking longer than expected. Run with ANTHROPIC_LOG=debug to check for failed or slow API requests."
+          // Even though this contains the word "failed", it's a warning, not an error
+          const isWarning = trimmed.startsWith('⚠️') || trimmed.startsWith('⚠');
+          if (trimmed && !isWarning && (trimmed.includes('Error:') || trimmed.includes('error') || trimmed.includes('failed'))) {
             stderrErrors.push(trimmed);
           }
         }
