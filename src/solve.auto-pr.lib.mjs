@@ -557,7 +557,7 @@ ${prBody}`, { verbose: true });
                   } else {
                     throw new Error('PR data incomplete');
                   }
-                } catch (parseErr) {
+                } catch {
                   await log('❌ PR verification failed: Could not parse PR data', { level: 'error' });
                   throw new Error('PR creation verification failed - invalid response');
                 }
