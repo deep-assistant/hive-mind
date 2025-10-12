@@ -64,6 +64,12 @@ const argv = yargs(hideBin(process.argv))
     description: 'Validate configuration and options without starting the bot',
     default: false
   })
+  .option('verbose', {
+    type: 'boolean',
+    description: 'Enable verbose logging for debugging',
+    default: false,
+    alias: 'v'
+  })
   .help('h')
   .alias('h', 'help')
   .parserConfiguration({
@@ -74,6 +80,7 @@ const argv = yargs(hideBin(process.argv))
   .parse();
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
+const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
 
 if (!BOT_TOKEN) {
   console.error('Error: TELEGRAM_BOT_TOKEN environment variable or --token option is not set');
@@ -283,7 +290,7 @@ async function executeStartScreen(command, args) {
     }
 
     // Use the resolved path from which
-    if (process.env.TELEGRAM_BOT_VERBOSE) {
+    if (VERBOSE) {
       console.log(`[VERBOSE] Found start-screen at: ${whichPath}`);
     }
 
@@ -302,7 +309,7 @@ function executeWithCommand(startScreenCmd, command, args) {
   return new Promise((resolve) => {
     const allArgs = [command, ...args];
 
-    if (process.env.TELEGRAM_BOT_VERBOSE) {
+    if (VERBOSE) {
       console.log(`[VERBOSE] Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
     } else {
       console.log(`Executing: ${startScreenCmd} ${allArgs.join(' ')}`);
@@ -455,13 +462,23 @@ function validateGitHubUrl(args) {
 }
 
 bot.command('help', async (ctx) => {
+  if (VERBOSE) {
+    console.log('[VERBOSE] /help command received');
+  }
+
   // Ignore messages sent before bot started
   if (isOldMessage(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /help ignored: old message');
+    }
     return;
   }
 
   // Ignore forwarded or reply messages
   if (isForwardedOrReply(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /help ignored: forwarded or reply');
+    }
     return;
   }
 
@@ -519,30 +536,53 @@ bot.command('help', async (ctx) => {
 });
 
 bot.command('solve', async (ctx) => {
+  if (VERBOSE) {
+    console.log('[VERBOSE] /solve command received');
+  }
+
   if (!solveEnabled) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve ignored: command disabled');
+    }
     await ctx.reply('❌ The /solve command is disabled on this bot instance.');
     return;
   }
 
   // Ignore messages sent before bot started
   if (isOldMessage(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve ignored: old message');
+    }
     return;
   }
 
   // Ignore forwarded or reply messages
   if (isForwardedOrReply(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve ignored: forwarded or reply');
+    }
     return;
   }
 
   if (!isGroupChat(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve ignored: not a group chat');
+    }
     await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
   }
 
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve ignored: chat not authorized');
+    }
     await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
     return;
+  }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] /solve passed all checks, executing...');
   }
 
   const userArgs = parseCommandArgs(ctx.message.text);
@@ -597,30 +637,53 @@ bot.command('solve', async (ctx) => {
 });
 
 bot.command('hive', async (ctx) => {
+  if (VERBOSE) {
+    console.log('[VERBOSE] /hive command received');
+  }
+
   if (!hiveEnabled) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /hive ignored: command disabled');
+    }
     await ctx.reply('❌ The /hive command is disabled on this bot instance.');
     return;
   }
 
   // Ignore messages sent before bot started
   if (isOldMessage(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /hive ignored: old message');
+    }
     return;
   }
 
   // Ignore forwarded or reply messages
   if (isForwardedOrReply(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /hive ignored: forwarded or reply');
+    }
     return;
   }
 
   if (!isGroupChat(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /hive ignored: not a group chat');
+    }
     await ctx.reply('❌ The /hive command only works in group chats. Please add this bot to a group and make it an admin.');
     return;
   }
 
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /hive ignored: chat not authorized');
+    }
     await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`);
     return;
+  }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] /hive passed all checks, executing...');
   }
 
   const userArgs = parseCommandArgs(ctx.message.text);
@@ -674,6 +737,25 @@ bot.command('hive', async (ctx) => {
   }
 });
 
+// Add message listener for verbose debugging
+// This helps diagnose if bot is receiving messages at all
+if (VERBOSE) {
+  bot.on('message', (ctx, next) => {
+    console.log('[VERBOSE] Message received:');
+    console.log('[VERBOSE]   Chat ID:', ctx.chat?.id);
+    console.log('[VERBOSE]   Chat type:', ctx.chat?.type);
+    console.log('[VERBOSE]   Message date:', ctx.message?.date);
+    console.log('[VERBOSE]   Message text:', ctx.message?.text?.substring(0, 50));
+    console.log('[VERBOSE]   From user:', ctx.from?.username || ctx.from?.id);
+    console.log('[VERBOSE]   Bot start time:', BOT_START_TIME);
+    console.log('[VERBOSE]   Is old message:', isOldMessage(ctx));
+    console.log('[VERBOSE]   Is forwarded/reply:', isForwardedOrReply(ctx));
+    console.log('[VERBOSE]   Is authorized:', isChatAuthorized(ctx.chat?.id));
+    // Continue to next handler
+    return next();
+  });
+}
+
 // Add global error handler for uncaught errors in middleware
 bot.catch((error, ctx) => {
   console.error('Unhandled error while processing update', ctx.update.update_id);
@@ -705,14 +787,31 @@ if (solveOverrides.length > 0) {
 if (hiveOverrides.length > 0) {
   console.log('Hive overrides (lino):', lino.format(hiveOverrides));
 }
+if (VERBOSE) {
+  console.log('[VERBOSE] Verbose logging enabled');
+  console.log('[VERBOSE] Bot start time (Unix):', BOT_START_TIME);
+  console.log('[VERBOSE] Bot start time (ISO):', new Date(BOT_START_TIME * 1000).toISOString());
+}
 
 // Delete any existing webhook before starting polling
 // This is critical because a webhook prevents polling from working
 // If the bot was previously configured with a webhook (or if one exists),
 // we must delete it to allow polling mode to receive messages
+if (VERBOSE) {
+  console.log('[VERBOSE] Deleting webhook...');
+}
 bot.telegram.deleteWebhook({ drop_pending_updates: true })
-  .then(() => {
+  .then((result) => {
+    if (VERBOSE) {
+      console.log('[VERBOSE] Webhook deletion result:', result);
+    }
     console.log('🔄 Webhook deleted (if existed), starting polling mode...');
+    if (VERBOSE) {
+      console.log('[VERBOSE] Launching bot with config:', {
+        allowedUpdates: ['message'],
+        dropPendingUpdates: true
+      });
+    }
     return bot.launch({
       // Only receive message updates (commands, text messages)
       // This ensures the bot receives all message types including commands
@@ -725,6 +824,11 @@ bot.telegram.deleteWebhook({ drop_pending_updates: true })
   .then(() => {
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
+    if (VERBOSE) {
+      console.log('[VERBOSE] Bot launched successfully');
+      console.log('[VERBOSE] Polling is active, waiting for messages...');
+      console.log('[VERBOSE] Send a message to the bot to test message reception');
+    }
   })
   .catch((error) => {
     console.error('❌ Failed to start bot:', error);
@@ -733,6 +837,9 @@ bot.telegram.deleteWebhook({ drop_pending_updates: true })
       code: error.code,
       stack: error.stack?.split('\n').slice(0, 5).join('\n')
     });
+    if (VERBOSE) {
+      console.error('[VERBOSE] Full error:', error);
+    }
     process.exit(1);
   });
 
