@@ -21,10 +21,6 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
-    .positional('issue-url', {
-      type: 'string',
-      description: 'The GitHub issue URL to solve'
-    })
     .option('resume', {
       type: 'string',
       description: 'Resume from a previous session ID (when limit was reached)',
@@ -191,7 +187,21 @@ export const parseArguments = async (yargs, hideBin) => {
   // Use .parse() instead of .argv to ensure .strict() mode works correctly
   // When you call yargs(args) and use .argv, strict mode doesn't trigger
   // See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
-  const argv = await createYargsConfig(yargs()).parse(rawArgs);
+
+  let argv;
+  try {
+    argv = await createYargsConfig(yargs()).parse(rawArgs);
+  } catch (error) {
+    // Yargs throws errors for validation issues, but we might still get a parsed object
+    // If the error is about unknown arguments (strict mode), re-throw it
+    if (error.message && error.message.includes('Unknown arguments')) {
+      throw error;
+    }
+    // Otherwise, log the error but continue
+    console.error('Yargs parsing warning:', error.message);
+    // Try to get the argv even with the error
+    argv = error.argv || {};
+  }
 
   // Post-processing: Fix model default for opencode tool
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
