@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
+import { fileURLToPath } from 'url';
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
@@ -364,6 +365,10 @@ export const createYargsConfig = (yargsInstance) => {
     .alias('h', 'help');
 };
 
+// Only execute main logic if this module is being run directly (not imported)
+// This prevents the argument parsing and execution when hive.mjs is imported
+// by other modules (e.g., telegram-bot.mjs) to access createYargsConfig
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
 // Check for version flag before processing other arguments
 const rawArgs = hideBin(process.argv);
 if (rawArgs.includes('--version')) {
@@ -1420,3 +1425,4 @@ try {
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
+} // End of main execution block
