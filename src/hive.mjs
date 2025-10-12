@@ -339,10 +339,10 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['low', 'medium', 'high', 'max'],
       default: undefined
     })
-    .option('no-sentry', {
+    .option('sentry', {
       type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
+      description: 'Enable Sentry error tracking and monitoring',
+      default: true
     })
     .option('watch', {
       type: 'boolean',
@@ -389,10 +389,14 @@ if (rawArgs.includes('--version')) {
 
 // Check for help flag before processing other arguments
 if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit - filter out help flags to avoid duplicate display
-  const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
-  createYargsConfig(yargs(argsWithoutHelp)).showHelp();
-  await safeExit(0, 'Process completed');
+  // Show help and exit
+  createYargsConfig(yargs([])).showHelp();
+  // Force exit by destroying stdin and calling process.exit
+  // This prevents any event loop refs from keeping the process alive
+  if (process.stdin.isTTY === false) {
+    process.stdin.destroy();
+  }
+  process.exit(0);
 }
 
 // Configure command line arguments - GitHub URL as positional argument
@@ -504,9 +508,9 @@ await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
 
 // Initialize Sentry integration (unless disabled)
-if (!argv.noSentry) {
+if (argv.sentry) {
   await initializeSentry({
-    noSentry: argv.noSentry,
+    noSentry: !argv.sentry,
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
@@ -811,7 +815,7 @@ async function worker(workerId) {
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
-        const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
+        const noSentryFlag = !argv.sentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
@@ -849,7 +853,7 @@ async function worker(workerId) {
         if (argv.think) {
           args.push('--think', argv.think);
         }
-        if (argv.noSentry) {
+        if (!argv.sentry) {
           args.push('--no-sentry');
         }
         if (argv.watch) {
@@ -1411,7 +1415,7 @@ if (!isClaudeConnected) {
 }
 
 // Wrap monitor function with Sentry error tracking
-const monitorWithSentry = argv.noSentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
+const monitorWithSentry = !argv.sentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
 
 // Start monitoring
 try {

@@ -6,6 +6,8 @@
  * the process exits, whether due to normal completion, errors, or signals.
  */
 
+import * as Sentry from '@sentry/node';
+
 // Keep track of whether we've already shown the exit message
 let exitMessageShown = false;
 let getLogPathFunction = null;
@@ -52,6 +54,14 @@ const showExitMessage = async (reason = 'Process exiting', code = 0) => {
  */
 export const safeExit = async (code = 0, reason = 'Process completed') => {
   await showExitMessage(reason, code);
+
+  // Close Sentry to flush any pending events and allow the process to exit cleanly
+  try {
+    await Sentry.close(2000); // Wait up to 2 seconds for pending events to be sent
+  } catch (e) {
+    // Ignore Sentry.close() errors - exit anyway
+  }
+
   process.exit(code);
 };
 
@@ -91,6 +101,11 @@ export const installGlobalExitHandlers = () => {
       }
     }
     await showExitMessage('Interrupted (CTRL+C)', 130);
+    try {
+      await Sentry.close(2000);
+    } catch (e) {
+      // Ignore Sentry.close() errors
+    }
     process.exit(130);
   });
 
@@ -104,6 +119,11 @@ export const installGlobalExitHandlers = () => {
       }
     }
     await showExitMessage('Terminated', 143);
+    try {
+      await Sentry.close(2000);
+    } catch (e) {
+      // Ignore Sentry.close() errors
+    }
     process.exit(143);
   });
 
@@ -120,6 +140,11 @@ export const installGlobalExitHandlers = () => {
       await logFunction(`\n❌ Uncaught Exception: ${error.message}`, { level: 'error' });
     }
     await showExitMessage('Uncaught exception occurred', 1);
+    try {
+      await Sentry.close(2000);
+    } catch (e) {
+      // Ignore Sentry.close() errors
+    }
     process.exit(1);
   });
 
@@ -136,6 +161,11 @@ export const installGlobalExitHandlers = () => {
       await logFunction(`\n❌ Unhandled Rejection: ${reason}`, { level: 'error' });
     }
     await showExitMessage('Unhandled rejection occurred', 1);
+    try {
+      await Sentry.close(2000);
+    } catch (e) {
+      // Ignore Sentry.close() errors
+    }
     process.exit(1);
   });
 };

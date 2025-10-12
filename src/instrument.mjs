@@ -19,6 +19,12 @@ const shouldDisableSentry = () => {
     return true;
   }
 
+  // Disable Sentry for quick commands that don't need error tracking
+  // This prevents Sentry's profiling integration from blocking process exit
+  if (process.argv.includes('--help') || process.argv.includes('-h') || process.argv.includes('--version')) {
+    return true;
+  }
+
   return false;
 };
 
