@@ -129,8 +129,17 @@ const hiveOverrides = hiveOverridesInput
   ? lino.parse(hiveOverridesInput).filter(line => line.trim())
   : [];
 
+// Command enable/disable flags
+// Note: yargs automatically supports --no-solve and --no-hive for negation
+// Check both the camelCase and kebab-case versions
+const solveEnabled = argv.solve !== false &&
+  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
+const hiveEnabled = argv.hive !== false &&
+  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
+
 // Validate solve overrides early using solve's yargs config
-if (solveOverrides.length > 0) {
+// Only validate if solve command is enabled
+if (solveEnabled && solveOverrides.length > 0) {
   console.log('Validating solve overrides...');
   try {
     // Add a dummy URL as the first argument (required positional for solve)
@@ -147,7 +156,8 @@ if (solveOverrides.length > 0) {
 }
 
 // Validate hive overrides early using hive's yargs config
-if (hiveOverrides.length > 0) {
+// Only validate if hive command is enabled
+if (hiveEnabled && hiveOverrides.length > 0) {
   console.log('Validating hive overrides...');
   try {
     // Add a dummy URL as the first argument (required positional for hive)
@@ -162,14 +172,6 @@ if (hiveOverrides.length > 0) {
     process.exit(1);
   }
 }
-
-// Command enable/disable flags
-// Note: yargs automatically supports --no-solve and --no-hive for negation
-// Check both the camelCase and kebab-case versions
-const solveEnabled = argv.solve !== false &&
-  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
-const hiveEnabled = argv.hive !== false &&
-  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
 
 function isChatAuthorized(chatId) {
   if (!allowedChats) {
@@ -203,7 +205,7 @@ async function findStartScreenCommand() {
   try {
     const { stdout } = await exec('which start-screen');
     return stdout.trim();
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -409,49 +411,49 @@ bot.command('help', async (ctx) => {
   const chatType = ctx.chat.type;
   const chatTitle = ctx.chat.title || 'Private Chat';
 
-  let message = `🤖 *SwarmMindBot Help*\n\n`;
-  message += `📋 *Diagnostic Information:*\n`;
+  let message = '🤖 *SwarmMindBot Help*\n\n';
+  message += '📋 *Diagnostic Information:*\n';
   message += `• Chat ID: \`${chatId}\`\n`;
   message += `• Chat Type: ${chatType}\n`;
   message += `• Chat Title: ${chatTitle}\n\n`;
-  message += `📝 *Available Commands:*\n\n`;
+  message += '📝 *Available Commands:*\n\n';
 
   if (solveEnabled) {
-    message += `*/solve* - Solve a GitHub issue\n`;
-    message += `Usage: \`/solve <github-url> [options]\`\n`;
-    message += `Example: \`/solve https://github.com/owner/repo/issues/123 --verbose\`\n`;
+    message += '*/solve* - Solve a GitHub issue\n';
+    message += 'Usage: `/solve <github-url> [options]`\n';
+    message += 'Example: `/solve https://github.com/owner/repo/issues/123 --verbose`\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
-    message += `\n`;
+    message += '\n';
   } else {
-    message += `*/solve* - ❌ Disabled\n\n`;
+    message += '*/solve* - ❌ Disabled\n\n';
   }
 
   if (hiveEnabled) {
-    message += `*/hive* - Run hive command\n`;
-    message += `Usage: \`/hive <github-url> [options]\`\n`;
-    message += `Example: \`/hive https://github.com/owner/repo --model sonnet\`\n`;
+    message += '*/hive* - Run hive command\n';
+    message += 'Usage: `/hive <github-url> [options]`\n';
+    message += 'Example: `/hive https://github.com/owner/repo --model sonnet`\n';
     if (hiveOverrides.length > 0) {
       message += `🔒 Locked options: \`${hiveOverrides.join(' ')}\`\n`;
     }
-    message += `\n`;
+    message += '\n';
   } else {
-    message += `*/hive* - ❌ Disabled\n\n`;
+    message += '*/hive* - ❌ Disabled\n\n';
   }
 
-  message += `*/help* - Show this help message\n\n`;
-  message += `⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n`;
-  message += `🔧 *Available Options:*\n`;
-  message += `• \`--fork\` - Fork the repository\n`;
-  message += `• \`--auto-continue\` - Continue working on existing pull request to the issue, if exists\n`;
-  message += `• \`--attach-logs\` - Attach logs to PR\n`;
-  message += `• \`--verbose\` - Verbose output\n`;
-  message += `• \`--model <model>\` - Specify AI model (sonnet/opus/haiku)\n`;
-  message += `• \`--think <level>\` - Thinking level (low/medium/high/max)\n`;
+  message += '*/help* - Show this help message\n\n';
+  message += '⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n';
+  message += '🔧 *Available Options:*\n';
+  message += '• `--fork` - Fork the repository\n';
+  message += '• `--auto-continue` - Continue working on existing pull request to the issue, if exists\n';
+  message += '• `--attach-logs` - Attach logs to PR\n';
+  message += '• `--verbose` - Verbose output\n';
+  message += '• `--model <model>` - Specify AI model (sonnet/opus/haiku)\n';
+  message += '• `--think <level>` - Thinking level (low/medium/high/max)\n';
 
   if (allowedChats) {
-    message += `\n🔒 *Restricted Mode:* This bot only accepts commands from authorized chats.\n`;
+    message += '\n🔒 *Restricted Mode:* This bot only accepts commands from authorized chats.\n';
     message += `Authorized: ${isChatAuthorized(chatId) ? '✅ Yes' : '❌ No'}`;
   }
 
@@ -520,12 +522,12 @@ bot.command('solve', async (ctx) => {
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
-    let response = `✅ Solve command started successfully!\n\n`;
+    let response = '✅ Solve command started successfully!\n\n';
     response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
-    let response = `❌ Error executing solve command:\n\n`;
+    let response = '❌ Error executing solve command:\n\n';
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
     await ctx.reply(response, { parse_mode: 'Markdown' });
   }
@@ -593,12 +595,12 @@ bot.command('hive', async (ctx) => {
                             result.output.match(/screen -r\s+(\S+)/);
     const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
 
-    let response = `✅ Hive command started successfully!\n\n`;
+    let response = '✅ Hive command started successfully!\n\n';
     response += `📊 *Session:* \`${sessionName}\`\n`;
 
     await ctx.reply(response, { parse_mode: 'Markdown' });
   } else {
-    let response = `❌ Error executing hive command:\n\n`;
+    let response = '❌ Error executing hive command:\n\n';
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
     await ctx.reply(response, { parse_mode: 'Markdown' });
   }
