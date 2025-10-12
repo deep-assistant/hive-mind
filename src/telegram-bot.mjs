@@ -26,34 +26,8 @@ const { hideBin } = await use('yargs@17.7.2/helpers');
 const solveConfigLib = await import('./solve.config.lib.mjs');
 const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 
-const hiveModule = await import('./hive.mjs');
-const { createYargsConfig: createHiveYargsConfig } = hiveModule;
-
-// Define all valid options for telegram-bot itself
-const TELEGRAM_BOT_OPTIONS = new Set([
-  'help', 'h', 'version',
-  'token', 't',
-  'allowed-chats', 'allowedChats', 'a',
-  'solve-overrides', 'solveOverrides',
-  'hive-overrides', 'hiveOverrides',
-  'solve', 'no-solve', 'noSolve',
-  'hive', 'no-hive', 'noHive',
-  '_', '$0'
-]);
-
-// Simple validation function for telegram-bot options
-function validateTelegramBotOptions(argv) {
-  const errors = [];
-  for (const key of Object.keys(argv)) {
-    if (!TELEGRAM_BOT_OPTIONS.has(key)) {
-      errors.push(`Unknown option: ${key}`);
-    }
-  }
-  if (errors.length > 0) {
-    console.error('Error: ' + errors.join(', '));
-    process.exit(1);
-  }
-}
+const hiveConfigLib = await import('./hive.config.lib.mjs');
+const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
@@ -85,15 +59,19 @@ const argv = yargs(hideBin(process.argv))
     description: 'Enable /hive command (use --no-hive to disable)',
     default: true
   })
+  .option('dry-run', {
+    type: 'boolean',
+    description: 'Validate configuration and options without starting the bot',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .parserConfiguration({
-    'boolean-negation': true
+    'boolean-negation': true,
+    'strip-dashed': true  // Remove dashed keys from argv to simplify validation
   })
+  .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
-
-// Apply validation to reject unrecognized telegram-bot options
-validateTelegramBotOptions(argv);
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 
@@ -171,6 +149,27 @@ if (hiveEnabled && hiveOverrides.length > 0) {
     console.error(`   Overrides: ${hiveOverrides.join(' ')}`);
     process.exit(1);
   }
+}
+
+// Handle dry-run mode - exit after validation
+if (argv.dryRun || argv['dry-run']) {
+  console.log('\n✅ Dry-run mode: All validations passed successfully!');
+  console.log('\nConfiguration summary:');
+  console.log('  Token:', BOT_TOKEN ? `${BOT_TOKEN.substring(0, 10)}...` : 'not set');
+  if (allowedChats && allowedChats.length > 0) {
+    console.log('  Allowed chats:', lino.format(allowedChats));
+  } else {
+    console.log('  Allowed chats: All (no restrictions)');
+  }
+  console.log('  Commands enabled:', { solve: solveEnabled, hive: hiveEnabled });
+  if (solveOverrides.length > 0) {
+    console.log('  Solve overrides:', lino.format(solveOverrides));
+  }
+  if (hiveOverrides.length > 0) {
+    console.log('  Hive overrides:', lino.format(hiveOverrides));
+  }
+  console.log('\n🎉 Bot configuration is valid. Exiting without starting the bot.');
+  process.exit(0);
 }
 
 function isChatAuthorized(chatId) {

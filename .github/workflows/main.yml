@@ -377,6 +377,11 @@ jobs:
         echo "Running test suite for Sentry integration..."
         node tests/test-sentry.mjs
 
+    - name: Run telegram-bot dry-run test (Issue #487)
+      run: |
+        echo "Running test suite for telegram-bot --dry-run mode..."
+        node tests/test-telegram-bot-dry-run.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
@@ -400,13 +405,29 @@ jobs:
         timeout 10s ./src/solve.mjs --help || echo "Help command completed"
         echo "✅ solve.mjs executes without critical errors"
         timeout 10s ./src/solve.mjs --version || true
-    
+
     - name: Test hive.mjs execution
       run: |
         echo "Testing hive.mjs basic execution..."
         timeout 10s ./src/hive.mjs --help || echo "Help command completed"
         echo "✅ hive.mjs executes without critical errors"
         timeout 10s ./src/hive.mjs --version || true
+
+    - name: Test telegram-bot.mjs execution
+      run: |
+        echo "Testing telegram-bot.mjs basic execution..."
+        timeout 10s ./src/telegram-bot.mjs --help || echo "Help command completed"
+        echo "✅ telegram-bot.mjs executes without critical errors"
+
+        echo ""
+        echo "Testing telegram-bot.mjs --dry-run with issue #487 command..."
+        timeout 10s ./src/telegram-bot.mjs \
+          --token "test_token_123" \
+          --allowed-chats "(-1002975819706 -1002861722681)" \
+          --no-hive \
+          --solve-overrides "(\n  --auto-continue\n  --attach-logs\n  --verbose\n  --no-tool-check\n)" \
+          --dry-run
+        echo "✅ Issue #487 command passes with --dry-run"
     
     - name: Test memory-check.mjs execution
       run: |
@@ -430,6 +451,21 @@ jobs:
         timeout 10s solve --version || true
         timeout 10s solve --help || echo "Help command completed"
         echo "✅ 'solve' global command works"
+
+        echo ""
+        echo "Testing 'hive-telegram-bot' global command..."
+        timeout 10s hive-telegram-bot --help || echo "Help command completed"
+        echo "✅ 'hive-telegram-bot' global command works"
+
+        echo ""
+        echo "Testing hive-telegram-bot --dry-run (issue #487)..."
+        timeout 10s hive-telegram-bot \
+          --token "test_token" \
+          --allowed-chats "(-1 -2)" \
+          --no-hive \
+          --solve-overrides "(--auto-continue --verbose)" \
+          --dry-run
+        echo "✅ 'hive-telegram-bot --dry-run' works"
 
         echo ""
         echo "Cleaning up global link..."
