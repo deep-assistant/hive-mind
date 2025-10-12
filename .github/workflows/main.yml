@@ -425,7 +425,7 @@ jobs:
           --token "test_token_123" \
           --allowed-chats "(-1002975819706 -1002861722681)" \
           --no-hive \
-          --solve-overrides "(\n  --auto-continue\n  --attach-logs\n  --verbose\n  --no-tool-check\n)" \
+          --solve-overrides $'( \n  --auto-continue\n  --attach-logs\n  --verbose\n  --no-tool-check\n)' \
           --dry-run
         echo "✅ Issue #487 command passes with --dry-run"
     

@@ -99,12 +99,12 @@ const allowedChats = allowedChatsInput
 // Parse override options
 const solveOverridesInput = argv.solveOverrides || argv['solve-overrides'] || process.env.TELEGRAM_SOLVE_OVERRIDES;
 const solveOverrides = solveOverridesInput
-  ? lino.parse(solveOverridesInput).filter(line => line.trim())
+  ? lino.parse(solveOverridesInput).map(line => line.trim()).filter(line => line)
   : [];
 
 const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || process.env.TELEGRAM_HIVE_OVERRIDES;
 const hiveOverrides = hiveOverridesInput
-  ? lino.parse(hiveOverridesInput).filter(line => line.trim())
+  ? lino.parse(hiveOverridesInput).map(line => line.trim()).filter(line => line)
   : [];
 
 // Command enable/disable flags
@@ -122,10 +122,30 @@ if (solveEnabled && solveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for solve)
     const testArgs = ['https://github.com/test/test/issues/1', ...solveOverrides];
-    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
-    const testYargs = createSolveYargsConfig(yargs());
-    testYargs.parse(testArgs);
-    console.log('✅ Solve overrides validated successfully');
+
+    // Temporarily suppress stderr to avoid yargs error output during validation
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+    process.stderr.write = (chunk) => {
+      stderrBuffer.push(chunk);
+      return true;
+    };
+
+    try {
+      // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+      const testYargs = createSolveYargsConfig(yargs());
+      // Suppress yargs error output - we'll handle errors ourselves
+      testYargs.showHelpOnFail(false);
+      testYargs.fail((msg, err) => {
+        if (err) throw err;
+        throw new Error(msg);
+      });
+      await testYargs.parse(testArgs);
+      console.log('✅ Solve overrides validated successfully');
+    } finally {
+      // Restore stderr
+      process.stderr.write = originalStderrWrite;
+    }
   } catch (error) {
     console.error(`❌ Invalid solve-overrides: ${error.message || String(error)}`);
     console.error(`   Overrides: ${solveOverrides.join(' ')}`);
@@ -140,10 +160,30 @@ if (hiveEnabled && hiveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for hive)
     const testArgs = ['https://github.com/test/test', ...hiveOverrides];
-    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
-    const testYargs = createHiveYargsConfig(yargs());
-    testYargs.parse(testArgs);
-    console.log('✅ Hive overrides validated successfully');
+
+    // Temporarily suppress stderr to avoid yargs error output during validation
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+    process.stderr.write = (chunk) => {
+      stderrBuffer.push(chunk);
+      return true;
+    };
+
+    try {
+      // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+      const testYargs = createHiveYargsConfig(yargs());
+      // Suppress yargs error output - we'll handle errors ourselves
+      testYargs.showHelpOnFail(false);
+      testYargs.fail((msg, err) => {
+        if (err) throw err;
+        throw new Error(msg);
+      });
+      await testYargs.parse(testArgs);
+      console.log('✅ Hive overrides validated successfully');
+    } finally {
+      // Restore stderr
+      process.stderr.write = originalStderrWrite;
+    }
   } catch (error) {
     console.error(`❌ Invalid hive-overrides: ${error.message || String(error)}`);
     console.error(`   Overrides: ${hiveOverrides.join(' ')}`);

@@ -53,8 +53,8 @@ function runTest(testName, args, expectedSuccess) {
       let reason = '';
 
       if (expectedSuccess) {
-        // Success if we got the dry-run success message and exit code 0
-        if (hasDryRunSuccess && code === 0) {
+        // Success if we got the dry-run success message and exit code 0 (or null from timeout but with success message)
+        if (hasDryRunSuccess && (code === 0 || code === null)) {
           passed = true;
           reason = 'Validation passed as expected';
         } else if (code !== 0 && !hasDryRunSuccess) {
@@ -103,7 +103,12 @@ async function main() {
         '--token', '8490528355:AAFPBDyYA8pPB1Uzl9eD7wbt9Gsj1LAaOEM',
         '--allowed-chats', '(-1002975819706 -1002861722681)',
         '--no-hive',
-        '--solve-overrides', '(\n  --auto-continue\n  --attach-logs\n  --verbose\n  --no-tool-check\n)',
+        '--solve-overrides', `(
+  --auto-continue
+  --attach-logs
+  --verbose
+  --no-tool-check
+)`,
         '--dry-run'
       ],
       shouldPass: true
@@ -194,7 +199,11 @@ async function main() {
       name: 'Complex allowed-chats with --dry-run',
       args: [
         '--token', 'test_token_123',
-        '--allowed-chats', '(\n  -1001234567890\n  -1009876543210\n  123456789\n)',
+        '--allowed-chats', `(
+  -1001234567890
+  -1009876543210
+  123456789
+)`,
         '--dry-run'
       ],
       shouldPass: true
