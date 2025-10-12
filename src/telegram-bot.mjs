@@ -91,6 +91,10 @@ const bot = new Telegraf(BOT_TOKEN, {
   handlerTimeout: Infinity
 });
 
+// Track bot startup time to ignore messages sent before bot started
+// Using Unix timestamp (seconds since epoch) to match Telegram's message.date format
+const BOT_START_TIME = Math.floor(Date.now() / 1000);
+
 const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
 const allowedChats = allowedChatsInput
   ? lino.parseNumericIds(allowedChatsInput)
@@ -217,6 +221,16 @@ function isChatAuthorized(chatId) {
     return true;
   }
   return allowedChats.includes(chatId);
+}
+
+function isOldMessage(ctx) {
+  // Ignore messages sent before the bot started
+  // This prevents processing old/pending messages from before current bot instance startup
+  const messageDate = ctx.message?.date;
+  if (!messageDate) {
+    return false;
+  }
+  return messageDate < BOT_START_TIME;
 }
 
 function isGroupChat(ctx) {
@@ -441,6 +455,11 @@ function validateGitHubUrl(args) {
 }
 
 bot.command('help', async (ctx) => {
+  // Ignore messages sent before bot started
+  if (isOldMessage(ctx)) {
+    return;
+  }
+
   // Ignore forwarded or reply messages
   if (isForwardedOrReply(ctx)) {
     return;
@@ -502,6 +521,11 @@ bot.command('help', async (ctx) => {
 bot.command('solve', async (ctx) => {
   if (!solveEnabled) {
     await ctx.reply('❌ The /solve command is disabled on this bot instance.');
+    return;
+  }
+
+  // Ignore messages sent before bot started
+  if (isOldMessage(ctx)) {
     return;
   }
 
@@ -575,6 +599,11 @@ bot.command('solve', async (ctx) => {
 bot.command('hive', async (ctx) => {
   if (!hiveEnabled) {
     await ctx.reply('❌ The /hive command is disabled on this bot instance.');
+    return;
+  }
+
+  // Ignore messages sent before bot started
+  if (isOldMessage(ctx)) {
     return;
   }
 
@@ -677,7 +706,14 @@ if (hiveOverrides.length > 0) {
   console.log('Hive overrides (lino):', lino.format(hiveOverrides));
 }
 
-bot.launch()
+bot.launch({
+  // Only receive message updates (commands, text messages)
+  // This ensures the bot receives all message types including commands
+  allowedUpdates: ['message'],
+  // Drop any pending updates that were sent before the bot started
+  // This ensures we only process new messages sent after this bot instance started
+  dropPendingUpdates: true
+})
   .then(() => {
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
