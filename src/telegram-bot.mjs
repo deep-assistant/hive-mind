@@ -248,24 +248,61 @@ function isGroupChat(ctx) {
 function isForwardedOrReply(ctx) {
   const message = ctx.message;
   if (!message) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] isForwardedOrReply: No message object');
+    }
     return false;
   }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] isForwardedOrReply: Checking message fields...');
+    console.log('[VERBOSE]   message.forward_origin:', JSON.stringify(message.forward_origin));
+    console.log('[VERBOSE]   message.forward_origin?.type:', message.forward_origin?.type);
+    console.log('[VERBOSE]   message.forward_from:', JSON.stringify(message.forward_from));
+    console.log('[VERBOSE]   message.forward_from_chat:', JSON.stringify(message.forward_from_chat));
+    console.log('[VERBOSE]   message.forward_from_message_id:', message.forward_from_message_id);
+    console.log('[VERBOSE]   message.forward_signature:', message.forward_signature);
+    console.log('[VERBOSE]   message.forward_sender_name:', message.forward_sender_name);
+    console.log('[VERBOSE]   message.forward_date:', message.forward_date);
+    console.log('[VERBOSE]   message.reply_to_message:', JSON.stringify(message.reply_to_message));
+    console.log('[VERBOSE]   message.reply_to_message?.message_id:', message.reply_to_message?.message_id);
+  }
+
   // Check if message is forwarded (has forward_origin field with actual content)
   // Note: We check for .type because Telegram might send empty objects {}
   // which are truthy in JavaScript but don't indicate a forwarded message
   if (message.forward_origin && message.forward_origin.type) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] isForwardedOrReply: TRUE - forward_origin.type exists:', message.forward_origin.type);
+    }
     return true;
   }
   // Also check old forwarding API fields for backward compatibility
   if (message.forward_from || message.forward_from_chat ||
       message.forward_from_message_id || message.forward_signature ||
       message.forward_sender_name || message.forward_date) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] isForwardedOrReply: TRUE - old forwarding API field detected');
+      if (message.forward_from) console.log('[VERBOSE]     Triggered by: forward_from');
+      if (message.forward_from_chat) console.log('[VERBOSE]     Triggered by: forward_from_chat');
+      if (message.forward_from_message_id) console.log('[VERBOSE]     Triggered by: forward_from_message_id');
+      if (message.forward_signature) console.log('[VERBOSE]     Triggered by: forward_signature');
+      if (message.forward_sender_name) console.log('[VERBOSE]     Triggered by: forward_sender_name');
+      if (message.forward_date) console.log('[VERBOSE]     Triggered by: forward_date');
+    }
     return true;
   }
   // Check if message is a reply (has reply_to_message field with actual content)
   // Note: We check for .message_id because Telegram might send empty objects {}
   if (message.reply_to_message && message.reply_to_message.message_id) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] isForwardedOrReply: TRUE - reply_to_message.message_id exists:', message.reply_to_message.message_id);
+    }
     return true;
+  }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] isForwardedOrReply: FALSE - no forwarding or reply detected');
   }
   return false;
 }
