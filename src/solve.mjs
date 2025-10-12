@@ -122,7 +122,7 @@ if (!argv.noSentry) {
     level: 'info',
     data: {
       model: argv.model,
-      issueUrl: argv._?.[0] || 'not-set-yet'
+      issueUrl: argv['issue-url'] || argv._?.[0] || 'not-set-yet'
     }
   });
 }
@@ -143,7 +143,7 @@ installGlobalExitHandlers();
 // This prevents unrecognized options from being silently ignored (issue #453, #482)
 
 // Now handle argument validation that was moved from early checks
-let issueUrl = argv._[0];
+let issueUrl = argv['issue-url'] || argv._[0];
 if (!issueUrl) {
   await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
   await log('Error: Missing required github issue or pull request URL', { level: 'error' });
@@ -502,10 +502,10 @@ try {
     await log('     # Then use the PR URL with solve.mjs');
     await log('');
     await log('  Option 2: Start fresh without continue mode');
-    await log(`     ./solve.mjs "${argv._[0]}" --auto-pull-request-creation`);
+    await log(`     ./solve.mjs "${issueUrl}" --auto-pull-request-creation`);
     await log('');
     await log('  Option 3: Disable auto-PR creation (Claude will create it)');
-    await log(`     ./solve.mjs "${argv._[0]}" --no-auto-pull-request-creation`);
+    await log(`     ./solve.mjs "${issueUrl}" --no-auto-pull-request-creation`);
     await log('');
     await safeExit(1, 'No PR available');
   }
