@@ -38,10 +38,7 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
-const { initializeConfig, parseArguments, DEFINED_OPTIONS } = config;
-// Import strict options validation
-const yargsStrictLib = await import('./yargs-strict.lib.mjs');
-const { validateStrictOptions } = yargsStrictLib;
+const { initializeConfig, parseArguments } = config;
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
@@ -137,9 +134,8 @@ await log('🔧 Raw command executed:');
 await log(`   ${rawCommand}`);
 await log('');
 
-// Validate strict options after logging (issue #453)
-// This prevents unrecognized options like —fork (em-dash) from being silently ignored
-validateStrictOptions(argv, DEFINED_OPTIONS);
+// Note: Strict options validation is now handled by yargs .strict() mode in solve.config.lib.mjs
+// This prevents unrecognized options from being silently ignored (issue #453, #482)
 
 // Now handle argument validation that was moved from early checks
 let issueUrl = argv._[0];
