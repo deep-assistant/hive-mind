@@ -62,6 +62,23 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = false) =>
         const kebabForm = toKebabCase(normalizedKey);
         const camelForm = toCamelCase(normalizedKey);
 
+        // Skip if either form is in defined options - this handles yargs creating
+        // both camelCase and kebab-case versions of the same option
+        if (definedOptions.has(kebabForm) || definedOptions.has(camelForm)) {
+          continue;
+        }
+
+        // Yargs sometimes creates keys from option VALUES (a bug or quirk).
+        // To avoid false positives, we only validate keys that start with dashes (--option or -o)
+        // as those are clearly intended to be option flags.
+        // Keys without dashes (like 'token', 'allowedChats') that aren't in definedOptions
+        // are likely to be values that yargs mistakenly added as keys, so we skip them.
+        if (!key.startsWith('-')) {
+          // Skip all non-dash-prefixed keys that aren't in definedOptions
+          // These are likely option values that yargs created as keys
+          continue;
+        }
+
         // If we haven't seen either form, add the kebab-case version (more readable)
         if (!seenNormalized.has(kebabForm) && !seenNormalized.has(camelForm)) {
           // Prefer kebab-case for error messages
