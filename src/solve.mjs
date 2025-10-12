@@ -82,6 +82,17 @@ const sessionLib = await import('./solve.session.lib.mjs');
 const { startWorkSession, endWorkSession } = sessionLib;
 const preparationLib = await import('./solve.preparation.lib.mjs');
 const { prepareFeedbackAndTimestamps, checkUncommittedChanges, checkForkActions } = preparationLib;
+
+// Log version and raw command BEFORE parsing arguments
+// This ensures they appear even if strict validation fails
+const versionInfo = await getVersionInfo();
+await log('');
+await log(`🚀 solve v${versionInfo}`);
+const rawCommand = process.argv.join(' ');
+await log('🔧 Raw command executed:');
+await log(`   ${rawCommand}`);
+await log('');
+
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
 
@@ -125,16 +136,10 @@ const cleanupWrapper = async () => {
 // Initialize the exit handler with getAbsoluteLogPath function and cleanup wrapper
 initializeExitHandler(getAbsoluteLogPath, log, cleanupWrapper);
 installGlobalExitHandlers();
-// Log version and raw command at the start
-const versionInfo = await getVersionInfo();
-await log('');
-await log(`🚀 solve v${versionInfo}`);
-const rawCommand = process.argv.join(' ');
-await log('🔧 Raw command executed:');
-await log(`   ${rawCommand}`);
-await log('');
 
-// Note: Strict options validation is now handled by yargs .strict() mode in solve.config.lib.mjs
+// Note: Version and raw command are logged BEFORE parseArguments() (see above)
+// This ensures they appear even if strict validation fails
+// Strict options validation is now handled by yargs .strict() mode in solve.config.lib.mjs
 // This prevents unrecognized options from being silently ignored (issue #453, #482)
 
 // Now handle argument validation that was moved from early checks
