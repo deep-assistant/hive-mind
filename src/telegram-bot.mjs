@@ -706,14 +706,22 @@ if (hiveOverrides.length > 0) {
   console.log('Hive overrides (lino):', lino.format(hiveOverrides));
 }
 
-bot.launch({
-  // Only receive message updates (commands, text messages)
-  // This ensures the bot receives all message types including commands
-  allowedUpdates: ['message'],
-  // Drop any pending updates that were sent before the bot started
-  // This ensures we only process new messages sent after this bot instance started
-  dropPendingUpdates: true
-})
+// Delete any existing webhook before starting polling
+// This is critical because a webhook prevents polling from working
+// If the bot was previously configured with a webhook (or if one exists),
+// we must delete it to allow polling mode to receive messages
+bot.telegram.deleteWebhook({ drop_pending_updates: true })
+  .then(() => {
+    console.log('🔄 Webhook deleted (if existed), starting polling mode...');
+    return bot.launch({
+      // Only receive message updates (commands, text messages)
+      // This ensures the bot receives all message types including commands
+      allowedUpdates: ['message'],
+      // Drop any pending updates that were sent before the bot started
+      // This ensures we only process new messages sent after this bot instance started
+      dropPendingUpdates: true
+    });
+  })
   .then(() => {
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
