@@ -294,11 +294,25 @@ function isForwardedOrReply(ctx) {
   }
   // Check if message is a reply (has reply_to_message field with actual content)
   // Note: We check for .message_id because Telegram might send empty objects {}
+  // IMPORTANT: In forum groups, messages in topics have reply_to_message pointing to the topic's
+  // first message (with forum_topic_created). These are NOT user replies, just part of the thread.
+  // We must exclude these to allow commands in forum topics.
   if (message.reply_to_message && message.reply_to_message.message_id) {
-    if (VERBOSE) {
-      console.log('[VERBOSE] isForwardedOrReply: TRUE - reply_to_message.message_id exists:', message.reply_to_message.message_id);
+    // If the reply_to_message is a forum topic creation message, this is NOT a user reply
+    if (message.reply_to_message.forum_topic_created) {
+      if (VERBOSE) {
+        console.log('[VERBOSE] isForwardedOrReply: FALSE - reply is to forum topic creation, not user reply');
+        console.log('[VERBOSE]   Forum topic:', message.reply_to_message.forum_topic_created);
+      }
+      // This is just a message in a forum topic, not a reply to another user
+      // Allow the message to proceed
+    } else {
+      // This is an actual reply to another user's message
+      if (VERBOSE) {
+        console.log('[VERBOSE] isForwardedOrReply: TRUE - reply_to_message.message_id exists:', message.reply_to_message.message_id);
+      }
+      return true;
     }
-    return true;
   }
 
   if (VERBOSE) {
@@ -799,6 +813,9 @@ if (VERBOSE) {
     console.log('[VERBOSE] Message received:');
     console.log('[VERBOSE]   Chat ID:', ctx.chat?.id);
     console.log('[VERBOSE]   Chat type:', ctx.chat?.type);
+    console.log('[VERBOSE]   Is forum:', ctx.chat?.is_forum);
+    console.log('[VERBOSE]   Is topic message:', ctx.message?.is_topic_message);
+    console.log('[VERBOSE]   Message thread ID:', ctx.message?.message_thread_id);
     console.log('[VERBOSE]   Message date:', ctx.message?.date);
     console.log('[VERBOSE]   Message text:', ctx.message?.text?.substring(0, 100));
     console.log('[VERBOSE]   From user:', ctx.from?.username || ctx.from?.id);
@@ -823,6 +840,7 @@ if (VERBOSE) {
       console.log('[VERBOSE]     - reply_to_message type:', typeof msg.reply_to_message);
       console.log('[VERBOSE]     - reply_to_message truthy?:', !!msg.reply_to_message);
       console.log('[VERBOSE]     - reply_to_message.message_id:', msg.reply_to_message?.message_id);
+      console.log('[VERBOSE]     - reply_to_message.forum_topic_created:', JSON.stringify(msg.reply_to_message?.forum_topic_created));
     }
 
     console.log('[VERBOSE]   Is authorized:', isChatAuthorized(ctx.chat?.id));
