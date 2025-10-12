@@ -26,34 +26,8 @@ const { hideBin } = await use('yargs@17.7.2/helpers');
 const solveConfigLib = await import('./solve.config.lib.mjs');
 const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 
-const hiveModule = await import('./hive.mjs');
-const { createYargsConfig: createHiveYargsConfig } = hiveModule;
-
-// Define all valid options for telegram-bot itself
-const TELEGRAM_BOT_OPTIONS = new Set([
-  'help', 'h', 'version',
-  'token', 't',
-  'allowed-chats', 'allowedChats', 'a',
-  'solve-overrides', 'solveOverrides',
-  'hive-overrides', 'hiveOverrides',
-  'solve', 'no-solve', 'noSolve',
-  'hive', 'no-hive', 'noHive',
-  '_', '$0'
-]);
-
-// Simple validation function for telegram-bot options
-function validateTelegramBotOptions(argv) {
-  const errors = [];
-  for (const key of Object.keys(argv)) {
-    if (!TELEGRAM_BOT_OPTIONS.has(key)) {
-      errors.push(`Unknown option: ${key}`);
-    }
-  }
-  if (errors.length > 0) {
-    console.error('Error: ' + errors.join(', '));
-    process.exit(1);
-  }
-}
+const hiveConfigLib = await import('./hive.config.lib.mjs');
+const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
@@ -85,15 +59,19 @@ const argv = yargs(hideBin(process.argv))
     description: 'Enable /hive command (use --no-hive to disable)',
     default: true
   })
+  .option('dry-run', {
+    type: 'boolean',
+    description: 'Validate configuration and options without starting the bot',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .parserConfiguration({
-    'boolean-negation': true
+    'boolean-negation': true,
+    'strip-dashed': true  // Remove dashed keys from argv to simplify validation
   })
+  .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
-
-// Apply validation to reject unrecognized telegram-bot options
-validateTelegramBotOptions(argv);
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 
@@ -121,12 +99,12 @@ const allowedChats = allowedChatsInput
 // Parse override options
 const solveOverridesInput = argv.solveOverrides || argv['solve-overrides'] || process.env.TELEGRAM_SOLVE_OVERRIDES;
 const solveOverrides = solveOverridesInput
-  ? lino.parse(solveOverridesInput).filter(line => line.trim())
+  ? lino.parse(solveOverridesInput).map(line => line.trim()).filter(line => line)
   : [];
 
 const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || process.env.TELEGRAM_HIVE_OVERRIDES;
 const hiveOverrides = hiveOverridesInput
-  ? lino.parse(hiveOverridesInput).filter(line => line.trim())
+  ? lino.parse(hiveOverridesInput).map(line => line.trim()).filter(line => line)
   : [];
 
 // Command enable/disable flags
@@ -144,10 +122,30 @@ if (solveEnabled && solveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for solve)
     const testArgs = ['https://github.com/test/test/issues/1', ...solveOverrides];
-    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
-    const testYargs = createSolveYargsConfig(yargs());
-    testYargs.parse(testArgs);
-    console.log('✅ Solve overrides validated successfully');
+
+    // Temporarily suppress stderr to avoid yargs error output during validation
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+    process.stderr.write = (chunk) => {
+      stderrBuffer.push(chunk);
+      return true;
+    };
+
+    try {
+      // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+      const testYargs = createSolveYargsConfig(yargs());
+      // Suppress yargs error output - we'll handle errors ourselves
+      testYargs.showHelpOnFail(false);
+      testYargs.fail((msg, err) => {
+        if (err) throw err;
+        throw new Error(msg);
+      });
+      await testYargs.parse(testArgs);
+      console.log('✅ Solve overrides validated successfully');
+    } finally {
+      // Restore stderr
+      process.stderr.write = originalStderrWrite;
+    }
   } catch (error) {
     console.error(`❌ Invalid solve-overrides: ${error.message || String(error)}`);
     console.error(`   Overrides: ${solveOverrides.join(' ')}`);
@@ -162,15 +160,56 @@ if (hiveEnabled && hiveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for hive)
     const testArgs = ['https://github.com/test/test', ...hiveOverrides];
-    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
-    const testYargs = createHiveYargsConfig(yargs());
-    testYargs.parse(testArgs);
-    console.log('✅ Hive overrides validated successfully');
+
+    // Temporarily suppress stderr to avoid yargs error output during validation
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+    process.stderr.write = (chunk) => {
+      stderrBuffer.push(chunk);
+      return true;
+    };
+
+    try {
+      // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+      const testYargs = createHiveYargsConfig(yargs());
+      // Suppress yargs error output - we'll handle errors ourselves
+      testYargs.showHelpOnFail(false);
+      testYargs.fail((msg, err) => {
+        if (err) throw err;
+        throw new Error(msg);
+      });
+      await testYargs.parse(testArgs);
+      console.log('✅ Hive overrides validated successfully');
+    } finally {
+      // Restore stderr
+      process.stderr.write = originalStderrWrite;
+    }
   } catch (error) {
     console.error(`❌ Invalid hive-overrides: ${error.message || String(error)}`);
     console.error(`   Overrides: ${hiveOverrides.join(' ')}`);
     process.exit(1);
   }
+}
+
+// Handle dry-run mode - exit after validation
+if (argv.dryRun || argv['dry-run']) {
+  console.log('\n✅ Dry-run mode: All validations passed successfully!');
+  console.log('\nConfiguration summary:');
+  console.log('  Token:', BOT_TOKEN ? `${BOT_TOKEN.substring(0, 10)}...` : 'not set');
+  if (allowedChats && allowedChats.length > 0) {
+    console.log('  Allowed chats:', lino.format(allowedChats));
+  } else {
+    console.log('  Allowed chats: All (no restrictions)');
+  }
+  console.log('  Commands enabled:', { solve: solveEnabled, hive: hiveEnabled });
+  if (solveOverrides.length > 0) {
+    console.log('  Solve overrides:', lino.format(solveOverrides));
+  }
+  if (hiveOverrides.length > 0) {
+    console.log('  Hive overrides:', lino.format(hiveOverrides));
+  }
+  console.log('\n🎉 Bot configuration is valid. Exiting without starting the bot.');
+  process.exit(0);
 }
 
 function isChatAuthorized(chatId) {
