@@ -146,11 +146,13 @@ if (solveEnabled && solveOverrides.length > 0) {
       // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
       const testYargs = createSolveYargsConfig(yargs());
       // Suppress yargs error output - we'll handle errors ourselves
-      testYargs.showHelpOnFail(false);
-      testYargs.fail((msg, err) => {
-        if (err) throw err;
-        throw new Error(msg);
-      });
+      testYargs
+        .exitProcess(false)
+        .showHelpOnFail(false)
+        .fail((msg, err) => {
+          if (err) throw err;
+          throw new Error(msg);
+        });
       await testYargs.parse(testArgs);
       console.log('✅ Solve overrides validated successfully');
     } finally {
@@ -184,11 +186,13 @@ if (hiveEnabled && hiveOverrides.length > 0) {
       // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
       const testYargs = createHiveYargsConfig(yargs());
       // Suppress yargs error output - we'll handle errors ourselves
-      testYargs.showHelpOnFail(false);
-      testYargs.fail((msg, err) => {
-        if (err) throw err;
-        throw new Error(msg);
-      });
+      testYargs
+        .exitProcess(false)
+        .showHelpOnFail(false)
+        .fail((msg, err) => {
+          if (err) throw err;
+          throw new Error(msg);
+        });
       await testYargs.parse(testArgs);
       console.log('✅ Hive overrides validated successfully');
     } finally {
@@ -669,6 +673,18 @@ bot.command('solve', async (ctx) => {
   try {
     // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
     const testYargs = createSolveYargsConfig(yargs());
+
+    // Configure yargs to throw errors instead of trying to exit the process
+    // This prevents confusing error messages when validation fails but execution continues
+    let failureMessage = null;
+    testYargs
+      .exitProcess(false)
+      .fail((msg, err) => {
+        // Capture the failure message instead of letting yargs print it
+        failureMessage = msg || (err && err.message) || 'Unknown validation error';
+        throw new Error(failureMessage);
+      });
+
     testYargs.parse(args);
   } catch (error) {
     await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
@@ -770,6 +786,18 @@ bot.command('hive', async (ctx) => {
   try {
     // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
     const testYargs = createHiveYargsConfig(yargs());
+
+    // Configure yargs to throw errors instead of trying to exit the process
+    // This prevents confusing error messages when validation fails but execution continues
+    let failureMessage = null;
+    testYargs
+      .exitProcess(false)
+      .fail((msg, err) => {
+        // Capture the failure message instead of letting yargs print it
+        failureMessage = msg || (err && err.message) || 'Unknown validation error';
+        throw new Error(failureMessage);
+      });
+
     testYargs.parse(args);
   } catch (error) {
     await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
