@@ -55,10 +55,6 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
-// Import strict options validation
-const yargsStrictLib = await import('./yargs-strict.lib.mjs');
-const { createStrictOptionsCheck } = yargsStrictLib;
-
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
 // The cleanupTempDirectories function has been moved to lib.mjs
@@ -174,7 +170,8 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
 }
 
 // Function to create yargs configuration - avoids duplication
-const createYargsConfig = (yargsInstance) => {
+// Exported for use in telegram-bot and start-screen validation
+export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
       yargs.positional('github-url', {
@@ -362,69 +359,9 @@ const createYargsConfig = (yargsInstance) => {
     .parserConfiguration({
       'boolean-negation': true
     })
+    .strict() // Enable strict mode to reject unknown options (issue #453, #482)
     .help('h')
-    .alias('h', 'help')
-    // Apply strict options validation to reject unrecognized options
-    // This prevents issues like #453 where —fork (em-dash) is not recognized
-    .check(createStrictOptionsCheck((() => {
-      // Define boolean options that support --no- prefix
-      const booleanOptions = [
-        'all-issues', 'allIssues',
-        'skip-issues-with-prs', 'skipIssuesWithPrs',
-        'dry-run', 'dryRun',
-        'skip-tool-check', 'skipToolCheck',
-        'tool-check', 'toolCheck',
-        'verbose',
-        'once',
-        'auto-cleanup', 'autoCleanup',
-        'fork',
-        'attach-logs', 'attachLogs',
-        'auto-continue', 'autoContinue',
-        'no-sentry', 'noSentry',
-        'watch',
-      ];
-
-      const options = new Set([
-        'help', 'h', 'version',
-        'github-url', 'githubUrl',
-        'monitor-tag', 'monitorTag', 't',
-        'concurrency', 'c',
-        'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
-        'model', 'm',
-        'interval', 'i',
-        'max-issues', 'maxIssues',
-        'tool',
-        'min-disk-space', 'minDiskSpace',
-        'project-number', 'projectNumber', 'pn',
-        'project-owner', 'projectOwner', 'po',
-        'project-status', 'projectStatus', 'ps',
-        'project-mode', 'projectMode', 'pm',
-        'youtrack-mode', 'youtrackMode',
-        'youtrack-stage', 'youtrackStage',
-        'youtrack-project', 'youtrackProject',
-        'target-branch', 'targetBranch', 'tb',
-        'log-dir', 'logDir', 'l',
-        'think',
-        'issue-order', 'issueOrder', 'o',
-        'v', 'a', 's', 'f', 'w', // single-char aliases
-        '_', '$0'
-      ]);
-
-      // Add boolean options and their --no- variants
-      for (const option of booleanOptions) {
-        options.add(option);
-        // Add --no- variant (kebab-case)
-        if (option.includes('-')) {
-          options.add(`no-${option}`);
-        }
-        // Add no prefix variant (camelCase)
-        if (!option.includes('-')) {
-          options.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
-        }
-      }
-
-      return options;
-    })()));
+    .alias('h', 'help');
 };
 
 // Check for version flag before processing other arguments
@@ -454,7 +391,9 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
 }
 
 // Configure command line arguments - GitHub URL as positional argument
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Use .parse() instead of .argv to ensure .strict() mode works correctly
+// When you call yargs(args) and use .argv, strict mode doesn't trigger
+const argv = createYargsConfig(yargs()).parse(rawArgs);
 
 let githubUrl = argv['github-url'];
 

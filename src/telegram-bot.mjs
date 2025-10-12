@@ -22,12 +22,15 @@ const yargsModule = await use('yargs@17.7.2');
 const yargs = yargsModule.default || yargsModule;
 const { hideBin } = await use('yargs@17.7.2/helpers');
 
-// Import strict options validation
-const yargsStrictLib = await import('./yargs-strict.lib.mjs');
-const { validateStrictOptions } = yargsStrictLib;
+// Import solve and hive yargs configurations for validation
+const solveConfigLib = await import('./solve.config.lib.mjs');
+const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 
-// Define all valid options for strict validation
-const DEFINED_OPTIONS = new Set([
+const hiveModule = await import('./hive.mjs');
+const { createYargsConfig: createHiveYargsConfig } = hiveModule;
+
+// Define all valid options for telegram-bot itself
+const TELEGRAM_BOT_OPTIONS = new Set([
   'help', 'h', 'version',
   'token', 't',
   'allowed-chats', 'allowedChats', 'a',
@@ -37,6 +40,20 @@ const DEFINED_OPTIONS = new Set([
   'hive', 'no-hive', 'noHive',
   '_', '$0'
 ]);
+
+// Simple validation function for telegram-bot options
+function validateTelegramBotOptions(argv) {
+  const errors = [];
+  for (const key of Object.keys(argv)) {
+    if (!TELEGRAM_BOT_OPTIONS.has(key)) {
+      errors.push(`Unknown option: ${key}`);
+    }
+  }
+  if (errors.length > 0) {
+    console.error('Error: ' + errors.join(', '));
+    process.exit(1);
+  }
+}
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
@@ -75,8 +92,8 @@ const argv = yargs(hideBin(process.argv))
   })
   .parse();
 
-// Apply strict options validation to reject unrecognized options
-validateStrictOptions(argv, DEFINED_OPTIONS);
+// Apply validation to reject unrecognized telegram-bot options
+validateTelegramBotOptions(argv);
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 
@@ -111,6 +128,40 @@ const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || proce
 const hiveOverrides = hiveOverridesInput
   ? lino.parse(hiveOverridesInput).filter(line => line.trim())
   : [];
+
+// Validate solve overrides early using solve's yargs config
+if (solveOverrides.length > 0) {
+  console.log('Validating solve overrides...');
+  try {
+    // Add a dummy URL as the first argument (required positional for solve)
+    const testArgs = ['https://github.com/test/test/issues/1', ...solveOverrides];
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createSolveYargsConfig(yargs());
+    testYargs.parse(testArgs);
+    console.log('✅ Solve overrides validated successfully');
+  } catch (error) {
+    console.error(`❌ Invalid solve-overrides: ${error.message || String(error)}`);
+    console.error(`   Overrides: ${solveOverrides.join(' ')}`);
+    process.exit(1);
+  }
+}
+
+// Validate hive overrides early using hive's yargs config
+if (hiveOverrides.length > 0) {
+  console.log('Validating hive overrides...');
+  try {
+    // Add a dummy URL as the first argument (required positional for hive)
+    const testArgs = ['https://github.com/test/test', ...hiveOverrides];
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createHiveYargsConfig(yargs());
+    testYargs.parse(testArgs);
+    console.log('✅ Hive overrides validated successfully');
+  } catch (error) {
+    console.error(`❌ Invalid hive-overrides: ${error.message || String(error)}`);
+    console.error(`   Overrides: ${hiveOverrides.join(' ')}`);
+    process.exit(1);
+  }
+}
 
 // Command enable/disable flags
 // Note: yargs automatically supports --no-solve and --no-hive for negation
@@ -440,6 +491,16 @@ bot.command('solve', async (ctx) => {
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, solveOverrides);
 
+  // Validate merged arguments using solve's yargs config
+  try {
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createSolveYargsConfig(yargs());
+    testYargs.parse(args);
+  } catch (error) {
+    await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
+    return;
+  }
+
   const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
   let statusMsg = `🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (solveOverrides.length > 0) {
@@ -502,6 +563,16 @@ bot.command('hive', async (ctx) => {
 
   // Merge user args with overrides
   const args = mergeArgsWithOverrides(userArgs, hiveOverrides);
+
+  // Validate merged arguments using hive's yargs config
+  try {
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createHiveYargsConfig(yargs());
+    testYargs.parse(args);
+  } catch (error) {
+    await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
+    return;
+  }
 
   const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
   let statusMsg = `🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;

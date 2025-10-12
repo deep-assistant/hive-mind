@@ -38,10 +38,7 @@ const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text(
 globalThis.use = use;
 const { $ } = await use('command-stream');
 const config = await import('./solve.config.lib.mjs');
-const { initializeConfig, parseArguments, DEFINED_OPTIONS } = config;
-// Import strict options validation
-const yargsStrictLib = await import('./yargs-strict.lib.mjs');
-const { validateStrictOptions } = yargsStrictLib;
+const { initializeConfig, parseArguments } = config;
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, addBreadcrumb, reportError } = sentryLib;
@@ -85,6 +82,17 @@ const sessionLib = await import('./solve.session.lib.mjs');
 const { startWorkSession, endWorkSession } = sessionLib;
 const preparationLib = await import('./solve.preparation.lib.mjs');
 const { prepareFeedbackAndTimestamps, checkUncommittedChanges, checkForkActions } = preparationLib;
+
+// Log version and raw command BEFORE parsing arguments
+// This ensures they appear even if strict validation fails
+const versionInfo = await getVersionInfo();
+await log('');
+await log(`🚀 solve v${versionInfo}`);
+const rawCommand = process.argv.join(' ');
+await log('🔧 Raw command executed:');
+await log(`   ${rawCommand}`);
+await log('');
+
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
 
@@ -114,7 +122,7 @@ if (!argv.noSentry) {
     level: 'info',
     data: {
       model: argv.model,
-      issueUrl: argv._?.[0] || 'not-set-yet'
+      issueUrl: argv['issue-url'] || argv._?.[0] || 'not-set-yet'
     }
   });
 }
@@ -128,21 +136,14 @@ const cleanupWrapper = async () => {
 // Initialize the exit handler with getAbsoluteLogPath function and cleanup wrapper
 initializeExitHandler(getAbsoluteLogPath, log, cleanupWrapper);
 installGlobalExitHandlers();
-// Log version and raw command at the start
-const versionInfo = await getVersionInfo();
-await log('');
-await log(`🚀 solve v${versionInfo}`);
-const rawCommand = process.argv.join(' ');
-await log('🔧 Raw command executed:');
-await log(`   ${rawCommand}`);
-await log('');
 
-// Validate strict options after logging (issue #453)
-// This prevents unrecognized options like —fork (em-dash) from being silently ignored
-validateStrictOptions(argv, DEFINED_OPTIONS);
+// Note: Version and raw command are logged BEFORE parseArguments() (see above)
+// This ensures they appear even if strict validation fails
+// Strict options validation is now handled by yargs .strict() mode in solve.config.lib.mjs
+// This prevents unrecognized options from being silently ignored (issue #453, #482)
 
 // Now handle argument validation that was moved from early checks
-let issueUrl = argv._[0];
+let issueUrl = argv['issue-url'] || argv._[0];
 if (!issueUrl) {
   await log('Usage: solve.mjs <issue-url> [options]', { level: 'error' });
   await log('Error: Missing required github issue or pull request URL', { level: 'error' });
@@ -501,10 +502,10 @@ try {
     await log('     # Then use the PR URL with solve.mjs');
     await log('');
     await log('  Option 2: Start fresh without continue mode');
-    await log(`     ./solve.mjs "${argv._[0]}" --auto-pull-request-creation`);
+    await log(`     ./solve.mjs "${issueUrl}" --auto-pull-request-creation`);
     await log('');
     await log('  Option 3: Disable auto-PR creation (Claude will create it)');
-    await log(`     ./solve.mjs "${argv._[0]}" --no-auto-pull-request-creation`);
+    await log(`     ./solve.mjs "${issueUrl}" --no-auto-pull-request-creation`);
     await log('');
     await safeExit(1, 'No PR available');
   }
