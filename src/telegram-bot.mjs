@@ -250,12 +250,21 @@ function isForwardedOrReply(ctx) {
   if (!message) {
     return false;
   }
-  // Check if message is forwarded (has forward_origin field)
-  if (message.forward_origin) {
+  // Check if message is forwarded (has forward_origin field with actual content)
+  // Note: We check for .type because Telegram might send empty objects {}
+  // which are truthy in JavaScript but don't indicate a forwarded message
+  if (message.forward_origin && message.forward_origin.type) {
     return true;
   }
-  // Check if message is a reply (has reply_to_message field)
-  if (message.reply_to_message) {
+  // Also check old forwarding API fields for backward compatibility
+  if (message.forward_from || message.forward_from_chat ||
+      message.forward_from_message_id || message.forward_signature ||
+      message.forward_sender_name || message.forward_date) {
+    return true;
+  }
+  // Check if message is a reply (has reply_to_message field with actual content)
+  // Note: We check for .message_id because Telegram might send empty objects {}
+  if (message.reply_to_message && message.reply_to_message.message_id) {
     return true;
   }
   return false;
@@ -749,7 +758,20 @@ if (VERBOSE) {
     console.log('[VERBOSE]   From user:', ctx.from?.username || ctx.from?.id);
     console.log('[VERBOSE]   Bot start time:', BOT_START_TIME);
     console.log('[VERBOSE]   Is old message:', isOldMessage(ctx));
-    console.log('[VERBOSE]   Is forwarded/reply:', isForwardedOrReply(ctx));
+
+    // Detailed forwarding/reply detection debug info
+    const msg = ctx.message;
+    const isForwarded = isForwardedOrReply(ctx);
+    console.log('[VERBOSE]   Is forwarded/reply:', isForwarded);
+    if (msg) {
+      console.log('[VERBOSE]     - forward_origin:', msg.forward_origin ? JSON.stringify(msg.forward_origin) : 'undefined');
+      console.log('[VERBOSE]     - forward_origin.type:', msg.forward_origin?.type || 'undefined');
+      console.log('[VERBOSE]     - forward_from:', msg.forward_from ? 'present' : 'undefined');
+      console.log('[VERBOSE]     - forward_date:', msg.forward_date || 'undefined');
+      console.log('[VERBOSE]     - reply_to_message:', msg.reply_to_message ? JSON.stringify({message_id: msg.reply_to_message.message_id}) : 'undefined');
+      console.log('[VERBOSE]     - reply_to_message.message_id:', msg.reply_to_message?.message_id || 'undefined');
+    }
+
     console.log('[VERBOSE]   Is authorized:', isChatAuthorized(ctx.chat?.id));
     // Continue to next handler
     return next();
