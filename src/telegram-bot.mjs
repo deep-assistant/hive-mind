@@ -541,6 +541,15 @@ bot.command('help', async (ctx) => {
     message += `Authorized: ${isChatAuthorized(chatId) ? '✅ Yes' : '❌ No'}`;
   }
 
+  message += '\n\n🔧 *Troubleshooting:*\n';
+  message += 'If bot is not receiving messages:\n';
+  message += '1. Check privacy mode in @BotFather\n';
+  message += '   • Send `/setprivacy` to @BotFather\n';
+  message += '   • Choose "Disable" for your bot\n';
+  message += '   • Remove bot from group and re-add\n';
+  message += '2. Or make bot an admin in the group\n';
+  message += '3. Restart bot with `--verbose` flag for diagnostics';
+
   await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
@@ -843,12 +852,43 @@ bot.telegram.deleteWebhook({ drop_pending_updates: true })
       dropPendingUpdates: true
     });
   })
-  .then(() => {
+  .then(async () => {
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
     if (VERBOSE) {
       console.log('[VERBOSE] Bot launched successfully');
       console.log('[VERBOSE] Polling is active, waiting for messages...');
+
+      // Get bot info and webhook status for diagnostics
+      try {
+        const botInfo = await bot.telegram.getMe();
+        const webhookInfo = await bot.telegram.getWebhookInfo();
+
+        console.log('[VERBOSE] Bot info:');
+        console.log('[VERBOSE]   Username: @' + botInfo.username);
+        console.log('[VERBOSE]   Bot ID:', botInfo.id);
+        console.log('[VERBOSE] Webhook info:');
+        console.log('[VERBOSE]   URL:', webhookInfo.url || 'none (polling mode)');
+        console.log('[VERBOSE]   Pending updates:', webhookInfo.pending_update_count);
+        if (webhookInfo.last_error_date) {
+          console.log('[VERBOSE]   Last error:', new Date(webhookInfo.last_error_date * 1000).toISOString());
+          console.log('[VERBOSE]   Error message:', webhookInfo.last_error_message);
+        }
+
+        console.log('[VERBOSE]');
+        console.log('[VERBOSE] ⚠️  IMPORTANT: If bot is not receiving messages in group chats:');
+        console.log('[VERBOSE]   1. Privacy Mode: Check if bot has privacy mode enabled in @BotFather');
+        console.log('[VERBOSE]      - Send /setprivacy to @BotFather');
+        console.log('[VERBOSE]      - Select @' + botInfo.username);
+        console.log('[VERBOSE]      - Choose "Disable" to receive all group messages');
+        console.log('[VERBOSE]      - IMPORTANT: Remove bot from group and re-add after changing!');
+        console.log('[VERBOSE]   2. Admin Status: Make bot an admin in the group (admins see all messages)');
+        console.log('[VERBOSE]   3. Run diagnostic: node experiments/test-telegram-bot-privacy-mode.mjs');
+        console.log('[VERBOSE]');
+      } catch (err) {
+        console.log('[VERBOSE] Could not fetch bot info:', err.message);
+      }
+
       console.log('[VERBOSE] Send a message to the bot to test message reception');
     }
   })
