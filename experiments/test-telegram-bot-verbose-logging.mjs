@@ -157,6 +157,30 @@ test('All VERBOSE checks use VERBOSE constant instead of process.env', () => {
   }
 });
 
+// Test 8: Verify detailed logging in isForwardedOrReply function
+test('Detailed verbose logging added to isForwardedOrReply function', () => {
+  // Check for field inspection logging
+  if (!botCode.includes('[VERBOSE] isForwardedOrReply: Checking message fields')) {
+    throw new Error('Field checking verbose logging not found in isForwardedOrReply');
+  }
+
+  // Check for specific field logging
+  if (!botCode.includes('message.forward_origin')) {
+    throw new Error('forward_origin logging not found in isForwardedOrReply');
+  }
+
+  // Check for detailed trigger logging
+  if (!botCode.includes('Triggered by:')) {
+    throw new Error('Detailed trigger logging not found in isForwardedOrReply');
+  }
+
+  // Check for result logging
+  if (!botCode.includes('[VERBOSE] isForwardedOrReply: FALSE') ||
+      !botCode.includes('[VERBOSE] isForwardedOrReply: TRUE')) {
+    throw new Error('Result logging not found in isForwardedOrReply');
+  }
+});
+
 console.log(`\n📊 Test Results: ${testsPassed} passed, ${testsFailed} failed`);
 
 if (testsFailed > 0) {
@@ -171,8 +195,13 @@ console.log('  ✓ Added VERBOSE constant based on argv and env var');
 console.log('  ✓ Added bot.on(\'message\') listener for debugging');
 console.log('  ✓ Added verbose logging throughout command handlers');
 console.log('  ✓ Added verbose logging to webhook deletion and bot launch');
+console.log('  ✓ Added detailed field inspection in isForwardedOrReply function');
 console.log('  ✓ All verbose checks use VERBOSE constant consistently');
 console.log('\n🎯 Usage:');
 console.log('  hive-telegram-bot --token TOKEN --verbose');
 console.log('  hive-telegram-bot --token TOKEN -v');
 console.log('  TELEGRAM_BOT_VERBOSE=true hive-telegram-bot --token TOKEN');
+console.log('\n🔍 The detailed isForwardedOrReply logging will show:');
+console.log('  • All message fields related to forwarding and replies');
+console.log('  • Which specific field triggered the filter');
+console.log('  • The exact value causing false positives');
