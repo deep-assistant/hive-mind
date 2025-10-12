@@ -4,61 +4,8 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
-// Import strict options validation
-import { createStrictOptionsCheck } from './yargs-strict.lib.mjs';
-
-// Define all valid options for strict validation
-// Include both kebab-case, camelCase, and --no- variants for boolean options
-const BOOLEAN_OPTIONS = [
-  'only-prepare-command', 'onlyPrepareCommand',
-  'dry-run', 'dryRun',
-  'skip-tool-check', 'skipToolCheck',
-  'tool-check', 'toolCheck',
-  'auto-pull-request-creation', 'autoPullRequestCreation',
-  'verbose',
-  'fork',
-  'attach-logs', 'attachLogs',
-  'auto-close-pull-request-on-fail', 'autoClosePullRequestOnFail',
-  'auto-continue', 'autoContinue',
-  'auto-continue-limit', 'autoContinueLimit',
-  'auto-resume-on-errors', 'autoResumeOnErrors',
-  'auto-continue-only-on-new-comments', 'autoContinueOnlyOnNewComments',
-  'auto-commit-uncommitted-changes', 'autoCommitUncommittedChanges',
-  'continue-only-on-feedback', 'continueOnlyOnFeedback',
-  'watch',
-  'no-sentry', 'noSentry',
-  'auto-cleanup', 'autoCleanup',
-  'auto-merge-default-branch-to-pull-request-branch', 'autoMergeDefaultBranchToPullRequestBranch',
-];
-
-export const DEFINED_OPTIONS = new Set([
-  'help', 'h', 'version',
-  'issue-url', 'issueUrl',
-  'resume', 'r',
-  'model', 'm',
-  'watch-interval', 'watchInterval',
-  'min-disk-space', 'minDiskSpace',
-  'log-dir', 'logDir', 'l',
-  'think',
-  'base-branch', 'baseBranch', 'b',
-  'allow-fork-divergence-resolution-using-force-push-with-lease', 'allowForkDivergenceResolutionUsingForcePushWithLease',
-  'tool',
-  'v', 'f', 'n', 'c', 'w', // single-char aliases
-  '_', '$0'
-]);
-
-// Add all boolean options and their --no- variants
-for (const option of BOOLEAN_OPTIONS) {
-  DEFINED_OPTIONS.add(option);
-  // Add --no- variant (kebab-case)
-  if (option.includes('-')) {
-    DEFINED_OPTIONS.add(`no-${option}`);
-  }
-  // Add no prefix variant (camelCase)
-  if (!option.includes('-')) {
-    DEFINED_OPTIONS.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
-  }
-}
+// Note: Strict options validation is now handled by yargs built-in .strict() mode (see below)
+// This approach was adopted per issue #482 feedback to minimize custom code maintenance
 
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
@@ -231,9 +178,9 @@ export const createYargsConfig = (yargsInstance) => {
     .parserConfiguration({
       'boolean-negation': true
     })
-    // Apply strict options validation to reject unrecognized options
+    // Use yargs built-in strict mode to reject unrecognized options
     // This prevents issues like #453 and #482 where unknown options are silently ignored
-    .check(createStrictOptionsCheck(DEFINED_OPTIONS))
+    .strict()
     .help('h')
     .alias('h', 'help');
 };
@@ -241,7 +188,10 @@ export const createYargsConfig = (yargsInstance) => {
 // Parse command line arguments - now needs yargs and hideBin passed in
 export const parseArguments = async (yargs, hideBin) => {
   const rawArgs = hideBin(process.argv);
-  const argv = await createYargsConfig(yargs(rawArgs)).argv;
+  // Use .parse() instead of .argv to ensure .strict() mode works correctly
+  // When you call yargs(args) and use .argv, strict mode doesn't trigger
+  // See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
+  const argv = await createYargsConfig(yargs()).parse(rawArgs);
 
   // Post-processing: Fix model default for opencode tool
   // Yargs doesn't properly handle dynamic defaults based on other arguments,

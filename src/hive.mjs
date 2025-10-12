@@ -391,7 +391,9 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
 }
 
 // Configure command line arguments - GitHub URL as positional argument
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Use .parse() instead of .argv to ensure .strict() mode works correctly
+// When you call yargs(args) and use .argv, strict mode doesn't trigger
+const argv = createYargsConfig(yargs()).parse(rawArgs);
 
 let githubUrl = argv['github-url'];
 

@@ -135,8 +135,9 @@ if (solveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for solve)
     const testArgs = ['https://github.com/test/test/issues/1', ...solveOverrides];
-    const testYargs = createSolveYargsConfig(yargs(testArgs));
-    testYargs.parseSync();
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createSolveYargsConfig(yargs());
+    testYargs.parse(testArgs);
     console.log('✅ Solve overrides validated successfully');
   } catch (error) {
     console.error(`❌ Invalid solve-overrides: ${error.message || String(error)}`);
@@ -151,8 +152,9 @@ if (hiveOverrides.length > 0) {
   try {
     // Add a dummy URL as the first argument (required positional for hive)
     const testArgs = ['https://github.com/test/test', ...hiveOverrides];
-    const testYargs = createHiveYargsConfig(yargs(testArgs));
-    testYargs.parseSync();
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createHiveYargsConfig(yargs());
+    testYargs.parse(testArgs);
     console.log('✅ Hive overrides validated successfully');
   } catch (error) {
     console.error(`❌ Invalid hive-overrides: ${error.message || String(error)}`);
@@ -491,8 +493,9 @@ bot.command('solve', async (ctx) => {
 
   // Validate merged arguments using solve's yargs config
   try {
-    const testYargs = createSolveYargsConfig(yargs(args));
-    testYargs.parseSync();
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createSolveYargsConfig(yargs());
+    testYargs.parse(args);
   } catch (error) {
     await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
     return;
@@ -563,8 +566,9 @@ bot.command('hive', async (ctx) => {
 
   // Validate merged arguments using hive's yargs config
   try {
-    const testYargs = createHiveYargsConfig(yargs(args));
-    testYargs.parseSync();
+    // Use .parse() instead of yargs(args).parseSync() to ensure .strict() mode works
+    const testYargs = createHiveYargsConfig(yargs());
+    testYargs.parse(args);
   } catch (error) {
     await ctx.reply(`❌ Invalid options: ${error.message || String(error)}\n\nUse /help to see available options`, { parse_mode: 'Markdown' });
     return;
