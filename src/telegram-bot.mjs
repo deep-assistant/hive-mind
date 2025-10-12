@@ -891,6 +891,9 @@ bot.catch((error, ctx) => {
   }
 });
 
+// Track shutdown state to prevent startup messages after shutdown
+let isShuttingDown = false;
+
 console.log('🤖 SwarmMindBot is starting...');
 console.log('Bot token:', BOT_TOKEN.substring(0, 10) + '...');
 if (allowedChats && allowedChats.length > 0) {
@@ -943,6 +946,11 @@ bot.telegram.deleteWebhook({ drop_pending_updates: true })
     });
   })
   .then(async () => {
+    // Check if shutdown was initiated before printing success messages
+    if (isShuttingDown) {
+      return; // Skip success messages if shutting down
+    }
+
     console.log('✅ SwarmMindBot is now running!');
     console.log('Press Ctrl+C to stop');
     if (VERBOSE) {
@@ -996,11 +1004,35 @@ bot.telegram.deleteWebhook({ drop_pending_updates: true })
   });
 
 process.once('SIGINT', () => {
-  console.log('\n🛑 Received SIGINT, stopping bot...');
+  isShuttingDown = true;
+  console.log('\n🛑 Received SIGINT (Ctrl+C), stopping bot...');
+  if (VERBOSE) {
+    console.log('[VERBOSE] Signal: SIGINT');
+    console.log('[VERBOSE] Process ID:', process.pid);
+    console.log('[VERBOSE] Parent Process ID:', process.ppid);
+  }
   bot.stop('SIGINT');
 });
 
 process.once('SIGTERM', () => {
+  isShuttingDown = true;
   console.log('\n🛑 Received SIGTERM, stopping bot...');
+  if (VERBOSE) {
+    console.log('[VERBOSE] Signal: SIGTERM');
+    console.log('[VERBOSE] Process ID:', process.pid);
+    console.log('[VERBOSE] Parent Process ID:', process.ppid);
+    console.log('[VERBOSE] Possible causes:');
+    console.log('[VERBOSE]   - System shutdown/restart');
+    console.log('[VERBOSE]   - Process manager (systemd, pm2, etc.) stopping the service');
+    console.log('[VERBOSE]   - Manual kill command: kill <pid>');
+    console.log('[VERBOSE]   - Container orchestration (Docker, Kubernetes) stopping container');
+    console.log('[VERBOSE]   - Out of memory (OOM) killer');
+  }
+  console.log('ℹ️  SIGTERM is typically sent by:');
+  console.log('   - System shutdown/restart');
+  console.log('   - Process manager stopping the service');
+  console.log('   - Manual termination (kill command)');
+  console.log('   - Container/orchestration platform');
+  console.log('💡 Check system logs for more details: journalctl -u <service> or dmesg');
   bot.stop('SIGTERM');
 });
