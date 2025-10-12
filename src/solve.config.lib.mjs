@@ -21,6 +21,12 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
+    .command('$0 [issue-url]', 'Solve a GitHub issue or pull request', (yargs) => {
+      yargs.positional('issue-url', {
+        type: 'string',
+        description: 'The GitHub issue URL to solve'
+      });
+    })
     .option('resume', {
       type: 'string',
       description: 'Resume from a previous session ID (when limit was reached)',
