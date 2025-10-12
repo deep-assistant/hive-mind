@@ -35,7 +35,67 @@ const toCamelCase = (str) => {
 };
 
 /**
+ * Check if a string uses non-standard dash characters (em-dash, en-dash, etc.)
+ * @param {string} str - String to check
+ * @returns {boolean} - True if string uses non-standard dashes
+ */
+const hasNonStandardDashes = (str) => {
+  // Check for non-standard dash characters (not hyphen-minus \u002D)
+  return /[\u2010\u2011\u2012\u2013\u2014]/.test(str);
+};
+
+/**
+ * Parse raw command line arguments to extract option flags (not values)
+ * This mimics how yargs parses arguments to identify actual option flags
+ * @param {Array<string>} rawArgs - Raw command line arguments (e.g., process.argv.slice(2))
+ * @returns {Set<string>} - Set of option flags found in raw arguments
+ */
+export const parseRawOptionsFromArgs = (rawArgs) => {
+  const optionFlags = new Set();
+
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+
+    // Skip non-option arguments (positional arguments, values, etc.)
+    // Use looksLikeOption to catch various dash characters (em-dash, en-dash, etc.)
+    if (!looksLikeOption(arg)) {
+      continue;
+    }
+
+    // If the option uses non-standard dashes (em-dash, en-dash, etc.),
+    // keep the raw form to flag it as invalid later
+    // This catches typos like —fork (em-dash) instead of --fork
+    if (hasNonStandardDashes(arg)) {
+      // Keep the full option with non-standard dashes to flag as error
+      const withoutValue = arg.includes('=') ? arg.split('=')[0] : arg;
+      optionFlags.add(withoutValue);
+      continue;
+    }
+
+    // Handle --option=value format (standard dashes only)
+    if (arg.includes('=')) {
+      const [optionPart] = arg.split('=');
+      // Remove standard dashes from the start
+      const normalized = optionPart.replace(/^-+/, '');
+      optionFlags.add(normalized);
+      continue;
+    }
+
+    // Regular option flag (--option or -o with standard dashes)
+    // Remove standard dashes from the start
+    const normalized = arg.replace(/^-+/, '');
+    optionFlags.add(normalized);
+
+    // The next argument might be the value for this option, but we don't need to track it
+    // We only care about validating option flags, not their values
+  }
+
+  return optionFlags;
+};
+
+/**
  * Creates a yargs check function that validates against explicitly defined options
+ * Uses raw argument parsing to avoid false positives from yargs internal quirks
  * @param {Set<string>} definedOptions - Set of explicitly defined option names (including aliases)
  * @param {boolean} exitOnError - Whether to exit process on error (default: false, throw instead)
  * @returns {Function} - Check function for yargs
@@ -45,44 +105,30 @@ export const createStrictOptionsCheck = (definedOptions, exitOnError = false) =>
     const seenErrors = new Set(); // Track unique errors to avoid duplicates
     const seenNormalized = new Set(); // Track normalized forms to avoid duplicate reporting
 
-    // Check argv keys against our explicitly defined options
-    for (const key of Object.keys(argv)) {
-      // Skip special keys
-      if (key === '_' || key === '$0') continue;
+    // Parse raw arguments to get actual option flags (not values)
+    // Use process.argv.slice(2) to skip 'node' and script name
+    const rawArgs = process.argv.slice(2);
+    const actualOptionFlags = parseRawOptionsFromArgs(rawArgs);
 
-      // Skip keys that look like URLs (yargs parses https://... as --https://...)
-      if (looksLikeUrl(key)) continue;
+    // Validate each actual option flag against defined options
+    for (const optionFlag of actualOptionFlags) {
+      // Skip URLs (e.g., https://... might look like an option)
+      if (looksLikeUrl(`--${optionFlag}`)) continue;
 
-      // Check if this key is in our defined options or is a variant (--key, etc.)
-      const normalizedKey = key.replace(/^-+/, '');
+      // Check both the option itself and its normalized forms
+      const kebabForm = toKebabCase(optionFlag);
+      const camelForm = toCamelCase(optionFlag);
 
-      if (!definedOptions.has(key) && !definedOptions.has(normalizedKey)) {
-        // Yargs creates both camelCase and kebab-case versions of options
-        // To avoid duplicate errors, normalize and check if we've already seen this
-        const kebabForm = toKebabCase(normalizedKey);
-        const camelForm = toCamelCase(normalizedKey);
+      // Check if this option (or any of its variants) is defined
+      const isDefined = definedOptions.has(optionFlag) ||
+                       definedOptions.has(kebabForm) ||
+                       definedOptions.has(camelForm);
 
-        // Skip if either form is in defined options - this handles yargs creating
-        // both camelCase and kebab-case versions of the same option
-        if (definedOptions.has(kebabForm) || definedOptions.has(camelForm)) {
-          continue;
-        }
-
-        // Yargs sometimes creates keys from option VALUES (a bug or quirk).
-        // To avoid false positives, we only validate keys that start with dashes (--option or -o)
-        // as those are clearly intended to be option flags.
-        // Keys without dashes (like 'token', 'allowedChats') that aren't in definedOptions
-        // are likely to be values that yargs mistakenly added as keys, so we skip them.
-        if (!key.startsWith('-')) {
-          // Skip all non-dash-prefixed keys that aren't in definedOptions
-          // These are likely option values that yargs created as keys
-          continue;
-        }
-
-        // If we haven't seen either form, add the kebab-case version (more readable)
+      if (!isDefined) {
+        // Only report each unique option once (avoid duplicate kebab/camel errors)
         if (!seenNormalized.has(kebabForm) && !seenNormalized.has(camelForm)) {
-          // Prefer kebab-case for error messages
-          const errorKey = normalizedKey.includes('-') ? normalizedKey : kebabForm;
+          // Prefer kebab-case for error messages (more readable)
+          const errorKey = optionFlag.includes('-') ? optionFlag : kebabForm;
           seenErrors.add(errorKey);
           seenNormalized.add(kebabForm);
           seenNormalized.add(camelForm);
