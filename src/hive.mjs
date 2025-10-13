@@ -35,65 +35,17 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
         demandOption: true
       });
     })
-    .option('label', {
-      type: 'string',
-      description: 'Label to filter issues (default: monitor all issues)',
-      alias: 'l'
-    })
-    .option('monitor-tag', {
-      type: 'string',
-      description: 'GitHub label to monitor for issues',
-      default: 'help wanted',
-      alias: 't'
-    })
-    .option('model', {
-      type: 'string',
-      description: 'Claude model to use for solving issues',
-      default: 'claude-sonnet-4'
-    })
-    .option('tool', {
-      type: 'string',
-      description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
-      default: 'claude'
-    })
-    .option('concurrency', {
-      type: 'number',
-      description: 'Maximum number of parallel workers',
-      alias: 'c',
-      default: 2
-    })
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Enable verbose logging',
-      alias: 'v',
-      default: false
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      description: 'Run without making actual changes to GitHub',
-      default: false
-    })
-    .option('attach-logs', {
-      type: 'boolean',
-      description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-      default: false
-    })
-    .option('skip-tool-check', {
-      type: 'boolean',
-      description: 'Skip tool connection check',
-      default: false
-    })
-    .option('no-sentry', {
-      type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
-    })
-    .option('once', {
-      type: 'boolean',
-      description: 'Run once and exit instead of continuous monitoring',
-      default: false
-    })
+    .option('monitor-tag', { type: 'string', description: 'GitHub label to monitor for issues', default: 'help wanted', alias: 't' })
+    .option('model', { type: 'string', description: 'Claude model to use for solving issues', default: 'claude-sonnet-4' })
+    .option('tool', { type: 'string', description: 'AI tool to use for solving issues', choices: ['claude', 'opencode'], default: 'claude' })
+    .option('label', { type: 'string', description: 'Label to filter issues (default: monitor all issues)', alias: 'l' })
+    .option('concurrency', { type: 'number', description: 'Maximum number of parallel workers', alias: 'c', default: 2 })
+    .option('verbose', { type: 'boolean', description: 'Enable verbose logging', alias: 'v', default: false })
+    .option('dry-run', { type: 'boolean', description: 'Run without making actual changes to GitHub', default: false })
+    .option('attach-logs', { type: 'boolean', description: 'Upload log to PR (⚠️ May expose sensitive data)', default: false })
+    .option('skip-tool-check', { type: 'boolean', description: 'Skip tool connection check', default: false })
+    .option('no-sentry', { type: 'boolean', description: 'Disable Sentry error tracking', default: false })
+    .option('once', { type: 'boolean', description: 'Run once and exit', default: false })
     .help('h')
     .alias('h', 'help')
     .version(false)
