@@ -1,4 +1,5 @@
-import { sentry, version } from './config.lib.mjs';
+// Lazy-load config only when needed to avoid loading use-m at module initialization
+// This prevents network fetches that can hang during --help or --version
 
 // Check if Sentry should be disabled
 const shouldDisableSentry = () => {
@@ -34,6 +35,10 @@ let nodeProfilingIntegration = null;
 // Initialize Sentry if not disabled
 if (!shouldDisableSentry()) {
   try {
+    // Dynamically import config only when Sentry is actually being initialized
+    // This avoids loading use-m before command-line arguments are processed
+    const { sentry, version } = await import('./config.lib.mjs');
+
     // Dynamically import Sentry packages only when needed
     const sentryModule = await import("@sentry/node");
     Sentry = sentryModule;

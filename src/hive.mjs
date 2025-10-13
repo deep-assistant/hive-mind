@@ -33,8 +33,15 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   process.exit(0);
 }
 
-// Now load all modules for normal operation
+// Import fileURLToPath for the execution check below
 import { fileURLToPath } from 'url';
+
+// Export createYargsConfig for use in telegram-bot and other modules
+export { createYargsConfig } from './yargs-config.lib.mjs';
+
+// Only execute main logic if this module is being run directly (not imported)
+// This prevents heavy module loading when hive.mjs is imported by other modules
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
@@ -207,20 +214,10 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
   }
 }
 
-// Function to create yargs configuration - avoids duplication
-// Exported for use in telegram-bot and start-screen validation
-// Import createYargsConfig from shared module
-export { createYargsConfig } from './yargs-config.lib.mjs';
-
-// Only execute main logic if this module is being run directly (not imported)
-// This prevents the argument parsing and execution when hive.mjs is imported
-// by other modules (e.g., telegram-bot.mjs) to access createYargsConfig
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
 // Configure command line arguments - GitHub URL as positional argument
 const rawArgs = hideBin(process.argv);
-// Use .parse() instead of .argv to ensure .strict() mode works correctly
-// When you call yargs(args) and use .argv, strict mode doesn't trigger
-const argv = createYargsConfig(yargs()).parse(rawArgs);
+// Pass rawArgs to yargs constructor and use .argv to get parsed arguments
+const argv = createYargsConfig(yargs(rawArgs)).argv;
 
 let githubUrl = argv['github-url'];
 
