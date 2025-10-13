@@ -30,8 +30,9 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     .usage('Usage: $0 <github-url> [options]')
     .command('$0 <github-url>', 'Monitor GitHub for issues to solve', (yargs) => {
       yargs.positional('github-url', {
-        describe: 'GitHub organization, user, or repository URL (e.g., github.com/owner, github.com/owner/repo)',
-        type: 'string'
+        type: 'string',
+        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)',
+        demandOption: true
       });
     })
     .option('label', {
@@ -74,7 +75,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     })
     .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip checking if AI tools are available',
+      description: 'Skip tool connection check',
       default: false
     })
     .option('no-sentry', {
