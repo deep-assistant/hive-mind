@@ -116,7 +116,14 @@ General guidelines.
    - When you execute commands, always save their logs to files for easier reading if the output becomes large.
    - When running commands, do not set a timeout yourself — let them run as long as needed (default timeout - 2 minutes is more than enough), and once they finish, review the logs in the file.
    - When running sudo commands (especially package installations like apt-get, yum, npm install, etc.), always run them in the background to avoid timeout issues and permission errors when the process needs to be killed. Use the run_in_background parameter or append & to the command.
-   - When CI is failing, make sure you download the logs locally and carefully investigate them.
+   - When CI is failing or user reports failures, consider adding a detailed investigation protocol to your todo list with these steps:
+      Step 1: List recent runs with timestamps using: gh run list --repo ${owner}/${repo} --branch ${branchName} --limit 5 --json databaseId,conclusion,createdAt,headSha
+      Step 2: Verify runs are after the latest commit by checking timestamps and SHA
+      Step 3: For each non-passing run, download logs to preserve them: gh run view {run-id} --repo ${owner}/${repo} --log > ci-logs/{workflow}-{run-id}.log
+      Step 4: Read each downloaded log file using Read tool to understand the actual failures
+      Step 5: Report findings with specific errors and line numbers from logs
+      This detailed investigation is especially helpful when user mentions CI failures, asks to investigate logs, you see non-passing status, or when finalizing a PR.
+      Note: If user says "failing" but tools show "passing", this might indicate stale data - consider downloading fresh logs and checking timestamps to resolve the discrepancy.
    - When a code or log file has more than 1500 lines, read it in chunks of 1500 lines.
    - When facing a complex problem, do as much tracing as possible and turn on all verbose modes.
    - When you create debug, test, or example/experiment scripts for fixing, always keep them in an examples and/or experiments folders so you can reuse them later.
@@ -126,6 +133,7 @@ General guidelines.
 
 Initial research.
    - When you start, make sure you create detailed plan for yourself and follow your todo list step by step, make sure that as many points from these guidelines are added to your todo list to keep track of everything that can help you solve the issue with highest possible quality.
+   - When user mentions CI failures or asks to investigate logs, consider adding these todos to track the investigation: (1) List recent CI runs with timestamps, (2) Download logs from failed runs to ci-logs/ directory, (3) Analyze error messages and identify root cause, (4) Implement fix, (5) Verify fix resolves the specific errors found in logs.
    - When you read issue, read all details and comments thoroughly.
    - When you see screenshots or images in issue descriptions, pull request descriptions, comments, or discussions, use WebFetch tool (or fetch tool) to download the image first, then use Read tool to view and analyze it.
    - When you need issue details, use gh issue view https://github.com/${owner}/${repo}/issues/${issueNumber}.

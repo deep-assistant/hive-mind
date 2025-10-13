@@ -112,8 +112,9 @@ runTest('instrument.mjs has correct imports', () => {
   const instrumentPath = join(projectRoot, 'src', 'instrument.mjs');
   const content = fs.readFileSync(instrumentPath, 'utf8');
 
-  return content.includes('import * as Sentry from "@sentry/node"') &&
-         content.includes('import { nodeProfilingIntegration } from "@sentry/profiling-node"');
+  // Check for lazy/conditional imports (dynamic imports)
+  return content.includes('import("@sentry/node")') &&
+         content.includes('import("@sentry/profiling-node")');
 });
 
 // Test 7: Check if DSN is configured

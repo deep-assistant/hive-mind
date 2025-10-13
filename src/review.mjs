@@ -49,11 +49,9 @@ import * as memoryCheck from './memory-check.mjs';
 // Import Claude execution functions
 import { executeClaude, executeClaudeCommand, validateClaudeConnection } from './claude.lib.mjs';
 
-// Import strict options validation
-import { createStrictOptionsCheck } from './yargs-strict.lib.mjs';
-
 // Configure command line arguments - GitHub PR URL as positional argument
-const argv = yargs(process.argv.slice(2))
+// Use yargs().parse(args) instead of yargs(args).argv to ensure .strict() mode works
+const argv = yargs()
   .usage('Usage: $0 <pr-url> [options]')
   .positional('pr-url', {
     type: 'string',
@@ -99,42 +97,10 @@ const argv = yargs(process.argv.slice(2))
   })
   .help('h')
   .alias('h', 'help')
-  // Apply strict options validation to reject unrecognized options
-  // This prevents issues like #453 where —fork (em-dash) is not recognized
-  .check(createStrictOptionsCheck((() => {
-    // Define boolean options that support --no- prefix
-    const booleanOptions = [
-      'dry-run', 'dryRun',
-      'approve',
-      'verbose',
-    ];
-
-    const options = new Set([
-      'help', 'h', 'version',
-      'pr-url', 'prUrl',
-      'resume', 'r',
-      'model', 'm',
-      'focus', 'f',
-      'v', 'n', // single-char aliases
-      '_', '$0'
-    ]);
-
-    // Add boolean options and their --no- variants
-    for (const option of booleanOptions) {
-      options.add(option);
-      // Add --no- variant (kebab-case)
-      if (option.includes('-')) {
-        options.add(`no-${option}`);
-      }
-      // Add no prefix variant (camelCase)
-      if (!option.includes('-')) {
-        options.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
-      }
-    }
-
-    return options;
-  })()))
-  .argv;
+  // Use yargs built-in strict mode to reject unrecognized options
+  // This prevents issues like #453 and #482 where unknown options are silently ignored
+  .strict()
+  .parse(process.argv.slice(2));
 
 const prUrl = argv._[0];
 

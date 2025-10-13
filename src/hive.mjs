@@ -2,6 +2,47 @@
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
 
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+if (earlyArgs.includes('--version')) {
+  const { getVersion } = await import('./version.lib.mjs');
+  try {
+    const version = await getVersion();
+    console.log(version);
+  } catch {
+    console.error('Error: Unable to determine version');
+    process.exit(1);
+  }
+  process.exit(0);
+}
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Load minimal modules needed for help
+  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+  globalThis.use = use;
+  const yargsModule = await use('yargs@17.7.2');
+  const yargs = yargsModule.default || yargsModule;
+  const { hideBin } = await use('yargs@17.7.2/helpers');
+  const rawArgs = hideBin(process.argv);
+
+  // Reuse createYargsConfig from shared module to avoid duplication
+  const { createYargsConfig } = await import('./hive.config.lib.mjs');
+  const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
+
+  // Show help and exit
+  helpYargs.showHelp();
+  process.exit(0);
+}
+
+// Import fileURLToPath for the execution check below
+import { fileURLToPath } from 'url';
+
+// Export createYargsConfig for use in telegram-bot and other modules
+export { createYargsConfig } from './hive.config.lib.mjs';
+
+// Only execute main logic if this module is being run directly (not imported)
+// This prevents heavy module loading when hive.mjs is imported by other modules
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
@@ -19,6 +60,10 @@ const fs = (await use('fs')).promises;
 // Import shared library functions
 const lib = await import('./lib.mjs');
 const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, cleanupTempDirectories } = lib;
+
+// Import yargs config
+const yargsConfigLib = await import('./hive.config.lib.mjs');
+const { createYargsConfig } = yargsConfigLib;
 
 // Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
@@ -54,10 +99,6 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
-
-// Import strict options validation
-const yargsStrictLib = await import('./yargs-strict.lib.mjs');
-const { createStrictOptionsCheck } = yargsStrictLib;
 
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
@@ -173,293 +214,9 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
   }
 }
 
-// Function to create yargs configuration - avoids duplication
-const createYargsConfig = (yargsInstance) => {
-  return yargsInstance
-    .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
-      yargs.positional('github-url', {
-        type: 'string',
-        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)',
-        demandOption: true
-      });
-    })
-    .usage('Usage: $0 <github-url> [options]')
-    .option('monitor-tag', {
-      type: 'string',
-      description: 'GitHub label to monitor for issues',
-      default: 'help wanted',
-      alias: 't'
-    })
-    .option('all-issues', {
-      type: 'boolean',
-      description: 'Process all open issues regardless of labels',
-      default: false,
-      alias: 'a'
-    })
-    .option('skip-issues-with-prs', {
-      type: 'boolean',
-      description: 'Skip issues that already have open pull requests',
-      default: false,
-      alias: 's'
-    })
-    .option('concurrency', {
-      type: 'number',
-      description: 'Number of concurrent solve instances',
-      default: 2,
-      alias: 'c'
-    })
-    .option('pull-requests-per-issue', {
-      type: 'number',
-      description: 'Number of pull requests to generate per issue',
-      default: 1,
-      alias: 'p'
-    })
-    .option('model', {
-      type: 'string',
-      description: 'Model to use for solve (opus, sonnet, or any model ID supported by the tool)',
-      alias: 'm',
-      default: 'sonnet'
-    })
-    .option('interval', {
-      type: 'number',
-      description: 'Polling interval in seconds',
-      default: 300, // 5 minutes
-      alias: 'i'
-    })
-    .option('max-issues', {
-      type: 'number',
-      description: 'Maximum number of issues to process (0 = unlimited)',
-      default: 0
-    })
-    .option('dry-run', {
-      type: 'boolean',
-      description: 'List issues that would be processed without actually processing them',
-      default: false
-    })
-    .option('skip-tool-check', {
-      type: 'boolean',
-      description: 'Skip tool connection check (useful in CI environments)',
-      default: false
-    })
-    .option('tool-check', {
-      type: 'boolean',
-      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
-      default: true,
-      hidden: true
-    })
-    .option('tool', {
-      type: 'string',
-      description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
-      default: 'claude'
-    })
-    .option('verbose', {
-      type: 'boolean',
-      description: 'Enable verbose logging',
-      alias: 'v',
-      default: false
-    })
-    .option('once', {
-      type: 'boolean',
-      description: 'Run once and exit instead of continuous monitoring',
-      default: false
-    })
-    .option('min-disk-space', {
-      type: 'number',
-      description: 'Minimum required disk space in MB (default: 500)',
-      default: 500
-    })
-    .option('auto-cleanup', {
-      type: 'boolean',
-      description: 'Automatically clean temporary directories (/tmp/* /var/tmp/*) when finished successfully',
-      default: false
-    })
-    .option('fork', {
-      type: 'boolean',
-      description: 'Fork the repository if you don\'t have write access',
-      alias: 'f',
-      default: false
-    })
-    .option('auto-fork', {
-      type: 'boolean',
-      description: 'Automatically fork public repositories without write access (fails for private repos)',
-      default: false
-    })
-    .option('attach-logs', {
-      type: 'boolean',
-      description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
-      default: false
-    })
-    .option('project-number', {
-      type: 'number',
-      description: 'GitHub Project number to monitor',
-      alias: 'pn'
-    })
-    .option('project-owner', {
-      type: 'string',
-      description: 'GitHub Project owner (organization or user)',
-      alias: 'po'
-    })
-    .option('project-status', {
-      type: 'string',
-      description: 'Project status column to monitor (e.g., "Ready", "To Do")',
-      alias: 'ps',
-      default: 'Ready'
-    })
-    .option('project-mode', {
-      type: 'boolean',
-      description: 'Enable project-based monitoring instead of label-based',
-      alias: 'pm',
-      default: false
-    })
-    .option('youtrack-mode', {
-      type: 'boolean',
-      description: 'Enable YouTrack mode instead of GitHub issues',
-      default: false
-    })
-    .option('youtrack-stage', {
-      type: 'string',
-      description: 'Override YouTrack stage to monitor (overrides YOUTRACK_STAGE env var)'
-    })
-    .option('youtrack-project', {
-      type: 'string',
-      description: 'Override YouTrack project code (overrides YOUTRACK_PROJECT_CODE env var)'
-    })
-    .option('target-branch', {
-      type: 'string',
-      description: 'Target branch for pull requests (defaults to repository default branch)',
-      alias: 'tb'
-    })
-    .option('log-dir', {
-      type: 'string',
-      description: 'Directory to save log files (defaults to current working directory)',
-      alias: 'l'
-    })
-    .option('auto-continue', {
-      type: 'boolean',
-      description: 'Pass --auto-continue to solve for each issue (continues with existing PRs instead of creating new ones)',
-      default: false
-    })
-    .option('think', {
-      type: 'string',
-      description: 'Thinking level: low (Think.), medium (Think hard.), high (Think harder.), max (Ultrathink.)',
-      choices: ['low', 'medium', 'high', 'max'],
-      default: undefined
-    })
-    .option('no-sentry', {
-      type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
-    })
-    .option('watch', {
-      type: 'boolean',
-      description: 'Monitor continuously for feedback and auto-restart when detected (stops when PR is merged)',
-      alias: 'w',
-      default: false
-    })
-    .option('issue-order', {
-      type: 'string',
-      description: 'Order issues by publication date: "asc" (oldest first) or "desc" (newest first)',
-      alias: 'o',
-      default: 'asc',
-      choices: ['asc', 'desc']
-    })
-    .parserConfiguration({
-      'boolean-negation': true
-    })
-    .help('h')
-    .alias('h', 'help')
-    // Apply strict options validation to reject unrecognized options
-    // This prevents issues like #453 where —fork (em-dash) is not recognized
-    .check(createStrictOptionsCheck((() => {
-      // Define boolean options that support --no- prefix
-      const booleanOptions = [
-        'all-issues', 'allIssues',
-        'skip-issues-with-prs', 'skipIssuesWithPrs',
-        'dry-run', 'dryRun',
-        'skip-tool-check', 'skipToolCheck',
-        'tool-check', 'toolCheck',
-        'verbose',
-        'once',
-        'auto-cleanup', 'autoCleanup',
-        'fork',
-        'auto-fork', 'autoFork',
-        'attach-logs', 'attachLogs',
-        'auto-continue', 'autoContinue',
-        'no-sentry', 'noSentry',
-        'watch',
-      ];
-
-      const options = new Set([
-        'help', 'h', 'version',
-        'github-url', 'githubUrl',
-        'monitor-tag', 'monitorTag', 't',
-        'concurrency', 'c',
-        'pull-requests-per-issue', 'pullRequestsPerIssue', 'p',
-        'model', 'm',
-        'interval', 'i',
-        'max-issues', 'maxIssues',
-        'tool',
-        'min-disk-space', 'minDiskSpace',
-        'project-number', 'projectNumber', 'pn',
-        'project-owner', 'projectOwner', 'po',
-        'project-status', 'projectStatus', 'ps',
-        'project-mode', 'projectMode', 'pm',
-        'youtrack-mode', 'youtrackMode',
-        'youtrack-stage', 'youtrackStage',
-        'youtrack-project', 'youtrackProject',
-        'target-branch', 'targetBranch', 'tb',
-        'log-dir', 'logDir', 'l',
-        'think',
-        'issue-order', 'issueOrder', 'o',
-        'v', 'a', 's', 'f', 'w', // single-char aliases
-        '_', '$0'
-      ]);
-
-      // Add boolean options and their --no- variants
-      for (const option of booleanOptions) {
-        options.add(option);
-        // Add --no- variant (kebab-case)
-        if (option.includes('-')) {
-          options.add(`no-${option}`);
-        }
-        // Add no prefix variant (camelCase)
-        if (!option.includes('-')) {
-          options.add(`no${option.charAt(0).toUpperCase()}${option.slice(1)}`);
-        }
-      }
-
-      return options;
-    })()));
-};
-
-// Check for version flag before processing other arguments
-const rawArgs = hideBin(process.argv);
-if (rawArgs.includes('--version')) {
-  const { getVersion } = await import('./version.lib.mjs');
-  try {
-    const version = await getVersion();
-    console.log(version);
-  } catch (versionError) {
-    reportError(versionError, {
-      context: 'version_detection',
-      operation: 'get_package_version'
-    });
-    console.error('Error: Unable to determine version');
-    await safeExit(1, 'Error occurred');
-  }
-  await safeExit(0, 'Process completed');
-}
-
-// Check for help flag before processing other arguments
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit - filter out help flags to avoid duplicate display
-  const argsWithoutHelp = rawArgs.filter(arg => arg !== '--help' && arg !== '-h');
-  createYargsConfig(yargs(argsWithoutHelp)).showHelp();
-  await safeExit(0, 'Process completed');
-}
-
 // Configure command line arguments - GitHub URL as positional argument
+const rawArgs = hideBin(process.argv);
+// Pass rawArgs to yargs constructor and use .argv to get parsed arguments
 const argv = createYargsConfig(yargs(rawArgs)).argv;
 
 let githubUrl = argv['github-url'];
@@ -566,9 +323,9 @@ await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
 
 // Initialize Sentry integration (unless disabled)
-if (!argv.noSentry) {
+if (argv.sentry) {
   await initializeSentry({
-    noSentry: argv.noSentry,
+    noSentry: !argv.sentry,
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
@@ -877,7 +634,7 @@ async function worker(workerId) {
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
-        const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
+        const noSentryFlag = !argv.sentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
@@ -918,7 +675,7 @@ async function worker(workerId) {
         if (argv.think) {
           args.push('--think', argv.think);
         }
-        if (argv.noSentry) {
+        if (!argv.sentry) {
           args.push('--no-sentry');
         }
         if (argv.watch) {
@@ -1480,7 +1237,7 @@ if (!isClaudeConnected) {
 }
 
 // Wrap monitor function with Sentry error tracking
-const monitorWithSentry = argv.noSentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
+const monitorWithSentry = !argv.sentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
 
 // Start monitoring
 try {
@@ -1494,3 +1251,4 @@ try {
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
+} // End of main execution block
