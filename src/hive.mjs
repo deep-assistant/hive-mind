@@ -40,6 +40,12 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
       description: 'Label to filter issues (default: monitor all issues)',
       alias: 'l'
     })
+    .option('monitor-tag', {
+      type: 'string',
+      description: 'GitHub label to monitor for issues',
+      default: 'help wanted',
+      alias: 't'
+    })
     .option('model', {
       type: 'string',
       description: 'Claude model to use for solving issues',
