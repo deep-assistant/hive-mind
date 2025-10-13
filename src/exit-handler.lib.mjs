@@ -6,7 +6,19 @@
  * the process exits, whether due to normal completion, errors, or signals.
  */
 
-import * as Sentry from '@sentry/node';
+// Lazy-load Sentry to avoid keeping the event loop alive when not needed
+let Sentry = null;
+const getSentry = async () => {
+  if (Sentry === null) {
+    try {
+      Sentry = await import('@sentry/node');
+    } catch (e) {
+      // If Sentry is not available, just return null
+      Sentry = { close: async () => {} };
+    }
+  }
+  return Sentry;
+};
 
 // Keep track of whether we've already shown the exit message
 let exitMessageShown = false;
@@ -57,7 +69,10 @@ export const safeExit = async (code = 0, reason = 'Process completed') => {
 
   // Close Sentry to flush any pending events and allow the process to exit cleanly
   try {
-    await Sentry.close(2000); // Wait up to 2 seconds for pending events to be sent
+    const sentry = await getSentry();
+    if (sentry && sentry.close) {
+      await sentry.close(2000); // Wait up to 2 seconds for pending events to be sent
+    }
   } catch (e) {
     // Ignore Sentry.close() errors - exit anyway
   }
@@ -102,7 +117,10 @@ export const installGlobalExitHandlers = () => {
     }
     await showExitMessage('Interrupted (CTRL+C)', 130);
     try {
-      await Sentry.close(2000);
+      const sentry = await getSentry();
+      if (sentry && sentry.close) {
+        await sentry.close(2000);
+      }
     } catch (e) {
       // Ignore Sentry.close() errors
     }
@@ -120,7 +138,10 @@ export const installGlobalExitHandlers = () => {
     }
     await showExitMessage('Terminated', 143);
     try {
-      await Sentry.close(2000);
+      const sentry = await getSentry();
+      if (sentry && sentry.close) {
+        await sentry.close(2000);
+      }
     } catch (e) {
       // Ignore Sentry.close() errors
     }
@@ -141,7 +162,10 @@ export const installGlobalExitHandlers = () => {
     }
     await showExitMessage('Uncaught exception occurred', 1);
     try {
-      await Sentry.close(2000);
+      const sentry = await getSentry();
+      if (sentry && sentry.close) {
+        await sentry.close(2000);
+      }
     } catch (e) {
       // Ignore Sentry.close() errors
     }
@@ -162,7 +186,10 @@ export const installGlobalExitHandlers = () => {
     }
     await showExitMessage('Unhandled rejection occurred', 1);
     try {
-      await Sentry.close(2000);
+      const sentry = await getSentry();
+      if (sentry && sentry.close) {
+        await sentry.close(2000);
+      }
     } catch (e) {
       // Ignore Sentry.close() errors
     }

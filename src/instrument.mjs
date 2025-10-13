@@ -1,5 +1,3 @@
-import * as Sentry from "@sentry/node";
-import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { sentry, version } from './config.lib.mjs';
 
 // Check if Sentry should be disabled
@@ -28,8 +26,19 @@ const shouldDisableSentry = () => {
   return false;
 };
 
+// Lazily import Sentry only if needed
+// This prevents the Sentry packages from keeping the event loop alive when not needed
+let Sentry = null;
+let nodeProfilingIntegration = null;
+
 // Initialize Sentry if not disabled
 if (!shouldDisableSentry()) {
+  // Dynamically import Sentry packages only when needed
+  const sentryModule = await import("@sentry/node");
+  Sentry = sentryModule;
+  const profilingModule = await import("@sentry/profiling-node");
+  nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
+
   try {
     Sentry.init({
       dsn: sentry.dsn,
@@ -122,11 +131,11 @@ if (!shouldDisableSentry()) {
   }
 }
 
-// Export Sentry for use in other modules
+// Export Sentry for use in other modules (may be null if disabled)
 export default Sentry;
 
 // Export utility function to check if Sentry is enabled
-export const isSentryEnabled = () => !shouldDisableSentry() && Sentry.getClient() !== undefined;
+export const isSentryEnabled = () => Sentry !== null && Sentry.getClient() !== undefined;
 
 // Export function to safely capture exceptions
 export const captureException = (error, context = {}) => {

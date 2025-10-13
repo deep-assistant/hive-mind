@@ -1,6 +1,90 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
+
+// Early exit paths - handle these before loading all modules to speed up testing
+const earlyArgs = process.argv.slice(2);
+if (earlyArgs.includes('--version')) {
+  const { getVersion } = await import('./version.lib.mjs');
+  try {
+    const version = await getVersion();
+    console.log(version);
+  } catch {
+    console.error('Error: Unable to determine version');
+    process.exit(1);
+  }
+  process.exit(0);
+}
+if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
+  // Load minimal modules needed for help
+  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+  globalThis.use = use;
+  const yargsModule = await use('yargs@17.7.2');
+  const yargs = yargsModule.default || yargsModule;
+  const { hideBin } = await use('yargs@17.7.2/helpers');
+  const rawArgs = hideBin(process.argv);
+
+  // Create a minimal yargs config for help display
+  const helpYargs = yargs(rawArgs)
+    .usage('Usage: $0 <github-url> [options]')
+    .command('$0 <github-url>', 'Monitor GitHub for issues to solve')
+    .positional('github-url', {
+      describe: 'GitHub organization or user URL (e.g., github.com/owner)',
+      type: 'string'
+    })
+    .option('label', {
+      type: 'string',
+      description: 'Label to filter issues (default: monitor all issues)',
+      alias: 'l'
+    })
+    .option('model', {
+      type: 'string',
+      description: 'Claude model to use for solving issues',
+      default: 'claude-sonnet-4'
+    })
+    .option('concurrency', {
+      type: 'number',
+      description: 'Maximum number of parallel workers',
+      alias: 'c',
+      default: 2
+    })
+    .option('verbose', {
+      type: 'boolean',
+      description: 'Enable verbose logging',
+      alias: 'v',
+      default: false
+    })
+    .option('dry-run', {
+      type: 'boolean',
+      description: 'Run without making actual changes to GitHub',
+      default: false
+    })
+    .option('attach-logs', {
+      type: 'boolean',
+      description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+      default: false
+    })
+    .option('no-sentry', {
+      type: 'boolean',
+      description: 'Disable Sentry error tracking and monitoring',
+      default: false
+    })
+    .option('once', {
+      type: 'boolean',
+      description: 'Run once and exit instead of continuous monitoring',
+      default: false
+    })
+    .help('h')
+    .alias('h', 'help')
+    .version(false)
+    .strict();
+
+  // Show help and exit
+  helpYargs.showHelp();
+  process.exit(0);
+}
+
+// Now load all modules for normal operation
 import { fileURLToPath } from 'url';
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
@@ -339,10 +423,10 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['low', 'medium', 'high', 'max'],
       default: undefined
     })
-    .option('sentry', {
+    .option('no-sentry', {
       type: 'boolean',
-      description: 'Enable Sentry error tracking and monitoring',
-      default: true
+      description: 'Disable Sentry error tracking and monitoring',
+      default: false
     })
     .option('watch', {
       type: 'boolean',
@@ -369,37 +453,8 @@ export const createYargsConfig = (yargsInstance) => {
 // This prevents the argument parsing and execution when hive.mjs is imported
 // by other modules (e.g., telegram-bot.mjs) to access createYargsConfig
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-// Check for version flag before processing other arguments
-const rawArgs = hideBin(process.argv);
-if (rawArgs.includes('--version')) {
-  const { getVersion } = await import('./version.lib.mjs');
-  try {
-    const version = await getVersion();
-    console.log(version);
-  } catch (versionError) {
-    reportError(versionError, {
-      context: 'version_detection',
-      operation: 'get_package_version'
-    });
-    console.error('Error: Unable to determine version');
-    await safeExit(1, 'Error occurred');
-  }
-  await safeExit(0, 'Process completed');
-}
-
-// Check for help flag before processing other arguments
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  // Show help and exit
-  createYargsConfig(yargs([])).showHelp();
-  // Force exit by destroying stdin and calling process.exit
-  // This prevents any event loop refs from keeping the process alive
-  if (process.stdin.isTTY === false) {
-    process.stdin.destroy();
-  }
-  process.exit(0);
-}
-
 // Configure command line arguments - GitHub URL as positional argument
+const rawArgs = hideBin(process.argv);
 // Use .parse() instead of .argv to ensure .strict() mode works correctly
 // When you call yargs(args) and use .argv, strict mode doesn't trigger
 const argv = createYargsConfig(yargs()).parse(rawArgs);
@@ -508,9 +563,9 @@ await log(`📁 Log file: ${absoluteLogPath}`);
 await log('   (All output will be logged here)');
 
 // Initialize Sentry integration (unless disabled)
-if (argv.sentry) {
+if (!argv.noSentry) {
   await initializeSentry({
-    noSentry: !argv.sentry,
+    noSentry: argv.noSentry,
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
@@ -815,7 +870,7 @@ async function worker(workerId) {
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
-        const noSentryFlag = !argv.sentry ? ' --no-sentry' : '';
+        const noSentryFlag = argv.noSentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
 
         // Use spawn to get real-time streaming output while avoiding command-stream's automatic quote addition
@@ -853,7 +908,7 @@ async function worker(workerId) {
         if (argv.think) {
           args.push('--think', argv.think);
         }
-        if (!argv.sentry) {
+        if (argv.noSentry) {
           args.push('--no-sentry');
         }
         if (argv.watch) {
@@ -1415,7 +1470,7 @@ if (!isClaudeConnected) {
 }
 
 // Wrap monitor function with Sentry error tracking
-const monitorWithSentry = !argv.sentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
+const monitorWithSentry = argv.noSentry ? monitor : withSentry(monitor, 'hive.monitor', 'command');
 
 // Start monitoring
 try {
