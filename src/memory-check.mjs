@@ -124,25 +124,27 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + swap)
       const totalAvailable = availableMB + (swapEnabled && swapTotal > 0 ? Math.round(swapAvailable) : 0);
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + swap is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with swap
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check both RAM-only and total memory against the requirement
+      const ramOnlySufficient = availableMB >= minMemoryMB;
+      const totalSufficient = totalAvailable >= minMemoryMB;
+
+      // Both must be sufficient for success
+      const success = ramOnlySufficient && totalSufficient;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        // Determine which check(s) failed
+        if (!ramOnlySufficient && !totalSufficient) {
+          // Both checks failed
+          await log(`❌ Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        } else if (!ramOnlySufficient) {
+          // Only RAM check failed (but total is sufficient)
+          await log(`❌ Insufficient RAM: ${availableMB}MB available (${minMemoryMB}MB required)`);
+          await log(`   Total memory with swap: ${totalAvailable}MB, swap: ${swapInfo}`);
+        } else {
+          // Only total check failed (but RAM is sufficient) - shouldn't normally happen
+          await log(`❌ Insufficient total memory: total ${totalAvailable}MB (${minMemoryMB}MB required), RAM: ${availableMB}MB, swap: ${swapInfo}`);
+        }
 
         if (!swapEnabled) {
           await log('   Swap is disabled. Consider enabling swap:');
@@ -151,9 +153,9 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
 
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
+
       await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {
@@ -180,31 +182,34 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + page file)
       const totalAvailable = availableMB + (pageFileFreeMB || 0);
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + page file is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with page file
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check both RAM-only and total memory against the requirement
+      const ramOnlySufficient = availableMB >= minMemoryMB;
+      const totalSufficient = totalAvailable >= minMemoryMB;
+
+      // Both must be sufficient for success
+      const success = ramOnlySufficient && totalSufficient;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, page file: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        // Determine which check(s) failed
+        if (!ramOnlySufficient && !totalSufficient) {
+          // Both checks failed
+          await log(`❌ Insufficient memory: ${availableMB}MB available, page file: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        } else if (!ramOnlySufficient) {
+          // Only RAM check failed (but total is sufficient)
+          await log(`❌ Insufficient RAM: ${availableMB}MB available (${minMemoryMB}MB required)`);
+          await log(`   Total memory with page file: ${totalAvailable}MB, page file: ${swapInfo}`);
+        } else {
+          // Only total check failed (but RAM is sufficient) - shouldn't normally happen
+          await log(`❌ Insufficient total memory: total ${totalAvailable}MB (${minMemoryMB}MB required), RAM: ${availableMB}MB, page file: ${swapInfo}`);
+        }
+
         await log('   Consider closing some applications or increasing virtual memory.');
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
+
       await log(`🧠 Memory check: ${availableMB}MB available, page file: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {
@@ -251,25 +256,27 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + swap)
       const totalAvailable = availableMB + swapAvailableMB;
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + swap is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with swap
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check both RAM-only and total memory against the requirement
+      const ramOnlySufficient = availableMB >= minMemoryMB;
+      const totalSufficient = totalAvailable >= minMemoryMB;
+
+      // Both must be sufficient for success
+      const success = ramOnlySufficient && totalSufficient;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        // Determine which check(s) failed
+        if (!ramOnlySufficient && !totalSufficient) {
+          // Both checks failed
+          await log(`❌ Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+        } else if (!ramOnlySufficient) {
+          // Only RAM check failed (but total is sufficient)
+          await log(`❌ Insufficient RAM: ${availableMB}MB available (${minMemoryMB}MB required)`);
+          await log(`   Total memory with swap: ${totalAvailable}MB, swap: ${swapInfo}`);
+        } else {
+          // Only total check failed (but RAM is sufficient) - shouldn't normally happen
+          await log(`❌ Insufficient total memory: total ${totalAvailable}MB (${minMemoryMB}MB required), RAM: ${availableMB}MB, swap: ${swapInfo}`);
+        }
 
         if (swapTotal === 0) {
           await log('   No swap configured. Consider adding swap:');
@@ -282,9 +289,9 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
 
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
+
       await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {
