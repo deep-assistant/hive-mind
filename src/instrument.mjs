@@ -33,13 +33,14 @@ let nodeProfilingIntegration = null;
 
 // Initialize Sentry if not disabled
 if (!shouldDisableSentry()) {
-  // Dynamically import Sentry packages only when needed
-  const sentryModule = await import("@sentry/node");
-  Sentry = sentryModule;
-  const profilingModule = await import("@sentry/profiling-node");
-  nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
-
   try {
+    // Dynamically import Sentry packages only when needed
+    const sentryModule = await import("@sentry/node");
+    Sentry = sentryModule;
+    const profilingModule = await import("@sentry/profiling-node");
+    nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
+
+    // Initialize Sentry with configuration
     Sentry.init({
       dsn: sentry.dsn,
       integrations: [
@@ -119,10 +120,12 @@ if (!shouldDisableSentry()) {
       console.log('✅ Sentry initialized successfully');
     }
   } catch (error) {
-    // Silently fail if Sentry initialization fails
+    // Sentry packages not installed or initialization failed - silently continue without Sentry
+    // This is expected in some environments (e.g., CI, development without npm install)
     if (process.env.DEBUG === 'true') {
-      console.error('Failed to initialize Sentry:', error.message);
+      console.warn('Warning: Sentry initialization failed:', error.message);
     }
+    Sentry = null;
   }
 } else {
   // Log that Sentry is disabled

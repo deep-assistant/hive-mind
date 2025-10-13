@@ -109,9 +109,9 @@ await showAttachLogsWarning(shouldAttachLogs);
 const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 // Initialize Sentry integration (unless disabled)
-if (!argv.noSentry) {
+if (argv.sentry) {
   await initializeSentry({
-    noSentry: argv.noSentry,
+    noSentry: !argv.sentry,
     debug: argv.verbose,
     version: process.env.npm_package_version || '0.12.0'
   });
