@@ -1,4 +1,6 @@
-// Yargs configuration shared between early help and main execution
+// CLI configuration module for hive command
+// Extracted from hive.mjs to avoid loading heavy dependencies (instrument.mjs, etc.)
+// when only the yargs configuration is needed (e.g., in telegram-bot.mjs)
 // This module has no heavy dependencies to allow fast loading for --help
 
 export const createYargsConfig = (yargsInstance) => {

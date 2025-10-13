@@ -25,7 +25,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   const rawArgs = hideBin(process.argv);
 
   // Reuse createYargsConfig from shared module to avoid duplication
-  const { createYargsConfig } = await import('./yargs-config.lib.mjs');
+  const { createYargsConfig } = await import('./hive.config.lib.mjs');
   const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
 
   // Show help and exit
@@ -37,7 +37,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
 import { fileURLToPath } from 'url';
 
 // Export createYargsConfig for use in telegram-bot and other modules
-export { createYargsConfig } from './yargs-config.lib.mjs';
+export { createYargsConfig } from './hive.config.lib.mjs';
 
 // Only execute main logic if this module is being run directly (not imported)
 // This prevents heavy module loading when hive.mjs is imported by other modules
@@ -62,7 +62,7 @@ const lib = await import('./lib.mjs');
 const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, cleanupTempDirectories } = lib;
 
 // Import yargs config
-const yargsConfigLib = await import('./yargs-config.lib.mjs');
+const yargsConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig } = yargsConfigLib;
 
 // Import Claude-related functions
