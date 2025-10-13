@@ -25,12 +25,14 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   const rawArgs = hideBin(process.argv);
 
   // Create a minimal yargs config for help display
+  // Must match the options in createYargsConfig() to pass tests
   const helpYargs = yargs(rawArgs)
     .usage('Usage: $0 <github-url> [options]')
-    .command('$0 <github-url>', 'Monitor GitHub for issues to solve')
-    .positional('github-url', {
-      describe: 'GitHub organization or user URL (e.g., github.com/owner)',
-      type: 'string'
+    .command('$0 <github-url>', 'Monitor GitHub for issues to solve', (yargs) => {
+      yargs.positional('github-url', {
+        describe: 'GitHub organization, user, or repository URL (e.g., github.com/owner, github.com/owner/repo)',
+        type: 'string'
+      });
     })
     .option('label', {
       type: 'string',
@@ -41,6 +43,12 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
       type: 'string',
       description: 'Claude model to use for solving issues',
       default: 'claude-sonnet-4'
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
     })
     .option('concurrency', {
       type: 'number',
@@ -62,6 +70,11 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     .option('attach-logs', {
       type: 'boolean',
       description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
+      default: false
+    })
+    .option('skip-tool-check', {
+      type: 'boolean',
+      description: 'Skip checking if AI tools are available',
       default: false
     })
     .option('no-sentry', {
