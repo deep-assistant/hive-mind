@@ -142,13 +142,13 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       }
       
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
-        
+        await log(`${emoji} Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+
         if (!swapEnabled) {
           await log('   Swap is disabled. Consider enabling swap:');
           await log('   sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist');
         }
-        
+
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
       
@@ -198,7 +198,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       }
       
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
+        await log(`${emoji} Insufficient memory: ${availableMB}MB available, page file: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
         await log('   Consider closing some applications or increasing virtual memory.');
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
@@ -269,8 +269,8 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       }
       
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
-        
+        await log(`${emoji} Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+
         if (swapTotal === 0) {
           await log('   No swap configured. Consider adding swap:');
           await log('   sudo fallocate -l 2G /swapfile');
@@ -279,7 +279,7 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
           await log('   sudo swapon /swapfile');
           await log('   echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab');
         }
-        
+
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
       
