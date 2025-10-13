@@ -1,12 +1,8 @@
 // CLI configuration module for hive command
 // Extracted from hive.mjs to avoid loading heavy dependencies (instrument.mjs, etc.)
 // when only the yargs configuration is needed (e.g., in telegram-bot.mjs)
+// This module has no heavy dependencies to allow fast loading for --help
 
-// Note: Strict options validation is now handled by yargs built-in .strict() mode
-// This approach was adopted per issue #482 feedback to minimize custom code maintenance
-
-// Function to create yargs configuration - avoids duplication
-// This is a direct extract from hive.mjs createYargsConfig function
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
@@ -174,10 +170,10 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['low', 'medium', 'high', 'max'],
       default: undefined
     })
-    .option('no-sentry', {
+    .option('sentry', {
       type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
+      description: 'Enable Sentry error tracking and monitoring (use --no-sentry to disable)',
+      default: true
     })
     .option('watch', {
       type: 'boolean',

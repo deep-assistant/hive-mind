@@ -1,6 +1,19 @@
 // Sentry integration library for hive-mind
-import * as Sentry from '@sentry/node';
 import { isSentryEnabled, captureException, captureMessage, startTransaction } from './instrument.mjs';
+
+// Lazy import of Sentry to handle cases where it's not installed
+let Sentry = null;
+const getSentry = async () => {
+  if (!Sentry) {
+    try {
+      Sentry = await import('@sentry/node');
+    } catch (error) {
+      // Sentry not installed, return null
+      return null;
+    }
+  }
+  return Sentry;
+};
 
 // Flag to track if Sentry should be disabled
 let sentryDisabled = false;
@@ -26,23 +39,26 @@ export const initializeSentry = async (options = {}) => {
   // Sentry is already initialized in instrument.mjs
   // This function is for additional runtime configuration
   if (isSentryEnabled()) {
-    // Set user context if available
-    if (process.env.USER || process.env.USERNAME) {
-      Sentry.setUser({
-        username: process.env.USER || process.env.USERNAME,
+    const sentry = await getSentry();
+    if (sentry) {
+      // Set user context if available
+      if (process.env.USER || process.env.USERNAME) {
+        sentry.setUser({
+          username: process.env.USER || process.env.USERNAME,
+        });
+      }
+
+      // Set additional tags
+      sentry.setTags({
+        node_version: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        hive_mind_version: options.version || process.env.npm_package_version || 'unknown',
       });
-    }
 
-    // Set additional tags
-    Sentry.setTags({
-      node_version: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      hive_mind_version: options.version || process.env.npm_package_version || 'unknown',
-    });
-
-    if (options.debug) {
-      console.log('✅ Sentry integration configured');
+      if (options.debug) {
+        console.log('✅ Sentry integration configured');
+      }
     }
   }
 };
@@ -96,7 +112,12 @@ export const withSpan = async (name, callback) => {
     return callback();
   }
 
-  return Sentry.startSpan({
+  const sentry = await getSentry();
+  if (!sentry) {
+    return callback();
+  }
+
+  return sentry.startSpan({
     name,
     op: 'function',
   }, async () => {
@@ -152,24 +173,30 @@ export const reportWarning = (warning, context = {}) => {
  * Add breadcrumb for better error context
  * @param {Object} breadcrumb - Breadcrumb data
  */
-export const addBreadcrumb = (breadcrumb) => {
+export const addBreadcrumb = async (breadcrumb) => {
   if (!isSentryEnabled() || sentryDisabled) {
     return;
   }
 
-  Sentry.addBreadcrumb(breadcrumb);
+  const sentry = await getSentry();
+  if (sentry) {
+    sentry.addBreadcrumb(breadcrumb);
+  }
 };
 
 /**
  * Set user context for Sentry
  * @param {Object} user - User data
  */
-export const setUserContext = (user) => {
+export const setUserContext = async (user) => {
   if (!isSentryEnabled() || sentryDisabled) {
     return;
   }
 
-  Sentry.setUser(user);
+  const sentry = await getSentry();
+  if (sentry) {
+    sentry.setUser(user);
+  }
 };
 
 /**
@@ -177,24 +204,30 @@ export const setUserContext = (user) => {
  * @param {string} key - Context key
  * @param {any} value - Context value
  */
-export const setExtraContext = (key, value) => {
+export const setExtraContext = async (key, value) => {
   if (!isSentryEnabled() || sentryDisabled) {
     return;
   }
 
-  Sentry.setExtra(key, value);
+  const sentry = await getSentry();
+  if (sentry) {
+    sentry.setExtra(key, value);
+  }
 };
 
 /**
  * Set tags for Sentry
  * @param {Object} tags - Tags to set
  */
-export const setTags = (tags) => {
+export const setTags = async (tags) => {
   if (!isSentryEnabled() || sentryDisabled) {
     return;
   }
 
-  Sentry.setTags(tags);
+  const sentry = await getSentry();
+  if (sentry) {
+    sentry.setTags(tags);
+  }
 };
 
 /**
@@ -207,8 +240,13 @@ export const flushSentry = async (timeout = 2000) => {
     return;
   }
 
+  const sentry = await getSentry();
+  if (!sentry) {
+    return;
+  }
+
   try {
-    await Sentry.flush(timeout);
+    await sentry.flush(timeout);
   } catch (error) {
     // Silently fail if flush fails
     if (process.env.DEBUG === 'true') {
@@ -227,8 +265,13 @@ export const closeSentry = async (timeout = 2000) => {
     return;
   }
 
+  const sentry = await getSentry();
+  if (!sentry) {
+    return;
+  }
+
   try {
-    await Sentry.close(timeout);
+    await sentry.close(timeout);
   } catch (error) {
     // Silently fail if close fails
     if (process.env.DEBUG === 'true') {

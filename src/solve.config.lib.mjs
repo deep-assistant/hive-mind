@@ -151,10 +151,10 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Target branch for the pull request (defaults to repository default branch)',
       alias: 'b'
     })
-    .option('no-sentry', {
+    .option('sentry', {
       type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
+      description: 'Enable Sentry error tracking and monitoring (use --no-sentry to disable)',
+      default: true
     })
     .option('auto-cleanup', {
       type: 'boolean',
