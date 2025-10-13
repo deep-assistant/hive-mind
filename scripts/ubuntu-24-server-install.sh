@@ -229,6 +229,10 @@ if ! nvm ls 20 | grep -q 'v20'; then
 fi
 nvm use 20
 
+# Update npm to latest version
+echo "[*] Updating npm to latest version..."
+npm install -g npm@latest
+
 # --- Install Playwright OS dependencies first (as root via absolute npx path) ---
 echo "[*] Installing Playwright OS dependencies with npx (requires sudo)..."
 NPX_PATH="$(command -v npx || true)"
