@@ -119,6 +119,31 @@ export const watchForFeedback = async (params) => {
       await log('');
       await log(formatAligned('🎉', 'PR MERGED!', 'Stopping watch mode'));
       await log(formatAligned('', 'Pull request:', `#${prNumber} has been merged`, 2));
+
+      // If auto-delete-branch-on-merge is enabled, delete the branch
+      if (argv.autoDeleteBranchOnMerge) {
+        await log('');
+        await log(formatAligned('🗑️', 'AUTO-DELETE:', 'Deleting branch after merge'));
+        try {
+          // Delete the branch from remote
+          const deleteBranchResult = await $`gh api repos/${owner}/${repo}/git/refs/heads/${branchName} -X DELETE`;
+          if (deleteBranchResult.code === 0) {
+            await log(formatAligned('✅', 'Branch deleted:', `${branchName}`, 2));
+          } else {
+            await log(formatAligned('⚠️', 'Branch deletion failed:', deleteBranchResult.stderr?.toString() || 'Unknown error', 2));
+          }
+        } catch (deleteError) {
+          reportError(deleteError, {
+            context: 'delete_branch_on_merge',
+            owner,
+            repo,
+            branchName,
+            operation: 'delete_remote_branch'
+          });
+          await log(formatAligned('⚠️', 'Branch deletion error:', cleanErrorMessage(deleteError), 2));
+        }
+      }
+
       await log('');
       break;
     }
