@@ -16,21 +16,29 @@ if (earlyArgs.includes('--version')) {
   process.exit(0);
 }
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
-  // Load minimal modules needed for help
-  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-  globalThis.use = use;
-  const yargsModule = await use('yargs@17.7.2');
-  const yargs = yargsModule.default || yargsModule;
-  const { hideBin } = await use('yargs@17.7.2/helpers');
-  const rawArgs = hideBin(process.argv);
+  try {
+    // Load minimal modules needed for help
+    const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+    globalThis.use = use;
+    const yargsModule = await use('yargs@17.7.2');
+    const yargs = yargsModule.default || yargsModule;
+    const { hideBin } = await use('yargs@17.7.2/helpers');
+    const rawArgs = hideBin(process.argv);
 
-  // Reuse createYargsConfig from shared module to avoid duplication
-  const { createYargsConfig } = await import('./hive.config.lib.mjs');
-  const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
+    // Reuse createYargsConfig from shared module to avoid duplication
+    const { createYargsConfig } = await import('./hive.config.lib.mjs');
+    const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
 
-  // Show help and exit
-  helpYargs.showHelp();
-  process.exit(0);
+    // Show help and exit
+    helpYargs.showHelp();
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error: Failed to load help information');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 // Import fileURLToPath for the execution check below
@@ -43,9 +51,20 @@ export { createYargsConfig } from './hive.config.lib.mjs';
 // This prevents heavy module loading when hive.mjs is imported by other modules
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
+// Wrap the entire main block in a try-catch to prevent silent failures
+try {
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  try {
+    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  } catch (error) {
+    console.error('❌ Fatal error: Failed to load dependencies');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 // Use command-stream for consistent $ behavior across runtimes
@@ -216,8 +235,54 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
 
 // Configure command line arguments - GitHub URL as positional argument
 const rawArgs = hideBin(process.argv);
-// Pass rawArgs to yargs constructor and use .argv to get parsed arguments
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Use .parse() instead of .argv to ensure .strict() mode works correctly
+// When you use .argv, strict mode doesn't trigger properly
+// See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
+let argv;
+
+// Temporarily suppress stderr to prevent yargs from printing error messages
+// We'll handle error reporting ourselves
+const originalStderrWrite = process.stderr.write;
+let stderrBuffer = '';
+process.stderr.write = function(chunk, encoding, callback) {
+  // Capture stderr output instead of writing it
+  stderrBuffer += chunk.toString();
+  if (typeof encoding === 'function') {
+    encoding();
+  } else if (callback) {
+    callback();
+  }
+  return true;
+};
+
+try {
+  argv = await createYargsConfig(yargs()).parse(rawArgs);
+  // Restore stderr if parsing succeeded
+  process.stderr.write = originalStderrWrite;
+} catch (error) {
+  // Restore stderr before handling the error
+  process.stderr.write = originalStderrWrite;
+
+  // If .strict() mode catches an unknown argument, yargs will throw an error
+  // We should fail fast for truly invalid arguments
+  if (error.message && error.message.includes('Unknown argument')) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+
+  // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
+  // This is a quirk with optional positional arguments [github-url]
+  // The error.argv object still contains the parsed arguments, so we can safely continue
+  if (error.argv) {
+    argv = error.argv;
+  } else {
+    // If there's no argv object, it's a real error - show the captured stderr
+    if (stderrBuffer) {
+      process.stderr.write(stderrBuffer);
+    }
+    throw error;
+  }
+}
 
 let githubUrl = argv['github-url'];
 
@@ -388,11 +453,15 @@ if (argv.skipIssuesWithPrs && argv.autoContinue) {
 
 // Helper function to check GitHub permissions - moved to github.lib.mjs
 
-// Check GitHub permissions early in the process
-const hasValidAuth = await checkGitHubPermissions();
-if (!hasValidAuth) {
-  await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
-  await safeExit(1, 'Error occurred');
+// Check GitHub permissions early in the process (skip in dry-run mode or when explicitly requested)
+if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+  await log('⏩ Skipping GitHub permissions check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+} else {
+  const hasValidAuth = await checkGitHubPermissions();
+  if (!hasValidAuth) {
+    await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
+    await safeExit(1, 'Error occurred');
+  }
 }
 
 // YouTrack configuration and validation
@@ -453,19 +522,25 @@ if (urlMatch) {
 
 // Determine scope
 if (!repo) {
-  // Check if it's an organization or user
-  try {
-    const typeResult = await $`gh api users/${owner} --jq .type`;
-    const accountType = typeResult.stdout.toString().trim();
-    scope = accountType === 'Organization' ? 'organization' : 'user';
-  } catch (e) {
-    reportError(e, {
-      context: 'detect_scope',
-      owner,
-      operation: 'detect_account_type'
-    });
-    // Default to user if API call fails
+  // Check if it's an organization or user (skip in dry-run mode to avoid hanging)
+  if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+    // In dry-run mode, default to user to avoid GitHub API calls
     scope = 'user';
+    await log('   ℹ️  Assuming user scope (dry-run mode, skipping API detection)', { verbose: true });
+  } else {
+    try {
+      const typeResult = await $`gh api users/${owner} --jq .type`;
+      const accountType = typeResult.stdout.toString().trim();
+      scope = accountType === 'Organization' ? 'organization' : 'user';
+    } catch (e) {
+      reportError(e, {
+        context: 'detect_scope',
+        owner,
+        operation: 'detect_account_type'
+      });
+      // Default to user if API call fails
+      scope = 'user';
+    }
   }
 } else {
   scope = 'repository';
@@ -801,6 +876,12 @@ async function fetchIssues() {
     await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
   }
 
+  // In dry-run mode, skip actual API calls and return empty list immediately
+  if (argv.dryRun) {
+    await log('   🧪 Dry-run mode: Skipping actual issue fetching');
+    return [];
+  }
+
   try {
     let issues = [];
 
@@ -1118,7 +1199,7 @@ async function monitor() {
     // If running once, wait for queue to empty then exit
     if (argv.once) {
       await log('\n🏁 Single run mode - waiting for queue to empty...');
-      
+
       while (stats.queued > 0 || stats.processing > 0) {
         await new Promise(resolve => setTimeout(resolve, 5000));
         const currentStats = issueQueue.getStats();
@@ -1127,7 +1208,7 @@ async function monitor() {
         }
         Object.assign(stats, currentStats);
       }
-      
+
       await log('\n✅ All issues processed!');
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
@@ -1137,6 +1218,9 @@ async function monitor() {
       if (stats.completed > 0) {
         await cleanupTempDirectories(argv);
       }
+
+      // Stop workers before breaking to avoid hanging
+      issueQueue.stop();
       break;
     }
     
@@ -1215,25 +1299,30 @@ async function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('interrupt'));
 process.on('SIGTERM', () => gracefulShutdown('termination'));
 
-// Check system resources (disk space and RAM) before starting monitoring
-const systemCheck = await checkSystem(
-  { 
-    minDiskSpaceMB: argv.minDiskSpace || 500,
-    minMemoryMB: 256,
-    exitOnFailure: true
-  },
-  { log }
-);
+// Check system resources (disk space and RAM) before starting monitoring (skip in dry-run mode)
+if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+  await log('⏩ Skipping system resource check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+  await log('⏩ Skipping Claude CLI connection check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+} else {
+  const systemCheck = await checkSystem(
+    {
+      minDiskSpaceMB: argv.minDiskSpace || 500,
+      minMemoryMB: 256,
+      exitOnFailure: true
+    },
+    { log }
+  );
 
-if (!systemCheck.success) {
-  await safeExit(1, 'Error occurred');
-}
+  if (!systemCheck.success) {
+    await safeExit(1, 'Error occurred');
+  }
 
-// Validate Claude CLI connection before starting monitoring with the same model that will be used
-const isClaudeConnected = await validateClaudeConnection(argv.model);
-if (!isClaudeConnected) {
-  await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
-  await safeExit(1, 'Error occurred');
+  // Validate Claude CLI connection before starting monitoring with the same model that will be used
+  const isClaudeConnected = await validateClaudeConnection(argv.model);
+  if (!isClaudeConnected) {
+    await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
+    await safeExit(1, 'Error occurred');
+  }
 }
 
 // Wrap monitor function with Sentry error tracking
@@ -1251,4 +1340,18 @@ try {
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
+
+} catch (fatalError) {
+  // Handle any errors that occurred during initialization or execution
+  // This prevents silent failures when the script hangs or crashes
+  console.error('\n❌ Fatal error occurred during hive initialization or execution');
+  console.error(`   ${fatalError.message || fatalError}`);
+  if (fatalError.stack) {
+    console.error('\nStack trace:');
+    console.error(fatalError.stack);
+  }
+  console.error('\nPlease report this issue at: https://github.com/deep-assistant/hive-mind/issues');
+  process.exit(1);
+}
+
 } // End of main execution block

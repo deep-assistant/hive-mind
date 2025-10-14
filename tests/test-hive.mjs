@@ -231,7 +231,7 @@ runTest('hive.mjs --tool flag', () => {
 
 // Test 18: hive --dry-run with --no-sentry doesn't hang (Issue #504 regression test)
 runTest('hive --dry-run with --no-sentry doesn\'t hang', () => {
-  const output = execCommand(`${hivePath} https://github.com/test/test -vas --dry-run --no-sentry --skip-tool-check 2>&1`, 15000);
+  const output = execCommand(`${hivePath} https://github.com/test/test -vas --dry-run --no-sentry --skip-tool-check --once 2>&1`, 15000);
   const outputStr = normalizeOutput(output);
 
   // Check that it produces output (not silent)
@@ -250,7 +250,7 @@ runTest('hive --dry-run with --no-sentry doesn\'t hang', () => {
 
 // Test 19: hive --dry-run doesn't silently fail (different flag combination)
 runTest('hive --dry-run doesn\'t silently fail (variant test)', () => {
-  const output = execCommand(`${hivePath} https://github.com/test/test --all-issues --dry-run --no-sentry --skip-tool-check 2>&1`, 15000);
+  const output = execCommand(`${hivePath} https://github.com/test/test --all-issues --dry-run --no-sentry --skip-tool-check --once 2>&1`, 15000);
   const outputStr = normalizeOutput(output);
 
   // Primary check: must produce output (not silent failure)
@@ -275,7 +275,7 @@ runTest('hive --dry-run doesn\'t silently fail (variant test)', () => {
 runTest('hive --dry-run exits without hanging', () => {
   try {
     // This should complete within 15 seconds (with timeout as backup)
-    execSync(`timeout 15 ${hivePath} https://github.com/test/test --dry-run --no-sentry --skip-tool-check 2>&1 > /dev/null`, {
+    execSync(`timeout 15 ${hivePath} https://github.com/test/test --dry-run --no-sentry --skip-tool-check --once 2>&1 > /dev/null`, {
       encoding: 'utf8',
       stdio: 'pipe',
       timeout: 15000

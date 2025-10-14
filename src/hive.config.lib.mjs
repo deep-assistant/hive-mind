@@ -5,14 +5,29 @@
 
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
-    .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
+    .command('$0 [github-url]', 'Monitor GitHub issues and create PRs', (yargs) => {
       yargs.positional('github-url', {
         type: 'string',
-        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)',
-        demandOption: true
+        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)'
       });
     })
     .usage('Usage: $0 <github-url> [options]')
+    .fail((msg, err, _yargs) => {
+      // Custom fail handler to suppress yargs' automatic error output to stderr
+      // We handle errors in the calling code's try-catch block
+      // If there's an existing error object, throw it as-is to preserve the full trace
+      if (err) {
+        throw err;
+      }
+      // For validation messages, throw them as-is without wrapping
+      // This preserves the original error and its stack trace
+      const error = new Error(msg);
+      // Preserve the original error as the cause if yargs provided one
+      if (err) {
+        error.cause = err;
+      }
+      throw error;
+    })
     .option('monitor-tag', {
       type: 'string',
       description: 'GitHub label to monitor for issues',
@@ -189,9 +204,13 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['asc', 'desc']
     })
     .parserConfiguration({
-      'boolean-negation': true
+      'boolean-negation': true,
+      'strip-dashed': false,
+      'strip-aliased': false,
+      'populate--': false
     })
-    .strict() // Enable strict mode to reject unknown options (issue #453, #482)
+    .showHelpOnFail(false)  // Don't show help on validation failures
+    .strict()
     .help('h')
     .alias('h', 'help');
 };

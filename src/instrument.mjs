@@ -24,6 +24,12 @@ const shouldDisableSentry = () => {
     return true;
   }
 
+  // Disable Sentry for dry-run mode to avoid unnecessary network calls that might fail
+  // This prevents config.lib.mjs from loading use-m from CDN in testing scenarios
+  if (process.argv.includes('--dry-run')) {
+    return true;
+  }
+
   return false;
 };
 

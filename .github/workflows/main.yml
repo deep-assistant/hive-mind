@@ -382,6 +382,11 @@ jobs:
         echo "Running test suite for telegram-bot --dry-run mode..."
         node tests/test-telegram-bot-dry-run.mjs
 
+    - name: Run hive command silent failure test (Issue #504)
+      run: |
+        echo "Running test suite for hive command silent failures..."
+        node tests/test-hive-no-silent-failure.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
