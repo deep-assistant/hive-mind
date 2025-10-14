@@ -24,7 +24,7 @@ jobs:
 
     - name: Configure GitHub CLI authentication
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_USER_REPO_DELETION_TOKEN }}
       run: |
         echo "$GITHUB_TOKEN" | gh auth login --with-token
         echo ""
