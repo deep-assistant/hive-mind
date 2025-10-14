@@ -203,6 +203,31 @@ export const createYargsConfig = (yargsInstance) => {
       default: 'asc',
       choices: ['asc', 'desc']
     })
+    .option('containerize', {
+      type: 'boolean',
+      description: 'Run jobs in isolated Docker containers for enhanced security',
+      default: false
+    })
+    .option('container-cpu', {
+      type: 'string',
+      description: 'CPU limit for containers (e.g., "1.0" for 1 core, "2.0" for 2 cores)',
+      default: '2.0'
+    })
+    .option('container-memory', {
+      type: 'string',
+      description: 'Memory limit for containers (e.g., "1g" for 1GB, "2g" for 2GB)',
+      default: '2g'
+    })
+    .option('container-disk', {
+      type: 'string',
+      description: 'Disk limit for containers (e.g., "10g" for 10GB, "50g" for 50GB)',
+      default: '50g'
+    })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repositories without write access (fails for private repos)',
+      default: false
+    })
     .parserConfiguration({
       'boolean-negation': true,
       'strip-dashed': false,

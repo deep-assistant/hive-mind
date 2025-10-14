@@ -141,7 +141,46 @@ review --repo owner/repo --pr 456
 
 # Multiple AI reviewers for consensus
 ./reviewers-hive.mjs --agents 3 --consensus-threshold 0.8
+
+# Solve with containerization (enhanced security)
+solve https://github.com/owner/repo/issues/123 --containerize --container-cpu 1.0 --container-memory 1g
+
+# Hive with containerization (resource-limited workers)
+hive https://github.com/owner/repo --containerize --container-cpu 0.5 --container-memory 512m --concurrency 4
 ```
+
+## 🐳 Containerization (Optional)
+
+**NEW**: Run AI jobs in isolated Docker containers with resource limits for enhanced security!
+
+### Features
+- **Resource Limits**: Control CPU, RAM, and disk usage per job
+- **Environment Filtering**: Only necessary variables passed to containers
+- **Auto-Cleanup**: Containers removed after completion
+- **Per-User Isolation**: Separate containers for multi-user environments
+
+### Quick Start
+```bash
+# Basic containerized solve
+solve https://github.com/owner/repo/issues/123 --containerize
+
+# Custom resource limits
+solve https://github.com/owner/repo/issues/123 \
+  --containerize \
+  --container-cpu 1.0 \
+  --container-memory 1g \
+  --container-disk 20g
+
+# Hive with containerized workers
+hive https://github.com/owner/repo \
+  --containerize \
+  --container-cpu 0.5 \
+  --container-memory 512m \
+  --concurrency 4
+```
+
+**Requirements**: Docker installed and running
+**Documentation**: See [docs/containerization.md](./docs/containerization.md)
 
 ## 📋 Core Components
 
@@ -197,6 +236,14 @@ solve <issue-url> [options]
                         [default: true]
   --auto-cleanup        Delete temp directory on completion
                         [default: true for private repos, false for public repos]
+  --containerize        Run job in isolated Docker container  [default: false]
+  --container-cpu       CPU limit for container (e.g., "1.0", "2.0")
+                        [default: "2.0"]
+  --container-memory    Memory limit for container (e.g., "1g", "2g")
+                        [default: "2g"]
+  --container-disk      Disk limit for container (e.g., "10g", "50g")
+                        [default: "50g"]
+  --container-user-id   User ID for per-user container isolation
   --version             Show version number
   --help, -h            Show help
 ```
@@ -242,6 +289,13 @@ hive <github-url> [options]
                         [default: true]
   --watch, -w           Monitor for feedback and auto-restart  [default: false]
   --issue-order, -o     Order issues by date (asc, desc)     [default: asc]
+  --containerize        Run jobs in isolated Docker containers [default: false]
+  --container-cpu       CPU limit for containers (e.g., "1.0", "2.0")
+                        [default: "2.0"]
+  --container-memory    Memory limit for containers (e.g., "1g", "2g")
+                        [default: "2g"]
+  --container-disk      Disk limit for containers (e.g., "10g", "50g")
+                        [default: "50g"]
   --version             Show version number
   --help, -h            Show help
 ```

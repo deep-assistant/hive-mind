@@ -191,6 +191,31 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['claude', 'opencode'],
       default: 'claude'
     })
+    .option('containerize', {
+      type: 'boolean',
+      description: 'Run the job in an isolated Docker container for enhanced security',
+      default: false
+    })
+    .option('container-cpu', {
+      type: 'string',
+      description: 'CPU limit for container (e.g., "1.0" for 1 core, "2.0" for 2 cores)',
+      default: '2.0'
+    })
+    .option('container-memory', {
+      type: 'string',
+      description: 'Memory limit for container (e.g., "1g" for 1GB, "2g" for 2GB)',
+      default: '2g'
+    })
+    .option('container-disk', {
+      type: 'string',
+      description: 'Disk limit for container (e.g., "10g" for 10GB, "50g" for 50GB)',
+      default: '50g'
+    })
+    .option('container-user-id', {
+      type: 'string',
+      description: 'User ID for per-user container isolation (useful for multi-user environments)',
+      default: undefined
+    })
     .parserConfiguration({
       'boolean-negation': true
     })
