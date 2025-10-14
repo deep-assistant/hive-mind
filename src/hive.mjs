@@ -16,21 +16,29 @@ if (earlyArgs.includes('--version')) {
   process.exit(0);
 }
 if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
-  // Load minimal modules needed for help
-  const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-  globalThis.use = use;
-  const yargsModule = await use('yargs@17.7.2');
-  const yargs = yargsModule.default || yargsModule;
-  const { hideBin } = await use('yargs@17.7.2/helpers');
-  const rawArgs = hideBin(process.argv);
+  try {
+    // Load minimal modules needed for help
+    const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
+    globalThis.use = use;
+    const yargsModule = await use('yargs@17.7.2');
+    const yargs = yargsModule.default || yargsModule;
+    const { hideBin } = await use('yargs@17.7.2/helpers');
+    const rawArgs = hideBin(process.argv);
 
-  // Reuse createYargsConfig from shared module to avoid duplication
-  const { createYargsConfig } = await import('./hive.config.lib.mjs');
-  const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
+    // Reuse createYargsConfig from shared module to avoid duplication
+    const { createYargsConfig } = await import('./hive.config.lib.mjs');
+    const helpYargs = createYargsConfig(yargs(rawArgs)).version(false);
 
-  // Show help and exit
-  helpYargs.showHelp();
-  process.exit(0);
+    // Show help and exit
+    helpYargs.showHelp();
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error: Failed to load help information');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 // Import fileURLToPath for the execution check below
@@ -43,9 +51,20 @@ export { createYargsConfig } from './hive.config.lib.mjs';
 // This prevents heavy module loading when hive.mjs is imported by other modules
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
+// Wrap the entire main block in a try-catch to prevent silent failures
+try {
+
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  try {
+    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  } catch (error) {
+    console.error('❌ Fatal error: Failed to load dependencies');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 // Use command-stream for consistent $ behavior across runtimes
@@ -1251,4 +1270,18 @@ try {
   await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
   await safeExit(1, 'Error occurred');
 }
+
+} catch (fatalError) {
+  // Handle any errors that occurred during initialization or execution
+  // This prevents silent failures when the script hangs or crashes
+  console.error('\n❌ Fatal error occurred during hive initialization or execution');
+  console.error(`   ${fatalError.message || fatalError}`);
+  if (fatalError.stack) {
+    console.error('\nStack trace:');
+    console.error(fatalError.stack);
+  }
+  console.error('\nPlease report this issue at: https://github.com/deep-assistant/hive-mind/issues');
+  process.exit(1);
+}
+
 } // End of main execution block

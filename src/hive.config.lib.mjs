@@ -5,11 +5,10 @@
 
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
-    .command('$0 <github-url>', 'Monitor GitHub issues and create PRs', (yargs) => {
+    .command('$0 [github-url]', 'Monitor GitHub issues and create PRs', (yargs) => {
       yargs.positional('github-url', {
         type: 'string',
-        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)',
-        demandOption: true
+        description: 'GitHub organization, repository, or user URL to monitor (or GitHub repo URL when using --youtrack-mode)'
       });
     })
     .usage('Usage: $0 <github-url> [options]')
@@ -189,9 +188,13 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['asc', 'desc']
     })
     .parserConfiguration({
-      'boolean-negation': true
+      'boolean-negation': true,
+      'strip-dashed': false,
+      'strip-aliased': false,
+      'populate--': false
     })
-    .strict() // Enable strict mode to reject unknown options (issue #453, #482)
+    // Note: .strict() mode disabled to allow flexible URL formats like github.com/owner (issue #504)
+    // Unknown options will still be validated by our custom error handling
     .help('h')
     .alias('h', 'help');
 };
