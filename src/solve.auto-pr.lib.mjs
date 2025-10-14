@@ -498,16 +498,23 @@ ${prBody}`, { verbose: true });
           const prBodyFile = `/tmp/pr-body-${Date.now()}.md`;
           await fs.writeFile(prBodyFile, prBody);
 
+          // Write PR title to temp file to avoid shell escaping issues with quotes/apostrophes
+          // This solves the issue where titles containing apostrophes (e.g., "don't") would cause
+          // "Unterminated quoted string" errors
+          const prTitle = `[WIP] ${issueTitle}`;
+          const prTitleFile = `/tmp/pr-title-${Date.now()}.txt`;
+          await fs.writeFile(prTitleFile, prTitle);
+
           // Build command with optional assignee and handle forks
           // Note: targetBranch is already defined above
-          // IMPORTANT: Use single quotes around the title to avoid shell parsing issues with special characters
+          // IMPORTANT: Use --title-file instead of --title to avoid shell parsing issues with special characters
           let command;
           if (argv.fork && forkedRepo) {
             // For forks, specify the full head reference
             const forkUser = forkedRepo.split('/')[0];
-            command = `cd "${tempDir}" && gh pr create --draft --title '[WIP] ${issueTitle}' --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+            command = `cd "${tempDir}" && gh pr create --draft --title "$(cat '${prTitleFile}')" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
           } else {
-            command = `cd "${tempDir}" && gh pr create --draft --title '[WIP] ${issueTitle}' --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
+            command = `cd "${tempDir}" && gh pr create --draft --title "$(cat '${prTitleFile}')" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
           }
           // Only add assignee if user has permissions
           if (currentUser && canAssign) {
@@ -520,11 +527,18 @@ ${prBody}`, { verbose: true });
 
           const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
 
-          // Clean up temp file
+          // Clean up temp files
           await fs.unlink(prBodyFile).catch((unlinkError) => {
             reportError(unlinkError, {
               context: 'pr_body_file_cleanup',
               prBodyFile,
+              operation: 'delete_temp_file'
+            });
+          });
+          await fs.unlink(prTitleFile).catch((unlinkError) => {
+            reportError(unlinkError, {
+              context: 'pr_title_file_cleanup',
+              prTitleFile,
               operation: 'delete_temp_file'
             });
           });
