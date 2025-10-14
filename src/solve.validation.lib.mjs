@@ -229,6 +229,14 @@ export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, 
         await log('❌ Cannot proceed without OpenCode connection', { level: 'error' });
         return false;
       }
+    } else if (argv.tool === 'copilot') {
+      // Validate Copilot connection
+      const copilotLib = await import('./copilot.lib.mjs');
+      isToolConnected = await copilotLib.validateCopilotConnection(model);
+      if (!isToolConnected) {
+        await log('❌ Cannot proceed without Copilot connection', { level: 'error' });
+        return false;
+      }
     } else {
       // Validate Claude CLI connection (default)
       const isClaudeConnected = await validateClaudeConnection(model);

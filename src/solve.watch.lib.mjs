@@ -265,6 +265,34 @@ export const watchForFeedback = async (params) => {
             opencodePath,
             $
           });
+        } else if (argv.tool === 'copilot') {
+          // Use Copilot
+          const copilotExecLib = await import('./copilot.lib.mjs');
+          const { executeCopilot } = copilotExecLib;
+
+          // Get copilot path
+          const copilotPath = argv.copilotPath || 'copilot';
+
+          toolResult = await executeCopilot({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            owner,
+            repo,
+            argv,
+            log,
+            formatAligned,
+            getResourceSnapshot,
+            copilotPath,
+            $
+          });
         } else {
           // Use Claude (default)
           const claudeExecLib = await import('./claude.lib.mjs');

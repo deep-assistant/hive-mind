@@ -109,6 +109,9 @@ let checkForUncommittedChanges;
 if (argv.tool === 'opencode') {
   const opencodeLib = await import('./opencode.lib.mjs');
   checkForUncommittedChanges = opencodeLib.checkForUncommittedChanges;
+} else if (argv.tool === 'copilot') {
+  const copilotLib = await import('./copilot.lib.mjs');
+  checkForUncommittedChanges = copilotLib.checkForUncommittedChanges;
 } else {
   checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
 }
@@ -695,6 +698,34 @@ try {
       formatAligned,
       getResourceSnapshot,
       opencodePath,
+      $
+    });
+  } else if (argv.tool === 'copilot') {
+    const copilotLib = await import('./copilot.lib.mjs');
+    const { executeCopilot } = copilotLib;
+    const copilotPath = process.env.COPILOT_PATH || 'copilot';
+
+    toolResult = await executeCopilot({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      copilotPath,
       $
     });
   } else {
