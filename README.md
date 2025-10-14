@@ -190,6 +190,8 @@ solve <issue-url> [options]
                         [default: false]
   --watch, -w           Monitor for feedback and auto-restart [default: false]
   --watch-interval      Feedback check interval (seconds)    [default: 60]
+  --auto-delete-branch-on-merge  Auto-delete branch after PR merge (watch mode only)
+                        [default: false]
   --min-disk-space      Minimum disk space in MB             [default: 500]
   --log-dir, -l         Directory for log files              [default: cwd]
   --think               Thinking level (low, medium, high, max)  [optional]

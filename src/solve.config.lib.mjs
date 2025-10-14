@@ -144,6 +144,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Interval in seconds for checking feedback in watch mode (default: 60)',
       default: 60
     })
+    .option('auto-delete-branch-on-merge', {
+      type: 'boolean',
+      description: 'Automatically delete the branch after the pull request is merged (only in watch mode)',
+      default: false
+    })
     .option('min-disk-space', {
       type: 'number',
       description: 'Minimum required disk space in MB (default: 500)',
