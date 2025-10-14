@@ -78,6 +78,11 @@ export const createYargsConfig = (yargsInstance) => {
       alias: 'f',
       default: false
     })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repositories without write access (fails for private repos)',
+      default: false
+    })
     .option('attach-logs', {
       type: 'boolean',
       description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
