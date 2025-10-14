@@ -211,24 +211,8 @@ global.repo = repo;
 // Handle --auto-fork option: automatically fork public repositories without write access
 if (argv.autoFork && !argv.fork) {
   const { detectRepositoryVisibility } = githubLib;
-  const { isPublic } = await detectRepositoryVisibility(owner, repo);
 
-  if (!isPublic) {
-    await log('');
-    await log('❌ --auto-fork failed: Repository is private', { level: 'error' });
-    await log('');
-    await log('   🔍 What happened:', { level: 'error' });
-    await log(`      Repository ${owner}/${repo} is private`, { level: 'error' });
-    await log('      --auto-fork only works with public repositories', { level: 'error' });
-    await log('');
-    await log('   💡 Solutions:', { level: 'error' });
-    await log('      • Use --fork flag instead (works for both public and private repos)', { level: 'error' });
-    await log('      • Request collaborator access to work directly on the repo', { level: 'error' });
-    await log('');
-    await safeExit(1, 'Auto-fork failed - private repository');
-  }
-
-  // Check if we have write access
+  // Check if we have write access first
   await log('🔍 Checking repository access for auto-fork...');
   const permResult = await $`gh api repos/${owner}/${repo} --jq .permissions`;
 
@@ -237,16 +221,57 @@ if (argv.autoFork && !argv.fork) {
     const hasWriteAccess = permissions.push === true || permissions.admin === true || permissions.maintain === true;
 
     if (!hasWriteAccess) {
-      // No write access to public repo - automatically enable fork mode
+      // No write access - check if repository is public before enabling fork mode
+      const { isPublic } = await detectRepositoryVisibility(owner, repo);
+
+      if (!isPublic) {
+        // Private repository without write access - cannot fork
+        await log('');
+        await log('❌ --auto-fork failed: Repository is private and you don\'t have write access', { level: 'error' });
+        await log('');
+        await log('   🔍 What happened:', { level: 'error' });
+        await log(`      Repository ${owner}/${repo} is private`, { level: 'error' });
+        await log('      You don\'t have write access to this repository', { level: 'error' });
+        await log('      --auto-fork cannot create a fork of a private repository you cannot access', { level: 'error' });
+        await log('');
+        await log('   💡 Solution:', { level: 'error' });
+        await log('      • Request collaborator access from the repository owner', { level: 'error' });
+        await log(`        https://github.com/${owner}/${repo}/settings/access`, { level: 'error' });
+        await log('');
+        await safeExit(1, 'Auto-fork failed - private repository without access');
+      }
+
+      // Public repository without write access - automatically enable fork mode
       await log('✅ Auto-fork: No write access detected, enabling fork mode');
       argv.fork = true;
     } else {
-      // Has write access - work directly on the repo
-      await log('✅ Auto-fork: Write access detected, working directly on repository');
+      // Has write access - work directly on the repo (works for both public and private repos)
+      const { isPublic } = await detectRepositoryVisibility(owner, repo);
+      await log(`✅ Auto-fork: Write access detected to ${isPublic ? 'public' : 'private'} repository, working directly on repository`);
     }
   } else {
-    // Could not check permissions - assume no access and fork
-    await log('⚠️  Auto-fork: Could not check permissions, enabling fork mode');
+    // Could not check permissions - assume no access and try to fork if public
+    const { isPublic } = await detectRepositoryVisibility(owner, repo);
+
+    if (!isPublic) {
+      // Cannot determine permissions for private repo - fail safely
+      await log('');
+      await log('❌ --auto-fork failed: Could not verify permissions for private repository', { level: 'error' });
+      await log('');
+      await log('   🔍 What happened:', { level: 'error' });
+      await log(`      Repository ${owner}/${repo} is private`, { level: 'error' });
+      await log('      Could not check your permissions to this repository', { level: 'error' });
+      await log('');
+      await log('   💡 Solutions:', { level: 'error' });
+      await log('      • Check your GitHub CLI authentication: gh auth status', { level: 'error' });
+      await log('      • Request collaborator access if you don\'t have it yet', { level: 'error' });
+      await log(`        https://github.com/${owner}/${repo}/settings/access`, { level: 'error' });
+      await log('');
+      await safeExit(1, 'Auto-fork failed - cannot verify private repository permissions');
+    }
+
+    // Public repository but couldn't check permissions - assume no access and fork
+    await log('⚠️  Auto-fork: Could not check permissions, enabling fork mode for public repository');
     argv.fork = true;
   }
 }
