@@ -141,6 +141,10 @@ review --repo owner/repo --pr 456
 
 # Multiple AI reviewers for consensus
 ./reviewers-hive.mjs --agents 3 --consensus-threshold 0.8
+
+# Clean up screen sessions by pattern
+clean-screens "solve-*" --dry-run
+clean-screens "solve-deep-assistant-hive-mind-*" --force
 ```
 
 ## 📋 Core Components
@@ -149,6 +153,7 @@ review --repo owner/repo --pr 456
 |--------|---------|--------------|
 | `solve.mjs` (stable) | GitHub issue solver | Auto fork, branch creation, PR generation, resume sessions, fork support |
 | `hive.mjs` (stable) | AI orchestration & monitoring | Multi-repo monitoring, concurrent workers, issue queue management |
+| `clean-screens.mjs` (stable) | Screen session cleanup | Pattern-based session filtering, dry-run mode, force kill |
 | `review.mjs` (alpha) | Code review automation | Collaborative AI reviews, automated feedback |
 | `reviewers-hive.mjs` (alpha / experimental) | Review team management | Multi-agent consensus, reviewer assignment |
 | `telegram-bot.mjs` (stable) | Telegram bot interface | Remote command execution, group chat support, diagnostic tools |
@@ -246,6 +251,28 @@ hive <github-url> [options]
   --help, -h            Show help
 ```
 
+## 🧹 clean-screens Options
+```bash
+clean-screens <pattern> [options]
+
+  pattern               Pattern to match screen session names (shell glob pattern)
+                        Examples: "solve-*", "hive-*", "solve-deep-assistant-*"
+  -n, --dry-run         Show what would be killed without actually killing
+                        [default: false]
+  -f, --force           Force kill sessions without confirmation
+                        [default: false]
+  -v, --verbose         Show detailed output                [default: false]
+  -h, --help            Show help
+
+Examples:
+  clean-screens "solve-deep-assistant-hive-mind-*"  # Kill all solve sessions for hive-mind repo
+  clean-screens "solve-*" --dry-run                # Preview what would be killed
+  clean-screens "hive-*" --force                   # Force kill all hive sessions
+  clean-screens "*" --force                        # Kill ALL screen sessions (use with caution!)
+```
+
+**Note:** The `clean-screens` command helps reduce RAM usage (including swap) by terminating old screen sessions that are no longer needed. This is especially useful on virtual machines with limited resources where multiple solve/hive sessions can accumulate over time.
+
 ## 🤖 Telegram Bot
 
 The Hive Mind includes a Telegram bot interface (SwarmMindBot) for remote command execution.
@@ -303,6 +330,16 @@ Examples:
 /hive https://github.com/owner/repo
 /hive https://github.com/owner/repo --all-issues --max-issues 10
 /hive https://github.com/microsoft --all-issues --concurrency 3
+```
+
+#### `/clean_screens` - Clean Screen Sessions
+```
+/clean_screens <pattern> [options]
+
+Examples:
+/clean_screens "solve-*" --dry-run
+/clean_screens "solve-deep-assistant-hive-mind-*" --force
+/clean_screens "hive-*" --force
 ```
 
 #### `/help` - Get Help and Diagnostic Info

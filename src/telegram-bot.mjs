@@ -581,8 +581,12 @@ bot.command('help', async (ctx) => {
     message += '*/hive* - ❌ Disabled\n\n';
   }
 
+  message += '*/clean-screens* - Clean screen sessions by pattern\n';
+  message += 'Usage: `/clean-screens <pattern> [--dry-run] [--force]`\n';
+  message += 'Example: `/clean-screens "solve-*" --dry-run`\n\n';
+
   message += '*/help* - Show this help message\n\n';
-  message += '⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n';
+  message += '⚠️ *Note:* /solve, /hive, and /clean-screens commands only work in group chats.\n\n';
   message += '🔧 *Available Options:*\n';
   message += '• `--fork` - Fork the repository\n';
   message += '• `--auto-fork` - Automatically fork public repos without write access\n';
@@ -831,6 +835,84 @@ bot.command('hive', async (ctx) => {
   } else {
     let response = '❌ Error executing hive command:\n\n';
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
+    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+  }
+});
+
+bot.command('clean_screens', async (ctx) => {
+  if (VERBOSE) {
+    console.log('[VERBOSE] /clean_screens command received');
+  }
+
+  // Ignore messages sent before bot started
+  if (isOldMessage(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /clean_screens ignored: old message');
+    }
+    return;
+  }
+
+  // Ignore forwarded or reply messages
+  if (isForwardedOrReply(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /clean_screens ignored: forwarded or reply');
+    }
+    return;
+  }
+
+  if (!isGroupChat(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /clean_screens ignored: not a group chat');
+    }
+    await ctx.reply('❌ The /clean_screens command only works in group chats. Please add this bot to a group and make it an admin.', { reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  const chatId = ctx.chat.id;
+  if (!isChatAuthorized(chatId)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /clean_screens ignored: chat not authorized');
+    }
+    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`, { reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] /clean_screens passed all checks, executing...');
+  }
+
+  const userArgs = parseCommandArgs(ctx.message.text);
+
+  if (userArgs.length === 0) {
+    await ctx.reply('❌ Missing pattern. Usage: `/clean_screens <pattern> [--dry-run] [--force]`\n\nExample: `/clean_screens "solve-*" --dry-run`', { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
+  let statusMsg = `🧹 Starting clean-screens command...\nRequested by: ${requester}\nPattern: ${userArgs[0]}\nOptions: ${userArgs.slice(1).join(' ') || 'none'}`;
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+
+  try {
+    // Execute clean-screens command directly
+    const { stdout, stderr } = await exec(`clean-screens ${userArgs.map(arg => `'${arg.replace(/'/g, "'\\''")}'`).join(' ')}`);
+
+    if (stdout) {
+      let response = '✅ Clean-screens command completed!\n\n';
+      response += '```\n' + stdout.trim() + '\n```';
+      await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    } else {
+      await ctx.reply('✅ Clean-screens command completed (no output)', { reply_to_message_id: ctx.message.message_id });
+    }
+  } catch (error) {
+    let response = '❌ Error executing clean-screens command:\n\n';
+    if (error.stdout) {
+      response += '```\n' + error.stdout.trim() + '\n```\n\n';
+    }
+    if (error.stderr) {
+      response += 'Error: ```\n' + error.stderr.trim() + '\n```';
+    } else {
+      response += '```\n' + error.message + '\n```';
+    }
     await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   }
 });
