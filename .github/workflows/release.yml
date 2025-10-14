@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow creating releases
+      pull-requests: write  # Allow creating PRs
+      packages: write  # Allow publishing packages
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Make scripts executable
+        run: |
+          chmod +x src/hive.mjs
+          chmod +x src/solve.mjs
+          chmod +x src/task.mjs
+          chmod +x src/review.mjs
+          chmod +x src/start-screen.mjs
+          chmod +x src/telegram-bot.mjs
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npm run release
+          title: "Version Packages"
+          commit: "Version Packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Upload Source Maps to Sentry
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          PUBLISHED_PACKAGES='${{ steps.changesets.outputs.publishedPackages }}'
+          if [ -n "$PUBLISHED_PACKAGES" ] && [ "$PUBLISHED_PACKAGES" != "[]" ]; then
+            VERSION=$(echo "$PUBLISHED_PACKAGES" | node -e "const packages = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(packages[0]?.version || '')")
+            if [ -n "$VERSION" ]; then
+              echo "📤 Uploading source maps to Sentry for version $VERSION"
+              chmod +x scripts/upload-sourcemaps.mjs
+              node scripts/upload-sourcemaps.mjs
+            fi
+          fi
