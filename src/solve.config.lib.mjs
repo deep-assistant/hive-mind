@@ -27,7 +27,7 @@ export const createYargsConfig = (yargsInstance) => {
         description: 'The GitHub issue URL to solve'
       });
     })
-    .fail((msg, err, yargs) => {
+    .fail((msg, err, _yargs) => {
       // Custom fail handler to suppress yargs error output
       // Errors will be handled in the parseArguments catch block
       if (err) throw err; // Rethrow actual errors
