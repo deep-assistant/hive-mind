@@ -406,6 +406,54 @@ jobs:
         echo "✅ solve.mjs executes without critical errors"
         timeout 10s ./src/solve.mjs --version || true
 
+    - name: Verify log files contain version and command (Issue #517)
+      run: |
+        echo "Testing that log files contain version and command at the start..."
+        # Run solve with dry-run and capture log file location
+        timeout 30s ./src/solve.mjs "https://github.com/test/repo/issues/1" --dry-run --skip-tool-check 2>&1 | tee test-log-output.txt || true
+
+        # Extract log file path from output
+        LOG_FILE=$(grep -o "solve-[0-9-]*Z\.log" test-log-output.txt | head -1)
+
+        if [ -z "$LOG_FILE" ]; then
+          echo "⚠️  Could not find log file path in output"
+          cat test-log-output.txt
+          exit 1
+        fi
+
+        echo "Log file: $LOG_FILE"
+
+        if [ ! -f "$LOG_FILE" ]; then
+          echo "❌ Log file not found: $LOG_FILE"
+          ls -la solve-*.log || echo "No solve log files found"
+          exit 1
+        fi
+
+        echo ""
+        echo "Checking log file contents..."
+        head -30 "$LOG_FILE"
+
+        echo ""
+        echo "Verifying version appears in log..."
+        if grep -q "🚀 solve v" "$LOG_FILE"; then
+          echo "✅ Version found in log file"
+        else
+          echo "❌ Version NOT found in log file"
+          exit 1
+        fi
+
+        echo ""
+        echo "Verifying command appears in log..."
+        if grep -q "🔧 Raw command executed:" "$LOG_FILE"; then
+          echo "✅ Command found in log file"
+        else
+          echo "❌ Command NOT found in log file"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ Log file verification passed - version and command are present"
+
     - name: Test hive.mjs execution
       run: |
         echo "Testing hive.mjs basic execution..."

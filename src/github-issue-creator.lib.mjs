@@ -141,7 +141,7 @@ export const createIssueForError = async (options) => {
   try {
     const currentUser = await getCurrentGitHubUser();
     if (!currentUser) {
-      await log('⚠️  Could not determine GitHub user. Cannot create issue.', { level: 'warning' });
+      await log('⚠️  Could not determine GitHub user. Cannot create error report issue.', { level: 'warning' });
       return null;
     }
 
