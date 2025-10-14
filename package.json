@@ -15,7 +15,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs",
-    "lint:fix": "eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs --fix"
+    "lint:fix": "eslint src/hive.mjs src/solve.mjs src/solve.*.lib.mjs src/lib.mjs src/claude.lib.mjs src/github.lib.mjs src/memory-check.mjs --fix",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "repository": {
     "type": "git",
@@ -43,6 +46,7 @@
     "*.md"
   ],
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
     "@eslint/js": "^9.35.0",
     "eslint": "^9.35.0"
   },
