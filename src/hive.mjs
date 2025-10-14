@@ -192,9 +192,9 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     // First, get list of repositories
     let repoListCmd;
     if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner,isArchived`;
     } else {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner,isArchived`;
     }
 
     await log('   📋 Fetching repository list...', { verbose: true });
@@ -204,9 +204,19 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
-    const repositories = JSON.parse(repoOutput || '[]');
+    const allRepositories = JSON.parse(repoOutput || '[]');
 
-    await log(`   📊 Found ${repositories.length} repositories`);
+    await log(`   📊 Found ${allRepositories.length} repositories`);
+
+    // Filter out archived repositories
+    const repositories = allRepositories.filter(repo => !repo.isArchived);
+    const archivedCount = allRepositories.length - repositories.length;
+
+    if (archivedCount > 0) {
+      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`);
+    }
+
+    await log(`   ✅ Processing ${repositories.length} non-archived repositories`);
 
     let collectedIssues = [];
     let processedRepos = 0;
