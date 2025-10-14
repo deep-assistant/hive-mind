@@ -109,6 +109,46 @@ runTest('task.mjs -h', () => {
   }
 });
 
+// Test 6: Check --split option in help
+runTest('task.mjs --help shows --split', () => {
+  const output = execCommand(`${taskPath} --help 2>&1`);
+
+  if (!output.includes('--split')) {
+    throw new Error('--help should show --split option');
+  }
+
+  if (!output.includes('--split-count')) {
+    throw new Error('--help should show --split-count option');
+  }
+});
+
+// Test 7: Check --split with --only-clarify mutual exclusivity
+runTest('task.mjs --split with --only-clarify fails', () => {
+  const output = execCommand(`${taskPath} "test task" --split --only-clarify 2>&1`);
+
+  if (!output.includes('Cannot use --split with --only-clarify')) {
+    throw new Error('Should reject --split with --only-clarify');
+  }
+});
+
+// Test 8: Check --split with --only-decompose mutual exclusivity
+runTest('task.mjs --split with --only-decompose fails', () => {
+  const output = execCommand(`${taskPath} "test task" --split --only-decompose 2>&1`);
+
+  if (!output.includes('Cannot use --split with')) {
+    throw new Error('Should reject --split with --only-decompose');
+  }
+});
+
+// Test 9: Check --split-count validation (must be at least 2)
+runTest('task.mjs --split-count validation', () => {
+  const output = execCommand(`${taskPath} "test task" --split --split-count 1 2>&1`);
+
+  if (!output.includes('--split-count must be at least 2')) {
+    throw new Error('Should reject --split-count less than 2');
+  }
+});
+
 // Print summary
 console.log('\n' + '='.repeat(50));
 console.log(`Test Results: ${testsPassed} passed, ${testsFailed} failed`);

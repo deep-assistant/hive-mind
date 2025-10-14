@@ -25,6 +25,8 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   console.log('  --decompose        Enable decomposition mode [default: true]');
   console.log('  --only-clarify     Only run clarification mode');
   console.log('  --only-decompose   Only run decomposition mode');
+  console.log('  --split            Enable split mode (split task into smaller tasks)');
+  console.log('  --split-count      Number of tasks to split into [default: 2]');
   console.log('  --model, -m        Model to use (opus, sonnet, or full model ID) [default: sonnet]');
   console.log('  --verbose, -v      Enable verbose logging');
   console.log('  --output-format    Output format (text or json) [default: text]');
@@ -106,8 +108,18 @@ const argv = yargs()
   })
   .option('only-decompose', {
     type: 'boolean',
-    description: 'Only run decomposition mode, skip clarification',  
+    description: 'Only run decomposition mode, skip clarification',
     default: false
+  })
+  .option('split', {
+    type: 'boolean',
+    description: 'Enable split mode (split task into smaller tasks)',
+    default: false
+  })
+  .option('split-count', {
+    type: 'number',
+    description: 'Number of tasks to split into (used with --split)',
+    default: 2
   })
   .option('model', {
     type: 'string',
@@ -133,22 +145,38 @@ const argv = yargs()
     if (!argv._[0]) {
       throw new Error('Please provide a task description');
     }
-    
+
     // Handle mutual exclusivity of only-clarify and only-decompose
     if (argv['only-clarify'] && argv['only-decompose']) {
       throw new Error('Cannot use both --only-clarify and --only-decompose at the same time');
     }
-    
+
+    // Handle mutual exclusivity of split mode with clarify/decompose modes
+    if (argv.split && (argv['only-clarify'] || argv['only-decompose'])) {
+      throw new Error('Cannot use --split with --only-clarify or --only-decompose');
+    }
+
+    // Validate split-count (only when actually using split mode)
+    if (argv.split && argv['split-count'] < 2) {
+      throw new Error('--split-count must be at least 2');
+    }
+
     // If only-clarify is set, disable decompose
     if (argv['only-clarify']) {
       argv.decompose = false;
     }
-    
+
     // If only-decompose is set, disable clarify
     if (argv['only-decompose']) {
       argv.clarify = false;
     }
-    
+
+    // If split is set, disable clarify and decompose
+    if (argv.split) {
+      argv.clarify = false;
+      argv.decompose = false;
+    }
+
     return true;
   })
   .parserConfiguration({
@@ -156,9 +184,10 @@ const argv = yargs()
   })
   .help()
   .alias('h', 'help')
-  // Use yargs built-in strict mode to reject unrecognized options
+  // Use strictOptions instead of strict to reject unrecognized options but allow positional arguments
   // This prevents issues like #453 and #482 where unknown options are silently ignored
-  .strict()
+  // while still allowing task description as positional argument
+  .strictOptions()
   .parse(process.argv.slice(2));
 
 const taskDescription = argv._[0];
@@ -189,6 +218,7 @@ await log(formatAligned('📝', 'Task description:', taskDescription));
 await log(formatAligned('🤖', 'Model:', argv.model));
 await log(formatAligned('💡', 'Clarify mode:', argv.clarify ? 'enabled' : 'disabled'));
 await log(formatAligned('🔍', 'Decompose mode:', argv.decompose ? 'enabled' : 'disabled'));
+await log(formatAligned('✂️', 'Split mode:', argv.split ? `enabled (count: ${argv.splitCount})` : 'disabled'));
 await log(formatAligned('📄', 'Output format:', argv.outputFormat));
 
 const claudePath = process.env.CLAUDE_PATH || 'claude';
@@ -240,7 +270,8 @@ try {
     task: taskDescription,
     timestamp: new Date().toISOString(),
     clarification: null,
-    decomposition: null
+    decomposition: null,
+    split: null
   };
 
   // Phase 1: Clarification
@@ -298,6 +329,44 @@ Provide your response as a structured breakdown that someone could use as a impl
     await log(`\n✅ Decomposition phase completed`);
   }
 
+  // Phase 3: Split Mode
+  if (argv.split) {
+    await log(`\n✂️ Phase 3: Task Split Mode`);
+    await log(`   Splitting task into ${argv.splitCount} smaller tasks...`);
+
+    const splitPrompt = `Task: "${taskDescription}"
+
+Please split this task into exactly ${argv.splitCount} smaller, independent tasks that together accomplish the original goal.
+
+For each smaller task:
+1. Give it a clear, descriptive name
+2. Define its specific objective
+3. Specify what deliverables/outputs it should produce
+4. Identify any dependencies on other subtasks (if applicable)
+5. Estimate the complexity level (simple/medium/complex)
+
+Guidelines:
+- Each task should be independently actionable and completable
+- Tasks should be roughly equal in scope/effort when possible
+- Together, all tasks should cover the full scope of the original task
+- Minimize dependencies between tasks to enable parallel work
+- Each task should have clear success criteria
+
+Format your response as a structured list of ${argv.splitCount} tasks, making it easy to assign each to a different person or agent.`;
+
+    const splitOutput = await executeClaude(splitPrompt, argv.model);
+    if (!argv.verbose) {
+      console.log('\n✂️ Split Results:');
+      console.log(splitOutput);
+    }
+
+    results.split = {
+      count: argv.splitCount,
+      tasks: splitOutput
+    };
+    await log(`\n✅ Split phase completed - created ${argv.splitCount} tasks`);
+  }
+
   // Output results
   if (argv.outputFormat === 'json') {
     console.log('\n' + JSON.stringify(results, null, 2));
@@ -305,7 +374,7 @@ Provide your response as a structured breakdown that someone could use as a impl
 
   await log(`\n🎉 Task processing completed successfully`);
   await log(`💡 Review the session log for details: ${logFile}`);
-  
+
 } catch (error) {
   await log(`❌ Error processing task: ${error.message}`, { level: 'error' });
   process.exit(1);
