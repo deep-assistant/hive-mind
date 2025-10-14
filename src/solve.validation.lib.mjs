@@ -238,14 +238,16 @@ export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, 
       }
       isToolConnected = true;
     }
+
+    // Check GitHub permissions (only when tool check is not skipped)
+    // Skip in dry-run mode to allow CI tests without authentication
+    const hasValidAuth = await checkGitHubPermissions();
+    if (!hasValidAuth) {
+      return false;
+    }
   } else {
     await log('⏩ Skipping tool validation (dry-run mode)', { verbose: true });
-  }
-
-  // Check GitHub permissions
-  const hasValidAuth = await checkGitHubPermissions();
-  if (!hasValidAuth) {
-    return false;
+    await log('⏩ Skipping GitHub authentication check (dry-run mode)', { verbose: true });
   }
 
   return true;

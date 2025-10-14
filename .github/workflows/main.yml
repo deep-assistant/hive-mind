@@ -412,8 +412,8 @@ jobs:
         # Run solve with dry-run and capture log file location
         timeout 30s ./src/solve.mjs "https://github.com/test/repo/issues/1" --dry-run --skip-tool-check 2>&1 | tee test-log-output.txt || true
 
-        # Extract log file path from output
-        LOG_FILE=$(grep -o "solve-[0-9-]*Z\.log" test-log-output.txt | head -1)
+        # Extract log file path from output (pattern includes T for timestamp format)
+        LOG_FILE=$(grep -o "solve-[0-9T-]*Z\.log" test-log-output.txt | head -1)
 
         if [ -z "$LOG_FILE" ]; then
           echo "⚠️  Could not find log file path in output"
