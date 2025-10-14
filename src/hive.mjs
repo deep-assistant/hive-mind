@@ -189,12 +189,12 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
   try {
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
 
-    // First, get list of repositories
+    // First, get list of ALL repositories (no limit to ensure we get everything)
     let repoListCmd;
     if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --limit 10000 --json name,owner`;
     } else {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --limit 10000 --json name,owner`;
     }
 
     await log('   📋 Fetching repository list...', { verbose: true });
@@ -207,6 +207,9 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     const repositories = JSON.parse(repoOutput || '[]');
 
     await log(`   📊 Found ${repositories.length} repositories`);
+    if (repositories.length === 10000) {
+      await log(`   ⚠️  Hit the 10000 repository limit - there may be more repositories available`, { level: 'warning' });
+    }
 
     let collectedIssues = [];
     let processedRepos = 0;
