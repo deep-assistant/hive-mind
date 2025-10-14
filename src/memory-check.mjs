@@ -124,36 +124,22 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + swap)
       const totalAvailable = availableMB + (swapEnabled && swapTotal > 0 ? Math.round(swapAvailable) : 0);
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + swap is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with swap
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check only total memory against the requirement
+      const success = totalAvailable >= minMemoryMB;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
-        
+        await log(`❌ Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+
         if (!swapEnabled) {
           await log('   Swap is disabled. Consider enabling swap:');
           await log('   sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.dynamic_pager.plist');
         }
-        
+
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
-      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+
+      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {
@@ -180,31 +166,17 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + page file)
       const totalAvailable = availableMB + (pageFileFreeMB || 0);
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + page file is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with page file
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check only total memory against the requirement
+      const success = totalAvailable >= minMemoryMB;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
+        await log(`❌ Insufficient memory: ${availableMB}MB available, page file: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
         await log('   Consider closing some applications or increasing virtual memory.');
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
-      await log(`🧠 Memory check: ${availableMB}MB available, page file: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+
+      await log(`🧠 Memory check: ${availableMB}MB available, page file: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {
@@ -251,26 +223,13 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
       
       // Calculate total available memory (RAM + swap)
       const totalAvailable = availableMB + swapAvailableMB;
-      
-      // Determine emoji and success based on memory scenarios
-      let emoji, success;
-      if (availableMB >= minMemoryMB) {
-        // RAM alone is sufficient
-        emoji = '✅';
-        success = true;
-      } else if (totalAvailable >= minMemoryMB) {
-        // Only RAM + swap is sufficient
-        emoji = '⚠️';
-        success = true;
-      } else {
-        // Not enough even with swap
-        emoji = '❌';
-        success = false;
-      }
-      
+
+      // Check only total memory against the requirement
+      const success = totalAvailable >= minMemoryMB;
+
       if (!success) {
-        await log(`${emoji} Insufficient memory: ${availableMB}MB available, ${minMemoryMB}MB required`);
-        
+        await log(`❌ Insufficient memory: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required)`);
+
         if (swapTotal === 0) {
           await log('   No swap configured. Consider adding swap:');
           await log('   sudo fallocate -l 2G /swapfile');
@@ -279,12 +238,11 @@ export const checkRAM = async (minMemoryMB = 256, options = {}) => {
           await log('   sudo swapon /swapfile');
           await log('   echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab');
         }
-        
+
         return { success: false, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       }
-      
-      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}`);
-      await log(`🧠 Total memory: ${totalAvailable}MB available (${minMemoryMB}MB required) ${emoji}`);
+
+      await log(`🧠 Memory check: ${availableMB}MB available, swap: ${swapInfo}, total: ${totalAvailable}MB (${minMemoryMB}MB required) ✅`);
       return { success: true, availableMB, required: minMemoryMB, swap: swapInfo, totalAvailable };
       
     } catch (error) {

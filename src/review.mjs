@@ -50,7 +50,8 @@ import * as memoryCheck from './memory-check.mjs';
 import { executeClaude, executeClaudeCommand, validateClaudeConnection } from './claude.lib.mjs';
 
 // Configure command line arguments - GitHub PR URL as positional argument
-const argv = yargs(process.argv.slice(2))
+// Use yargs().parse(args) instead of yargs(args).argv to ensure .strict() mode works
+const argv = yargs()
   .usage('Usage: $0 <pr-url> [options]')
   .positional('pr-url', {
     type: 'string',
@@ -91,9 +92,15 @@ const argv = yargs(process.argv.slice(2))
     default: false
   })
   .demandCommand(1, 'The GitHub pull request URL is required')
+  .parserConfiguration({
+    'boolean-negation': true
+  })
   .help('h')
   .alias('h', 'help')
-  .argv;
+  // Use yargs built-in strict mode to reject unrecognized options
+  // This prevents issues like #453 and #482 where unknown options are silently ignored
+  .strict()
+  .parse(process.argv.slice(2));
 
 const prUrl = argv._[0];
 
