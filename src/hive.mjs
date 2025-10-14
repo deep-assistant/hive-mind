@@ -41,15 +41,20 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
   }
 }
 
-// Import fileURLToPath for the execution check below
-import { fileURLToPath } from 'url';
-
 // Export createYargsConfig for use in telegram-bot and other modules
 export { createYargsConfig } from './hive.config.lib.mjs';
 
 // Only execute main logic if this module is being run directly (not imported)
 // This prevents heavy module loading when hive.mjs is imported by other modules
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Check if we're being executed (not imported) by looking at various indicators:
+// 1. process.argv[1] is the executed file path
+// 2. import.meta.url is this file's URL
+// 3. For global installs, argv[1] might be a symlink, so we check if it contains 'hive'
+import { fileURLToPath } from 'url';
+const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url) ||
+                          (process.argv[1] && (process.argv[1].includes('/hive') || process.argv[1].endsWith('hive')));
+
+if (isDirectExecution) {
 
 // Show immediate output BEFORE loading any dependencies to prevent silent hangs
 // This is crucial for dry-run mode and debugging
@@ -74,7 +79,13 @@ const withTimeout = (promise, timeoutMs, operation) => {
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
   try {
-    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+    // Wrap fetch in timeout to prevent hanging
+    const useMCode = await withTimeout(
+      fetch('https://unpkg.com/use-m/use.js').then(r => r.text()),
+      10000,
+      'fetching use-m library'
+    );
+    globalThis.use = (await eval(useMCode)).use;
   } catch (error) {
     console.error('❌ Fatal error: Failed to load dependencies');
     console.error(`   ${error.message}`);
