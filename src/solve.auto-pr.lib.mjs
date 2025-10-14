@@ -250,6 +250,47 @@ Issue: ${argv._[0]}`;
       if (pushResult.code !== 0) {
         const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
 
+        // Check for archived repository error
+        if (errorOutput.includes('archived') && errorOutput.includes('read-only')) {
+          await log(`\n${formatAligned('❌', 'REPOSITORY ARCHIVED:', 'Cannot push to archived repository')}`, { level: 'error' });
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          await log(`  📦 Repository ${owner}/${repo} has been archived`);
+          await log('');
+          await log('  Archived repositories are read-only and cannot accept new commits.');
+          await log('');
+          await log('  📋 WHAT THIS MEANS:');
+          await log('');
+          await log('  This repository has been archived by its owner, which means:');
+          await log('    • No new commits can be pushed');
+          await log('    • No new pull requests can be created');
+          await log('    • The repository is in read-only mode');
+          await log('    • Issues cannot be worked on');
+          await log('');
+          await log('  🔧 POSSIBLE ACTIONS:');
+          await log('');
+          await log('  Option 1: Contact the repository owner');
+          await log('  ──────────────────────────────────────');
+          await log(`  Ask the owner to unarchive the repository at:`);
+          await log(`    https://github.com/${owner}/${repo}/settings`);
+          await log('');
+          await log('  Option 2: Close the issue');
+          await log('  ──────────────────────────────────────');
+          await log('  If the repository is intentionally archived, close the issue:');
+          await log(`    gh issue close ${issueNumber} --repo ${owner}/${repo} \\`);
+          await log('      --comment "Closing as repository is archived"');
+          await log('');
+          await log('  Option 3: Fork and work independently');
+          await log('  ──────────────────────────────────────');
+          await log('  You can fork the archived repository and make changes there,');
+          await log('  but note that you cannot create a PR back to the archived repo.');
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          throw new Error('Repository is archived and read-only');
+        }
+
         // Check for permission denied error
         if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {
           // Check if user already has a fork
