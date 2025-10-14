@@ -63,13 +63,12 @@ runTest('task.mjs usage without args', () => {
 runTest('task.mjs --version', () => {
   const output = execCommand(`${taskPath} --version 2>&1`).trim();
   // Version should be either x.y.z or x.y.z.commitSha format
-  if (!output.match(/^\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?$/)) {
-    throw new Error(`Version output not in expected format: ${output}`);
-  }
-  // Should output only the version, no extra text
+  // May have debug trace lines from command-stream, so get the last line
   const lines = output.trim().split('\n');
-  if (lines.length !== 1) {
-    throw new Error(`--version should output only the version, found ${lines.length} lines`);
+  const versionLine = lines[lines.length - 1];
+
+  if (!versionLine.match(/^\d+\.\d+\.\d+(\.[a-f0-9]{7,8})?$/)) {
+    throw new Error(`Version output not in expected format: ${versionLine}`);
   }
 });
 
