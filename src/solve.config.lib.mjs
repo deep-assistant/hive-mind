@@ -63,11 +63,16 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
+      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.; for copilot: claude-sonnet-4.5, gpt-5)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
-        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+        if (currentParsedArgs?.tool === 'opencode') {
+          return 'grok-code-fast-1';
+        } else if (currentParsedArgs?.tool === 'copilot') {
+          return 'claude-sonnet-4.5';
+        }
+        return 'sonnet';
       }
     })
     .option('auto-pull-request-creation', {
@@ -188,7 +193,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
+      choices: ['claude', 'opencode', 'copilot'],
       default: 'claude'
     })
     .parserConfiguration({
@@ -236,6 +241,9 @@ export const parseArguments = async (yargs, hideBin) => {
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode
     argv.model = 'grok-code-fast-1';
+  } else if (argv.tool === 'copilot' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for copilot
+    argv.model = 'claude-sonnet-4.5';
   }
 
   return argv;
