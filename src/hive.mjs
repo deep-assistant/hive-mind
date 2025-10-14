@@ -239,23 +239,49 @@ const rawArgs = hideBin(process.argv);
 // When you use .argv, strict mode doesn't trigger properly
 // See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
 let argv;
+
+// Temporarily suppress stderr to prevent yargs from printing error messages
+// We'll handle error reporting ourselves
+const originalStderrWrite = process.stderr.write;
+let stderrBuffer = '';
+process.stderr.write = function(chunk, encoding, callback) {
+  // Capture stderr output instead of writing it
+  stderrBuffer += chunk.toString();
+  if (typeof encoding === 'function') {
+    encoding();
+  } else if (callback) {
+    callback();
+  }
+  return true;
+};
+
 try {
   argv = await createYargsConfig(yargs()).parse(rawArgs);
+  // Restore stderr if parsing succeeded
+  process.stderr.write = originalStderrWrite;
 } catch (error) {
-  // Yargs throws errors for validation issues, but we might still get a parsed object
-  // If the error is about unknown arguments (strict mode), re-throw it
-  if (error.message && error.message.includes('Unknown arguments')) {
+  // Restore stderr before handling the error
+  process.stderr.write = originalStderrWrite;
+
+  // If .strict() mode catches an unknown argument, yargs will throw an error
+  // We should fail fast for truly invalid arguments
+  if (error.message && error.message.includes('Unknown argument')) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+
+  // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
+  // This is a quirk with optional positional arguments [github-url]
+  // The error.argv object still contains the parsed arguments, so we can safely continue
+  if (error.argv) {
+    argv = error.argv;
+  } else {
+    // If there's no argv object, it's a real error - show the captured stderr
+    if (stderrBuffer) {
+      process.stderr.write(stderrBuffer);
+    }
     throw error;
   }
-  // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
-  // This appears to be a yargs quirk with command definitions
-  // The error.argv object still contains the parsed arguments, so we can safely continue
-  // Only show warning in verbose mode to avoid confusing output
-  if (error.message && !error.message.includes('Not enough arguments')) {
-    console.error('Yargs parsing warning:', error.message);
-  }
-  // Try to get the argv even with the error
-  argv = error.argv || {};
 }
 
 let githubUrl = argv['github-url'];

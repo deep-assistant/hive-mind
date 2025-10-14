@@ -13,12 +13,19 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .usage('Usage: $0 <github-url> [options]')
     .fail((msg, err, _yargs) => {
-      // Custom fail handler to suppress yargs error output
-      // Errors will be handled in the parseArguments catch block
-      if (err) throw err; // Rethrow actual errors
-      // For validation errors, throw a clean error object with the message
+      // Custom fail handler to suppress yargs' automatic error output to stderr
+      // We handle errors in the calling code's try-catch block
+      // If there's an existing error object, throw it as-is to preserve the full trace
+      if (err) {
+        throw err;
+      }
+      // For validation messages, throw them as-is without wrapping
+      // This preserves the original error and its stack trace
       const error = new Error(msg);
-      error.name = 'YargsValidationError';
+      // Preserve the original error as the cause if yargs provided one
+      if (err) {
+        error.cause = err;
+      }
       throw error;
     })
     .option('monitor-tag', {
@@ -202,6 +209,7 @@ export const createYargsConfig = (yargsInstance) => {
       'strip-aliased': false,
       'populate--': false
     })
+    .showHelpOnFail(false)  // Don't show help on validation failures
     .strict()
     .help('h')
     .alias('h', 'help');
