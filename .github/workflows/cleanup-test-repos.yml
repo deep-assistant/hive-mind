@@ -12,6 +12,8 @@ on:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.TEST_GITHUB_USER_REPO_DELETION_TOKEN }}
 
     steps:
     - name: Checkout repository
@@ -23,11 +25,7 @@ jobs:
         node-version: 20.x
 
     - name: Configure GitHub CLI authentication
-      env:
-        GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_USER_REPO_DELETION_TOKEN }}
       run: |
-        echo "$GITHUB_TOKEN" | gh auth login --with-token
-        echo ""
         echo "Checking GitHub authentication status..."
         gh auth status
         echo ""
