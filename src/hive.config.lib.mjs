@@ -177,7 +177,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('auto-continue', {
       type: 'boolean',
       description: 'Pass --auto-continue to solve for each issue (continues with existing PRs instead of creating new ones)',
-      default: false
+      default: true
     })
     .option('think', {
       type: 'string',
