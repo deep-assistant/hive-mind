@@ -51,8 +51,25 @@ export { createYargsConfig } from './hive.config.lib.mjs';
 // This prevents heavy module loading when hive.mjs is imported by other modules
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
+// Show immediate output BEFORE loading any dependencies to prevent silent hangs
+// This is crucial for dry-run mode and debugging
+console.log('🐝 Hive Mind - AI-powered issue solver');
+console.log('   Initializing...');
+
 // Wrap the entire main block in a try-catch to prevent silent failures
 try {
+
+console.log('   Loading dependencies (this may take a moment)...');
+
+// Helper function to add timeout to async operations
+const withTimeout = (promise, timeoutMs, operation) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation '${operation}' timed out after ${timeoutMs}ms. This might be due to slow network or npm configuration issues.`)), timeoutMs)
+    )
+  ]);
+};
 
 // Use use-m to dynamically import modules for cross-runtime compatibility
 if (typeof use === 'undefined') {
@@ -68,13 +85,26 @@ if (typeof use === 'undefined') {
 }
 
 // Use command-stream for consistent $ behavior across runtimes
-const { $ } = await use('command-stream');
+// Apply timeout to prevent hanging on npm operations
+const { $ } = await withTimeout(
+  use('command-stream'),
+  30000, // 30 second timeout
+  'loading command-stream'
+);
 
-const yargsModule = await use('yargs@17.7.2');
+const yargsModule = await withTimeout(
+  use('yargs@17.7.2'),
+  30000,
+  'loading yargs'
+);
 const yargs = yargsModule.default || yargsModule;
-const { hideBin } = await use('yargs@17.7.2/helpers');
-const path = (await use('path')).default;
-const fs = (await use('fs')).promises;
+const { hideBin } = await withTimeout(
+  use('yargs@17.7.2/helpers'),
+  30000,
+  'loading yargs helpers'
+);
+const path = (await withTimeout(use('path'), 30000, 'loading path')).default;
+const fs = (await withTimeout(use('fs'), 30000, 'loading fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
