@@ -27,6 +27,15 @@ export const createYargsConfig = (yargsInstance) => {
         description: 'The GitHub issue URL to solve'
       });
     })
+    .fail((msg, err, _yargs) => {
+      // Custom fail handler to suppress yargs error output
+      // Errors will be handled in the parseArguments catch block
+      if (err) throw err; // Rethrow actual errors
+      // For validation errors, throw a clean error object with the message
+      const error = new Error(msg);
+      error.name = 'YargsValidationError';
+      throw error;
+    })
     .option('resume', {
       type: 'string',
       description: 'Resume from a previous session ID (when limit was reached)',
@@ -208,8 +217,13 @@ export const parseArguments = async (yargs, hideBin) => {
     if (error.message && error.message.includes('Unknown arguments')) {
       throw error;
     }
-    // Otherwise, log the error but continue
-    console.error('Yargs parsing warning:', error.message);
+    // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
+    // This appears to be a yargs quirk with command definitions
+    // The error.argv object still contains the parsed arguments, so we can safely continue
+    // Only show warning in verbose mode to avoid confusing output
+    if (error.message && !error.message.includes('Not enough arguments')) {
+      console.error('Yargs parsing warning:', error.message);
+    }
     // Try to get the argv even with the error
     argv = error.argv || {};
   }

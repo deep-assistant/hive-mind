@@ -83,8 +83,12 @@ const { startWorkSession, endWorkSession } = sessionLib;
 const preparationLib = await import('./solve.preparation.lib.mjs');
 const { prepareFeedbackAndTimestamps, checkUncommittedChanges, checkForkActions } = preparationLib;
 
-// Log version and raw command BEFORE parsing arguments
-// This ensures they appear even if strict validation fails
+// Initialize log file EARLY to capture all output including version and command
+// Use default directory (cwd) initially, will be set from argv.logDir after parsing
+const logFile = await initializeLogFile(null);
+
+// Log version and raw command IMMEDIATELY after log file initialization
+// This ensures they appear in both console and log file, even if argument parsing fails
 const versionInfo = await getVersionInfo();
 await log('');
 await log(`🚀 solve v${versionInfo}`);
@@ -96,6 +100,10 @@ await log('');
 const argv = await parseArguments(yargs, hideBin);
 global.verboseMode = argv.verbose;
 
+// If user specified a custom log directory, we would need to move the log file
+// However, this adds complexity, so we accept that early logs go to cwd
+// The trade-off is: early logs in cwd vs missing version/command in error cases
+
 // Conditionally import tool-specific functions after argv is parsed
 let checkForUncommittedChanges;
 if (argv.tool === 'opencode') {
@@ -106,7 +114,6 @@ if (argv.tool === 'opencode') {
 }
 const shouldAttachLogs = argv.attachLogs || argv['attach-logs'];
 await showAttachLogsWarning(shouldAttachLogs);
-const logFile = await initializeLogFile(argv.logDir);
 const absoluteLogPath = path.resolve(logFile);
 // Initialize Sentry integration (unless disabled)
 if (argv.sentry) {

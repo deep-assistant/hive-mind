@@ -500,13 +500,14 @@ ${prBody}`, { verbose: true });
 
           // Build command with optional assignee and handle forks
           // Note: targetBranch is already defined above
+          // IMPORTANT: Use single quotes around the title to avoid shell parsing issues with special characters
           let command;
           if (argv.fork && forkedRepo) {
             // For forks, specify the full head reference
             const forkUser = forkedRepo.split('/')[0];
-            command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+            command = `cd "${tempDir}" && gh pr create --draft --title '[WIP] ${issueTitle}' --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
           } else {
-            command = `cd "${tempDir}" && gh pr create --draft --title "[WIP] ${issueTitle}" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
+            command = `cd "${tempDir}" && gh pr create --draft --title '[WIP] ${issueTitle}' --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
           }
           // Only add assignee if user has permissions
           if (currentUser && canAssign) {
