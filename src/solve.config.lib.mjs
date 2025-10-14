@@ -63,11 +63,16 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
+      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o; for gemini: flash, pro, thinking)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
-        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+        if (currentParsedArgs?.tool === 'opencode') {
+          return 'grok-code-fast-1';
+        } else if (currentParsedArgs?.tool === 'gemini') {
+          return 'flash';
+        }
+        return 'sonnet';
       }
     })
     .option('auto-pull-request-creation', {
@@ -188,7 +193,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
+      choices: ['claude', 'opencode', 'gemini'],
       default: 'claude'
     })
     .parserConfiguration({
@@ -228,14 +233,18 @@ export const parseArguments = async (yargs, hideBin) => {
     argv = error.argv || {};
   }
 
-  // Post-processing: Fix model default for opencode tool
+  // Post-processing: Fix model default for tool-specific models
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
   // so we need to handle this manually after parsing
   const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
 
-  if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
-    // User did not explicitly provide --model, so use the correct default for opencode
-    argv.model = 'grok-code-fast-1';
+  if (!modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for each tool
+    if (argv.tool === 'opencode') {
+      argv.model = 'grok-code-fast-1';
+    } else if (argv.tool === 'gemini') {
+      argv.model = 'flash';
+    }
   }
 
   return argv;

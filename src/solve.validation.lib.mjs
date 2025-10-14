@@ -229,6 +229,14 @@ export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, 
         await log('❌ Cannot proceed without OpenCode connection', { level: 'error' });
         return false;
       }
+    } else if (argv.tool === 'gemini') {
+      // Validate Gemini connection
+      const geminiLib = await import('./gemini.lib.mjs');
+      isToolConnected = await geminiLib.validateGeminiConnection(model);
+      if (!isToolConnected) {
+        await log('❌ Cannot proceed without Gemini connection', { level: 'error' });
+        return false;
+      }
     } else {
       // Validate Claude CLI connection (default)
       const isClaudeConnected = await validateClaudeConnection(model);

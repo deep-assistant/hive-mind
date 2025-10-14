@@ -109,6 +109,9 @@ let checkForUncommittedChanges;
 if (argv.tool === 'opencode') {
   const opencodeLib = await import('./opencode.lib.mjs');
   checkForUncommittedChanges = opencodeLib.checkForUncommittedChanges;
+} else if (argv.tool === 'gemini') {
+  const geminiLib = await import('./gemini.lib.mjs');
+  checkForUncommittedChanges = geminiLib.checkForUncommittedChanges;
 } else {
   checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
 }
@@ -695,6 +698,34 @@ try {
       formatAligned,
       getResourceSnapshot,
       opencodePath,
+      $
+    });
+  } else if (argv.tool === 'gemini') {
+    const geminiLib = await import('./gemini.lib.mjs');
+    const { executeGemini } = geminiLib;
+    const geminiPath = process.env.GEMINI_PATH || 'gemini';
+
+    toolResult = await executeGemini({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      geminiPath,
       $
     });
   } else {
