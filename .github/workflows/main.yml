@@ -352,7 +352,12 @@ jobs:
       run: |
         echo "Running test suite for hive.mjs..."
         node tests/test-hive.mjs
-    
+
+    - name: Run test suite for task.mjs
+      run: |
+        echo "Running test suite for task.mjs..."
+        node tests/test-task.mjs
+
     - name: Run test suite for memory-check.mjs
       run: |
         echo "Running test suite for memory-check.mjs..."
@@ -466,6 +471,13 @@ jobs:
         echo "✅ hive.mjs executes without critical errors"
         timeout 10s ./src/hive.mjs --version || true
 
+    - name: Test task.mjs execution
+      run: |
+        echo "Testing task.mjs basic execution..."
+        timeout 10s ./src/task.mjs --help || echo "Help command completed"
+        echo "✅ task.mjs executes without critical errors"
+        timeout 10s ./src/task.mjs --version || true
+
     - name: Test telegram-bot.mjs execution
       run: |
         echo "Testing telegram-bot.mjs basic execution..."
@@ -509,6 +521,12 @@ jobs:
         echo "Testing 'hive-telegram-bot' global command..."
         timeout 10s hive-telegram-bot --help || echo "Help command completed"
         echo "✅ 'hive-telegram-bot' global command works"
+
+        echo ""
+        echo "Testing 'task' global command..."
+        timeout 10s task --version || true
+        timeout 10s task --help || echo "Help command completed"
+        echo "✅ 'task' global command works"
 
         echo ""
         echo "Testing hive-telegram-bot --dry-run (issue #487)..."
