@@ -558,15 +558,16 @@ bot.command('help', async (ctx) => {
   message += '📝 *Available Commands:*\n\n';
 
   if (solveEnabled) {
-    message += '*/solve* - Solve a GitHub issue\n';
+    message += '*/solve* (aliases: */do*, */continue*) - Solve a GitHub issue\n';
     message += 'Usage: `/solve <github-url> [options]`\n';
     message += 'Example: `/solve https://github.com/owner/repo/issues/123 --verbose`\n';
+    message += 'You can also use `/do` or `/continue` as shorter alternatives.\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
     message += '\n';
   } else {
-    message += '*/solve* - ❌ Disabled\n\n';
+    message += '*/solve* (aliases: */do*, */continue*) - ❌ Disabled\n\n';
   }
 
   if (hiveEnabled) {
@@ -609,14 +610,15 @@ bot.command('help', async (ctx) => {
   await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-bot.command('solve', async (ctx) => {
+// Shared handler for /solve command and its aliases (/do, /continue)
+async function handleSolveCommand(ctx, commandName = 'solve') {
   if (VERBOSE) {
-    console.log('[VERBOSE] /solve command received');
+    console.log(`[VERBOSE] /${commandName} command received`);
   }
 
   if (!solveEnabled) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: command disabled');
+      console.log(`[VERBOSE] /${commandName} ignored: command disabled`);
     }
     await ctx.reply('❌ The /solve command is disabled on this bot instance.');
     return;
@@ -625,7 +627,7 @@ bot.command('solve', async (ctx) => {
   // Ignore messages sent before bot started
   if (isOldMessage(ctx)) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: old message');
+      console.log(`[VERBOSE] /${commandName} ignored: old message`);
     }
     return;
   }
@@ -633,14 +635,14 @@ bot.command('solve', async (ctx) => {
   // Ignore forwarded or reply messages
   if (isForwardedOrReply(ctx)) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: forwarded or reply');
+      console.log(`[VERBOSE] /${commandName} ignored: forwarded or reply`);
     }
     return;
   }
 
   if (!isGroupChat(ctx)) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: not a group chat');
+      console.log(`[VERBOSE] /${commandName} ignored: not a group chat`);
     }
     await ctx.reply('❌ The /solve command only works in group chats. Please add this bot to a group and make it an admin.', { reply_to_message_id: ctx.message.message_id });
     return;
@@ -649,21 +651,21 @@ bot.command('solve', async (ctx) => {
   const chatId = ctx.chat.id;
   if (!isChatAuthorized(chatId)) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: chat not authorized');
+      console.log(`[VERBOSE] /${commandName} ignored: chat not authorized`);
     }
     await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`, { reply_to_message_id: ctx.message.message_id });
     return;
   }
 
   if (VERBOSE) {
-    console.log('[VERBOSE] /solve passed all checks, executing...');
+    console.log(`[VERBOSE] /${commandName} passed all checks, executing...`);
   }
 
   const userArgs = parseCommandArgs(ctx.message.text);
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/${commandName} https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -720,6 +722,21 @@ bot.command('solve', async (ctx) => {
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
     await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   }
+}
+
+// Register /solve command
+bot.command('solve', async (ctx) => {
+  await handleSolveCommand(ctx, 'solve');
+});
+
+// Register /do as an alias for /solve
+bot.command('do', async (ctx) => {
+  await handleSolveCommand(ctx, 'do');
+});
+
+// Register /continue as an alias for /solve
+bot.command('continue', async (ctx) => {
+  await handleSolveCommand(ctx, 'continue');
 });
 
 bot.command('hive', async (ctx) => {
