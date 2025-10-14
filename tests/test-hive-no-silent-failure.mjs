@@ -117,10 +117,34 @@ await test('hive --version should show version', async () => {
   }
 });
 
-// Note: Tests for actual URL processing (github.com/owner, etc) are skipped because
-// they hang waiting for GitHub permissions check which is a separate issue from #504.
+await test('hive --dry-run should produce output and exit cleanly', async () => {
+  const result = await runCommandWithTimeout([
+    'https://github.com/test',
+    '--dry-run',
+    '--once',
+    '--no-sentry'
+  ], 10000);  // 10 second timeout
+
+  if (!result.hasOutput) {
+    throw new Error('No output from --dry-run command');
+  }
+
+  // Check that it shows monitoring configuration
+  const combinedOutput = result.stdout + result.stderr;
+  if (!combinedOutput.includes('Monitoring Configuration') && !combinedOutput.includes('DRY RUN')) {
+    throw new Error('Expected to see monitoring configuration or dry-run mode indicator');
+  }
+
+  // Verify it doesn't timeout (should exit cleanly with --once flag)
+  if (result.timedOut) {
+    throw new Error('Command timed out - should exit cleanly with --once and --dry-run');
+  }
+});
+
+// Note: Tests for actual URL processing without --dry-run are skipped because
+// they hang waiting for GitHub API calls which is expected behavior for normal operation.
 // Issue #504 was specifically about silent failures during initialization/fetch,
-// which is tested by --help and --version working correctly.
+// which is tested by --help, --version, and --dry-run working correctly.
 
 // Summary
 console.log('\n' + '='.repeat(60));

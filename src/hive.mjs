@@ -830,6 +830,12 @@ async function fetchIssues() {
     await log(`\n🔍 Fetching issues with label "${argv.monitorTag}"...`);
   }
 
+  // In dry-run mode, skip actual API calls and return empty list immediately
+  if (argv.dryRun) {
+    await log('   🧪 Dry-run mode: Skipping actual issue fetching');
+    return [];
+  }
+
   try {
     let issues = [];
 
@@ -1147,7 +1153,7 @@ async function monitor() {
     // If running once, wait for queue to empty then exit
     if (argv.once) {
       await log('\n🏁 Single run mode - waiting for queue to empty...');
-      
+
       while (stats.queued > 0 || stats.processing > 0) {
         await new Promise(resolve => setTimeout(resolve, 5000));
         const currentStats = issueQueue.getStats();
@@ -1156,7 +1162,7 @@ async function monitor() {
         }
         Object.assign(stats, currentStats);
       }
-      
+
       await log('\n✅ All issues processed!');
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
@@ -1166,6 +1172,9 @@ async function monitor() {
       if (stats.completed > 0) {
         await cleanupTempDirectories(argv);
       }
+
+      // Stop workers before breaking to avoid hanging
+      issueQueue.stop();
       break;
     }
     
