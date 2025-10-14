@@ -407,11 +407,15 @@ if (argv.skipIssuesWithPrs && argv.autoContinue) {
 
 // Helper function to check GitHub permissions - moved to github.lib.mjs
 
-// Check GitHub permissions early in the process
-const hasValidAuth = await checkGitHubPermissions();
-if (!hasValidAuth) {
-  await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
-  await safeExit(1, 'Error occurred');
+// Check GitHub permissions early in the process (skip in dry-run mode or when explicitly requested)
+if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+  await log('⏩ Skipping GitHub permissions check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+} else {
+  const hasValidAuth = await checkGitHubPermissions();
+  if (!hasValidAuth) {
+    await log('\n❌ Cannot proceed without valid GitHub authentication', { level: 'error' });
+    await safeExit(1, 'Error occurred');
+  }
 }
 
 // YouTrack configuration and validation
@@ -472,19 +476,25 @@ if (urlMatch) {
 
 // Determine scope
 if (!repo) {
-  // Check if it's an organization or user
-  try {
-    const typeResult = await $`gh api users/${owner} --jq .type`;
-    const accountType = typeResult.stdout.toString().trim();
-    scope = accountType === 'Organization' ? 'organization' : 'user';
-  } catch (e) {
-    reportError(e, {
-      context: 'detect_scope',
-      owner,
-      operation: 'detect_account_type'
-    });
-    // Default to user if API call fails
+  // Check if it's an organization or user (skip in dry-run mode to avoid hanging)
+  if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+    // In dry-run mode, default to user to avoid GitHub API calls
     scope = 'user';
+    await log('   ℹ️  Assuming user scope (dry-run mode, skipping API detection)', { verbose: true });
+  } else {
+    try {
+      const typeResult = await $`gh api users/${owner} --jq .type`;
+      const accountType = typeResult.stdout.toString().trim();
+      scope = accountType === 'Organization' ? 'organization' : 'user';
+    } catch (e) {
+      reportError(e, {
+        context: 'detect_scope',
+        owner,
+        operation: 'detect_account_type'
+      });
+      // Default to user if API call fails
+      scope = 'user';
+    }
   }
 } else {
   scope = 'repository';
@@ -1234,25 +1244,30 @@ async function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('interrupt'));
 process.on('SIGTERM', () => gracefulShutdown('termination'));
 
-// Check system resources (disk space and RAM) before starting monitoring
-const systemCheck = await checkSystem(
-  { 
-    minDiskSpaceMB: argv.minDiskSpace || 500,
-    minMemoryMB: 256,
-    exitOnFailure: true
-  },
-  { log }
-);
+// Check system resources (disk space and RAM) before starting monitoring (skip in dry-run mode)
+if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
+  await log('⏩ Skipping system resource check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+  await log('⏩ Skipping Claude CLI connection check (dry-run mode or skip-tool-check enabled)', { verbose: true });
+} else {
+  const systemCheck = await checkSystem(
+    {
+      minDiskSpaceMB: argv.minDiskSpace || 500,
+      minMemoryMB: 256,
+      exitOnFailure: true
+    },
+    { log }
+  );
 
-if (!systemCheck.success) {
-  await safeExit(1, 'Error occurred');
-}
+  if (!systemCheck.success) {
+    await safeExit(1, 'Error occurred');
+  }
 
-// Validate Claude CLI connection before starting monitoring with the same model that will be used
-const isClaudeConnected = await validateClaudeConnection(argv.model);
-if (!isClaudeConnected) {
-  await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
-  await safeExit(1, 'Error occurred');
+  // Validate Claude CLI connection before starting monitoring with the same model that will be used
+  const isClaudeConnected = await validateClaudeConnection(argv.model);
+  if (!isClaudeConnected) {
+    await log('❌ Cannot start monitoring without Claude CLI connection', { level: 'error' });
+    await safeExit(1, 'Error occurred');
+  }
 }
 
 // Wrap monitor function with Sentry error tracking
