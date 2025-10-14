@@ -12,6 +12,14 @@ if (typeof use === 'undefined') {
 
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
+const {
+  watchScreenSession,
+  isScreenSessionRunning,
+  getScreenOutput,
+  getLastLines,
+  formatOutputForTelegram,
+  findLogFile
+} = await import('./screen-watcher.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -70,6 +78,11 @@ const argv = yargs(hideBin(process.argv))
     default: false,
     alias: 'v'
   })
+  .option('auto-start-screen-watch-message', {
+    type: 'boolean',
+    description: 'Watch screen session and update message with live terminal output (disabled for private repos)',
+    default: false
+  })
   .help('h')
   .alias('h', 'help')
   .parserConfiguration({
@@ -81,6 +94,7 @@ const argv = yargs(hideBin(process.argv))
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
+const AUTO_WATCH_MESSAGE = argv.autoStartScreenWatchMessage || argv['auto-start-screen-watch-message'] || process.env.TELEGRAM_AUTO_WATCH_MESSAGE === 'true';
 
 if (!BOT_TOKEN) {
   console.error('Error: TELEGRAM_BOT_TOKEN environment variable or --token option is not set');
@@ -525,6 +539,36 @@ function validateGitHubUrl(args) {
   return { valid: true };
 }
 
+/**
+ * Check if a GitHub repository is private
+ * @param {string} githubUrl - The GitHub URL
+ * @returns {Promise<boolean>} True if repo is private, false if public, null if cannot determine
+ */
+async function isRepoPrivate(githubUrl) {
+  try {
+    // Extract owner/repo from URL
+    const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    if (!match) {
+      return null;
+    }
+
+    const owner = match[1];
+    const repo = match[2].replace(/\/(issues|pull).*$/, '');
+
+    // Use gh to check repo visibility
+    const { stdout } = await exec(`gh repo view ${owner}/${repo} --json visibility -q .visibility`);
+    const visibility = stdout.trim().toLowerCase();
+
+    return visibility === 'private';
+  } catch (error) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] Could not determine repo visibility:', error.message);
+    }
+    // If we can't determine, assume it might be private for safety
+    return null;
+  }
+}
+
 bot.command('help', async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /help command received');
@@ -714,7 +758,81 @@ bot.command('solve', async (ctx) => {
     let response = '✅ Solve command started successfully!\n\n';
     response += `📊 *Session:* \`${sessionName}\`\n`;
 
-    await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    const replyMsg = await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+
+    // Start watching the screen session if enabled
+    if (AUTO_WATCH_MESSAGE && sessionName !== 'unknown') {
+      // Check if repo is private
+      const isPrivate = await isRepoPrivate(args[0]);
+
+      if (isPrivate) {
+        if (VERBOSE) {
+          console.log('[VERBOSE] Screen watcher disabled: repository is private');
+        }
+        await ctx.reply('ℹ️ Live terminal watch is disabled for private repositories', { parse_mode: 'Markdown' });
+      } else if (isPrivate === null) {
+        if (VERBOSE) {
+          console.log('[VERBOSE] Screen watcher disabled: could not determine repository visibility');
+        }
+        await ctx.reply('ℹ️ Live terminal watch disabled: could not determine repository visibility', { parse_mode: 'Markdown' });
+      } else {
+        // Repository is public, start watcher
+        if (VERBOSE) {
+          console.log(`[VERBOSE] Starting screen watcher for session: ${sessionName}`);
+        }
+
+        // Create a new message for the live terminal output
+        const watchMsg = await ctx.reply('🔄 Initializing live terminal watch...', { parse_mode: 'Markdown' });
+
+        // Start the watcher
+        watchScreenSession({
+          sessionName,
+          bot,
+          chatId: ctx.chat.id,
+          messageId: watchMsg.message_id,
+          interval: 2500,
+          verbose: VERBOSE,
+          onComplete: async () => {
+            // Session has finished
+            if (VERBOSE) {
+              console.log(`[VERBOSE] Screen session ${sessionName} completed`);
+            }
+
+            try {
+              // Get the final output
+              const finalOutput = await getScreenOutput(sessionName);
+              const lastLines = getLastLines(finalOutput, 25);
+              const formattedOutput = formatOutputForTelegram(lastLines);
+
+              // Freeze the message with final state
+              await bot.telegram.editMessageText(
+                ctx.chat.id,
+                watchMsg.message_id,
+                null,
+                `✅ *Terminal Session Completed*\nSession: \`${sessionName}\`\n\nFinal Output:\n${formattedOutput}`,
+                { parse_mode: 'Markdown' }
+              );
+
+              // Try to find and attach the log file
+              const logFile = await findLogFile(sessionName);
+              if (logFile) {
+                try {
+                  await bot.telegram.sendDocument(
+                    ctx.chat.id,
+                    { source: logFile },
+                    { caption: `📄 Full log for session: ${sessionName}` }
+                  );
+                } catch (error) {
+                  console.error('[screen-watcher] Error attaching log file:', error.message);
+                }
+              }
+            } catch (error) {
+              console.error('[screen-watcher] Error in onComplete handler:', error.message);
+            }
+          }
+        });
+      }
+    }
   } else {
     let response = '❌ Error executing solve command:\n\n';
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
