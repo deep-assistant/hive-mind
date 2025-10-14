@@ -279,7 +279,28 @@ Want to see the Hive Mind in action? Join our Telegram channel where you can exe
 3. **Start the Bot**
    ```bash
    hive-telegram-bot
+
+   # With live terminal watch (for public repositories only)
+   hive-telegram-bot --auto-start-screen-watch-message
    ```
+
+### Bot Options
+
+```bash
+hive-telegram-bot [options]
+
+  --token, -t                       Telegram bot token from @BotFather
+  --allowed-chats, -a               Allowed chat IDs in lino notation
+  --solve-overrides                 Override options for /solve command
+  --hive-overrides                  Override options for /hive command
+  --solve                           Enable /solve command (use --no-solve to disable) [default: true]
+  --hive                            Enable /hive command (use --no-hive to disable) [default: true]
+  --verbose, -v                     Enable verbose logging [default: false]
+  --auto-start-screen-watch-message Watch screen sessions and update messages with live terminal output
+                                    (disabled for private repos) [default: false]
+  --dry-run                         Validate configuration without starting bot
+  --help, -h                        Show help
+```
 
 ### Bot Commands
 
@@ -321,8 +342,19 @@ Shows:
 - ✅ **Group Chat Only**: Commands work only in group chats (not private messages)
 - ✅ **Full Options Support**: All command-line options work in Telegram
 - ✅ **Screen Sessions**: Commands run in detached screen sessions
+- ✅ **Live Terminal Watch**: Real-time terminal output updates in Telegram (public repos only)
 - ✅ **Chat Restrictions**: Optional whitelist of allowed chat IDs
 - ✅ **Diagnostic Tools**: Get chat ID and configuration info
+
+#### Live Terminal Watch
+
+When enabled with `--auto-start-screen-watch-message`, the bot provides real-time updates of terminal output:
+
+- **Real-time Updates**: See live terminal output as commands execute
+- **Auto-freeze**: Message freezes when command completes
+- **Log Attachment**: Full logs attached automatically when session ends
+- **Security**: Automatically disabled for private repositories
+- **Smart Updates**: Only updates when actual changes detected (rate-limited to avoid API limits)
 
 ### Security Notes
 
