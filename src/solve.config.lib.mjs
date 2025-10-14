@@ -105,7 +105,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('auto-continue', {
       type: 'boolean',
       description: 'Continue with existing PR when issue URL is provided (instead of creating new PR)',
-      default: false
+      default: true
     })
     .option('auto-continue-limit', {
       type: 'boolean',
