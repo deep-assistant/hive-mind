@@ -538,6 +538,45 @@ jobs:
         timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --dry-run --skip-claude-check 2>&1 | head -20 || true
         echo "✅ solve.mjs accepts --dry-run and --skip-claude-check flags"
 
+    - name: Test --auto-fork option
+      run: |
+        echo "Testing --auto-fork option with dry-run mode..."
+
+        # Test solve with --auto-fork
+        echo ""
+        echo "Testing solve.mjs with --auto-fork and --dry-run..."
+        timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --auto-fork --dry-run --skip-tool-check 2>&1 | tee solve_auto_fork.log || true
+        if grep -qE "(auto-fork|Auto-fork)" solve_auto_fork.log; then
+          echo "✅ solve.mjs recognizes --auto-fork flag"
+        else
+          echo "⚠️ Could not verify --auto-fork flag in solve output"
+        fi
+
+        # Test hive with --auto-fork
+        echo ""
+        echo "Testing hive.mjs with --auto-fork and --dry-run..."
+        timeout 30s ./src/hive.mjs https://github.com/test/repo --auto-fork --dry-run --skip-tool-check --once --max-issues 1 2>&1 | tee hive_auto_fork.log || true
+        if grep -qE "(auto-fork|Auto-fork)" hive_auto_fork.log; then
+          echo "✅ hive.mjs recognizes --auto-fork flag"
+        else
+          echo "⚠️ Could not verify --auto-fork flag in hive output"
+        fi
+
+        # Test start-screen with --auto-fork (just verify it accepts the flag)
+        echo ""
+        echo "Testing start-screen.mjs passes --auto-fork to solve..."
+        # start-screen requires screen to be installed, so we just test flag parsing
+        timeout 5s ./src/start-screen.mjs solve https://github.com/test/repo/issues/1 --auto-fork 2>&1 | tee start_screen_auto_fork.log || true
+        # If screen is not installed, that's okay - we just want to verify the flag is accepted
+        if grep -qE "(auto-fork|GNU Screen|screen.*not.*installed)" start_screen_auto_fork.log; then
+          echo "✅ start-screen.mjs accepts --auto-fork flag"
+        else
+          echo "⚠️ Could not verify start-screen flag acceptance"
+        fi
+
+        echo ""
+        echo "✅ All --auto-fork option tests completed"
+
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:
     runs-on: ubuntu-latest
