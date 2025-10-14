@@ -76,9 +76,39 @@ npm install -g @deep-assistant/hive-mind
 ```
 
 ### Installation on Ubuntu 24.04 server
-```bash
-curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
-```
+
+1. Reset/install VPS/VDS server with fresh Ubuntu 24.04
+2. Login to `root` user.
+3. Execute main installation script
+  ```bash
+  curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
+  ```
+  Note: in the process of installation you will be asked to authorize using GitHub account, it is required for gh tool to be working, the system will do all actions using that GitHub account.
+4. Login to `hive` user
+  ```bash
+  su - hive
+  ```
+5. Claude Code CLI and OpenCode AI CLI are preinstalled with the previous script, now you need to make sure claude is authorized also. Execute claude command, and follow all steps to authorize the local claude
+  ```bash
+  claude
+  ```
+
+  Note: opencode at the moment comes with free Grok Code Fast 1 model by default - so no authorization here is required.
+6. Launch the Hive Mind telegram bot:
+  ```
+  screen -S bot # Enter new screen for bot
+  
+  hive-telegram-bot --token 84905...xTjw --allowed-chats "(-1002975819706 -1002861722681)" --no-hive --solve-overrides "( 
+    --auto-fork
+    --auto-continue
+    --attach-logs
+    --verbose
+    --no-tool-check
+  )" --verbose
+
+  # Press CTRL + A + D for detach from screen
+  ```
+  Note: You may need to register you own bot with https://t.me/BotFather to get the bot token.
 
 ### Core Operations
 ```bash
