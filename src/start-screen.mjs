@@ -172,13 +172,42 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
 }
 
 /**
+ * Create a new system user for isolation
+ * @param {string} username - The username to create
+ * @returns {Promise<boolean>} Whether the user was created successfully
+ */
+async function createIsolatedUser(username) {
+  try {
+    // Check if user already exists
+    try {
+      await execAsync(`id ${username}`);
+      console.log(`User '${username}' already exists.`);
+      return true;
+    } catch (error) {
+      // User doesn't exist, create it
+    }
+
+    // Create user without home directory and without login shell
+    // This is a system user for isolation purposes only
+    console.log(`Creating isolated user: ${username}...`);
+    await execAsync(`sudo useradd -r -M -s /usr/sbin/nologin ${username}`);
+    console.log(`✅ User '${username}' created successfully.`);
+    return true;
+  } catch (error) {
+    console.error(`Failed to create user '${username}':`, error.message);
+    return false;
+  }
+}
+
+/**
  * Create or enter a screen session with the given command
  * @param {string} sessionName - The name of the screen session
  * @param {string} command - The command to run ('solve' or 'hive')
  * @param {string[]} args - Arguments to pass to the command
  * @param {boolean} autoTerminate - If true, session terminates after command completes
+ * @param {string} isolationLevel - The isolation level ('same-user-screen' or 'separate-user-screen')
  */
-async function createOrEnterScreen(sessionName, command, args, autoTerminate = false) {
+async function createOrEnterScreen(sessionName, command, args, autoTerminate = false, isolationLevel = 'same-user-screen') {
   const sessionExists = await screenSessionExists(sessionName);
 
   if (sessionExists) {
@@ -231,6 +260,24 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   console.log(`Creating screen session: ${sessionName}`);
 
+  // Handle separate-user-screen isolation level
+  let isolatedUser = null;
+  if (isolationLevel === 'separate-user-screen') {
+    // Generate a unique username based on the session name
+    // Use a prefix to identify these as isolation users
+    isolatedUser = `iso-${sessionName}`.substring(0, 32); // Linux username max length is 32
+
+    console.log(`Isolation level: separate-user-screen`);
+    console.log(`Creating isolated user: ${isolatedUser}...`);
+
+    const userCreated = await createIsolatedUser(isolatedUser);
+    if (!userCreated) {
+      console.error('Failed to create isolated user. Cannot proceed with separate-user-screen mode.');
+      console.error('Note: This mode requires sudo access to create users.');
+      process.exit(1);
+    }
+  }
+
   // Create a detached session with the command
   // Quote arguments properly to preserve spaces and special characters
   const quotedArgs = args.map(arg => {
@@ -248,24 +295,39 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
   if (autoTerminate) {
     // Old behavior: session terminates after command completes
     const fullCommand = `${command} ${quotedArgs}`;
-    screenCommand = `screen -dmS ${sessionName} ${fullCommand}`;
+    if (isolatedUser) {
+      screenCommand = `sudo -u ${isolatedUser} screen -dmS ${sessionName} ${fullCommand}`;
+    } else {
+      screenCommand = `screen -dmS ${sessionName} ${fullCommand}`;
+    }
   } else {
     // New behavior: wrap the command in a bash shell that will stay alive after the command finishes
     // This allows the user to reattach to the screen session after the command completes
     const fullCommand = `${command} ${quotedArgs}`;
     const escapedCommand = fullCommand.replace(/'/g, "'\\''");
-    screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+    if (isolatedUser) {
+      screenCommand = `sudo -u ${isolatedUser} screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+    } else {
+      screenCommand = `screen -dmS ${sessionName} bash -c '${escapedCommand}; exec bash'`;
+    }
   }
 
   try {
     await execAsync(screenCommand);
     console.log(`Started ${command} in detached screen session: ${sessionName}`);
+    if (isolatedUser) {
+      console.log(`Isolation: Running as user '${isolatedUser}' (separate-user-screen mode)`);
+    }
     if (autoTerminate) {
       console.log(`Note: Session will terminate after command completes (--auto-terminate mode)`);
     } else {
       console.log(`Session will remain active after command completes`);
     }
-    console.log(`To attach to this session, run: screen -r ${sessionName}`);
+    if (isolatedUser) {
+      console.log(`To attach to this session, run: sudo -u ${isolatedUser} screen -r ${sessionName}`);
+    } else {
+      console.log(`To attach to this session, run: screen -r ${sessionName}`);
+    }
   } catch (error) {
     console.error('Failed to create screen session:', error.message);
     process.exit(1);
@@ -279,59 +341,84 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
-    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    console.error('Usage: start-screen [--auto-terminate] [--isolation-level <level>] <solve|hive> <github-url> [additional-args...]');
     console.error('');
     console.error('Options:');
-    console.error('  --auto-terminate    Session terminates after command completes (old behavior)');
-    console.error('                      By default, session stays alive for review and reattachment');
+    console.error('  --auto-terminate           Session terminates after command completes (old behavior)');
+    console.error('                             By default, session stays alive for review and reattachment');
+    console.error('  --isolation-level <level>  Isolation level for the screen session:');
+    console.error('                             - same-user-screen: Run in current user context (default)');
+    console.error('                             - separate-user-screen: Create separate user for each issue');
     console.error('');
     console.error('Examples:');
     console.error('  start-screen solve https://github.com/user/repo/issues/123 --dry-run');
     console.error('  start-screen --auto-terminate solve https://github.com/user/repo/issues/456');
+    console.error('  start-screen --isolation-level separate-user-screen solve https://github.com/user/repo/issues/789');
     console.error('  start-screen hive https://github.com/user/repo --flag value');
     process.exit(1);
   }
 
-  // Check for --auto-terminate flag at the beginning
-  // Also validate that first arg is not an unrecognized option with em-dash or other invalid dash
+  // Parse options at the beginning
   let autoTerminate = false;
+  let isolationLevel = 'same-user-screen'; // default
   let argsOffset = 0;
 
-  // Check for various dash characters in first argument (em-dash \u2014, en-dash \u2013, etc.)
-  if (args[0] && /^[\u2010\u2011\u2012\u2013\u2014]/.test(args[0])) {
-    console.error(`Unknown option: ${args[0]}`);
-    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
-    console.error('Note: Use regular hyphens (--) not em-dashes or en-dashes.');
-    process.exit(1);
-  }
+  // Parse options
+  while (argsOffset < args.length && args[argsOffset].startsWith('-')) {
+    const currentArg = args[argsOffset];
 
-  if (args[0] === '--auto-terminate') {
-    autoTerminate = true;
-    argsOffset = 1;
-
-    if (args.length < 3) {
-      console.error('Error: --auto-terminate requires a command and GitHub URL');
-      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
+    // Check for various dash characters (em-dash \u2014, en-dash \u2013, etc.)
+    if (/^[\u2010\u2011\u2012\u2013\u2014]/.test(currentArg)) {
+      console.error(`Unknown option: ${currentArg}`);
+      console.error('Usage: start-screen [--auto-terminate] [--isolation-level <level>] <solve|hive> <github-url> [additional-args...]');
+      console.error('Note: Use regular hyphens (--) not em-dashes or en-dashes.');
       process.exit(1);
     }
-  } else if (args[0] && args[0].startsWith('-') && args[0] !== '--help' && args[0] !== '-h') {
-    // First arg is an unrecognized option
-    console.error(`Unknown option: ${args[0]}`);
-    console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
-    process.exit(1);
-  }
 
-  // Check if the next arg (after --auto-terminate if present) looks like an unrecognized option
-  if (args[argsOffset] && args[argsOffset].startsWith('-')) {
-    // Check for various dash characters (em-dash, en-dash, etc.)
-    const firstArg = args[argsOffset];
-    const hasInvalidDash = /^[\u2010\u2011\u2012\u2013\u2014]/.test(firstArg);
-    if (hasInvalidDash || (firstArg.startsWith('-') && firstArg !== '--help' && firstArg !== '-h')) {
-      console.error(`Unknown option: ${firstArg}`);
-      console.error('Usage: start-screen [--auto-terminate] <solve|hive> <github-url> [additional-args...]');
-      console.error('Expected command to be "solve" or "hive", not an option.');
+    if (currentArg === '--auto-terminate') {
+      autoTerminate = true;
+      argsOffset += 1;
+    } else if (currentArg === '--isolation-level') {
+      if (argsOffset + 1 >= args.length) {
+        console.error('Error: --isolation-level requires a value');
+        console.error('Valid values: same-user-screen, separate-user-screen');
+        process.exit(1);
+      }
+      isolationLevel = args[argsOffset + 1];
+      if (isolationLevel !== 'same-user-screen' && isolationLevel !== 'separate-user-screen') {
+        console.error(`Error: Invalid isolation level '${isolationLevel}'`);
+        console.error('Valid values: same-user-screen, separate-user-screen');
+        process.exit(1);
+      }
+      argsOffset += 2;
+    } else if (currentArg === '--help' || currentArg === '-h') {
+      console.error('Usage: start-screen [--auto-terminate] [--isolation-level <level>] <solve|hive> <github-url> [additional-args...]');
+      console.error('');
+      console.error('Options:');
+      console.error('  --auto-terminate           Session terminates after command completes (old behavior)');
+      console.error('                             By default, session stays alive for review and reattachment');
+      console.error('  --isolation-level <level>  Isolation level for the screen session:');
+      console.error('                             - same-user-screen: Run in current user context (default)');
+      console.error('                             - separate-user-screen: Create separate user for each issue');
+      console.error('');
+      console.error('Examples:');
+      console.error('  start-screen solve https://github.com/user/repo/issues/123 --dry-run');
+      console.error('  start-screen --auto-terminate solve https://github.com/user/repo/issues/456');
+      console.error('  start-screen --isolation-level separate-user-screen solve https://github.com/user/repo/issues/789');
+      console.error('  start-screen hive https://github.com/user/repo --flag value');
+      process.exit(0);
+    } else {
+      console.error(`Unknown option: ${currentArg}`);
+      console.error('Usage: start-screen [--auto-terminate] [--isolation-level <level>] <solve|hive> <github-url> [additional-args...]');
       process.exit(1);
     }
+  }
+
+  // Verify we have enough arguments left for command and URL
+  if (argsOffset + 2 > args.length) {
+    console.error('Error: Missing required command and GitHub URL');
+    console.error('Usage: start-screen [--auto-terminate] [--isolation-level <level>] <solve|hive> <github-url> [additional-args...]');
+    process.exit(1);
   }
 
   const command = args[argsOffset];
@@ -371,7 +458,7 @@ async function main() {
   const fullArgs = [githubUrl, ...commandArgs];
 
   // Create or enter the screen session
-  await createOrEnterScreen(sessionName, command, fullArgs, autoTerminate);
+  await createOrEnterScreen(sessionName, command, fullArgs, autoTerminate, isolationLevel);
 }
 
 // Run the main function

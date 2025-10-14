@@ -72,7 +72,7 @@ for (const testCase of testCases) {
 // Test help output
 console.log('Testing help output...');
 try {
-  const helpOutput = execSync('./start-screen.mjs 2>&1', { encoding: 'utf8' });
+  const helpOutput = execSync('./src/start-screen.mjs 2>&1', { encoding: 'utf8' });
   const hasUsage = helpOutput.includes('Usage:');
   const hasSolve = helpOutput.includes('solve');
   const hasHive = helpOutput.includes('hive');
@@ -97,7 +97,7 @@ try {
 // Test invalid command handling
 console.log('Testing invalid command handling...');
 try {
-  execSync('./start-screen.mjs invalid-command https://github.com/test/repo 2>&1', { encoding: 'utf8' });
+  execSync('./src/start-screen.mjs invalid-command https://github.com/test/repo 2>&1', { encoding: 'utf8' });
   console.log('  Invalid command: ✗ FAILED - Should have thrown error\n');
   allPassed = false;
 } catch (error) {
@@ -113,7 +113,7 @@ try {
 // Test --auto-terminate flag in help output
 console.log('Testing --auto-terminate flag in help output...');
 try {
-  execSync('./start-screen.mjs 2>&1', { encoding: 'utf8' });
+  execSync('./src/start-screen.mjs 2>&1', { encoding: 'utf8' });
   console.log('  --auto-terminate in help: ✗ FAILED - Should have thrown error\n');
   allPassed = false;
 } catch (error) {
@@ -129,8 +129,8 @@ try {
 // Test --auto-terminate flag position (should be before command)
 console.log('Testing --auto-terminate flag position...');
 try {
-  const helpOutput = execSync('./start-screen.mjs --help 2>&1', { encoding: 'utf8' });
-  if (helpOutput.includes('[--auto-terminate] <solve|hive>')) {
+  const helpOutput = execSync('./src/start-screen.mjs --help 2>&1', { encoding: 'utf8' });
+  if (helpOutput.includes('[--auto-terminate]') && helpOutput.includes('<solve|hive>')) {
     console.log('  --auto-terminate position in usage: ✓ PASSED\n');
   } else {
     console.log('  --auto-terminate position in usage: ✗ FAILED - Not in correct position\n');
@@ -138,10 +138,50 @@ try {
   }
 } catch (error) {
   const output = error.stdout || error.stderr || error.output?.join('') || '';
-  if (output.includes('[--auto-terminate] <solve|hive>')) {
+  if (output.includes('[--auto-terminate]') && output.includes('<solve|hive>')) {
     console.log('  --auto-terminate position in usage: ✓ PASSED\n');
   } else {
     console.log('  --auto-terminate position in usage: ✗ FAILED - Not in correct position\n');
+    allPassed = false;
+  }
+}
+
+// Test --isolation-level option in help
+console.log('Testing --isolation-level option in help...');
+try {
+  const helpOutput = execSync('./src/start-screen.mjs --help 2>&1', { encoding: 'utf8' });
+  const hasIsolationLevel = helpOutput.includes('--isolation-level');
+  const hasSameUserScreen = helpOutput.includes('same-user-screen');
+  const hasSeparateUserScreen = helpOutput.includes('separate-user-screen');
+
+  if (hasIsolationLevel && hasSameUserScreen && hasSeparateUserScreen) {
+    console.log('  --isolation-level in help: ✓ PASSED\n');
+  } else {
+    console.log('  --isolation-level in help: ✗ FAILED - Missing in help text or missing modes\n');
+    allPassed = false;
+  }
+} catch (error) {
+  const output = error.stdout || error.stderr || error.output?.join('') || '';
+  if (output.includes('--isolation-level')) {
+    console.log('  --isolation-level in help: ✓ PASSED\n');
+  } else {
+    console.log('  --isolation-level in help: ✗ FAILED - Missing in help text\n');
+    allPassed = false;
+  }
+}
+
+// Test invalid isolation level value
+console.log('Testing invalid isolation level value rejection...');
+try {
+  execSync('./src/start-screen.mjs --isolation-level invalid solve https://github.com/test/repo 2>&1', { encoding: 'utf8' });
+  console.log('  Invalid isolation level: ✗ FAILED - Should have rejected invalid value\n');
+  allPassed = false;
+} catch (error) {
+  const output = error.stdout || error.stderr || error.output?.join('') || '';
+  if (output.includes('Invalid isolation level')) {
+    console.log('  Invalid isolation level: ✓ PASSED\n');
+  } else {
+    console.log('  Invalid isolation level: ✗ FAILED - Wrong error message\n');
     allPassed = false;
   }
 }
