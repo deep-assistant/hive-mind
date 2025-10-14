@@ -7,7 +7,15 @@
 
 // Use use-m to dynamically import modules
 if (typeof globalThis.use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  try {
+    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  } catch (error) {
+    console.error('❌ Fatal error: Failed to load dependencies for configuration');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 const getenv = await use('getenv');
