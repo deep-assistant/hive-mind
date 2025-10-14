@@ -12,6 +12,15 @@ export const createYargsConfig = (yargsInstance) => {
       });
     })
     .usage('Usage: $0 <github-url> [options]')
+    .fail((msg, err, _yargs) => {
+      // Custom fail handler to suppress yargs error output
+      // Errors will be handled in the parseArguments catch block
+      if (err) throw err; // Rethrow actual errors
+      // For validation errors, throw a clean error object with the message
+      const error = new Error(msg);
+      error.name = 'YargsValidationError';
+      throw error;
+    })
     .option('monitor-tag', {
       type: 'string',
       description: 'GitHub label to monitor for issues',
@@ -193,8 +202,7 @@ export const createYargsConfig = (yargsInstance) => {
       'strip-aliased': false,
       'populate--': false
     })
-    // Note: .strict() mode disabled to allow flexible URL formats like github.com/owner (issue #504)
-    // Unknown options will still be validated by our custom error handling
+    .strict()
     .help('h')
     .alias('h', 'help');
 };

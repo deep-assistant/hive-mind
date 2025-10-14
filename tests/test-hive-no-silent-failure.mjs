@@ -32,7 +32,7 @@ let testsPassed = 0;
 function runCommandWithTimeout(args, timeoutMs = 5000) {
   return new Promise((resolve) => {
     const child = spawn(hivePath, args, {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe']  // Ignore stdin to prevent hanging
     });
 
     let stdout = '';
@@ -125,7 +125,15 @@ await test('hive --dry-run should produce output and exit cleanly', async () => 
     '--no-sentry'
   ], 10000);  // 10 second timeout
 
+  // Debug output
   if (!result.hasOutput) {
+    console.error('\nDEBUG: No output detected');
+    console.error('  timedOut:', result.timedOut);
+    console.error('  code:', result.code);
+    console.error('  stdout length:', result.stdout.length);
+    console.error('  stderr length:', result.stderr.length);
+    console.error('  stdout:', result.stdout.substring(0, 200));
+    console.error('  stderr:', result.stderr.substring(0, 200));
     throw new Error('No output from --dry-run command');
   }
 

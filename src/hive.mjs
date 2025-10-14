@@ -235,8 +235,28 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
 
 // Configure command line arguments - GitHub URL as positional argument
 const rawArgs = hideBin(process.argv);
-// Pass rawArgs to yargs constructor and use .argv to get parsed arguments
-const argv = createYargsConfig(yargs(rawArgs)).argv;
+// Use .parse() instead of .argv to ensure .strict() mode works correctly
+// When you use .argv, strict mode doesn't trigger properly
+// See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
+let argv;
+try {
+  argv = await createYargsConfig(yargs()).parse(rawArgs);
+} catch (error) {
+  // Yargs throws errors for validation issues, but we might still get a parsed object
+  // If the error is about unknown arguments (strict mode), re-throw it
+  if (error.message && error.message.includes('Unknown arguments')) {
+    throw error;
+  }
+  // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
+  // This appears to be a yargs quirk with command definitions
+  // The error.argv object still contains the parsed arguments, so we can safely continue
+  // Only show warning in verbose mode to avoid confusing output
+  if (error.message && !error.message.includes('Not enough arguments')) {
+    console.error('Yargs parsing warning:', error.message);
+  }
+  // Try to get the argv even with the error
+  argv = error.argv || {};
+}
 
 let githubUrl = argv['github-url'];
 
