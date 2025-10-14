@@ -216,6 +216,55 @@ else
   echo "[*] Rust already installed."
 fi
 
+# --- PHP (phpenv) ---
+if [ ! -d "$HOME/.phpenv" ]; then
+  echo "[*] Installing phpenv and php-build..."
+
+  # Install PHP build dependencies
+  echo "[*] Installing PHP build dependencies..."
+  sudo apt install -y autoconf bison re2c libxml2-dev libsqlite3-dev libssl-dev \
+    libcurl4-openssl-dev libpng-dev libjpeg-dev libonig-dev libzip-dev pkg-config || {
+    echo "[!] Warning: Some PHP build dependencies may have failed to install."
+  }
+
+  # Clone phpenv
+  git clone https://github.com/phpenv/phpenv.git "$HOME/.phpenv" || {
+    echo "[!] Warning: phpenv installation failed. Skipping PHP setup."
+  }
+
+  if [ -d "$HOME/.phpenv" ]; then
+    # Setup phpenv in PATH
+    export PHPENV_ROOT="$HOME/.phpenv"
+    export PATH="$PHPENV_ROOT/bin:$PATH"
+
+    # Initialize phpenv
+    if command -v phpenv >/dev/null 2>&1; then
+      eval "$(phpenv init -)"
+
+      # Clone php-build plugin
+      git clone https://github.com/php-build/php-build.git "$HOME/.phpenv/plugins/php-build" || {
+        echo "[!] Warning: php-build plugin installation failed."
+      }
+
+      # Install latest stable PHP version (8.3)
+      if [ -d "$HOME/.phpenv/plugins/php-build" ]; then
+        echo "[*] Installing PHP 8.3 (this may take several minutes)..."
+        phpenv install 8.3.14 || {
+          echo "[!] Warning: PHP 8.3.14 installation failed. You can install it manually later with: phpenv install 8.3.14"
+        }
+
+        # Set PHP 8.3 as global default if installation succeeded
+        if phpenv versions | grep -q "8.3.14"; then
+          phpenv global 8.3.14
+          echo "[*] PHP 8.3.14 installed and set as default."
+        fi
+      fi
+    fi
+  fi
+else
+  echo "[*] phpenv already installed."
+fi
+
 export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
