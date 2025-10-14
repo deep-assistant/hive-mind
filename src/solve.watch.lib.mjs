@@ -265,6 +265,34 @@ export const watchForFeedback = async (params) => {
             opencodePath,
             $
           });
+        } else if (argv.tool === 'qwen') {
+          // Use Qwen
+          const qwenExecLib = await import('./qwen.lib.mjs');
+          const { executeQwen } = qwenExecLib;
+
+          // Get qwen path
+          const qwenPath = argv.qwenPath || 'qwen';
+
+          toolResult = await executeQwen({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            owner,
+            repo,
+            argv,
+            log,
+            formatAligned,
+            getResourceSnapshot,
+            qwenPath,
+            $
+          });
         } else {
           // Use Claude (default)
           const claudeExecLib = await import('./claude.lib.mjs');

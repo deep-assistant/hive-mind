@@ -63,11 +63,16 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
+      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.; for qwen: qwen-coder, qwen3-coder)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
-        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+        if (currentParsedArgs?.tool === 'opencode') {
+          return 'grok-code-fast-1';
+        } else if (currentParsedArgs?.tool === 'qwen') {
+          return 'qwen-coder';
+        }
+        return 'sonnet';
       }
     })
     .option('auto-pull-request-creation', {
@@ -188,7 +193,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
+      choices: ['claude', 'opencode', 'qwen'],
       default: 'claude'
     })
     .parserConfiguration({
@@ -236,6 +241,9 @@ export const parseArguments = async (yargs, hideBin) => {
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode
     argv.model = 'grok-code-fast-1';
+  } else if (argv.tool === 'qwen' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for qwen
+    argv.model = 'qwen-coder';
   }
 
   return argv;

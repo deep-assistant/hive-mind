@@ -229,6 +229,14 @@ export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, 
         await log('❌ Cannot proceed without OpenCode connection', { level: 'error' });
         return false;
       }
+    } else if (argv.tool === 'qwen') {
+      // Validate Qwen connection
+      const qwenLib = await import('./qwen.lib.mjs');
+      isToolConnected = await qwenLib.validateQwenConnection(model);
+      if (!isToolConnected) {
+        await log('❌ Cannot proceed without Qwen connection', { level: 'error' });
+        return false;
+      }
     } else {
       // Validate Claude CLI connection (default)
       const isClaudeConnected = await validateClaudeConnection(model);
