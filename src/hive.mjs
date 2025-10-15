@@ -209,7 +209,7 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     const repoLines = repoOutput.trim().split('\n').filter(line => line.trim());
     const repositories = repoLines.map(line => JSON.parse(line));
 
-    await log(`   📊 Found ${repositories.length} repositories`)
+    await log(`   📊 Found ${repositories.length} repositories`);
 
     let collectedIssues = [];
     let processedRepos = 0;
