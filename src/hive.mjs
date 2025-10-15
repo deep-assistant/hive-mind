@@ -161,7 +161,7 @@ const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
 // Import GraphQL utilities
-const graphqlLib = await import('./graphql.lib.mjs');
+const graphqlLib = await import('./github.graphql.lib.mjs');
 const { tryFetchIssuesWithGraphQL } = graphqlLib;
 
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs

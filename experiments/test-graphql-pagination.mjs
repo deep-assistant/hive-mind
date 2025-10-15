@@ -9,7 +9,7 @@
  * 3. Handle pagination correctly with cursors
  */
 
-import { tryFetchIssuesWithGraphQL } from '../src/graphql.lib.mjs';
+import { tryFetchIssuesWithGraphQL } from '../src/github.graphql.lib.mjs';
 
 // Mock logging function
 const logs = [];
