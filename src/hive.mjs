@@ -189,28 +189,27 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
   try {
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
 
-    // First, get list of ALL repositories (no limit to ensure we get everything)
-    // Note: gh CLI uses pagination internally when no --limit is specified, fetching all results
+    // First, get list of ALL repositories using gh api with --paginate for unlimited pagination
+    // This approach uses the GitHub API directly to fetch all repositories without any limits
     let repoListCmd;
     if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --json name,owner --limit 100000`;
+      repoListCmd = `gh api orgs/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login}'`;
     } else {
-      repoListCmd = `gh repo list ${owner} --json name,owner --limit 100000`;
+      repoListCmd = `gh api users/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login}'`;
     }
 
-    await log('   📋 Fetching repository list (no limit, will paginate through all repositories)...', { verbose: true });
+    await log('   📋 Fetching repository list (using --paginate for unlimited pagination)...', { verbose: true });
     await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
 
     // Add delay for rate limiting
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
-    const repositories = JSON.parse(repoOutput || '[]');
+    // Parse the output line by line, as gh api with --jq outputs one JSON object per line
+    const repoLines = repoOutput.trim().split('\n').filter(line => line.trim());
+    const repositories = repoLines.map(line => JSON.parse(line));
 
-    await log(`   📊 Found ${repositories.length} repositories`);
-    if (repositories.length === 100000) {
-      await log('   ⚠️  Hit the 100000 repository limit - there may be more repositories available', { level: 'warning' });
-    }
+    await log(`   📊 Found ${repositories.length} repositories`)
 
     let collectedIssues = [];
     let processedRepos = 0;
