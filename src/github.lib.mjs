@@ -720,7 +720,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
     if (issues.length === maxPageSize) {
       await log(`   ⚠️  Hit the ${maxPageSize} issue limit - there may be more issues available`, { level: 'warning' });
       if (isSearchCommand) {
-        await log(`   💡 GitHub Search API is limited to 1000 results max. Recommend using repository fallback for complete results.`, { level: 'info' });
+        await log('   💡 GitHub Search API is limited to 1000 results max. Recommend using repository fallback for complete results.', { level: 'info' });
       } else if (maxPageSize >= 1000) {
         await log(`   💡 Consider filtering by labels or date ranges for repositories with >${maxPageSize} open issues`, { level: 'info' });
       }

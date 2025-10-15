@@ -190,14 +190,15 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
 
     // First, get list of ALL repositories (no limit to ensure we get everything)
+    // Note: gh CLI uses pagination internally when no --limit is specified, fetching all results
     let repoListCmd;
     if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --limit 10000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --json name,owner --limit 100000`;
     } else {
-      repoListCmd = `gh repo list ${owner} --limit 10000 --json name,owner`;
+      repoListCmd = `gh repo list ${owner} --json name,owner --limit 100000`;
     }
 
-    await log('   📋 Fetching repository list...', { verbose: true });
+    await log('   📋 Fetching repository list (no limit, will paginate through all repositories)...', { verbose: true });
     await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
 
     // Add delay for rate limiting
@@ -207,8 +208,8 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     const repositories = JSON.parse(repoOutput || '[]');
 
     await log(`   📊 Found ${repositories.length} repositories`);
-    if (repositories.length === 10000) {
-      await log(`   ⚠️  Hit the 10000 repository limit - there may be more repositories available`, { level: 'warning' });
+    if (repositories.length === 100000) {
+      await log('   ⚠️  Hit the 100000 repository limit - there may be more repositories available', { level: 'warning' });
     }
 
     let collectedIssues = [];
