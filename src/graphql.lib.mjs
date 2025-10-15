@@ -4,101 +4,210 @@
  */
 
 /**
- * Try to fetch issues using GraphQL API (repos + issues in one query)
- * This is more efficient but has limitations (100 issues per repo max)
+ * Fetch issues from a single repository with pagination support for >100 issues
+ * @param {string} owner - Repository owner
+ * @param {string} repoName - Repository name
+ * @param {Function} log - Logging function
+ * @param {Function} cleanErrorMessage - Error message cleaner
+ * @param {number} issueLimit - Maximum number of issues to fetch per query (default 100)
+ * @returns {Promise<Array>} Array of issues
+ */
+async function fetchRepositoryIssuesWithPagination(owner, repoName, log, cleanErrorMessage, issueLimit = 100) {
+  const { execSync } = await import('child_process');
+  const allIssues = [];
+  let hasNextPage = true;
+  let cursor = null;
+  let pageNum = 0;
+
+  try {
+    while (hasNextPage) {
+      pageNum++;
+
+      // Build query with cursor for pagination
+      const graphqlQuery = `
+        query($owner: String!, $repo: String!, $issueLimit: Int!, $cursor: String) {
+          repository(owner: $owner, name: $repo) {
+            issues(states: OPEN, first: $issueLimit, after: $cursor) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                number
+                title
+                url
+                createdAt
+              }
+            }
+          }
+        }
+      `;
+
+      // Execute GraphQL query
+      const escapedQuery = graphqlQuery.replace(/'/g, '\'\\\'\'');
+      let graphqlCmd = `gh api graphql -f query='${escapedQuery}' -f owner='${owner}' -f repo='${repoName}' -F issueLimit=${issueLimit}`;
+
+      if (cursor) {
+        graphqlCmd += ` -f cursor='${cursor}'`;
+      }
+
+      await log(`      📄 Fetching issues page ${pageNum} from ${owner}/${repoName}...`, { verbose: true });
+
+      // Add delay for rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const result = execSync(graphqlCmd, { encoding: 'utf8' });
+      const data = JSON.parse(result);
+      const issuesData = data.data.repository.issues;
+
+      // Add issues to collection
+      allIssues.push(...issuesData.nodes);
+
+      // Check if there are more pages
+      hasNextPage = issuesData.pageInfo.hasNextPage;
+      cursor = issuesData.pageInfo.endCursor;
+
+      await log(`      ✅ Fetched ${issuesData.nodes.length} issues (total so far: ${allIssues.length}/${issuesData.totalCount})`, { verbose: true });
+    }
+
+    return allIssues;
+
+  } catch (error) {
+    await log(`      ❌ Failed to fetch issues from ${owner}/${repoName}: ${cleanErrorMessage(error)}`, { verbose: true });
+    // Return what we have so far
+    return allIssues;
+  }
+}
+
+/**
+ * Try to fetch issues using GraphQL API with full pagination support
+ * This approach uses cursor-based pagination to handle unlimited repositories and issues
  * @param {string} owner - Organization or user name
  * @param {string} scope - 'organization' or 'user'
  * @param {Function} log - Logging function
  * @param {Function} cleanErrorMessage - Error message cleaner
  * @param {number} repoLimit - Maximum number of repos to fetch per query (default 100)
+ * @param {number} issueLimit - Maximum number of issues to fetch per repo query (default 100)
  * @returns {Promise<{success: boolean, issues: Array, repoCount: number}>}
  */
-export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMessage, repoLimit = 100) {
+export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMessage, repoLimit = 100, issueLimit = 100) {
   const { execSync } = await import('child_process');
 
   try {
-    await log('   🧪 Attempting GraphQL approach (repos + issues in one query)...', { verbose: true });
+    await log('   🧪 Attempting GraphQL approach with pagination support...', { verbose: true });
 
     const isOrg = scope === 'organization';
+    const allRepos = [];
+    let hasNextRepoPage = true;
+    let repoCursor = null;
+    let repoPageNum = 0;
 
-    // Build GraphQL query to fetch repos with their open issues
-    const graphqlQuery = isOrg ? `
-      query($owner: String!, $repoLimit: Int!) {
-        organization(login: $owner) {
-          repositories(first: $repoLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-            totalCount
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              name
-              owner {
-                login
+    // Fetch all repositories with pagination
+    while (hasNextRepoPage) {
+      repoPageNum++;
+
+      // Build GraphQL query to fetch repos
+      const graphqlQuery = isOrg ? `
+        query($owner: String!, $repoLimit: Int!, $cursor: String) {
+          organization(login: $owner) {
+            repositories(first: $repoLimit, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
               }
-              issues(states: OPEN, first: 100) {
-                totalCount
-                nodes {
-                  number
-                  title
-                  url
-                  createdAt
+              nodes {
+                name
+                owner {
+                  login
+                }
+                issues(states: OPEN, first: 1) {
+                  totalCount
                 }
               }
             }
           }
         }
-      }
-    ` : `
-      query($owner: String!, $repoLimit: Int!) {
-        user(login: $owner) {
-          repositories(first: $repoLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-            totalCount
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            nodes {
-              name
-              owner {
-                login
+      ` : `
+        query($owner: String!, $repoLimit: Int!, $cursor: String) {
+          user(login: $owner) {
+            repositories(first: $repoLimit, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+              totalCount
+              pageInfo {
+                hasNextPage
+                endCursor
               }
-              issues(states: OPEN, first: 100) {
-                totalCount
-                nodes {
-                  number
-                  title
-                  url
-                  createdAt
+              nodes {
+                name
+                owner {
+                  login
+                }
+                issues(states: OPEN, first: 1) {
+                  totalCount
                 }
               }
             }
           }
         }
+      `;
+
+      // Execute GraphQL query
+      const escapedQuery = graphqlQuery.replace(/'/g, '\'\\\'\'');
+      let graphqlCmd = `gh api graphql -f query='${escapedQuery}' -f owner='${owner}' -F repoLimit=${repoLimit}`;
+
+      if (repoCursor) {
+        graphqlCmd += ` -f cursor='${repoCursor}'`;
       }
-    `;
 
-    // Execute GraphQL query
-    // Escape single quotes in the query for shell execution
-    const escapedQuery = graphqlQuery.replace(/'/g, '\'\\\'\'');
-    const graphqlCmd = `gh api graphql -f query='${escapedQuery}' -f owner='${owner}' -F repoLimit=${repoLimit}`;
+      await log(`   📄 Fetching repositories page ${repoPageNum} for ${owner}...`, { verbose: true });
 
-    await log(`   🔎 Executing GraphQL query for ${owner}...`, { verbose: true });
+      // Add delay for rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Add delay for rate limiting
-    await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = execSync(graphqlCmd, { encoding: 'utf8' });
+      const data = JSON.parse(result);
+      const repos = isOrg ? data.data.organization.repositories : data.data.user.repositories;
 
-    const result = execSync(graphqlCmd, { encoding: 'utf8' });
-    const data = JSON.parse(result);
-    const repos = isOrg ? data.data.organization.repositories : data.data.user.repositories;
+      // Add repos to collection
+      allRepos.push(...repos.nodes);
 
-    const totalRepos = repos.totalCount;
-    const hasMoreRepos = repos.pageInfo.hasNextPage;
+      // Check if there are more pages
+      hasNextRepoPage = repos.pageInfo.hasNextPage;
+      repoCursor = repos.pageInfo.endCursor;
 
-    // Extract all issues from all repos
+      const totalRepos = repos.totalCount;
+      await log(`   ✅ Fetched ${repos.nodes.length} repositories (total so far: ${allRepos.length}/${totalRepos})`, { verbose: true });
+    }
+
+    await log(`   📊 Fetched all ${allRepos.length} repositories`, { verbose: true });
+
+    // Now fetch issues from each repository
+    // For repositories with >100 issues, use pagination
     const allIssues = [];
-    for (const repo of repos.nodes) {
-      for (const issue of repo.issues.nodes) {
+    let reposWithIssues = 0;
+
+    for (const repo of allRepos) {
+      const issueCount = repo.issues.totalCount;
+
+      // Skip repos with no issues
+      if (issueCount === 0) {
+        continue;
+      }
+
+      await log(`   🔍 Fetching ${issueCount} issue(s) from ${repo.owner.login}/${repo.name}...`, { verbose: true });
+
+      // Fetch all issues from this repository with pagination
+      const repoIssues = await fetchRepositoryIssuesWithPagination(
+        repo.owner.login,
+        repo.name,
+        log,
+        cleanErrorMessage,
+        issueLimit
+      );
+
+      // Add repository information to each issue
+      for (const issue of repoIssues) {
         allIssues.push({
           ...issue,
           repository: {
@@ -107,32 +216,16 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
           }
         });
       }
-    }
 
-    await log(`   ✅ GraphQL query successful: ${repos.nodes.length} repos, ${allIssues.length} issues`, { verbose: true });
-
-    // Check if we might be missing data
-    if (hasMoreRepos) {
-      await log(`   ⚠️  GraphQL limitation: There are ${totalRepos} total repos, but only fetched ${repos.nodes.length}`, { verbose: true });
-      await log('   💡 Falling back to comprehensive gh api --paginate approach...', { verbose: true });
-      return { success: false, issues: [], repoCount: totalRepos };
-    }
-
-    // Check if any repo has 100+ issues (GraphQL limit per repo)
-    let hasLimitedIssues = false;
-    for (const repo of repos.nodes) {
-      if (repo.issues.totalCount > 100) {
-        await log(`   ⚠️  GraphQL limitation: ${repo.owner.login}/${repo.name} has ${repo.issues.totalCount} issues, but only fetched 100`, { verbose: true });
-        hasLimitedIssues = true;
+      if (repoIssues.length > 0) {
+        reposWithIssues++;
+        await log(`   ✅ Collected ${repoIssues.length} issue(s) from ${repo.owner.login}/${repo.name}`, { verbose: true });
       }
     }
 
-    if (hasLimitedIssues) {
-      await log('   💡 Falling back to comprehensive gh api --paginate approach...', { verbose: true });
-      return { success: false, issues: [], repoCount: totalRepos };
-    }
+    await log(`   ✅ GraphQL pagination complete: ${allRepos.length} repos, ${allIssues.length} issues from ${reposWithIssues} repos with issues`, { verbose: true });
 
-    return { success: true, issues: allIssues, repoCount: repos.nodes.length };
+    return { success: true, issues: allIssues, repoCount: allRepos.length };
 
   } catch (error) {
     await log(`   ❌ GraphQL approach failed: ${cleanErrorMessage(error)}`, { verbose: true });
