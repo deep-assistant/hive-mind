@@ -820,27 +820,17 @@ async function worker(workerId) {
             });
 
             // Handle stderr data - stream errors in real-time
-            // Filter out non-blocking error messages that don't affect execution
             child.stderr.on('data', (data) => {
               const lines = data.toString().split('\n');
               for (const line of lines) {
                 if (line.trim()) {
-                  // Skip known non-blocking errors:
-                  // 1. "fatal: not a git repository" - occurs before repo is cloned
-                  // 2. "YError: Not enough arguments" - yargs quirk that's handled gracefully
-                  const isNonBlockingError =
-                    line.includes('fatal: not a git repository') ||
-                    line.includes('YError: Not enough arguments');
-
-                  if (!isNonBlockingError) {
-                    log(`   [${solveCommand} worker-${workerId} ERROR] ${line}`, { level: 'error' }).catch((logError) => {
-                      reportError(logError, {
-                        context: 'worker_stderr_log',
-                        workerId,
-                        operation: 'log_error'
-                      });
+                  log(`   [${solveCommand} worker-${workerId} ERROR] ${line}`, { level: 'error' }).catch((logError) => {
+                    reportError(logError, {
+                      context: 'worker_stderr_log',
+                      workerId,
+                      operation: 'log_error'
                     });
-                  }
+                  });
                 }
               }
             });

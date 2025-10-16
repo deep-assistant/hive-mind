@@ -21,12 +21,8 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
-    .command('$0 <issue-url>', 'Solve a GitHub issue or pull request', (yargs) => {
-      yargs.positional('issue-url', {
-        type: 'string',
-        description: 'The GitHub issue URL to solve'
-      });
-    })
+    // Don't use .command() to avoid yargs validation errors being written to stderr
+    // Instead, validate the URL ourselves after parsing in solve.mjs
     .fail((msg, err, _yargs) => {
       // Custom fail handler to suppress yargs error output
       // Errors will be handled in the parseArguments catch block
@@ -212,16 +208,13 @@ export const parseArguments = async (yargs, hideBin) => {
   try {
     argv = await createYargsConfig(yargs()).parse(rawArgs);
   } catch (error) {
-    // Yargs throws errors for validation issues, but we might still get a parsed object
+    // Yargs throws errors for validation issues
     // If the error is about unknown arguments (strict mode), re-throw it
     if (error.message && error.message.includes('Unknown arguments')) {
       throw error;
     }
-    // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
-    // This appears to be a yargs quirk with command definitions
-    // The error.argv object still contains the parsed arguments, so we can safely continue
-    // Only show warning in verbose mode to avoid confusing output
-    if (error.message && !error.message.includes('Not enough arguments')) {
+    // For other validation errors, show a warning in verbose mode
+    if (error.message && global.verboseMode) {
       console.error('Yargs parsing warning:', error.message);
     }
     // Try to get the argv even with the error
