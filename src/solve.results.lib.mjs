@@ -46,6 +46,10 @@ const {
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
+// Import GitHub linking detection library
+const githubLinking = await import('./github-linking.lib.mjs');
+const { hasGitHubLinkingKeyword } = githubLinking;
+
 // Revert the CLAUDE.md commit to restore original state
 export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
   try {
@@ -206,12 +210,16 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           const prBody = prBodyResult.stdout.toString();
           const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
 
-          // Check if any linking keywords exist (case-insensitive)
-          const linkingKeywords = ['fixes', 'closes', 'resolves', 'fix', 'close', 'resolve'];
-          const hasLinkingKeyword = linkingKeywords.some(keyword => {
-            const pattern = new RegExp(`\\b${keyword}\\s+.*?#?${issueNumber}\\b`, 'i');
-            return pattern.test(prBody);
-          });
+          // Use the new GitHub linking detection library to check for valid keywords
+          // This ensures we only detect actual GitHub-recognized linking keywords
+          // (fixes, closes, resolves and their variants) in proper format
+          // See: https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue
+          const hasLinkingKeyword = hasGitHubLinkingKeyword(
+            prBody,
+            issueNumber,
+            argv.fork ? owner : null,
+            argv.fork ? repo : null
+          );
 
           if (!hasLinkingKeyword) {
             await log(`  📝 Updating PR body to link issue #${issueNumber}...`);

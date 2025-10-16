@@ -160,6 +160,10 @@ const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandl
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
 
+// Import GraphQL utilities
+const graphqlLib = await import('./github.graphql.lib.mjs');
+const { tryFetchIssuesWithGraphQL } = graphqlLib;
+
 // The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
 
 // The cleanupTempDirectories function has been moved to lib.mjs
@@ -189,22 +193,39 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
   try {
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
 
-    // First, get list of repositories
-    let repoListCmd;
-    if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner,isArchived`;
-    } else {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner,isArchived`;
+    // Strategy 1: Try GraphQL approach first (faster but has limitations)
+    // Only try GraphQL for "all issues" mode, not for labeled issues
+    if (fetchAllIssues) {
+      const graphqlResult = await tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMessage);
+      if (graphqlResult.success) {
+        await log(`   ✅ GraphQL approach successful: ${graphqlResult.issues.length} issues from ${graphqlResult.repoCount} repositories`);
+        return graphqlResult.issues;
+      }
     }
 
-    await log('   📋 Fetching repository list...', { verbose: true });
+    // Strategy 2: Fallback to gh api --paginate approach (comprehensive but slower)
+    await log('   📋 Using gh api --paginate approach for comprehensive coverage...', { verbose: true });
+
+    // First, get list of ALL repositories using gh api with --paginate for unlimited pagination
+    // This approach uses the GitHub API directly to fetch all repositories without any limits
+    // Include isArchived field to filter out archived repositories
+    let repoListCmd;
+    if (scope === 'organization') {
+      repoListCmd = `gh api orgs/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
+    } else {
+      repoListCmd = `gh api users/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
+    }
+
+    await log('   📋 Fetching repository list (using --paginate for unlimited pagination)...', { verbose: true });
     await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
 
     // Add delay for rate limiting
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
-    const allRepositories = JSON.parse(repoOutput || '[]');
+    // Parse the output line by line, as gh api with --jq outputs one JSON object per line
+    const repoLines = repoOutput.trim().split('\n').filter(line => line.trim());
+    const allRepositories = repoLines.map(line => JSON.parse(line));
 
     await log(`   📊 Found ${allRepositories.length} repositories`);
 

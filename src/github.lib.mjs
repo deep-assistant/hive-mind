@@ -681,51 +681,57 @@ export function isRateLimitError(error) {
 
 /**
  * Helper function to fetch all issues with pagination and rate limiting
+ * Note: GitHub Search API has a hard limit of 1000 results total.
+ * For user/org queries with >1000 issues, the fetchIssuesFromRepositories fallback should be used.
  * @param {string} baseCommand - The base gh command to execute
  * @returns {Promise<Array>} Array of issues
  */
 export async function fetchAllIssuesWithPagination(baseCommand) {
   const { execSync } = await import('child_process');
-  
+
   // Import log and cleanErrorMessage from lib.mjs
   const { log, cleanErrorMessage } = await import('./lib.mjs');
-  
+
   try {
     // First, try without pagination to see if we get more than the default limit
     await log('   📊 Fetching issues with improved limits and rate limiting...', { verbose: true });
-    
+
     // Add a 5-second delay before making the API call to respect rate limits
     await log('   ⏰ Waiting 5 seconds before API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
-    
+
     const startTime = Date.now();
-    
+
     // Use appropriate page sizes: 100 for search API (more restrictive), 1000 for regular listing
     const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
     const isSearchCommand = commandWithoutLimit.includes('gh search');
     const maxPageSize = isSearchCommand ? 100 : 1000;
     const improvedCommand = `${commandWithoutLimit} --limit ${maxPageSize}`;
-    
+
     await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
     const output = execSync(improvedCommand, { encoding: 'utf8' });
     const endTime = Date.now();
-    
+
     const issues = JSON.parse(output || '[]');
-    
+
     await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
-    
-    // If we got exactly the max page size, there might be more - log a warning
+
+    // If we got exactly the max page size, there might be more - log a warning and throw error to trigger fallback
     if (issues.length === maxPageSize) {
       await log(`   ⚠️  Hit the ${maxPageSize} issue limit - there may be more issues available`, { level: 'warning' });
-      if (maxPageSize >= 1000) {
+      if (isSearchCommand) {
+        await log('   💡 GitHub Search API is limited to 1000 results max. Triggering repository fallback for complete results.', { level: 'info' });
+        // Throw an error to trigger the fallback to fetchIssuesFromRepositories which uses GraphQL pagination
+        throw new Error(`Hit search API limit of ${maxPageSize} issues - need repository-by-repository fallback for complete results`);
+      } else if (maxPageSize >= 1000) {
         await log(`   💡 Consider filtering by labels or date ranges for repositories with >${maxPageSize} open issues`, { level: 'info' });
       }
     }
-    
+
     // Add a 5-second delay after the call to be extra safe with rate limits
     await log('   ⏰ Adding 5-second delay after API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
-    
+
     return issues;
   } catch (error) {
     await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
