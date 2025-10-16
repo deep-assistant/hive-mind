@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
-
 // Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
@@ -40,7 +39,6 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     process.exit(1);
   }
 }
-
 // Export createYargsConfig for use in telegram-bot and other modules
 export { createYargsConfig } from './hive.config.lib.mjs';
 
@@ -55,7 +53,6 @@ const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url) ||
                           (process.argv[1] && (process.argv[1].includes('/hive') || process.argv[1].endsWith('hive')));
 
 if (isDirectExecution) {
-
 // Show immediate output BEFORE loading any dependencies to prevent silent hangs
 // This is crucial for dry-run mode and debugging
 console.log('🐝 Hive Mind - AI-powered issue solver');
@@ -1006,9 +1003,11 @@ async function fetchIssues() {
         });
         await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-        // Check if the error is due to rate limiting and we're not in repository scope
-        if (isRateLimitError(searchError) && scope !== 'repository') {
-          await log('   🔍 Rate limit detected - attempting repository fallback...');
+        // Check if the error is due to rate limiting or search API limit and we're not in repository scope
+        const errorMsg = searchError.message || searchError.toString();
+        const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+        if ((isRateLimitError(searchError) || isSearchLimitError) && scope !== 'repository') {
+          await log('   🔍 Search limit detected - attempting repository fallback...');
           try {
             issues = await fetchIssuesFromRepositories(owner, scope, null, true);
           } catch (fallbackError) {
@@ -1086,9 +1085,11 @@ async function fetchIssues() {
           });
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-          // Check if the error is due to rate limiting
-          if (isRateLimitError(searchError)) {
-            await log('   🔍 Rate limit detected - attempting repository fallback...');
+          // Check if the error is due to rate limiting or search API limit
+          const errorMsg = searchError.message || searchError.toString();
+          const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+          if (isRateLimitError(searchError) || isSearchLimitError) {
+            await log('   🔍 Search limit detected - attempting repository fallback...');
             try {
               issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
             } catch (fallbackError) {
