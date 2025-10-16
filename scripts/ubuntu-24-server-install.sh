@@ -150,6 +150,22 @@ apt_update_safe
 
 sudo apt install -y wget curl unzip git sudo ca-certificates gnupg dotnet-sdk-8.0 build-essential
 
+# --- Install Python build dependencies (required for pyenv) ---
+echo "[*] Installing Python build dependencies..."
+sudo apt install -y \
+  libssl-dev \
+  zlib1g-dev \
+  libbz2-dev \
+  libreadline-dev \
+  libsqlite3-dev \
+  libncursesw5-dev \
+  xz-utils \
+  tk-dev \
+  libxml2-dev \
+  libxmlsec1-dev \
+  libffi-dev \
+  liblzma-dev
+
 # --- Setup swap file ---
 create_swap_file
 
@@ -200,6 +216,57 @@ fi
 if [ ! -d "$HOME/.nvm" ]; then
   echo "[*] Installing NVM..."
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+fi
+
+# --- Pyenv (Python version manager) ---
+if [ ! -d "$HOME/.pyenv" ]; then
+  echo "[*] Installing Pyenv..."
+  curl https://pyenv.run | bash
+  # Add pyenv to shell profile for persistence
+  if ! grep -q 'pyenv init' "$HOME/.bashrc" 2>/dev/null; then
+    {
+      echo ''
+      echo '# Pyenv configuration'
+      echo 'export PYENV_ROOT="$HOME/.pyenv"'
+      echo 'export PATH="$PYENV_ROOT/bin:$PATH"'
+      echo 'eval "$(pyenv init --path)"'
+      echo 'eval "$(pyenv init -)"'
+    } >> "$HOME/.bashrc"
+  fi
+else
+  echo "[*] Pyenv already installed."
+fi
+
+# Load pyenv for current session
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+if command -v pyenv >/dev/null 2>&1; then
+  eval "$(pyenv init --path)"
+  eval "$(pyenv init -)"
+
+  # Install latest stable Python version
+  echo "[*] Installing latest stable Python version..."
+  LATEST_PYTHON=$(pyenv install --list | grep -E '^\s*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d '[:space:]')
+
+  if [ -n "$LATEST_PYTHON" ]; then
+    echo "[*] Installing Python $LATEST_PYTHON..."
+    if ! pyenv versions --bare | grep -q "^${LATEST_PYTHON}$"; then
+      pyenv install "$LATEST_PYTHON"
+    else
+      echo "[*] Python $LATEST_PYTHON already installed."
+    fi
+
+    # Set as global default
+    echo "[*] Setting Python $LATEST_PYTHON as global default..."
+    pyenv global "$LATEST_PYTHON"
+
+    echo "[*] Python version manager setup complete. Current version:"
+    python --version
+  else
+    echo "[!] Warning: Could not determine latest Python version. Skipping Python installation."
+  fi
+else
+  echo "[!] Warning: Pyenv installation may have failed. Skipping Python setup."
 fi
 
 # --- Rust ---
