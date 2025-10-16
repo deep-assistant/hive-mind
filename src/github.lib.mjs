@@ -19,6 +19,12 @@ import { log, maskToken, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { githubLimits, timeouts } from './config.lib.mjs';
 
+// Import batch operations from separate module
+import {
+  batchCheckPullRequestsForIssues as batchCheckPRs,
+  batchCheckArchivedRepositories as batchCheckArchived
+} from './github.batch.lib.mjs';
+
 // Helper function to mask GitHub tokens (alias for backward compatibility)
 export const maskGitHubToken = maskToken;
 
@@ -861,150 +867,8 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
   }
 }
 
-/**
- * Batch fetch pull request information for multiple issues using GraphQL
- * @param {string} owner - Repository owner
- * @param {string} repo - Repository name
- * @param {Array<number>} issueNumbers - Array of issue numbers to check
- * @returns {Promise<Object>} Object mapping issue numbers to their linked PRs
- */
-export async function batchCheckPullRequestsForIssues(owner, repo, issueNumbers) {
-  try {
-    if (!issueNumbers || issueNumbers.length === 0) {
-      return {};
-    }
-
-    await log(`   🔍 Batch checking PRs for ${issueNumbers.length} issues using GraphQL...`, { verbose: true });
-
-    // GraphQL has complexity limits, so batch in groups of 50
-    const BATCH_SIZE = 50;
-    const results = {};
-
-    for (let i = 0; i < issueNumbers.length; i += BATCH_SIZE) {
-      const batch = issueNumbers.slice(i, i + BATCH_SIZE);
-
-      // Build GraphQL query for this batch
-      const query = `
-        query GetPullRequestsForIssues {
-          repository(owner: "${owner}", name: "${repo}") {
-            ${batch.map(num => `
-            issue${num}: issue(number: ${num}) {
-              number
-              title
-              state
-              timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on PullRequest {
-                        number
-                        title
-                        state
-                        isDraft
-                        url
-                      }
-                    }
-                  }
-                }
-              }
-            }`).join('\n')}
-          }
-        }
-      `;
-
-      try {
-        // Add small delay between batches to respect rate limits
-        if (i > 0) {
-          await log('   ⏰ Waiting 2 seconds before next batch...', { verbose: true });
-          await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
-        }
-
-        // Execute GraphQL query
-        const { execSync } = await import('child_process');
-        const result = execSync(`gh api graphql -f query='${query}'`, {
-          encoding: 'utf8',
-          maxBuffer: githubLimits.bufferMaxSize
-        });
-
-        const data = JSON.parse(result);
-
-        // Process results for this batch
-        for (const issueNum of batch) {
-          const issueData = data.data?.repository?.[`issue${issueNum}`];
-          if (issueData) {
-            const linkedPRs = [];
-
-            // Extract linked PRs from timeline items
-            for (const item of issueData.timelineItems?.nodes || []) {
-              if (item?.source && item.source.state === 'OPEN' && !item.source.isDraft) {
-                linkedPRs.push({
-                  number: item.source.number,
-                  title: item.source.title,
-                  state: item.source.state,
-                  url: item.source.url
-                });
-              }
-            }
-
-            results[issueNum] = {
-              title: issueData.title,
-              state: issueData.state,
-              openPRCount: linkedPRs.length,
-              linkedPRs: linkedPRs
-            };
-          } else {
-            // Issue not found or error
-            results[issueNum] = {
-              openPRCount: 0,
-              linkedPRs: [],
-              error: 'Issue not found'
-            };
-          }
-        }
-
-        await log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(issueNumbers.length / BATCH_SIZE)} processed (${batch.length} issues)`, { verbose: true });
-
-      } catch (batchError) {
-        await log(`   ⚠️  GraphQL batch query failed: ${cleanErrorMessage(batchError)}`, { level: 'warning' });
-
-        // Fall back to individual REST API calls for this batch
-        await log('   🔄 Falling back to REST API for batch...', { verbose: true });
-
-        for (const issueNum of batch) {
-          try {
-            const { execSync } = await import('child_process');
-            const cmd = `gh api repos/${owner}/${repo}/issues/${issueNum}/timeline --jq '[.[] | select(.event == "cross-referenced" and .source.issue.pull_request != null and .source.issue.state == "open")] | length'`;
-
-            const output = execSync(cmd, { encoding: 'utf8' }).trim();
-            const openPrCount = parseInt(output) || 0;
-
-            results[issueNum] = {
-              openPRCount: openPrCount,
-              linkedPRs: [] // REST API doesn't give us PR details easily
-            };
-          } catch (restError) {
-            results[issueNum] = {
-              openPRCount: 0,
-              linkedPRs: [],
-              error: cleanErrorMessage(restError)
-            };
-          }
-        }
-      }
-    }
-
-    // Log summary
-    const totalIssues = issueNumbers.length;
-    const issuesWithPRs = Object.values(results).filter(r => r.openPRCount > 0).length;
-    await log(`   📊 Batch PR check complete: ${issuesWithPRs}/${totalIssues} issues have open PRs`, { verbose: true });
-
-    return results;
-
-  } catch (error) {
-    await log(`   ❌ Batch PR check failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    return {};
-  }
-}
+// Re-export batch operations from separate module
+export const batchCheckPullRequestsForIssues = batchCheckPRs;
 
 /**
  * Universal GitHub URL parser that handles various formats
@@ -1449,6 +1313,9 @@ export async function detectRepositoryVisibility(owner, repo) {
   }
 }
 
+// Re-export batch archived check from separate module
+export const batchCheckArchivedRepositories = batchCheckArchived;
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -1469,5 +1336,6 @@ export default {
   ghPrView,
   ghIssueView,
   handlePRNotFoundError,
-  detectRepositoryVisibility
+  detectRepositoryVisibility,
+  batchCheckArchivedRepositories
 };
