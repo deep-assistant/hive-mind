@@ -742,14 +742,20 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
   } catch (error) {
     await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
 
-    // Check if this is a rate limit error - if so, don't try fallback with the same command
+    // Check if this is a rate limit error - if so, re-throw immediately
     if (isRateLimitError(error)) {
-      await log('   ⚠️  Rate limit detected - not attempting fallback with same command', { verbose: true });
-      // Re-throw the error so the caller can handle rate limiting appropriately
+      await log('   ⚠️  Rate limit detected - re-throwing for caller to handle', { verbose: true });
       throw error;
     }
 
-    // Only try fallback for non-rate-limit errors
+    // Check if this is the "hit search API limit" error - if so, re-throw to trigger repository fallback
+    const errorMsg = error.message || error.toString();
+    if (errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback')) {
+      await log('   🔄 Re-throwing error to trigger repository-by-repository fallback...', { verbose: true });
+      throw error;
+    }
+
+    // For other errors, try a simple fallback with default limit
     try {
       await log('   🔄 Falling back to default behavior...', { verbose: true });
       const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
@@ -760,7 +766,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
       return issues;
     } catch (fallbackError) {
       await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
-      // Re-throw the error so the caller can handle rate limiting appropriately
+      // Re-throw the error so the caller can handle it appropriately
       throw fallbackError;
     }
   }
