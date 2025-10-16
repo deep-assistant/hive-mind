@@ -1006,9 +1006,11 @@ async function fetchIssues() {
         });
         await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-        // Check if the error is due to rate limiting and we're not in repository scope
-        if (isRateLimitError(searchError) && scope !== 'repository') {
-          await log('   🔍 Rate limit detected - attempting repository fallback...');
+        // Check if the error is due to rate limiting or search API limit and we're not in repository scope
+        const errorMsg = searchError.message || searchError.toString();
+        const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+        if ((isRateLimitError(searchError) || isSearchLimitError) && scope !== 'repository') {
+          await log('   🔍 Search limit detected - attempting repository fallback...');
           try {
             issues = await fetchIssuesFromRepositories(owner, scope, null, true);
           } catch (fallbackError) {
@@ -1086,9 +1088,11 @@ async function fetchIssues() {
           });
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-          // Check if the error is due to rate limiting
-          if (isRateLimitError(searchError)) {
-            await log('   🔍 Rate limit detected - attempting repository fallback...');
+          // Check if the error is due to rate limiting or search API limit
+          const errorMsg = searchError.message || searchError.toString();
+          const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+          if (isRateLimitError(searchError) || isSearchLimitError) {
+            await log('   🔍 Search limit detected - attempting repository fallback...');
             try {
               issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
             } catch (fallbackError) {
