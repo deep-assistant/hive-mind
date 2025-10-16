@@ -226,15 +226,26 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
 
     await log(`   📊 Found ${allRepositories.length} repositories`);
 
-    // Filter out archived repositories
-    const repositories = allRepositories.filter(repo => !repo.isArchived);
-    const archivedCount = allRepositories.length - repositories.length;
+    // Filter repositories to only include those owned by the target user/org
+    const ownedRepositories = allRepositories.filter(repo => {
+      const repoOwner = repo.owner?.login || repo.owner;
+      return repoOwner === owner;
+    });
+    const unownedCount = allRepositories.length - ownedRepositories.length;
+
+    if (unownedCount > 0) {
+      await log(`   ⏭️  Skipping ${unownedCount} repository(ies) not owned by ${owner}`);
+    }
+
+    // Filter out archived repositories from owned repositories
+    const repositories = ownedRepositories.filter(repo => !repo.isArchived);
+    const archivedCount = ownedRepositories.length - repositories.length;
 
     if (archivedCount > 0) {
       await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`);
     }
 
-    await log(`   ✅ Processing ${repositories.length} non-archived repositories`);
+    await log(`   ✅ Processing ${repositories.length} non-archived repositories owned by ${owner}`);
 
     let collectedIssues = [];
     let processedRepos = 0;
