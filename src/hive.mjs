@@ -1147,23 +1147,36 @@ async function fetchIssues() {
     // This is critical because we cannot do write operations on archived repositories
     let issuesToProcess = issues;
 
-    // Only filter for organization/user scopes where issues include repository info
+    // Helper function to extract repository info from issue (API response or URL)
+    const getRepoInfo = (issue) => {
+      let repoName = issue.repository?.name;
+      let repoOwner = issue.repository?.owner?.login || issue.repository?.nameWithOwner?.split('/')[0];
+
+      // If repository info is not available, extract it from the issue URL
+      if (!repoName || !repoOwner) {
+        const urlMatch = issue.url?.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+/);
+        if (urlMatch) {
+          repoOwner = urlMatch[1];
+          repoName = urlMatch[2];
+        }
+      }
+
+      return { repoOwner, repoName };
+    };
+
+    // Only filter for organization/user scopes
     // For repository scope, we're already working on a specific repo
-    if (scope !== 'repository' && issues.length > 0 && issues[0].repository) {
+    if (scope !== 'repository' && issues.length > 0) {
       await log('   🔍 Checking for archived repositories...');
 
       // Extract unique repositories from issues
       const uniqueRepos = new Map();
       for (const issue of issues) {
-        if (issue.repository) {
-          const repoName = issue.repository.name;
-          const repoOwner = issue.repository.owner?.login || issue.repository.nameWithOwner?.split('/')[0];
-
-          if (repoOwner && repoName) {
-            const repoKey = `${repoOwner}/${repoName}`;
-            if (!uniqueRepos.has(repoKey)) {
-              uniqueRepos.set(repoKey, { owner: repoOwner, name: repoName });
-            }
+        const { repoOwner, repoName } = getRepoInfo(issue);
+        if (repoOwner && repoName) {
+          const repoKey = `${repoOwner}/${repoName}`;
+          if (!uniqueRepos.has(repoKey)) {
+            uniqueRepos.set(repoKey, { owner: repoOwner, name: repoName });
           }
         }
       }
@@ -1176,9 +1189,9 @@ async function fetchIssues() {
       let archivedIssuesCount = 0;
 
       for (const issue of issues) {
-        if (issue.repository) {
-          const repoName = issue.repository.name;
-          const repoOwner = issue.repository.owner?.login || issue.repository.nameWithOwner?.split('/')[0];
+        const { repoOwner, repoName } = getRepoInfo(issue);
+
+        if (repoOwner && repoName) {
           const repoKey = `${repoOwner}/${repoName}`;
 
           if (archivedStatusMap[repoKey] === true) {
@@ -1188,7 +1201,8 @@ async function fetchIssues() {
             filteredIssues.push(issue);
           }
         } else {
-          // If no repository info, include the issue (shouldn't happen but be safe)
+          // If we can't determine repository, include the issue to be safe
+          await log(`      ⚠️  Could not determine repository for issue: ${issue.url}`, { verbose: true });
           filteredIssues.push(issue);
         }
       }
