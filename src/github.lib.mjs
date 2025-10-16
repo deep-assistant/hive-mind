@@ -716,11 +716,13 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
 
     await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
 
-    // If we got exactly the max page size, there might be more - log a warning
+    // If we got exactly the max page size, there might be more - log a warning and throw error to trigger fallback
     if (issues.length === maxPageSize) {
       await log(`   ⚠️  Hit the ${maxPageSize} issue limit - there may be more issues available`, { level: 'warning' });
       if (isSearchCommand) {
-        await log('   💡 GitHub Search API is limited to 1000 results max. Recommend using repository fallback for complete results.', { level: 'info' });
+        await log('   💡 GitHub Search API is limited to 1000 results max. Triggering repository fallback for complete results.', { level: 'info' });
+        // Throw an error to trigger the fallback to fetchIssuesFromRepositories which uses GraphQL pagination
+        throw new Error(`Hit search API limit of ${maxPageSize} issues - need repository-by-repository fallback for complete results`);
       } else if (maxPageSize >= 1000) {
         await log(`   💡 Consider filtering by labels or date ranges for repositories with >${maxPageSize} open issues`, { level: 'info' });
       }
