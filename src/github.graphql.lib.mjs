@@ -122,6 +122,7 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
                 owner {
                   login
                 }
+                isArchived
                 issues(states: OPEN, first: 1) {
                   totalCount
                 }
@@ -143,6 +144,7 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
                 owner {
                   login
                 }
+                isArchived
                 issues(states: OPEN, first: 1) {
                   totalCount
                 }
@@ -182,12 +184,22 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
 
     await log(`   📊 Fetched all ${allRepos.length} repositories`, { verbose: true });
 
+    // Filter out archived repositories
+    const nonArchivedRepos = allRepos.filter(repo => !repo.isArchived);
+    const archivedCount = allRepos.length - nonArchivedRepos.length;
+
+    if (archivedCount > 0) {
+      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`, { verbose: true });
+    }
+
+    await log(`   ✅ Processing ${nonArchivedRepos.length} non-archived repositories`, { verbose: true });
+
     // Now fetch issues from each repository
     // For repositories with >100 issues, use pagination
     const allIssues = [];
     let reposWithIssues = 0;
 
-    for (const repo of allRepos) {
+    for (const repo of nonArchivedRepos) {
       const issueCount = repo.issues.totalCount;
 
       // Skip repos with no issues
@@ -223,9 +235,9 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
       }
     }
 
-    await log(`   ✅ GraphQL pagination complete: ${allRepos.length} repos, ${allIssues.length} issues from ${reposWithIssues} repos with issues`, { verbose: true });
+    await log(`   ✅ GraphQL pagination complete: ${nonArchivedRepos.length} non-archived repos, ${allIssues.length} issues from ${reposWithIssues} repos with issues`, { verbose: true });
 
-    return { success: true, issues: allIssues, repoCount: allRepos.length };
+    return { success: true, issues: allIssues, repoCount: nonArchivedRepos.length };
 
   } catch (error) {
     await log(`   ❌ GraphQL approach failed: ${cleanErrorMessage(error)}`, { verbose: true });

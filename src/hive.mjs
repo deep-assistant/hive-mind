@@ -208,11 +208,12 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
 
     // First, get list of ALL repositories using gh api with --paginate for unlimited pagination
     // This approach uses the GitHub API directly to fetch all repositories without any limits
+    // Include isArchived field to filter out archived repositories
     let repoListCmd;
     if (scope === 'organization') {
-      repoListCmd = `gh api orgs/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login}'`;
+      repoListCmd = `gh api orgs/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
     } else {
-      repoListCmd = `gh api users/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login}'`;
+      repoListCmd = `gh api users/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
     }
 
     await log('   📋 Fetching repository list (using --paginate for unlimited pagination)...', { verbose: true });
@@ -224,9 +225,19 @@ async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIss
     const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
     // Parse the output line by line, as gh api with --jq outputs one JSON object per line
     const repoLines = repoOutput.trim().split('\n').filter(line => line.trim());
-    const repositories = repoLines.map(line => JSON.parse(line));
+    const allRepositories = repoLines.map(line => JSON.parse(line));
 
-    await log(`   📊 Found ${repositories.length} repositories`);
+    await log(`   📊 Found ${allRepositories.length} repositories`);
+
+    // Filter out archived repositories
+    const repositories = allRepositories.filter(repo => !repo.isArchived);
+    const archivedCount = allRepositories.length - repositories.length;
+
+    if (archivedCount > 0) {
+      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`);
+    }
+
+    await log(`   ✅ Processing ${repositories.length} non-archived repositories`);
 
     let collectedIssues = [];
     let processedRepos = 0;
