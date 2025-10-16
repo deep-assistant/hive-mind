@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
-// Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
   const { getVersion } = await import('./version.lib.mjs');
@@ -39,9 +38,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     process.exit(1);
   }
 }
-// Export createYargsConfig for use in telegram-bot and other modules
 export { createYargsConfig } from './hive.config.lib.mjs';
-
 // Only execute main logic if this module is being run directly (not imported)
 // This prevents heavy module loading when hive.mjs is imported by other modules
 // Check if we're being executed (not imported) by looking at various indicators:
@@ -53,16 +50,10 @@ const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url) ||
                           (process.argv[1] && (process.argv[1].includes('/hive') || process.argv[1].endsWith('hive')));
 
 if (isDirectExecution) {
-// Show immediate output BEFORE loading any dependencies to prevent silent hangs
-// This is crucial for dry-run mode and debugging
 console.log('🐝 Hive Mind - AI-powered issue solver');
 console.log('   Initializing...');
-
-// Wrap the entire main block in a try-catch to prevent silent failures
 try {
-
 console.log('   Loading dependencies (this may take a moment)...');
-
 // Helper function to add timeout to async operations
 const withTimeout = (promise, timeoutMs, operation) => {
   return Promise.race([
@@ -91,15 +82,12 @@ if (typeof use === 'undefined') {
     process.exit(1);
   }
 }
-
 // Use command-stream for consistent $ behavior across runtimes
-// Apply timeout to prevent hanging on npm operations
 const { $ } = await withTimeout(
   use('command-stream'),
   30000, // 30 second timeout
   'loading command-stream'
 );
-
 const yargsModule = await withTimeout(
   use('yargs@17.7.2'),
   30000,
@@ -113,23 +101,15 @@ const { hideBin } = await withTimeout(
 );
 const path = (await withTimeout(use('path'), 30000, 'loading path')).default;
 const fs = (await withTimeout(use('fs'), 30000, 'loading fs')).promises;
-
 // Import shared library functions
 const lib = await import('./lib.mjs');
 const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, cleanupTempDirectories } = lib;
-
-// Import yargs config
 const yargsConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig } = yargsConfigLib;
-
-// Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
 const { validateClaudeConnection } = claudeLib;
-
-// Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, batchCheckArchivedRepositories } = githubLib;
-
 // Import YouTrack-related functions
 const youTrackLib = await import('./youtrack/youtrack.lib.mjs');
 const {
@@ -137,42 +117,18 @@ const {
   testYouTrackConnection,
   createYouTrackConfigFromEnv
 } = youTrackLib;
-
-// Import YouTrack sync functions
 const youTrackSync = await import('./youtrack/youtrack-sync.mjs');
-const {
-  syncYouTrackToGitHub,
-  formatIssuesForHive
-} = youTrackSync;
-
-// Import memory check functions
+const { syncYouTrackToGitHub, formatIssuesForHive } = youTrackSync;
 const memCheck = await import('./memory-check.mjs');
 const { checkSystem } = memCheck;
-
-// Import exit handler
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
-
-// Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
-
-// Import GraphQL utilities
 const graphqlLib = await import('./github.graphql.lib.mjs');
 const { tryFetchIssuesWithGraphQL } = graphqlLib;
-
-// The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
-
-// The cleanupTempDirectories function has been moved to lib.mjs
-
-// Detect if running as global command vs local script
-// Simple detection: check if the command name ends with .mjs
-// - Global command: 'hive' -> use 'solve'
-// - Local script: 'hive.mjs' or './hive.mjs' -> use './solve.mjs'
 const commandName = process.argv[1] ? process.argv[1].split('/').pop() : '';
 const isLocalScript = commandName.endsWith('.mjs');
-
-// Determine which solve command to use based on execution context
 const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
 
 /**
@@ -186,10 +142,8 @@ const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
  */
 async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIssues = false) {
   const { execSync } = await import('child_process');
-
   try {
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
-
     // Strategy 1: Try GraphQL approach first (faster but has limitations)
     // Only try GraphQL for "all issues" mode, not for labeled issues
     if (fetchAllIssues) {

@@ -189,17 +189,17 @@ export async function tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMes
     const unownedCount = allRepos.length - ownedRepos.length;
 
     if (unownedCount > 0) {
-      await log(`   ⏭️  Skipping ${unownedCount} repository(ies) not owned by ${owner}`, { verbose: true });
+      await log(`   ⏭️  Skipping ${unownedCount} repository(ies) not owned by ${owner}`);
     }
 
     const nonArchivedRepos = ownedRepos.filter(repo => !repo.isArchived);
     const archivedCount = ownedRepos.length - nonArchivedRepos.length;
 
     if (archivedCount > 0) {
-      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`, { verbose: true });
+      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`);
     }
 
-    await log(`   ✅ Processing ${nonArchivedRepos.length} non-archived repositories owned by ${owner}`, { verbose: true });
+    await log(`   ✅ Processing ${nonArchivedRepos.length} non-archived repositories owned by ${owner}`);
 
     // Now fetch issues from each repository
     // For repositories with >100 issues, use pagination
