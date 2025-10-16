@@ -21,8 +21,9 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
-    // Don't use .command() to avoid yargs validation errors being written to stderr
-    // Instead, validate the URL ourselves after parsing in solve.mjs
+    // Don't use .command() or .positional() to avoid yargs validation errors being written to stderr
+    // URL validation is handled explicitly in solve.mjs after parsing
+    .epilogue('Positionals:\n  issue-url  The GitHub issue URL to solve                              [string]')
     .fail((msg, err, _yargs) => {
       // Custom fail handler to suppress yargs error output
       // Errors will be handled in the parseArguments catch block
