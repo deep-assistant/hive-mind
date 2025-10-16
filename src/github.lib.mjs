@@ -1443,6 +1443,105 @@ export async function detectRepositoryVisibility(owner, repo) {
   }
 }
 
+/**
+ * Batch check if repositories are archived using GraphQL
+ * This is more efficient than checking each repository individually
+ * @param {Array<{owner: string, name: string}>} repositories - Array of repository objects with owner and name
+ * @returns {Promise<Object>} Object mapping "owner/repo" to isArchived boolean
+ */
+export async function batchCheckArchivedRepositories(repositories) {
+  try {
+    if (!repositories || repositories.length === 0) {
+      return {};
+    }
+
+    await log(`   🔍 Batch checking archived status for ${repositories.length} repositories...`, { verbose: true });
+
+    // GraphQL has complexity limits, so batch in groups of 50
+    const BATCH_SIZE = 50;
+    const results = {};
+
+    for (let i = 0; i < repositories.length; i += BATCH_SIZE) {
+      const batch = repositories.slice(i, i + BATCH_SIZE);
+
+      // Build GraphQL query for this batch
+      const queryFields = batch.map((repo, index) => `
+        repo${index}: repository(owner: "${repo.owner}", name: "${repo.name}") {
+          nameWithOwner
+          isArchived
+        }`).join('\n');
+
+      const query = `
+        query CheckArchivedStatus {
+          ${queryFields}
+        }
+      `;
+
+      try {
+        // Add small delay between batches to respect rate limits
+        if (i > 0) {
+          await log('   ⏰ Waiting 2 seconds before next batch...', { verbose: true });
+          await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
+        }
+
+        // Execute GraphQL query
+        const { execSync } = await import('child_process');
+        const result = execSync(`gh api graphql -f query='${query}'`, {
+          encoding: 'utf8',
+          maxBuffer: githubLimits.bufferMaxSize
+        });
+
+        const data = JSON.parse(result);
+
+        // Process results for this batch
+        batch.forEach((repo, index) => {
+          const repoData = data.data?.[`repo${index}`];
+          if (repoData) {
+            const repoKey = `${repo.owner}/${repo.name}`;
+            results[repoKey] = repoData.isArchived;
+          }
+        });
+
+        await log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(repositories.length / BATCH_SIZE)} processed (${batch.length} repositories)`, { verbose: true });
+
+      } catch (batchError) {
+        await log(`   ⚠️  GraphQL batch query failed: ${cleanErrorMessage(batchError)}`, { level: 'warning' });
+
+        // Fall back to individual REST API calls for this batch
+        await log('   🔄 Falling back to REST API for batch...', { verbose: true });
+
+        for (const repo of batch) {
+          try {
+            const { execSync } = await import('child_process');
+            const cmd = `gh api repos/${repo.owner}/${repo.name} --jq .archived`;
+
+            const output = execSync(cmd, { encoding: 'utf8' }).trim();
+            const isArchived = output === 'true';
+
+            const repoKey = `${repo.owner}/${repo.name}`;
+            results[repoKey] = isArchived;
+          } catch (restError) {
+            // If we can't check, assume it's not archived (safer to include than exclude)
+            const repoKey = `${repo.owner}/${repo.name}`;
+            results[repoKey] = false;
+            await log(`   ⚠️  Could not check ${repoKey}, assuming not archived`, { verbose: true });
+          }
+        }
+      }
+    }
+
+    // Log summary
+    const archivedCount = Object.values(results).filter(isArchived => isArchived).length;
+    await log(`   📊 Batch archived check complete: ${archivedCount}/${repositories.length} repositories are archived`, { verbose: true });
+
+    return results;
+
+  } catch (error) {
+    await log(`   ❌ Batch archived check failed: ${cleanErrorMessage(error)}`, { level: 'error' });
+    return {};
+  }
+}
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -1463,5 +1562,6 @@ export default {
   ghPrView,
   ghIssueView,
   handlePRNotFoundError,
-  detectRepositoryVisibility
+  detectRepositoryVisibility,
+  batchCheckArchivedRepositories
 };

@@ -131,7 +131,7 @@ const { validateClaudeConnection } = claudeLib;
 
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl } = githubLib;
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, batchCheckArchivedRepositories } = githubLib;
 
 // Import YouTrack-related functions
 const youTrackLib = await import('./youtrack/youtrack.lib.mjs');
@@ -1143,8 +1143,64 @@ async function fetchIssues() {
       await log('   ✅ Issues sorted by publication date');
     }
 
-    // Filter out issues with open PRs if option is enabled
+    // Filter out issues from archived repositories
+    // This is critical because we cannot do write operations on archived repositories
     let issuesToProcess = issues;
+
+    // Only filter for organization/user scopes where issues include repository info
+    // For repository scope, we're already working on a specific repo
+    if (scope !== 'repository' && issues.length > 0 && issues[0].repository) {
+      await log('   🔍 Checking for archived repositories...');
+
+      // Extract unique repositories from issues
+      const uniqueRepos = new Map();
+      for (const issue of issues) {
+        if (issue.repository) {
+          const repoName = issue.repository.name;
+          const repoOwner = issue.repository.owner?.login || issue.repository.nameWithOwner?.split('/')[0];
+
+          if (repoOwner && repoName) {
+            const repoKey = `${repoOwner}/${repoName}`;
+            if (!uniqueRepos.has(repoKey)) {
+              uniqueRepos.set(repoKey, { owner: repoOwner, name: repoName });
+            }
+          }
+        }
+      }
+
+      // Batch check archived status for all repositories
+      const archivedStatusMap = await batchCheckArchivedRepositories(Array.from(uniqueRepos.values()));
+
+      // Filter out issues from archived repositories
+      const filteredIssues = [];
+      let archivedIssuesCount = 0;
+
+      for (const issue of issues) {
+        if (issue.repository) {
+          const repoName = issue.repository.name;
+          const repoOwner = issue.repository.owner?.login || issue.repository.nameWithOwner?.split('/')[0];
+          const repoKey = `${repoOwner}/${repoName}`;
+
+          if (archivedStatusMap[repoKey] === true) {
+            await log(`      ⏭️  Skipping (archived repository): ${issue.title || 'Untitled'} (${issue.url})`, { verbose: true });
+            archivedIssuesCount++;
+          } else {
+            filteredIssues.push(issue);
+          }
+        } else {
+          // If no repository info, include the issue (shouldn't happen but be safe)
+          filteredIssues.push(issue);
+        }
+      }
+
+      if (archivedIssuesCount > 0) {
+        await log(`   ⏭️  Skipped ${archivedIssuesCount} issue(s) from archived repositories`);
+      }
+
+      issuesToProcess = filteredIssues;
+    }
+
+    // Filter out issues with open PRs if option is enabled
     if (argv.skipIssuesWithPrs) {
       await log('   🔍 Checking for existing pull requests using batch GraphQL query...');
 
