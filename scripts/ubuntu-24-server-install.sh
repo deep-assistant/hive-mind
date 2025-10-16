@@ -283,6 +283,97 @@ else
   echo "[*] Rust already installed."
 fi
 
+# --- Homebrew ---
+if ! command -v brew &>/dev/null; then
+  echo "[*] Installing Homebrew..."
+
+  # Install Homebrew prerequisites (if not already installed)
+  sudo apt install -y build-essential procps file || {
+    echo "[!] Warning: Some Homebrew prerequisites may have failed to install."
+  }
+
+  # Run Homebrew installation script
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || {
+    echo "[!] Warning: Homebrew installation failed. Skipping PHP setup."
+  }
+
+  # Add Homebrew to PATH
+  if [[ -d /home/linuxbrew/.linuxbrew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.profile"
+    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.bashrc"
+  elif [[ -d "$HOME/.linuxbrew" ]]; then
+    eval "$($HOME/.linuxbrew/bin/brew shellenv)"
+    echo 'eval "$($HOME/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.profile"
+    echo 'eval "$($HOME/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.bashrc"
+  else
+    echo "[!] Warning: Homebrew installation directory not found."
+  fi
+else
+  echo "[*] Homebrew already installed."
+  eval "$(brew shellenv 2>/dev/null)" || true
+fi
+
+# --- PHP (via Homebrew + shivammathur/php tap) ---
+if command -v brew &>/dev/null; then
+  # Check if PHP is already installed via Homebrew
+  if ! brew list | grep -q "shivammathur/php/php@"; then
+    echo "[*] Installing PHP via Homebrew..."
+
+    # Add shivammathur/php tap
+    brew tap shivammathur/php || {
+      echo "[!] Warning: Failed to add shivammathur/php tap. Skipping PHP installation."
+    }
+
+    # Install PHP 8.3
+    if brew tap | grep -q "shivammathur/php"; then
+      echo "[*] Installing PHP 8.3..."
+      brew install shivammathur/php/php@8.3 || {
+        echo "[!] Warning: PHP 8.3 installation failed."
+      }
+
+      # Link PHP 8.3 as the active version
+      if brew list | grep -q "shivammathur/php/php@8.3"; then
+        brew link --overwrite --force shivammathur/php/php@8.3 || {
+          echo "[!] Warning: Failed to link PHP 8.3."
+        }
+
+        # Verify PHP installation
+        if command -v php &>/dev/null; then
+          echo "[*] PHP installed successfully: $(php --version | head -n 1)"
+        fi
+      fi
+    fi
+
+    # Create a helper function for switching PHP versions
+    cat >> "$HOME/.bashrc" << 'PHP_SWITCH_EOF'
+
+# PHP version switcher function
+switch-php() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: switch-php <version>"
+    echo "Example: switch-php 8.3"
+    return 1
+  fi
+
+  # Unlink all PHP versions
+  for php_ver in $(brew list 2>/dev/null | grep -E '^(shivammathur/php/)?php@'); do
+    brew unlink "$php_ver" 2>/dev/null || true
+  done
+
+  # Link the requested version
+  brew link --overwrite --force "shivammathur/php/php@$1" && \
+    echo "Switched to PHP $(php --version | head -n 1)"
+}
+PHP_SWITCH_EOF
+
+  else
+    echo "[*] PHP already installed via Homebrew."
+  fi
+else
+  echo "[!] Homebrew not available. Skipping PHP installation."
+fi
+
 export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
