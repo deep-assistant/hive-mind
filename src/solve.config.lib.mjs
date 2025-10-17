@@ -21,9 +21,12 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
-    // Don't use .command() or .positional() to avoid yargs validation errors being written to stderr
-    // URL validation is handled explicitly in solve.mjs after parsing
-    .epilogue('Positionals:\n  issue-url  The GitHub issue URL to solve                              [string]')
+    .command('$0 <issue-url>', 'Solve a GitHub issue or pull request', (yargs) => {
+      yargs.positional('issue-url', {
+        type: 'string',
+        description: 'The GitHub issue URL to solve'
+      });
+    })
     .fail((msg, err, _yargs) => {
       // Custom fail handler to suppress yargs error output
       // Errors will be handled in the parseArguments catch block
@@ -207,7 +210,38 @@ export const parseArguments = async (yargs, hideBin) => {
 
   let argv;
   try {
-    argv = await createYargsConfig(yargs()).parse(rawArgs);
+    // Suppress stderr output from yargs during parsing to prevent validation errors from appearing
+    // This prevents "YError: Not enough arguments" from polluting stderr (issue #583)
+    // Save the original stderr.write
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+
+    // Temporarily override stderr.write to capture output
+    process.stderr.write = function(chunk, encoding, callback) {
+      stderrBuffer.push(chunk.toString());
+      // Call the callback if provided (for compatibility)
+      if (typeof encoding === 'function') {
+        encoding();
+      } else if (typeof callback === 'function') {
+        callback();
+      }
+      return true;
+    };
+
+    try {
+      argv = await createYargsConfig(yargs()).parse(rawArgs);
+    } finally {
+      // Always restore stderr.write
+      process.stderr.write = originalStderrWrite;
+
+      // In verbose mode, show what was captured from stderr (for debugging)
+      if (global.verboseMode && stderrBuffer.length > 0) {
+        const captured = stderrBuffer.join('');
+        if (captured.trim()) {
+          console.error('[Suppressed yargs stderr]:', captured);
+        }
+      }
+    }
   } catch (error) {
     // Yargs throws errors for validation issues
     // If the error is about unknown arguments (strict mode), re-throw it
