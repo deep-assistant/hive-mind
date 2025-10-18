@@ -19,6 +19,15 @@ import { log, maskToken, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { githubLimits, timeouts } from './config.lib.mjs';
 
+// Import compression and gist upload utilities
+import {
+  compressLogFile,
+  shouldCompress,
+  getDecompressionInstructions,
+  formatFileSize
+} from './log-compression.lib.mjs';
+import { uploadToGist } from './gist-upload.lib.mjs';
+
 // Import batch operations from separate module
 import {
   batchCheckPullRequestsForIssues as batchCheckPRs,
@@ -490,27 +499,73 @@ ${logContent}
           await log('  ⚠️  Could not determine repository visibility, defaulting to public gist', { verbose: true });
         }
 
-        // Create gist with appropriate visibility
+        // Prepare log file for upload (with compression if needed)
         const tempLogFile = `/tmp/solution-draft-log-${targetType}-${Date.now()}.txt`;
         await fs.writeFile(tempLogFile, logContent);
 
-        const gistCommand = isPublicRepo
-          ? `gh gist create "${tempLogFile}" --public --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`
-          : `gh gist create "${tempLogFile}" --desc "Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}" --filename "solution-draft-log.txt"`;
+        let fileToUpload = tempLogFile;
+        let uploadFilename = 'solution-draft-log.txt';
+        let compressionInfo = null;
+
+        // Check if we should compress the log
+        const tempStats = await fs.stat(tempLogFile);
+        if (shouldCompress(tempStats.size)) {
+          const compressedFile = `${tempLogFile}.gz`;
+          if (verbose) {
+            await log(`  🗜️  Compressing log file (${formatFileSize(tempStats.size)})...`, { verbose: true });
+          }
+
+          try {
+            compressionInfo = await compressLogFile(tempLogFile, compressedFile);
+            fileToUpload = compressedFile;
+            uploadFilename = 'solution-draft-log.txt.gz';
+
+            if (verbose) {
+              await log(`  ✅ Compressed: ${formatFileSize(compressionInfo.originalSize)} → ${formatFileSize(compressionInfo.compressedSize)} (${compressionInfo.savedPercentage}% reduction)`, { verbose: true });
+            }
+          } catch (compressError) {
+            reportError(compressError, {
+              context: 'compress_log_file',
+              level: 'warning'
+            });
+            await log(`  ⚠️  Compression failed, uploading uncompressed: ${compressError.message}`, { verbose: true });
+          }
+        }
+
+        // Upload using the enhanced gist upload function
+        const description = `Solution draft log for https://github.com/${owner}/${repo}/${targetType === 'pr' ? 'pull' : 'issues'}/${targetNumber}`;
 
         if (verbose) {
           await log(`  🔐 Creating ${isPublicRepo ? 'public' : 'private'} gist...`, { verbose: true });
         }
 
-        const gistResult = await $(gistCommand);
+        const uploadResult = await uploadToGist({
+          filePath: fileToUpload,
+          filename: uploadFilename,
+          description,
+          isPublic: isPublicRepo,
+          verbose
+        });
 
+        // Clean up temporary files
         await fs.unlink(tempLogFile).catch(() => {});
+        if (fileToUpload !== tempLogFile) {
+          await fs.unlink(fileToUpload).catch(() => {});
+        }
 
-        if (gistResult.code === 0) {
-          const gistUrl = gistResult.stdout.toString().trim();
+        if (uploadResult.success) {
+          const gistUrl = uploadResult.gistUrl;
 
           // Create comment with gist link
           let gistComment;
+          const sizeInfo = compressionInfo
+            ? `${Math.round(logStats.size / 1024)}KB → ${Math.round(compressionInfo.compressedSize / 1024)}KB compressed`
+            : `${Math.round(logStats.size / 1024)}KB`;
+
+          const decompressionNote = compressionInfo
+            ? `\n\n${getDecompressionInstructions(uploadFilename)}`
+            : '';
+
           if (errorMessage) {
             // Failure log gist format
             gistComment = `## 🚨 Solution Draft Failed
@@ -520,8 +575,8 @@ The automated solution draft encountered an error:
 ${errorMessage}
 \`\`\`
 
-📎 **Failure log uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
-🔗 [View complete failure log](${gistUrl})
+📎 **Failure log uploaded as GitHub Gist** (${sizeInfo})
+🔗 [View complete failure log](${gistUrl})${decompressionNote}
 
 ---
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
@@ -531,8 +586,8 @@ ${errorMessage}
 
 This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
 
-📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
-🔗 [View complete solution draft log](${gistUrl})
+📎 **Log file uploaded as GitHub Gist** (${sizeInfo})
+🔗 [View complete solution draft log](${gistUrl})${decompressionNote}
 
 ---
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
@@ -548,15 +603,21 @@ This log file contains the complete execution trace of the AI ${targetType === '
           if (commentResult.code === 0) {
             await log(`  ✅ Solution draft log uploaded to ${targetName} as ${isPublicRepo ? 'public' : 'private'} Gist`);
             await log(`  🔗 Gist URL: ${gistUrl}`);
-            await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+            if (compressionInfo) {
+              await log(`  📊 Original size: ${formatFileSize(compressionInfo.originalSize)}`);
+              await log(`  🗜️  Compressed size: ${formatFileSize(compressionInfo.compressedSize)} (saved ${compressionInfo.savedPercentage}%)`);
+              await log(`  📤 Upload method: ${uploadResult.method}`);
+            } else {
+              await log(`  📊 Log size: ${Math.round(logStats.size / 1024)}KB`);
+            }
             return true;
           } else {
             await log(`  ❌ Failed to upload comment with gist link: ${commentResult.stderr ? commentResult.stderr.toString().trim() : 'unknown error'}`);
             return false;
           }
         } else {
-          await log(`  ❌ Failed to create gist: ${gistResult.stderr ? gistResult.stderr.toString().trim() : 'unknown error'}`);
-          
+          await log(`  ❌ Failed to create gist: ${uploadResult.error || 'unknown error'}`);
+
           // Fallback to truncated comment
           await log('  🔄 Falling back to truncated comment...');
           return await attachTruncatedLog(options);
