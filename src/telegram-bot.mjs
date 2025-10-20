@@ -585,7 +585,7 @@ bot.command('help', async (ctx) => {
   if (solveEnabled) {
     message += '*/solve* - Solve a GitHub issue\n';
     message += 'Usage: `/solve <github-url> [options]`\n';
-    message += 'Example: `/solve https://github.com/owner/repo/issues/123 --verbose`\n';
+    message += 'Example: `/solve https://github.com/owner/repo/issues/123`\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
@@ -701,7 +701,7 @@ bot.command('solve', async (ctx) => {
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -829,7 +829,7 @@ bot.command('hive', async (ctx) => {
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
