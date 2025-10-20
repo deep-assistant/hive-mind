@@ -764,7 +764,9 @@ try {
   }
 
   // Check for uncommitted changes
-  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, argv['auto-commit-uncommitted-changes']);
+  // When limit is reached, force auto-commit of any uncommitted changes to preserve work
+  const shouldAutoCommit = argv['auto-commit-uncommitted-changes'] || limitReached;
+  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, shouldAutoCommit);
 
   // Remove CLAUDE.md now that Claude command has finished
   await cleanupClaudeFile(tempDir, branchName, claudeCommitHash);
