@@ -87,7 +87,9 @@ async function createTestRepository() {
   // Get current user
   const userResult = $('gh auth status', { silent: true });
   if (userResult.code !== 0) {
-    throw new Error('GitHub authentication required');
+    const skipError = new Error('GitHub authentication required');
+    skipError.isPermissionError = true;
+    throw skipError;
   }
 
   // Create repository
