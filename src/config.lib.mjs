@@ -112,7 +112,7 @@ export const externalUrls = {
 
 // Model configurations
 export const modelConfig = {
-  availableModels: getenv('HIVE_MIND_AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
+  availableModels: getenv('HIVE_MIND_AVAILABLE_MODELS', 'opus,sonnet,haiku,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805,claude-haiku-4-5-20250514').split(','),
   defaultModel: getenv('HIVE_MIND_DEFAULT_MODEL', 'sonnet'),
   // Allow any model ID - validation is delegated to the tool implementation
   restrictModels: getenv('HIVE_MIND_RESTRICT_MODELS', 'false').toLowerCase() === 'true',

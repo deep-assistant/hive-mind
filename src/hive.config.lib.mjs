@@ -60,7 +60,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use for solve (opus, sonnet, or any model ID supported by the tool)',
+      description: 'Model to use for solve (opus, sonnet, haiku, or any model ID supported by the tool)',
       alias: 'm',
       default: 'sonnet'
     })
