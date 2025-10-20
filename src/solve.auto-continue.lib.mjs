@@ -37,6 +37,10 @@ const validation = await import('./solve.validation.lib.mjs');
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
+// Import GitHub linking detection library
+const githubLinking = await import('./github-linking.lib.mjs');
+const { extractLinkedIssueNumber } = githubLinking;
+
 // Import configuration
 import { autoContinue } from './config.lib.mjs';
 
@@ -267,12 +271,13 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
       await log(`📝 PR branch: ${prBranch}`);
 
-      // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
+      // Extract issue number from PR body using GitHub linking detection library
+      // This ensures we only detect actual GitHub-recognized linking keywords
       const prBody = prData.body || '';
-      const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
+      const extractedIssueNumber = extractLinkedIssueNumber(prBody);
 
-      if (issueMatch) {
-        issueNumber = issueMatch[1];
+      if (extractedIssueNumber) {
+        issueNumber = extractedIssueNumber;
         await log(`🔗 Found linked issue #${issueNumber}`);
       } else {
         // If no linked issue found, we can still continue but warn
