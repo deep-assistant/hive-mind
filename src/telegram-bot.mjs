@@ -109,6 +109,10 @@ const bot = new Telegraf(BOT_TOKEN, {
 // Using Unix timestamp (seconds since epoch) to match Telegram's message.date format
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
+// Track active screen sessions per chat
+// Map structure: chatId -> [{ sessionName, messageId, command, url, timestamp }]
+const activeSessionsPerChat = new Map();
+
 const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
 const allowedChats = allowedChatsInput
   ? lino.parseNumericIds(allowedChatsInput)
@@ -470,6 +474,101 @@ function parseCommandArgs(text) {
   return args;
 }
 
+/**
+ * Generate a screen session name based on the command and GitHub URL
+ * Uses the same logic as start-screen.mjs to ensure consistency
+ * @param {string} command - Either 'solve' or 'hive'
+ * @param {string} githubUrl - GitHub repository or issue URL
+ * @returns {string} The generated screen session name
+ */
+function generateScreenName(command, githubUrl) {
+  // Simple parsing - extract owner, repo, and issue/PR number from URL
+  const urlMatch = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)(?:\/(?:issues|pull)\/(\d+))?/);
+
+  if (!urlMatch) {
+    // Fallback to simple naming if parsing fails
+    const sanitized = githubUrl.replace(/[^a-zA-Z0-9-]/g, '-').substring(0, 30);
+    return `${command}-${sanitized}`;
+  }
+
+  const [, owner, repo, number] = urlMatch;
+  const parts = [command, owner, repo];
+
+  if (number) {
+    parts.push(number);
+  }
+
+  return parts.join('-');
+}
+
+/**
+ * Send CTRL+C to a screen session to forcefully stop the running command
+ * @param {string} sessionName - The name of the screen session
+ * @returns {Promise<{success: boolean, output?: string, error?: string}>}
+ */
+async function sendCtrlCToScreen(sessionName) {
+  try {
+    // Check if session exists
+    const checkResult = await exec('screen -ls').catch(err => ({
+      stdout: err.stdout || '',
+      stderr: err.stderr || ''
+    }));
+
+    const sessionExists = (checkResult.stdout + checkResult.stderr).includes(sessionName);
+
+    if (!sessionExists) {
+      return {
+        success: false,
+        error: `Screen session '${sessionName}' not found`
+      };
+    }
+
+    // Send CTRL+C (ASCII code 3) to the screen session
+    // Using $'\003' sends the actual CTRL+C character
+    await exec(`screen -S ${sessionName} -X stuff $'\\003'`);
+
+    return {
+      success: true,
+      output: `CTRL+C sent to session '${sessionName}'`
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Add a session to the active sessions tracking
+ */
+function trackSession(chatId, sessionName, messageId, command, url) {
+  if (!activeSessionsPerChat.has(chatId)) {
+    activeSessionsPerChat.set(chatId, []);
+  }
+
+  const sessions = activeSessionsPerChat.get(chatId);
+  sessions.push({
+    sessionName,
+    messageId,
+    command,
+    url,
+    timestamp: Date.now()
+  });
+
+  // Keep only the last 10 sessions per chat to prevent memory growth
+  if (sessions.length > 10) {
+    sessions.shift();
+  }
+}
+
+/**
+ * Get active sessions for a chat
+ */
+function getActiveSessions(chatId) {
+  return activeSessionsPerChat.get(chatId) || [];
+}
+
 function mergeArgsWithOverrides(userArgs, overrides) {
   if (!overrides || overrides.length === 0) {
     return userArgs;
@@ -606,8 +705,13 @@ bot.command('help', async (ctx) => {
     message += '*/hive* - ❌ Disabled\n\n';
   }
 
+  message += '*/stop* - Stop running commands\n';
+  message += 'Usage: `/stop` (stops all active sessions in this chat)\n';
+  message += 'Usage: `/stop <session-name>` (stops a specific session)\n';
+  message += 'Example: `/stop solve-owner-repo-123`\n\n';
+
   message += '*/help* - Show this help message\n\n';
-  message += '⚠️ *Note:* /solve and /hive commands only work in group chats.\n\n';
+  message += '⚠️ *Note:* /solve, /hive, and /stop commands only work in group chats.\n\n';
   message += '🔧 *Available Options:*\n';
   message += '• `--fork` - Fork the repository\n';
   message += '• `--auto-fork` - Automatically fork public repos without write access\n';
@@ -749,10 +853,14 @@ bot.command('solve', async (ctx) => {
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
-    const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
+    const sessionName = sessionNameMatch ? sessionNameMatch[1] : generateScreenName('solve', args[0]);
+
+    // Track this session for the /stop command
+    trackSession(chatId, sessionName, ctx.message.message_id, 'solve', args[0]);
 
     let response = '✅ Solve command started successfully!\n\n';
     response += `📊 *Session:* \`${sessionName}\`\n`;
+    response += '\n💡 *Tip:* Use /stop to forcefully stop this command';
 
     await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   } else {
@@ -877,10 +985,14 @@ bot.command('hive', async (ctx) => {
   if (result.success) {
     const sessionNameMatch = result.output.match(/session:\s*(\S+)/i) ||
                             result.output.match(/screen -r\s+(\S+)/);
-    const sessionName = sessionNameMatch ? sessionNameMatch[1] : 'unknown';
+    const sessionName = sessionNameMatch ? sessionNameMatch[1] : generateScreenName('hive', args[0]);
+
+    // Track this session for the /stop command
+    trackSession(chatId, sessionName, ctx.message.message_id, 'hive', args[0]);
 
     let response = '✅ Hive command started successfully!\n\n';
     response += `📊 *Session:* \`${sessionName}\`\n`;
+    response += '\n💡 *Tip:* Use /stop to forcefully stop this command';
 
     await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   } else {
@@ -888,6 +1000,117 @@ bot.command('hive', async (ctx) => {
     response += `\`\`\`\n${result.error || result.output}\n\`\`\``;
     await ctx.reply(response, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
   }
+});
+
+bot.command('stop', async (ctx) => {
+  if (VERBOSE) {
+    console.log('[VERBOSE] /stop command received');
+  }
+
+  // Ignore messages sent before bot started
+  if (isOldMessage(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /stop ignored: old message');
+    }
+    return;
+  }
+
+  // Ignore forwarded or reply messages
+  if (isForwardedOrReply(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /stop ignored: forwarded or reply');
+    }
+    return;
+  }
+
+  if (!isGroupChat(ctx)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /stop ignored: not a group chat');
+    }
+    await ctx.reply('❌ The /stop command only works in group chats. Please add this bot to a group and make it an admin.', { reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  const chatId = ctx.chat.id;
+  if (!isChatAuthorized(chatId)) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /stop ignored: chat not authorized');
+    }
+    await ctx.reply(`❌ This chat (ID: ${chatId}) is not authorized to use this bot. Please contact the bot administrator.`, { reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  if (VERBOSE) {
+    console.log('[VERBOSE] /stop passed all checks, executing...');
+  }
+
+  const userArgs = parseCommandArgs(ctx.message.text);
+  const activeSessions = getActiveSessions(chatId);
+
+  if (activeSessions.length === 0) {
+    await ctx.reply('ℹ️ No active sessions found in this chat.\n\nStart a command with /solve or /hive first.', { reply_to_message_id: ctx.message.message_id });
+    return;
+  }
+
+  // If user provides a session name, stop that specific session
+  if (userArgs.length > 0) {
+    const sessionName = userArgs[0];
+    const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
+
+    await ctx.reply(`⏹️ Stopping session \`${sessionName}\`...\nRequested by: ${requester}`, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+
+    const result = await sendCtrlCToScreen(sessionName);
+
+    if (result.success) {
+      await ctx.reply(`✅ CTRL+C sent to session \`${sessionName}\`\n\nThe command should stop shortly.`, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    } else {
+      await ctx.reply(`❌ Failed to stop session \`${sessionName}\`\n\nError: ${result.error}`, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    }
+    return;
+  }
+
+  // No session name provided - stop all active sessions in this chat
+  const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
+  let statusMsg = `⏹️ Stopping ${activeSessions.length} active session(s)...\nRequested by: ${requester}\n\n`;
+
+  await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+
+  const results = [];
+  for (const session of activeSessions) {
+    const result = await sendCtrlCToScreen(session.sessionName);
+    results.push({
+      session,
+      result
+    });
+  }
+
+  // Build summary message
+  const successCount = results.filter(r => r.result.success).length;
+  const failureCount = results.length - successCount;
+
+  let summaryMsg = `📊 *Stop Results:*\n\n`;
+  summaryMsg += `✅ Successfully stopped: ${successCount}\n`;
+  summaryMsg += `❌ Failed to stop: ${failureCount}\n\n`;
+
+  if (successCount > 0) {
+    summaryMsg += `*Stopped sessions:*\n`;
+    for (const { session, result } of results) {
+      if (result.success) {
+        summaryMsg += `• \`${session.sessionName}\` (${session.command})\n`;
+      }
+    }
+  }
+
+  if (failureCount > 0) {
+    summaryMsg += `\n*Failed sessions:*\n`;
+    for (const { session, result } of results) {
+      if (!result.success) {
+        summaryMsg += `• \`${session.sessionName}\`: ${result.error}\n`;
+      }
+    }
+  }
+
+  await ctx.reply(summaryMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
 });
 
 // Add message listener for verbose debugging
