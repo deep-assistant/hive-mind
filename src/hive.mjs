@@ -683,7 +683,8 @@ class IssueQueue {
       queued: this.queue.length,
       processing: this.processing.size,
       completed: this.completed.size,
-      failed: this.failed.size
+      failed: this.failed.size,
+      processingIssues: Array.from(this.processing)
     };
   }
 
@@ -885,10 +886,19 @@ async function worker(workerId) {
     if (!issueFailed) {
       issueQueue.markCompleted(issueUrl);
     }
-    
+
     // Show queue stats
     const stats = issueQueue.getStats();
     await log(`   📊 Queue: ${stats.queued} waiting, ${stats.processing} processing, ${stats.completed} completed, ${stats.failed} failed`);
+    await log(`   📁 Hive log file: ${absoluteLogPath}`);
+
+    // Show which issues are currently being processed
+    if (stats.processingIssues && stats.processingIssues.length > 0) {
+      await log('   🔧 Currently processing solve commands:');
+      for (const issueUrl of stats.processingIssues) {
+        await log(`      - ${issueUrl}`);
+      }
+    }
   }
   
   await log(`🔧 Worker ${workerId} stopped`, { verbose: true });
@@ -1303,6 +1313,15 @@ async function monitor() {
     await log(`   ⚙️  Processing: ${stats.processing}`);
     await log(`   ✅ Completed: ${stats.completed}`);
     await log(`   ❌ Failed: ${stats.failed}`);
+    await log(`   📁 Hive log file: ${absoluteLogPath}`);
+
+    // Show which issues are currently being processed
+    if (stats.processingIssues && stats.processingIssues.length > 0) {
+      await log('   🔧 Currently processing solve commands:');
+      for (const issueUrl of stats.processingIssues) {
+        await log(`      - ${issueUrl}`);
+      }
+    }
     
     // If running once, wait for queue to empty then exit
     if (argv.once) {

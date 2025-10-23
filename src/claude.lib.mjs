@@ -686,6 +686,24 @@ export const executeClaudeCommand = async (params) => {
               toolUseCount++;
             }
 
+            // Handle session result type from Claude CLI
+            // This is emitted when a session completes, either successfully or with an error
+            // Example: {"type": "result", "subtype": "success", "is_error": true, "result": "Session limit reached ∙ resets 10am"}
+            if (data.type === 'result') {
+              // Check if the result indicates an error
+              if (data.is_error === true) {
+                commandFailed = true;
+                lastMessage = data.result || JSON.stringify(data);
+                await log('⚠️ Detected error result from Claude CLI', { verbose: true });
+
+                // Check if this is a session limit error
+                if (lastMessage.includes('Session limit reached') || lastMessage.includes('limit reached')) {
+                  limitReached = true;
+                  await log('⚠️ Detected session limit in result', { verbose: true });
+                }
+              }
+            }
+
             // Store last message for error detection
             if (data.type === 'text' && data.text) {
               lastMessage = data.text;
