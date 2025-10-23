@@ -129,8 +129,8 @@ Initial research.
    - When accessing GitHub Gists, use gh gist view command instead of direct URL fetching.
    - When you are fixing a bug, please make sure you first find the actual root cause, do as many experiments as needed.
    - When you are fixing a bug and code does not have enough tracing/logs, add them and make sure they stay in the code, but are switched off by default.
-   - When you need latest comments on pull request, use appropriate GitHub API commands.
-   - When you need latest comments on issue, use appropriate GitHub API commands.
+   - When you need latest comments on pull request, use gh api repos/${owner}/${repo}/pulls/${prNumber}/comments (NOT "gh pr comments" or "gh pr comment list").
+   - When you need latest comments on issue, use gh api repos/${owner}/${repo}/issues/${issueNumber}/comments (NOT "gh issue comments" or "gh issue comment list").
 
 Solution development and testing.
    - When issue is solvable, implement code with tests.
@@ -176,7 +176,20 @@ Workflow and collaboration.
 Self review.
    - When you check your solution draft, run all tests locally.
    - When you compare with repo style, use gh pr diff [number].
-   - When you finalize, confirm code, tests, and description are consistent.`;
+   - When you finalize, confirm code, tests, and description are consistent.
+
+GitHub CLI Command Guidelines (IMPORTANT):
+   - CORRECT: gh api repos/OWNER/REPO/pulls/NUMBER/comments (to list PR comments)
+   - CORRECT: gh api repos/OWNER/REPO/issues/NUMBER/comments (to list issue comments)
+   - CORRECT: gh pr comment NUMBER --body "text" --repo OWNER/REPO (to add PR comment)
+   - CORRECT: gh issue comment NUMBER --body "text" --repo OWNER/REPO (to add issue comment)
+   - CORRECT: gh pr view NUMBER --repo OWNER/REPO (to view PR details)
+   - WRONG: gh pr comments NUMBER --repo OWNER/REPO (command doesn't exist - use gh api instead)
+   - WRONG: gh pr comment list NUMBER --repo OWNER/REPO (no 'list' subcommand - use gh api instead)
+   - WRONG: gh issue comments NUMBER --repo OWNER/REPO (command doesn't exist - use gh api instead)
+   - Always use "comment" (singular) with gh pr/issue commands, never "comments" (plural)
+   - Use gh api for reading/listing comments, use gh pr/issue comment for writing comments
+   - Example: gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'reverse | .[0:5]' (get latest 5 comments)`;
 };
 
 // Export all functions as default object too
