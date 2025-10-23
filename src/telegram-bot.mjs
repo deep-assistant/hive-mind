@@ -13,11 +13,10 @@ if (typeof use === 'undefined') {
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 const { reportError, initializeSentry, addBreadcrumb } = await import('./sentry.lib.mjs');
+const { loadLenvConfig } = await import('./lenv-reader.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
-
-dotenvx.config({ quiet: true });
 
 const yargsModule = await use('yargs@17.7.2');
 const yargs = yargsModule.default || yargsModule;
@@ -32,6 +31,11 @@ const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
+  .option('configuration', {
+    type: 'string',
+    description: 'LINO configuration string for environment variables',
+    alias: 'c'
+  })
   .option('token', {
     type: 'string',
     description: 'Telegram bot token from @BotFather',
@@ -79,6 +83,20 @@ const argv = yargs(hideBin(process.argv))
   })
   .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
+
+// Load configuration from --configuration option if provided
+// This allows users to pass environment variables via command line
+if (argv.configuration || argv.c) {
+  const configurationString = argv.configuration || argv.c;
+  loadLenvConfig({ configuration: configurationString, override: true, quiet: true });
+}
+
+// Load .lenv configuration (if exists)
+// .lenv takes precedence over .env
+loadLenvConfig({ quiet: true });
+
+// Load .env configuration as fallback
+dotenvx.config({ quiet: true });
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
