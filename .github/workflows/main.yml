@@ -387,6 +387,16 @@ jobs:
         echo "Running test suite for hive command silent failures..."
         node tests/test-hive-no-silent-failure.mjs
 
+    - name: Run GitHub linking keyword detection test (Issue #568)
+      run: |
+        echo "Running test suite for GitHub linking keyword detection..."
+        node tests/test-github-linking.mjs
+
+    - name: Run Telegram Markdown escaping test (Issue #580)
+      run: |
+        echo "Running test suite for Telegram Markdown escaping..."
+        node tests/test-telegram-markdown-escaping.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest

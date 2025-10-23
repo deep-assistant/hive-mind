@@ -12,6 +12,7 @@ if (typeof use === 'undefined') {
 
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
+const { reportError, initializeSentry, addBreadcrumb } = await import('./sentry.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
@@ -88,6 +89,12 @@ if (!BOT_TOKEN) {
   console.error('Or use: hive-telegram-bot --token your_bot_token');
   process.exit(1);
 }
+
+// Initialize Sentry for error tracking
+await initializeSentry({
+  debug: VERBOSE,
+  environment: process.env.NODE_ENV || 'production',
+});
 
 const telegrafModule = await use('telegraf');
 const { Telegraf } = telegrafModule;
@@ -525,6 +532,24 @@ function validateGitHubUrl(args) {
   return { valid: true };
 }
 
+/**
+ * Escape special characters for Telegram's legacy Markdown parser.
+ * In Telegram's Markdown, these characters need escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
+ * However, for plain text (not inside markup), we primarily need to escape _ and *
+ * to prevent them from being interpreted as formatting.
+ *
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text safe for Markdown parse_mode
+ */
+function escapeMarkdown(text) {
+  if (!text || typeof text !== 'string') {
+    return text;
+  }
+  // Escape underscore and asterisk which are the most common issues in URLs
+  // These can cause "Can't find end of entity" errors when Telegram tries to parse them
+  return text.replace(/_/g, '\\_').replace(/\*/g, '\\*');
+}
+
 bot.command('help', async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /help command received');
@@ -560,7 +585,7 @@ bot.command('help', async (ctx) => {
   if (solveEnabled) {
     message += '*/solve* - Solve a GitHub issue\n';
     message += 'Usage: `/solve <github-url> [options]`\n';
-    message += 'Example: `/solve https://github.com/owner/repo/issues/123 --verbose`\n';
+    message += 'Example: `/solve https://github.com/owner/repo/issues/123`\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
@@ -614,6 +639,19 @@ bot.command('solve', async (ctx) => {
     console.log('[VERBOSE] /solve command received');
   }
 
+  // Add breadcrumb for error tracking
+  await addBreadcrumb({
+    category: 'telegram.command',
+    message: '/solve command received',
+    level: 'info',
+    data: {
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      userId: ctx.from?.id,
+      username: ctx.from?.username,
+    },
+  });
+
   if (!solveEnabled) {
     if (VERBOSE) {
       console.log('[VERBOSE] /solve ignored: command disabled');
@@ -663,7 +701,7 @@ bot.command('solve', async (ctx) => {
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -693,7 +731,9 @@ bot.command('solve', async (ctx) => {
   }
 
   const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
-  let statusMsg = `🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  // Escape URL to prevent Markdown parsing errors with underscores and asterisks
+  const escapedUrl = escapeMarkdown(args[0]);
+  let statusMsg = `🚀 Starting solve command...\nRequested by: ${requester}\nURL: ${escapedUrl}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (solveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
   }
@@ -726,6 +766,19 @@ bot.command('hive', async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /hive command received');
   }
+
+  // Add breadcrumb for error tracking
+  await addBreadcrumb({
+    category: 'telegram.command',
+    message: '/hive command received',
+    level: 'info',
+    data: {
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      userId: ctx.from?.id,
+      username: ctx.from?.username,
+    },
+  });
 
   if (!hiveEnabled) {
     if (VERBOSE) {
@@ -776,7 +829,7 @@ bot.command('hive', async (ctx) => {
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -806,7 +859,9 @@ bot.command('hive', async (ctx) => {
   }
 
   const requester = buildUserMention({ user: ctx.from, parseMode: 'Markdown' });
-  let statusMsg = `🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${args[0]}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
+  // Escape URL to prevent Markdown parsing errors with underscores and asterisks
+  const escapedUrl = escapeMarkdown(args[0]);
+  let statusMsg = `🚀 Starting hive command...\nRequested by: ${requester}\nURL: ${escapedUrl}\nOptions: ${args.slice(1).join(' ') || 'none'}`;
   if (hiveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
   }
@@ -883,11 +938,74 @@ bot.catch((error, ctx) => {
   console.error('Unhandled error while processing update', ctx.update.update_id);
   console.error('Error:', error);
 
-  // Try to notify the user about the error
+  // Log detailed error information
+  console.error('Error details:', {
+    name: error.name,
+    message: error.message,
+    stack: error.stack?.split('\n').slice(0, 10).join('\n'),
+  });
+
+  // Log context information for debugging
+  if (VERBOSE) {
+    console.log('[VERBOSE] Error context:', {
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      messageText: ctx.message?.text?.substring(0, 100),
+      fromUser: ctx.from?.username || ctx.from?.id,
+      updateId: ctx.update.update_id,
+    });
+  }
+
+  // Report error to Sentry with context
+  reportError(error, {
+    telegramContext: {
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      updateId: ctx.update.update_id,
+      command: ctx.message?.text?.split(' ')[0],
+      userId: ctx.from?.id,
+      username: ctx.from?.username,
+    },
+  });
+
+  // Try to notify the user about the error with more details
   if (ctx?.reply) {
-    ctx.reply('❌ An error occurred while processing your request. Please try again or contact support.')
+    // Build a more informative error message
+    let errorMessage = '❌ An error occurred while processing your request.\n\n';
+
+    // Add error type/name if available
+    if (error.name && error.name !== 'Error') {
+      errorMessage += `**Error type:** ${error.name}\n`;
+    }
+
+    // Add sanitized error message (avoid leaking sensitive info)
+    if (error.message) {
+      // Filter out potentially sensitive information
+      const sanitizedMessage = error.message
+        .replace(/token[s]?\s*[:=]\s*[\w-]+/gi, 'token: [REDACTED]')
+        .replace(/password[s]?\s*[:=]\s*[\w-]+/gi, 'password: [REDACTED]')
+        .replace(/api[_-]?key[s]?\s*[:=]\s*[\w-]+/gi, 'api_key: [REDACTED]');
+
+      errorMessage += `**Details:** ${sanitizedMessage}\n`;
+    }
+
+    errorMessage += '\n💡 **Troubleshooting:**\n';
+    errorMessage += '• Try running the command again\n';
+    errorMessage += '• Check if all required parameters are correct\n';
+    errorMessage += '• If the issue persists, contact support with the error details above\n';
+
+    if (VERBOSE) {
+      errorMessage += `\n🔍 **Debug info:** Update ID: ${ctx.update.update_id}`;
+    }
+
+    ctx.reply(errorMessage, { parse_mode: 'Markdown' })
       .catch(replyError => {
         console.error('Failed to send error message to user:', replyError);
+        // Try sending a simple text message without Markdown if Markdown parsing failed
+        ctx.reply('❌ An error occurred while processing your request. Please try again or contact support.')
+          .catch(fallbackError => {
+            console.error('Failed to send fallback error message:', fallbackError);
+          });
       });
   }
 });

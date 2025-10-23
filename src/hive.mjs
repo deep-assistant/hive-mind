@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 // Import Sentry instrumentation first (must be before other imports)
 import './instrument.mjs';
-
-// Early exit paths - handle these before loading all modules to speed up testing
 const earlyArgs = process.argv.slice(2);
 if (earlyArgs.includes('--version')) {
   const { getVersion } = await import('./version.lib.mjs');
@@ -40,10 +38,7 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
     process.exit(1);
   }
 }
-
-// Export createYargsConfig for use in telegram-bot and other modules
 export { createYargsConfig } from './hive.config.lib.mjs';
-
 // Only execute main logic if this module is being run directly (not imported)
 // This prevents heavy module loading when hive.mjs is imported by other modules
 // Check if we're being executed (not imported) by looking at various indicators:
@@ -55,17 +50,10 @@ const isDirectExecution = process.argv[1] === fileURLToPath(import.meta.url) ||
                           (process.argv[1] && (process.argv[1].includes('/hive') || process.argv[1].endsWith('hive')));
 
 if (isDirectExecution) {
-
-// Show immediate output BEFORE loading any dependencies to prevent silent hangs
-// This is crucial for dry-run mode and debugging
 console.log('🐝 Hive Mind - AI-powered issue solver');
 console.log('   Initializing...');
-
-// Wrap the entire main block in a try-catch to prevent silent failures
 try {
-
 console.log('   Loading dependencies (this may take a moment)...');
-
 // Helper function to add timeout to async operations
 const withTimeout = (promise, timeoutMs, operation) => {
   return Promise.race([
@@ -94,15 +82,12 @@ if (typeof use === 'undefined') {
     process.exit(1);
   }
 }
-
 // Use command-stream for consistent $ behavior across runtimes
-// Apply timeout to prevent hanging on npm operations
 const { $ } = await withTimeout(
   use('command-stream'),
   30000, // 30 second timeout
   'loading command-stream'
 );
-
 const yargsModule = await withTimeout(
   use('yargs@17.7.2'),
   30000,
@@ -116,23 +101,15 @@ const { hideBin } = await withTimeout(
 );
 const path = (await withTimeout(use('path'), 30000, 'loading path')).default;
 const fs = (await withTimeout(use('fs'), 30000, 'loading fs')).promises;
-
 // Import shared library functions
 const lib = await import('./lib.mjs');
 const { log, setLogFile, getAbsoluteLogPath, formatTimestamp, cleanErrorMessage, cleanupTempDirectories } = lib;
-
-// Import yargs config
 const yargsConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig } = yargsConfigLib;
-
-// Import Claude-related functions
 const claudeLib = await import('./claude.lib.mjs');
 const { validateClaudeConnection } = claudeLib;
-
-// Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
-const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl } = githubLib;
-
+const { checkGitHubPermissions, fetchAllIssuesWithPagination, fetchProjectIssues, isRateLimitError, batchCheckPullRequestsForIssues, parseGitHubUrl, batchCheckArchivedRepositories } = githubLib;
 // Import YouTrack-related functions
 const youTrackLib = await import('./youtrack/youtrack.lib.mjs');
 const {
@@ -140,38 +117,18 @@ const {
   testYouTrackConnection,
   createYouTrackConfigFromEnv
 } = youTrackLib;
-
-// Import YouTrack sync functions
 const youTrackSync = await import('./youtrack/youtrack-sync.mjs');
-const {
-  syncYouTrackToGitHub,
-  formatIssuesForHive
-} = youTrackSync;
-
-// Import memory check functions
+const { syncYouTrackToGitHub, formatIssuesForHive } = youTrackSync;
 const memCheck = await import('./memory-check.mjs');
 const { checkSystem } = memCheck;
-
-// Import exit handler
 const exitHandler = await import('./exit-handler.lib.mjs');
 const { initializeExitHandler, installGlobalExitHandlers, safeExit } = exitHandler;
-
-// Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { initializeSentry, withSentry, addBreadcrumb, reportError } = sentryLib;
-
-// The fetchAllIssuesWithPagination function has been moved to github.lib.mjs
-
-// The cleanupTempDirectories function has been moved to lib.mjs
-
-// Detect if running as global command vs local script
-// Simple detection: check if the command name ends with .mjs
-// - Global command: 'hive' -> use 'solve'
-// - Local script: 'hive.mjs' or './hive.mjs' -> use './solve.mjs'
+const graphqlLib = await import('./github.graphql.lib.mjs');
+const { tryFetchIssuesWithGraphQL } = graphqlLib;
 const commandName = process.argv[1] ? process.argv[1].split('/').pop() : '';
 const isLocalScript = commandName.endsWith('.mjs');
-
-// Determine which solve command to use based on execution context
 const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
 
 /**
@@ -185,28 +142,64 @@ const solveCommand = isLocalScript ? './solve.mjs' : 'solve';
  */
 async function fetchIssuesFromRepositories(owner, scope, monitorTag, fetchAllIssues = false) {
   const { execSync } = await import('child_process');
-
   try {
     await log(`   🔄 Using repository-by-repository fallback for ${scope}: ${owner}`);
-
-    // First, get list of repositories
-    let repoListCmd;
-    if (scope === 'organization') {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
-    } else {
-      repoListCmd = `gh repo list ${owner} --limit 1000 --json name,owner`;
+    // Strategy 1: Try GraphQL approach first (faster but has limitations)
+    // Only try GraphQL for "all issues" mode, not for labeled issues
+    if (fetchAllIssues) {
+      const graphqlResult = await tryFetchIssuesWithGraphQL(owner, scope, log, cleanErrorMessage);
+      if (graphqlResult.success) {
+        await log(`   ✅ GraphQL approach successful: ${graphqlResult.issues.length} issues from ${graphqlResult.repoCount} repositories`);
+        return graphqlResult.issues;
+      }
     }
 
-    await log('   📋 Fetching repository list...', { verbose: true });
+    // Strategy 2: Fallback to gh api --paginate approach (comprehensive but slower)
+    await log('   📋 Using gh api --paginate approach for comprehensive coverage...', { verbose: true });
+
+    // First, get list of ALL repositories using gh api with --paginate for unlimited pagination
+    // This approach uses the GitHub API directly to fetch all repositories without any limits
+    // Include isArchived field to filter out archived repositories
+    let repoListCmd;
+    if (scope === 'organization') {
+      repoListCmd = `gh api orgs/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
+    } else {
+      repoListCmd = `gh api users/${owner}/repos --paginate --jq '.[] | {name: .name, owner: .owner.login, isArchived: .archived}'`;
+    }
+
+    await log('   📋 Fetching repository list (using --paginate for unlimited pagination)...', { verbose: true });
     await log(`   🔎 Command: ${repoListCmd}`, { verbose: true });
 
     // Add delay for rate limiting
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const repoOutput = execSync(repoListCmd, { encoding: 'utf8' });
-    const repositories = JSON.parse(repoOutput || '[]');
+    // Parse the output line by line, as gh api with --jq outputs one JSON object per line
+    const repoLines = repoOutput.trim().split('\n').filter(line => line.trim());
+    const allRepositories = repoLines.map(line => JSON.parse(line));
 
-    await log(`   📊 Found ${repositories.length} repositories`);
+    await log(`   📊 Found ${allRepositories.length} repositories`);
+
+    // Filter repositories to only include those owned by the target user/org
+    const ownedRepositories = allRepositories.filter(repo => {
+      const repoOwner = repo.owner?.login || repo.owner;
+      return repoOwner === owner;
+    });
+    const unownedCount = allRepositories.length - ownedRepositories.length;
+
+    if (unownedCount > 0) {
+      await log(`   ⏭️  Skipping ${unownedCount} repository(ies) not owned by ${owner}`);
+    }
+
+    // Filter out archived repositories from owned repositories
+    const repositories = ownedRepositories.filter(repo => !repo.isArchived);
+    const archivedCount = ownedRepositories.length - repositories.length;
+
+    if (archivedCount > 0) {
+      await log(`   ⏭️  Skipping ${archivedCount} archived repository(ies)`);
+    }
+
+    await log(`   ✅ Processing ${repositories.length} non-archived repositories owned by ${owner}`);
 
     let collectedIssues = [];
     let processedRepos = 0;
@@ -985,9 +978,11 @@ async function fetchIssues() {
         });
         await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-        // Check if the error is due to rate limiting and we're not in repository scope
-        if (isRateLimitError(searchError) && scope !== 'repository') {
-          await log('   🔍 Rate limit detected - attempting repository fallback...');
+        // Check if the error is due to rate limiting or search API limit and we're not in repository scope
+        const errorMsg = searchError.message || searchError.toString();
+        const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+        if ((isRateLimitError(searchError) || isSearchLimitError) && scope !== 'repository') {
+          await log('   🔍 Search limit detected - attempting repository fallback...');
           try {
             issues = await fetchIssuesFromRepositories(owner, scope, null, true);
           } catch (fallbackError) {
@@ -1065,9 +1060,11 @@ async function fetchIssues() {
           });
           await log(`   ⚠️  Search failed: ${cleanErrorMessage(searchError)}`, { verbose: true });
 
-          // Check if the error is due to rate limiting
-          if (isRateLimitError(searchError)) {
-            await log('   🔍 Rate limit detected - attempting repository fallback...');
+          // Check if the error is due to rate limiting or search API limit
+          const errorMsg = searchError.message || searchError.toString();
+          const isSearchLimitError = errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback');
+          if (isRateLimitError(searchError) || isSearchLimitError) {
+            await log('   🔍 Search limit detected - attempting repository fallback...');
             try {
               issues = await fetchIssuesFromRepositories(owner, scope, argv.monitorTag, false);
             } catch (fallbackError) {
@@ -1122,8 +1119,78 @@ async function fetchIssues() {
       await log('   ✅ Issues sorted by publication date');
     }
 
-    // Filter out issues with open PRs if option is enabled
+    // Filter out issues from archived repositories
+    // This is critical because we cannot do write operations on archived repositories
     let issuesToProcess = issues;
+
+    // Helper function to extract repository info from issue (API response or URL)
+    const getRepoInfo = (issue) => {
+      let repoName = issue.repository?.name;
+      let repoOwner = issue.repository?.owner?.login || issue.repository?.nameWithOwner?.split('/')[0];
+
+      // If repository info is not available, extract it from the issue URL
+      if (!repoName || !repoOwner) {
+        const urlMatch = issue.url?.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+/);
+        if (urlMatch) {
+          repoOwner = urlMatch[1];
+          repoName = urlMatch[2];
+        }
+      }
+
+      return { repoOwner, repoName };
+    };
+
+    // Only filter for organization/user scopes
+    // For repository scope, we're already working on a specific repo
+    if (scope !== 'repository' && issues.length > 0) {
+      await log('   🔍 Checking for archived repositories...');
+
+      // Extract unique repositories from issues
+      const uniqueRepos = new Map();
+      for (const issue of issues) {
+        const { repoOwner, repoName } = getRepoInfo(issue);
+        if (repoOwner && repoName) {
+          const repoKey = `${repoOwner}/${repoName}`;
+          if (!uniqueRepos.has(repoKey)) {
+            uniqueRepos.set(repoKey, { owner: repoOwner, name: repoName });
+          }
+        }
+      }
+
+      // Batch check archived status for all repositories
+      const archivedStatusMap = await batchCheckArchivedRepositories(Array.from(uniqueRepos.values()));
+
+      // Filter out issues from archived repositories
+      const filteredIssues = [];
+      let archivedIssuesCount = 0;
+
+      for (const issue of issues) {
+        const { repoOwner, repoName } = getRepoInfo(issue);
+
+        if (repoOwner && repoName) {
+          const repoKey = `${repoOwner}/${repoName}`;
+
+          if (archivedStatusMap[repoKey] === true) {
+            await log(`      ⏭️  Skipping (archived repository): ${issue.title || 'Untitled'} (${issue.url})`, { verbose: true });
+            archivedIssuesCount++;
+          } else {
+            filteredIssues.push(issue);
+          }
+        } else {
+          // If we can't determine repository, include the issue to be safe
+          await log(`      ⚠️  Could not determine repository for issue: ${issue.url}`, { verbose: true });
+          filteredIssues.push(issue);
+        }
+      }
+
+      if (archivedIssuesCount > 0) {
+        await log(`   ⏭️  Skipped ${archivedIssuesCount} issue(s) from archived repositories`);
+      }
+
+      issuesToProcess = filteredIssues;
+    }
+
+    // Filter out issues with open PRs if option is enabled
     if (argv.skipIssuesWithPrs) {
       await log('   🔍 Checking for existing pull requests using batch GraphQL query...');
 
