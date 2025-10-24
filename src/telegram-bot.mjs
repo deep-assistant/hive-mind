@@ -103,10 +103,15 @@ const config = yargs(hideBin(process.argv))
 
 // Load configuration from --configuration option if provided
 // This allows users to pass environment variables via command line
-// Configuration priority order (last one wins):
-// 1. .env (base configuration, loaded first - already loaded above)
-// 2. .lenv (overrides .env - already loaded above)
-// 3. --configuration (overrides both .env and .lenv)
+//
+// Complete configuration priority order (highest priority last):
+// 1. .env (base configuration, loaded first - already loaded above at line 24)
+// 2. .lenv (overrides .env - already loaded above at line 28)
+// 3. yargs CLI options parsed above (lines 41-102) use getenv() for defaults,
+//    which reads from process.env populated by .env and .lenv
+// 4. --configuration option (overrides process.env, affecting getenv() calls below)
+// 5. Final resolution (lines 116+): CLI option values > environment variables
+//    Pattern: config.X || getenv('VAR') means CLI options have highest priority
 if (config.configuration) {
   loadLenvConfig({ configuration: config.configuration, override: true, quiet: true });
 }
