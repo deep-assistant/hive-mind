@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+*.min.js
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.cache/
+
+# Git
+.git/
