@@ -7,7 +7,7 @@ const getSentry = async () => {
   if (!Sentry) {
     try {
       Sentry = await import('@sentry/node');
-    } catch (error) {
+    } catch {
       // Sentry not installed, return null
       return null;
     }
@@ -82,7 +82,7 @@ export const withSentry = (fn, name, op = 'task') => {
       const result = await fn(...args);
       transaction.setStatus('ok');
       return result;
-    } catch (error) {
+    } catch {
       transaction.setStatus('internal_error');
       captureException(error, {
         operation: name,
@@ -247,7 +247,7 @@ export const flushSentry = async (timeout = 2000) => {
 
   try {
     await sentry.flush(timeout);
-  } catch (error) {
+  } catch {
     // Silently fail if flush fails
     if (process.env.DEBUG === 'true') {
       console.error('Failed to flush Sentry events:', error.message);
@@ -272,7 +272,7 @@ export const closeSentry = async (timeout = 2000) => {
 
   try {
     await sentry.close(timeout);
-  } catch (error) {
+  } catch {
     // Silently fail if close fails
     if (process.env.DEBUG === 'true') {
       console.error('Failed to close Sentry:', error.message);

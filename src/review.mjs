@@ -8,7 +8,7 @@ if (earlyArgs.includes('--version')) {
   try {
     const version = await getVersion();
     console.log(version);
-  } catch (versionError) {
+  } catch {
     console.error('Error: Unable to determine version');
     process.exit(1);
   }
@@ -47,7 +47,7 @@ import { reportError } from './sentry.lib.mjs';
 import * as memoryCheck from './memory-check.mjs';
 
 // Import Claude execution functions
-import { executeClaude, executeClaudeCommand, validateClaudeConnection } from './claude.lib.mjs';
+import { executeClaudeCommand } from './claude.lib.mjs';
 
 // Configure command line arguments - GitHub PR URL as positional argument
 // Use yargs().parse(args) instead of yargs(args).argv to ensure .strict() mode works
@@ -119,7 +119,7 @@ await log(`📁 Log file: ${logFilePath}`);
 await log('   (All output will be logged here)\n');
 
 // Validate GitHub PR URL format
-if (!prUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+$/)) {
+if (!prUrl.match(/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/)) {
   await log('Error: Please provide a valid GitHub pull request URL (e.g., https://github.com/owner/repo/pull/123)', { level: 'error' });
   process.exit(1);
 }
@@ -135,6 +135,7 @@ const prNumber = urlParts[6];
 // Create or find temporary directory for cloning the repository
 let tempDir;
 let isResuming = argv.resume;
+let limitReached = false;
 
 if (isResuming) {
   // When resuming, try to find existing directory or create a new one
@@ -343,7 +344,8 @@ Review this pull request thoroughly.`;
     $
   });
 
-  const { success: commandSuccess, sessionId, limitReached, messageCount, toolUseCount } = result;
+  const { success: commandSuccess, sessionId, limitReached: limitReachedResult } = result;
+  limitReached = limitReachedResult;
 
   // Handle command failure
   if (!commandSuccess) {

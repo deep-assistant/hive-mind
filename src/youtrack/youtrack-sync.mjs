@@ -50,7 +50,7 @@ export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
     );
 
     return closedIssue || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -152,7 +152,7 @@ ${youTrackIssue.description || 'No description provided.'}
         await log(`   ❌ Failed to create issue for ${youTrackId}`, { level: 'error' });
         return null;
       }
-    } catch (error) {
+    } catch {
       await log(`   ❌ Error creating issue: ${error.message}`, { level: 'error' });
       return null;
     }

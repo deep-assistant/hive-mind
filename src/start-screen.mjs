@@ -59,7 +59,7 @@ function parseGitHubUrl(url) {
     }
 
     return result;
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       error: 'Invalid GitHub URL format: ' + error.message
@@ -109,7 +109,7 @@ async function screenSessionExists(sessionName) {
   try {
     const { stdout } = await execAsync('screen -ls');
     return stdout.includes(sessionName);
-  } catch (error) {
+  } catch {
     // screen -ls returns non-zero exit code when no sessions exist
     return false;
   }
@@ -148,7 +148,7 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
             await execAsync(`rm -f ${markerFile}`).catch(() => { });
             return true;
           }
-        } catch (error) {
+        } catch {
           // Marker file doesn't exist yet
         }
 
@@ -159,7 +159,7 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
       // Marker file didn't appear, session is still busy
       // Clean up any leftover marker file from the queued command
       await execAsync(`rm -f ${markerFile}`).catch(() => { });
-    } catch (error) {
+    } catch {
       // Error sending test command or checking marker
     }
 
@@ -221,7 +221,7 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
       await execAsync(`screen -S ${sessionName} -X stuff '${escapedCommand}\n'`);
       console.log(`Command sent to session '${sessionName}' successfully.`);
       console.log(`To attach and view the session, run: screen -r ${sessionName}`);
-    } catch (error) {
+    } catch {
       console.error('Failed to send command to existing screen session:', error.message);
       console.error('You may need to terminate the old session and try again.');
       process.exit(1);
@@ -266,7 +266,7 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
       console.log('Session will remain active after command completes');
     }
     console.log(`To attach to this session, run: screen -r ${sessionName}`);
-  } catch (error) {
+  } catch {
     console.error('Failed to create screen session:', error.message);
     process.exit(1);
   }
@@ -358,7 +358,7 @@ async function main() {
   // Check for screen availability
   try {
     await execAsync('which screen');
-  } catch (error) {
+  } catch {
     console.error('Error: GNU Screen is not installed or not in PATH.');
     console.error('Please install it using your package manager:');
     console.error('  Ubuntu/Debian: sudo apt-get install screen');
