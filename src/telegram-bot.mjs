@@ -30,6 +30,9 @@ const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 const hiveConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
+// Import GitHub URL parser for extracting URLs from messages
+const { parseGitHubUrl } = await import('./github.lib.mjs');
+
 const argv = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
   .option('token', {
@@ -550,6 +553,34 @@ function escapeMarkdown(text) {
   return text.replace(/_/g, '\\_').replace(/\*/g, '\\*');
 }
 
+/**
+ * Extract GitHub issue/PR URL from message text
+ * Searches for any valid GitHub issue or PR URL in the text
+ *
+ * @param {string} text - Message text to search
+ * @returns {string|null} Found GitHub URL or null
+ */
+function extractGitHubUrl(text) {
+  if (!text || typeof text !== 'string') {
+    return null;
+  }
+
+  // Split text into words and check each one
+  const words = text.split(/\s+/);
+
+  for (const word of words) {
+    // Try to parse as GitHub URL
+    const parsed = parseGitHubUrl(word);
+
+    // Accept issue or PR URLs
+    if (parsed.valid && (parsed.type === 'issue' || parsed.type === 'pull')) {
+      return parsed.normalized;
+    }
+  }
+
+  return null;
+}
+
 bot.command('help', async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /help command received');
@@ -586,6 +617,7 @@ bot.command('help', async (ctx) => {
     message += '*/solve* - Solve a GitHub issue\n';
     message += 'Usage: `/solve <github-url> [options]`\n';
     message += 'Example: `/solve https://github.com/owner/repo/issues/123`\n';
+    message += 'Or reply to a message with a GitHub link: `/solve`\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
@@ -668,10 +700,17 @@ bot.command('solve', async (ctx) => {
     return;
   }
 
-  // Ignore forwarded or reply messages
-  if (isForwardedOrReply(ctx)) {
+  // Check if this is a forwarded message (not allowed)
+  // But allow reply messages for URL extraction feature
+  const message = ctx.message;
+  const isForwarded = message.forward_origin && message.forward_origin.type;
+  const isOldApiForwarded = message.forward_from || message.forward_from_chat ||
+                            message.forward_from_message_id || message.forward_signature ||
+                            message.forward_sender_name || message.forward_date;
+
+  if (isForwarded || isOldApiForwarded) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: forwarded or reply');
+      console.log('[VERBOSE] /solve ignored: forwarded message');
     }
     return;
   }
@@ -697,11 +736,40 @@ bot.command('solve', async (ctx) => {
     console.log('[VERBOSE] /solve passed all checks, executing...');
   }
 
-  const userArgs = parseCommandArgs(ctx.message.text);
+  let userArgs = parseCommandArgs(ctx.message.text);
+
+  // Check if this is a reply to a message and user didn't provide URL
+  // In that case, try to extract GitHub URL from the replied message
+  const isReply = message.reply_to_message &&
+                  message.reply_to_message.message_id &&
+                  !message.reply_to_message.forum_topic_created;
+
+  if (isReply && userArgs.length === 0) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve is a reply without URL, extracting from replied message...');
+    }
+
+    const replyText = message.reply_to_message.text || '';
+    const extractedUrl = extractGitHubUrl(replyText);
+
+    if (extractedUrl) {
+      if (VERBOSE) {
+        console.log('[VERBOSE] Extracted URL from reply:', extractedUrl);
+      }
+      // Add the extracted URL as the first argument
+      userArgs = [extractedUrl];
+    } else {
+      if (VERBOSE) {
+        console.log('[VERBOSE] No GitHub URL found in replied message');
+      }
+      await ctx.reply(`❌ No GitHub issue/PR link found in the replied message.\n\nExample: Reply to a message containing a GitHub issue link with \`/solve\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+      return;
+    }
+  }
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123\`\n\nOr reply to a message containing a GitHub link with \`/solve\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
