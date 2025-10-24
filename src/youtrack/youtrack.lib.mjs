@@ -158,7 +158,7 @@ export async function testYouTrackConnection(config) {
   } catch (error) {
     await log(`❌ YouTrack connection failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log(`   URL: ${config.url}`);
-    await log(`   Endpoint tested: /api/users/me`);
+    await log('   Endpoint tested: /api/users/me');
     return false;
   }
 }
@@ -184,7 +184,7 @@ export async function fetchYouTrackIssues(config) {
     const response = await makeYouTrackRequest(endpoint, config);
 
     if (!response || !Array.isArray(response)) {
-      await log(`⚠️  Unexpected response format from YouTrack API`, { verbose: true });
+      await log('⚠️  Unexpected response format from YouTrack API', { verbose: true });
       return [];
     }
 
@@ -204,7 +204,7 @@ export async function fetchYouTrackIssues(config) {
     await log(`📋 Found ${issues.length} YouTrack issue(s) in stage "${config.stage}"`);
 
     if (issues.length > 0) {
-      await log(`   Issues found:`);
+      await log('   Issues found:');
       for (const issue of issues) {
         await log(`   - ${issue.id}: ${issue.summary}`);
       }

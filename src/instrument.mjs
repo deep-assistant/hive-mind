@@ -46,9 +46,9 @@ if (!shouldDisableSentry()) {
     const { sentry, version } = await import('./config.lib.mjs');
 
     // Dynamically import Sentry packages only when needed
-    const sentryModule = await import("@sentry/node");
+    const sentryModule = await import('@sentry/node');
     Sentry = sentryModule;
-    const profilingModule = await import("@sentry/profiling-node");
+    const profilingModule = await import('@sentry/profiling-node');
     nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
 
     // Initialize Sentry with configuration

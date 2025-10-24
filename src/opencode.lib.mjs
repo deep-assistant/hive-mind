@@ -76,7 +76,7 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
         const stdout = testResult.stdout?.toString() || '';
 
         if (stderr.includes('auth') || stderr.includes('login')) {
-          await log(`❌ OpenCode authentication failed`, { level: 'error' });
+          await log('❌ OpenCode authentication failed', { level: 'error' });
           await log('   💡 Please run: opencode auth', { level: 'error' });
           return false;
         }

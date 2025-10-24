@@ -183,19 +183,19 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
 
   if (sessionExists) {
     console.log(`Screen session '${sessionName}' already exists.`);
-    console.log(`Checking if session is ready to accept commands...`);
+    console.log('Checking if session is ready to accept commands...');
 
     // Wait for the session to be ready (at a prompt)
     const isReady = await waitForSessionReady(sessionName);
 
     if (isReady) {
-      console.log(`Session is ready.`);
+      console.log('Session is ready.');
     } else {
-      console.log(`Session might still be running a command. Will attempt to send command anyway.`);
-      console.log(`Note: The command will execute once the current operation completes.`);
+      console.log('Session might still be running a command. Will attempt to send command anyway.');
+      console.log('Note: The command will execute once the current operation completes.');
     }
 
-    console.log(`Sending command to existing session...`);
+    console.log('Sending command to existing session...');
 
     // Build the full command to send to the existing session
     const quotedArgs = args.map(arg => {
@@ -261,9 +261,9 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
     await execAsync(screenCommand);
     console.log(`Started ${command} in detached screen session: ${sessionName}`);
     if (autoTerminate) {
-      console.log(`Note: Session will terminate after command completes (--auto-terminate mode)`);
+      console.log('Note: Session will terminate after command completes (--auto-terminate mode)');
     } else {
-      console.log(`Session will remain active after command completes`);
+      console.log('Session will remain active after command completes');
     }
     console.log(`To attach to this session, run: screen -r ${sessionName}`);
   } catch (error) {

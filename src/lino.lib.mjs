@@ -151,7 +151,7 @@ export class LinksNotationManager {
     if (!cache) {
       const cacheFile = this.getCachePath(filename);
       console.error(`❌ ${errorMessage || `Cache file not found: ${cacheFile}`}`);
-      console.log(`💡 Run the appropriate script first to create the cache file`);
+      console.log('💡 Run the appropriate script first to create the cache file');
       process.exit(1);
     }
 
