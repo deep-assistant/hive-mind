@@ -206,12 +206,15 @@ jobs:
           echo "✅ Version has been bumped from $BASE_VERSION to $CURRENT_VERSION"
         fi
 
+  # === FAST CHECKS (FAIL FAST) ===
+  # These checks run first and must all pass before long-running tests execute
+
   # === COMPILATION & SYNTAX CHECKS ===
   test-compilation:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -326,11 +329,20 @@ jobs:
           rm -f "$FAILURES_FILE"
         fi
 
+  # === LONG-RUNNING CHECKS ===
+  # These checks only run after all fast checks pass (fail-fast strategy)
+  # This saves CI time by not running expensive tests when fast checks fail
+
   # === UNIT TESTS ===
   test-suites:
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation]
-    if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits]
+    # Run if all fast checks passed (or were skipped) AND code changed
+    if: |
+      always() &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true')
 
     steps:
     - uses: actions/checkout@v4
@@ -400,8 +412,13 @@ jobs:
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation]
-    if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits]
+    # Run if all fast checks passed (or were skipped) AND code changed
+    if: |
+      always() &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true')
 
     steps:
     - uses: actions/checkout@v4
@@ -595,9 +612,14 @@ jobs:
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation]
-    if: needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true'
-    
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits]
+    # Run if all fast checks passed (or were skipped) AND code changed
+    if: |
+      always() &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (needs.detect-changes.outputs.any-code-changed == 'true' || needs.detect-changes.outputs.workflow-changed == 'true')
+
     steps:
     - uses: actions/checkout@v4
     
@@ -661,7 +683,7 @@ jobs:
   # Temporarily disabled - can be re-enabled later
   memory-check-macos:
     runs-on: macos-latest
-    needs: [detect-changes, test-compilation]
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits]
     if: false
     
     steps:
@@ -742,7 +764,7 @@ jobs:
   # The Windows support code is implemented but use-m fails to load on Windows
   memory-check-windows:
     runs-on: windows-latest
-    needs: [detect-changes, test-compilation]
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits]
     # DISABLED: use-m doesn't work on Windows - see use-m-issues/issue-04-windows-fetch-undefined.mjs
     if: false
     
@@ -802,7 +824,7 @@ jobs:
   publish:
     if: always()
     runs-on: ubuntu-latest
-    needs: [detect-changes, test-compilation, test-suites, test-execution, memory-check-linux, validate-docs]
+    needs: [detect-changes, verify-version-bump, test-compilation, lint, check-file-line-limits, test-suites, test-execution, memory-check-linux, validate-docs]
     permissions:
       contents: write  # Required for creating releases
       packages: write  # Required for publishing packages
