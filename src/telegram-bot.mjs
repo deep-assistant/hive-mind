@@ -84,19 +84,25 @@ const argv = yargs(hideBin(process.argv))
   .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
 
+// Load configuration in priority order (last one wins):
+// 1. .env (base configuration, loaded first)
+// 2. .lenv (overrides .env)
+// 3. --configuration (overrides both .env and .lenv)
+
+// Load .env configuration as base
+dotenvx.config({ quiet: true });
+
+// Load .lenv configuration (if exists)
+// .lenv overrides .env
+loadLenvConfig({ override: true, quiet: true });
+
 // Load configuration from --configuration option if provided
 // This allows users to pass environment variables via command line
+// --configuration overrides both .env and .lenv
 if (argv.configuration || argv.c) {
   const configurationString = argv.configuration || argv.c;
   loadLenvConfig({ configuration: configurationString, override: true, quiet: true });
 }
-
-// Load .lenv configuration (if exists)
-// .lenv takes precedence over .env
-loadLenvConfig({ quiet: true });
-
-// Load .env configuration as fallback
-dotenvx.config({ quiet: true });
 
 const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
 const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
