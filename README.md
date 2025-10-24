@@ -487,6 +487,26 @@ Authentication is handled through:
 
 No environment variable configuration is currently supported.
 
+## 🐛 Reporting Issues
+
+### Hive Mind Issues
+If you encounter issues with **Hive Mind** (this project), please report them on our GitHub Issues page:
+- **Repository**: https://github.com/deep-assistant/hive-mind
+- **Issues**: https://github.com/deep-assistant/hive-mind/issues
+
+### Claude Code CLI Issues
+If you encounter issues with the **Claude Code CLI** itself (e.g., `claude` command errors, installation problems, or CLI bugs), please report them to the official Claude Code repository:
+- **Repository**: https://github.com/anthropics/claude-code
+- **Issues**: https://github.com/anthropics/claude-code/issues
+
+Common Claude Code CLI issues include:
+- Module not found errors (e.g., `Cannot find module './yoga.wasm'`)
+- Command execution failures
+- Authentication problems
+- Performance issues
+
+For more information about Claude Code CLI issues we've encountered and documented, see [docs/dependencies-research/claude-code-issues/README.md](./docs/dependencies-research/claude-code-issues/README.md).
+
 ## 🛡️ File Size Enforcement
 
 All documentation files are automatically checked:
