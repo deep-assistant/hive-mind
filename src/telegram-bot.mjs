@@ -737,6 +737,12 @@ bot.command('solve', async (ctx) => {
   if (solveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
   }
+  // Add Claude limits indicator
+  statusMsg += `\n\n⏱️ *Claude Usage Limits:*\n`;
+  statusMsg += `• Free tier: 50 messages per 5-hour window\n`;
+  statusMsg += `• Pro tier: 2000 messages per 5-hour window\n`;
+  statusMsg += `• Limits reset every 5 hours from first use\n`;
+  statusMsg += `• If limit is reached, task will pause and can be resumed`;
   await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('solve', args);
@@ -865,6 +871,12 @@ bot.command('hive', async (ctx) => {
   if (hiveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
   }
+  // Add Claude limits indicator
+  statusMsg += `\n\n⏱️ *Claude Usage Limits:*\n`;
+  statusMsg += `• Free tier: 50 messages per 5-hour window\n`;
+  statusMsg += `• Pro tier: 2000 messages per 5-hour window\n`;
+  statusMsg += `• Limits reset every 5 hours from first use\n`;
+  statusMsg += `• If limit is reached, task will pause and can be resumed`;
   await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('hive', args);
