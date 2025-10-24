@@ -174,7 +174,7 @@ logFile = path.join(scriptDir, `task-${timestamp}.log`);
 // Create the log file immediately
 await fs.writeFile(logFile, `# Task.mjs Log - ${new Date().toISOString()}\n\n`);
 await log(`📁 Log file: ${logFile}`);
-await log(`   (All output will be logged here)`);
+await log('   (All output will be logged here)');
 
 // Helper function to format aligned console output
 const formatAligned = (icon, label, value, indent = 0) => {
@@ -184,7 +184,7 @@ const formatAligned = (icon, label, value, indent = 0) => {
   return `${spaces}${icon} ${paddedLabel} ${value || ''}`;
 };
 
-await log(`\n🎯 Task Processing Started`);
+await log('\n🎯 Task Processing Started');
 await log(formatAligned('📝', 'Task description:', taskDescription));
 await log(formatAligned('🤖', 'Model:', argv.model));
 await log(formatAligned('💡', 'Clarify mode:', argv.clarify ? 'enabled' : 'disabled'));
@@ -245,8 +245,8 @@ try {
 
   // Phase 1: Clarification
   if (argv.clarify) {
-    await log(`\n🤔 Phase 1: Task Clarification`);
-    await log(`   Analyzing task and generating clarifying questions...`);
+    await log('\n🤔 Phase 1: Task Clarification');
+    await log('   Analyzing task and generating clarifying questions...');
     
     const clarifyPrompt = `Task: "${taskDescription}"
 
@@ -265,13 +265,13 @@ Provide your response in a clear, structured format that helps refine the task u
     }
     
     results.clarification = clarificationOutput;
-    await log(`\n✅ Clarification phase completed`);
+    await log('\n✅ Clarification phase completed');
   }
 
   // Phase 2: Decomposition
   if (argv.decompose) {
-    await log(`\n🔍 Phase 2: Task Decomposition`);
-    await log(`   Breaking down task into manageable subtasks...`);
+    await log('\n🔍 Phase 2: Task Decomposition');
+    await log('   Breaking down task into manageable subtasks...');
     
     let decomposePrompt = `Task: "${taskDescription}"`;
     
@@ -295,7 +295,7 @@ Provide your response as a structured breakdown that someone could use as a impl
     }
     
     results.decomposition = decompositionOutput;
-    await log(`\n✅ Decomposition phase completed`);
+    await log('\n✅ Decomposition phase completed');
   }
 
   // Output results
@@ -303,7 +303,7 @@ Provide your response as a structured breakdown that someone could use as a impl
     console.log('\n' + JSON.stringify(results, null, 2));
   }
 
-  await log(`\n🎉 Task processing completed successfully`);
+  await log('\n🎉 Task processing completed successfully');
   await log(`💡 Review the session log for details: ${logFile}`);
   
 } catch (error) {

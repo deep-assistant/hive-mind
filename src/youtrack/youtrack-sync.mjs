@@ -50,7 +50,7 @@ export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
     );
 
     return closedIssue || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -124,7 +124,7 @@ ${youTrackIssue.description || 'No description provided.'}
         await log(`   🏷️ Added 'help wanted' label to #${existingIssue.number}`);
       } catch (labelError) {
         // Silently skip if label doesn't exist
-        await log(`   ⚠️ Could not add 'help wanted' label (may not exist in repo)`, { verbose: true });
+        await log('   ⚠️ Could not add \'help wanted\' label (may not exist in repo)', { verbose: true });
       }
     }
 
@@ -152,7 +152,7 @@ ${youTrackIssue.description || 'No description provided.'}
         await log(`   ❌ Failed to create issue for ${youTrackId}`, { level: 'error' });
         return null;
       }
-    } catch (error) {
+    } catch {
       await log(`   ❌ Error creating issue: ${error.message}`, { level: 'error' });
       return null;
     }
@@ -169,7 +169,7 @@ ${youTrackIssue.description || 'No description provided.'}
  * @returns {Array} Array of GitHub issues (created or updated)
  */
 export async function syncYouTrackToGitHub(youTrackConfig, owner, repo, $, log) {
-  await log(`\n🔄 Syncing YouTrack issues to GitHub...`);
+  await log('\n🔄 Syncing YouTrack issues to GitHub...');
   await log(`   📍 YouTrack: ${youTrackConfig.url}`);
   await log(`   📋 Project: ${youTrackConfig.projectCode}`);
   await log(`   📌 Stage: "${youTrackConfig.stage}"`);
