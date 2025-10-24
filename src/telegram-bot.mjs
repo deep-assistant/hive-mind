@@ -13,11 +13,19 @@ if (typeof use === 'undefined') {
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 const { reportError, initializeSentry, addBreadcrumb } = await import('./sentry.lib.mjs');
+const { loadLenvConfig } = await import('./lenv-reader.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
 
+const getenv = await use('getenv');
+
+// Load .env configuration as base
 dotenvx.config({ quiet: true });
+
+// Load .lenv configuration (if exists)
+// .lenv overrides .env
+loadLenvConfig({ override: true, quiet: true });
 
 const yargsModule = await use('yargs@17.7.2');
 const yargs = yargsModule.default || yargsModule;
@@ -30,46 +38,59 @@ const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 const hiveConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
-const argv = yargs(hideBin(process.argv))
+const config = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
+  .option('configuration', {
+    type: 'string',
+    description: 'LINO configuration string for environment variables',
+    alias: 'c',
+    default: getenv('TELEGRAM_CONFIGURATION', '')
+  })
   .option('token', {
     type: 'string',
     description: 'Telegram bot token from @BotFather',
-    alias: 't'
+    alias: 't',
+    default: getenv('TELEGRAM_BOT_TOKEN', '')
   })
-  .option('allowed-chats', {
+  .option('allowedChats', {
     type: 'string',
     description: 'Allowed chat IDs in lino notation, e.g., "(\n  123456789\n  987654321\n)"',
-    alias: 'a'
+    alias: 'allowed-chats',
+    default: getenv('TELEGRAM_ALLOWED_CHATS', '')
   })
-  .option('solve-overrides', {
+  .option('solveOverrides', {
     type: 'string',
-    description: 'Override options for /solve command in lino notation, e.g., "(\n  --auto-continue\n  --attach-logs\n)"'
+    description: 'Override options for /solve command in lino notation, e.g., "(\n  --auto-continue\n  --attach-logs\n)"',
+    alias: 'solve-overrides',
+    default: getenv('TELEGRAM_SOLVE_OVERRIDES', '')
   })
-  .option('hive-overrides', {
+  .option('hiveOverrides', {
     type: 'string',
-    description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"'
+    description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"',
+    alias: 'hive-overrides',
+    default: getenv('TELEGRAM_HIVE_OVERRIDES', '')
   })
   .option('solve', {
     type: 'boolean',
     description: 'Enable /solve command (use --no-solve to disable)',
-    default: true
+    default: getenv('TELEGRAM_SOLVE', 'true') !== 'false'
   })
   .option('hive', {
     type: 'boolean',
     description: 'Enable /hive command (use --no-hive to disable)',
-    default: true
+    default: getenv('TELEGRAM_HIVE', 'true') !== 'false'
   })
-  .option('dry-run', {
+  .option('dryRun', {
     type: 'boolean',
     description: 'Validate configuration and options without starting the bot',
+    alias: 'dry-run',
     default: false
   })
   .option('verbose', {
     type: 'boolean',
     description: 'Enable verbose logging for debugging',
-    default: false,
-    alias: 'v'
+    alias: 'v',
+    default: getenv('TELEGRAM_BOT_VERBOSE', 'false') === 'true'
   })
   .help('h')
   .alias('h', 'help')
@@ -80,8 +101,25 @@ const argv = yargs(hideBin(process.argv))
   .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
 
-const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
-const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
+// Load configuration from --configuration option if provided
+// This allows users to pass environment variables via command line
+//
+// Complete configuration priority order (highest priority last):
+// 1. .env (base configuration, loaded first - already loaded above at line 24)
+// 2. .lenv (overrides .env - already loaded above at line 28)
+// 3. yargs CLI options parsed above (lines 41-102) use getenv() for defaults,
+//    which reads from process.env populated by .env and .lenv
+// 4. --configuration option (overrides process.env, affecting getenv() calls below)
+// 5. Final resolution (lines 116+): CLI option values > environment variables
+//    Pattern: config.X || getenv('VAR') means CLI options have highest priority
+if (config.configuration) {
+  loadLenvConfig({ configuration: config.configuration, override: true, quiet: true });
+}
+
+// After loading configuration, resolve final values
+// Priority: CLI option > environment variable
+const BOT_TOKEN = config.token || getenv('TELEGRAM_BOT_TOKEN', '');
+const VERBOSE = config.verbose || getenv('TELEGRAM_BOT_VERBOSE', 'false') === 'true';
 
 if (!BOT_TOKEN) {
   console.error('Error: TELEGRAM_BOT_TOKEN environment variable or --token option is not set');
@@ -109,29 +147,29 @@ const bot = new Telegraf(BOT_TOKEN, {
 // Using Unix timestamp (seconds since epoch) to match Telegram's message.date format
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
-const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
-const allowedChats = allowedChatsInput
-  ? lino.parseNumericIds(allowedChatsInput)
+// After loading configuration, resolve final values from environment or config
+// Priority: CLI option > environment variable (from .lenv or .env)
+const resolvedAllowedChats = config.allowedChats || getenv('TELEGRAM_ALLOWED_CHATS', '');
+const allowedChats = resolvedAllowedChats
+  ? lino.parseNumericIds(resolvedAllowedChats)
   : null;
 
 // Parse override options
-const solveOverridesInput = argv.solveOverrides || argv['solve-overrides'] || process.env.TELEGRAM_SOLVE_OVERRIDES;
-const solveOverrides = solveOverridesInput
-  ? lino.parse(solveOverridesInput).map(line => line.trim()).filter(line => line)
+const resolvedSolveOverrides = config.solveOverrides || getenv('TELEGRAM_SOLVE_OVERRIDES', '');
+const solveOverrides = resolvedSolveOverrides
+  ? lino.parse(resolvedSolveOverrides).map(line => line.trim()).filter(line => line)
   : [];
 
-const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || process.env.TELEGRAM_HIVE_OVERRIDES;
-const hiveOverrides = hiveOverridesInput
-  ? lino.parse(hiveOverridesInput).map(line => line.trim()).filter(line => line)
+const resolvedHiveOverrides = config.hiveOverrides || getenv('TELEGRAM_HIVE_OVERRIDES', '');
+const hiveOverrides = resolvedHiveOverrides
+  ? lino.parse(resolvedHiveOverrides).map(line => line.trim()).filter(line => line)
   : [];
 
 // Command enable/disable flags
 // Note: yargs automatically supports --no-solve and --no-hive for negation
-// Check both the camelCase and kebab-case versions
-const solveEnabled = argv.solve !== false &&
-  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
-const hiveEnabled = argv.hive !== false &&
-  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
+// Priority: CLI option > environment variable
+const solveEnabled = config.solve;
+const hiveEnabled = config.hive;
 
 // Validate solve overrides early using solve's yargs config
 // Only validate if solve command is enabled
@@ -214,7 +252,7 @@ if (hiveEnabled && hiveOverrides.length > 0) {
 }
 
 // Handle dry-run mode - exit after validation
-if (argv.dryRun || argv['dry-run']) {
+if (config.dryRun) {
   console.log('\n✅ Dry-run mode: All validations passed successfully!');
   console.log('\nConfiguration summary:');
   console.log('  Token:', BOT_TOKEN ? `${BOT_TOKEN.substring(0, 10)}...` : 'not set');
