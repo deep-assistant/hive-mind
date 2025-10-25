@@ -53,29 +53,17 @@ const { hasGitHubLinkingKeyword } = githubLinking;
 // Revert the CLAUDE.md commit to restore original state
 export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
   try {
-    await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
-
-    let commitToRevert = claudeCommitHash;
-
-    // If commit hash wasn't provided (e.g., in continue mode), fall back to finding it
-    if (!commitToRevert) {
-      await log('   No commit hash provided, searching for first commit...', { verbose: true });
-      const firstCommitResult = await $({ cwd: tempDir })`git log --format=%H --reverse 2>&1`;
-      if (firstCommitResult.code !== 0) {
-        await log('   Warning: Could not get commit history', { verbose: true });
-        return;
-      }
-
-      const commits = firstCommitResult.stdout.toString().trim().split('\n');
-      if (commits.length === 0) {
-        await log('   Warning: No commits found in branch', { verbose: true });
-        return;
-      }
-
-      commitToRevert = commits[0];
-    } else {
-      await log(`   Using saved commit hash: ${commitToRevert.substring(0, 7)}...`, { verbose: true });
+    // Only revert if we have the commit hash from this session
+    // This prevents reverting the wrong commit in continue mode
+    if (!claudeCommitHash) {
+      await log('   No CLAUDE.md commit to revert (not created in this session)', { verbose: true });
+      return;
     }
+
+    await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
+    await log(`   Using saved commit hash: ${claudeCommitHash.substring(0, 7)}...`, { verbose: true });
+
+    const commitToRevert = claudeCommitHash;
 
     // Revert the CLAUDE.md commit
     const revertResult = await $({ cwd: tempDir })`git revert ${commitToRevert} --no-edit 2>&1`;

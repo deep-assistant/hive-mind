@@ -480,9 +480,74 @@ This case study demonstrates a critical bug in the solve command's cleanup logic
 
 1. ✅ Create this case study documentation (done)
 2. ✅ Preserve all logs and artifacts (done)
-3. ⏳ Fix the solve command's commit search algorithm (pending - needs code changes in hive-mind)
+3. ✅ Fix the solve command's commit search algorithm (COMPLETED in this PR - see Implementation section below)
 4. ⏳ Add safety checks to prevent reverting commits that affect more than CLAUDE.md (pending)
 5. ⏳ Consider switching to file deletion instead of commit revert (pending - needs discussion)
+
+## Implementation (PR #618)
+
+### Solution Implemented
+
+**Process Memory Approach (User's Recommendation)**
+
+Following the user's guidance in [PR #618 comment](https://github.com/deep-assistant/hive-mind/pull/618#issuecomment-3446343251), we implemented a solution that relies on the solve command's process memory rather than searching for commits:
+
+> "I think the best solution would be to rely on our solve command process memory. If we were creating initial commit for pull request creation - we should revert it, but if we didn't like in continue/auto-continue mode - we just need to do nothing, as in that working session was no \"initial commit\"."
+
+**Code Changes:**
+
+File: `src/solve.results.lib.mjs:54-66`
+
+```javascript
+export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
+  try {
+    // Only revert if we have the commit hash from this session
+    // This prevents reverting the wrong commit in continue mode
+    if (!claudeCommitHash) {
+      await log('   No CLAUDE.md commit to revert (not created in this session)', { verbose: true });
+      return;
+    }
+
+    await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
+    await log(`   Using saved commit hash: ${claudeCommitHash.substring(0, 7)}...`, { verbose: true });
+
+    const commitToRevert = claudeCommitHash;
+    // ... rest of revert logic
+```
+
+**How It Works:**
+
+1. **Initial Session (auto-PR creation):**
+   - `solve.auto-pr.lib.mjs` creates the CLAUDE.md commit
+   - Saves the commit hash in memory (`claudeCommitHash` variable)
+   - Passes it to `cleanupClaudeFile(tempDir, branchName, claudeCommitHash)`
+   - Cleanup reverts the correct commit using the saved hash ✅
+
+2. **Continue Session (no auto-PR):**
+   - No CLAUDE.md commit is created in this session
+   - `claudeCommitHash` is null
+   - `cleanupClaudeFile(tempDir, branchName, null)` is called
+   - Cleanup skips the revert entirely (returns early) ✅
+
+**Benefits:**
+
+- ✅ No persistence needed between sessions
+- ✅ No ambiguous commit searches
+- ✅ No risk of reverting wrong commits
+- ✅ Simple and maintainable
+- ✅ Follows the principle: "Only revert what you created in this session"
+
+**Testing:**
+
+Created comprehensive test in `experiments/test-cleanup-fix-issue-617.mjs`:
+- ✅ Test 1: Initial session with claudeCommitHash → Revert works correctly
+- ✅ Test 2: Continue session without claudeCommitHash → Cleanup correctly skipped
+- ✅ Test 3: Verify old behavior would have been wrong
+- All tests passed (3/3)
+
+**Impact:**
+
+This fix completely eliminates the bug documented in this case study. Future continue sessions will never attempt to search for and revert commits, preventing the accidental deletion of repository files.
 
 ## References
 
