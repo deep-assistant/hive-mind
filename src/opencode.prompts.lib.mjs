@@ -178,18 +178,15 @@ Self review.
    - When you compare with repo style, use gh pr diff [number].
    - When you finalize, confirm code, tests, and description are consistent.
 
-GitHub CLI Command Guidelines (IMPORTANT):
-   - CORRECT: gh api repos/OWNER/REPO/pulls/NUMBER/comments (to list PR comments)
-   - CORRECT: gh api repos/OWNER/REPO/issues/NUMBER/comments (to list issue comments)
-   - CORRECT: gh pr comment NUMBER --body "text" --repo OWNER/REPO (to add PR comment)
-   - CORRECT: gh issue comment NUMBER --body "text" --repo OWNER/REPO (to add issue comment)
-   - CORRECT: gh pr view NUMBER --repo OWNER/REPO (to view PR details)
-   - WRONG: gh pr comments NUMBER --repo OWNER/REPO (command doesn't exist - use gh api instead)
-   - WRONG: gh pr comment list NUMBER --repo OWNER/REPO (no 'list' subcommand - use gh api instead)
-   - WRONG: gh issue comments NUMBER --repo OWNER/REPO (command doesn't exist - use gh api instead)
-   - Always use "comment" (singular) with gh pr/issue commands, never "comments" (plural)
-   - Use gh api for reading/listing comments, use gh pr/issue comment for writing comments
-   - Example: gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'reverse | .[0:5]' (get latest 5 comments)`;
+GitHub CLI command patterns.
+   - When listing PR comments: gh api repos/OWNER/REPO/pulls/NUMBER/comments
+   - When listing issue comments: gh api repos/OWNER/REPO/issues/NUMBER/comments
+   - When adding PR comment: gh pr comment NUMBER --body "text" --repo OWNER/REPO
+   - When adding issue comment: gh issue comment NUMBER --body "text" --repo OWNER/REPO
+   - When viewing PR details: gh pr view NUMBER --repo OWNER/REPO
+   - When filtering with jq: gh api repos/${owner}/${repo}/pulls/${prNumber}/comments --jq 'reverse | .[0:5]'
+   - Note: gh pr and gh issue use "comment" (singular) for adding comments
+   - Note: gh api is used for reading and listing comments`;
 };
 
 // Export all functions as default object too
