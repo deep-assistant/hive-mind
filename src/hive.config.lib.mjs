@@ -60,7 +60,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use for solve (opus, sonnet, or any model ID supported by the tool)',
+      description: 'Model to use for solve (opus, sonnet, haiku, or any model ID supported by the tool)',
       alias: 'm',
       default: 'sonnet'
     })
@@ -122,6 +122,11 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'boolean',
       description: 'Fork the repository if you don\'t have write access',
       alias: 'f',
+      default: false
+    })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repos without write access (passed to solve command)',
       default: false
     })
     .option('attach-logs', {
