@@ -593,18 +593,19 @@ function escapeMarkdown(text) {
 
 /**
  * Extract GitHub issue/PR URL from message text
- * Searches for any valid GitHub issue or PR URL in the text
+ * Validates that message contains exactly one GitHub issue/PR link
  *
  * @param {string} text - Message text to search
- * @returns {string|null} Found GitHub URL or null
+ * @returns {{ url: string|null, error: string|null, linkCount: number }}
  */
 function extractGitHubUrl(text) {
   if (!text || typeof text !== 'string') {
-    return null;
+    return { url: null, error: null, linkCount: 0 };
   }
 
   // Split text into words and check each one
   const words = text.split(/\s+/);
+  const foundUrls = [];
 
   for (const word of words) {
     // Try to parse as GitHub URL
@@ -612,11 +613,22 @@ function extractGitHubUrl(text) {
 
     // Accept issue or PR URLs
     if (parsed.valid && (parsed.type === 'issue' || parsed.type === 'pull')) {
-      return parsed.normalized;
+      foundUrls.push(parsed.normalized);
     }
   }
 
-  return null;
+  // Check if multiple links were found
+  if (foundUrls.length === 0) {
+    return { url: null, error: null, linkCount: 0 };
+  } else if (foundUrls.length === 1) {
+    return { url: foundUrls[0], error: null, linkCount: 1 };
+  } else {
+    return {
+      url: null,
+      error: `Found ${foundUrls.length} GitHub links in the message. Please reply to a message with only one GitHub issue or PR link.`,
+      linkCount: foundUrls.length
+    };
+  }
 }
 
 bot.command('help', async (ctx) => {
@@ -788,15 +800,24 @@ bot.command('solve', async (ctx) => {
     }
 
     const replyText = message.reply_to_message.text || '';
-    const extractedUrl = extractGitHubUrl(replyText);
+    const extraction = extractGitHubUrl(replyText);
 
-    if (extractedUrl) {
+    if (extraction.error) {
+      // Multiple links found
       if (VERBOSE) {
-        console.log('[VERBOSE] Extracted URL from reply:', extractedUrl);
+        console.log('[VERBOSE] Multiple GitHub URLs found in replied message');
+      }
+      await ctx.reply(`❌ ${extraction.error}`, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+      return;
+    } else if (extraction.url) {
+      // Single link found
+      if (VERBOSE) {
+        console.log('[VERBOSE] Extracted URL from reply:', extraction.url);
       }
       // Add the extracted URL as the first argument
-      userArgs = [extractedUrl];
+      userArgs = [extraction.url];
     } else {
+      // No link found
       if (VERBOSE) {
         console.log('[VERBOSE] No GitHub URL found in replied message');
       }
