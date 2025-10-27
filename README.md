@@ -101,7 +101,18 @@ npm install -g @deep-assistant/hive-mind
    ```
    screen -S bot # Enter new screen for bot
   
-   hive-telegram-bot --token 84905...xTjw --allowed-chats "(-1002975819706 -1002861722681)" --no-hive --solve-overrides "( 
+   hive-telegram-bot --token 84905...xTjw --allowed-chats "(
+     -1002975819706
+     -1002861722681
+   )" --hive-overrides "(
+     --all-issues
+     --once
+     --auto-fork
+     --skip-issues-with-prs
+     --attach-logs
+     --verbose
+     --no-tool-check
+   )" --solve-overrides "( 
      --auto-fork
      --auto-continue
      --attach-logs
