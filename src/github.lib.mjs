@@ -19,6 +19,12 @@ import { log, maskToken, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { githubLimits, timeouts } from './config.lib.mjs';
 
+// Import batch operations from separate module
+import {
+  batchCheckPullRequestsForIssues as batchCheckPRs,
+  batchCheckArchivedRepositories as batchCheckArchived
+} from './github.batch.lib.mjs';
+
 // Helper function to mask GitHub tokens (alias for backward compatibility)
 export const maskGitHubToken = maskToken;
 
@@ -681,63 +687,75 @@ export function isRateLimitError(error) {
 
 /**
  * Helper function to fetch all issues with pagination and rate limiting
+ * Note: GitHub Search API has a hard limit of 1000 results total.
+ * For user/org queries with >1000 issues, the fetchIssuesFromRepositories fallback should be used.
  * @param {string} baseCommand - The base gh command to execute
  * @returns {Promise<Array>} Array of issues
  */
 export async function fetchAllIssuesWithPagination(baseCommand) {
   const { execSync } = await import('child_process');
-  
+
   // Import log and cleanErrorMessage from lib.mjs
   const { log, cleanErrorMessage } = await import('./lib.mjs');
-  
+
   try {
     // First, try without pagination to see if we get more than the default limit
     await log('   📊 Fetching issues with improved limits and rate limiting...', { verbose: true });
-    
+
     // Add a 5-second delay before making the API call to respect rate limits
     await log('   ⏰ Waiting 5 seconds before API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
-    
+
     const startTime = Date.now();
-    
+
     // Use appropriate page sizes: 100 for search API (more restrictive), 1000 for regular listing
     const commandWithoutLimit = baseCommand.replace(/--limit\s+\d+/, '');
     const isSearchCommand = commandWithoutLimit.includes('gh search');
     const maxPageSize = isSearchCommand ? 100 : 1000;
     const improvedCommand = `${commandWithoutLimit} --limit ${maxPageSize}`;
-    
+
     await log(`   🔎 Executing: ${improvedCommand}`, { verbose: true });
     const output = execSync(improvedCommand, { encoding: 'utf8' });
     const endTime = Date.now();
-    
+
     const issues = JSON.parse(output || '[]');
-    
+
     await log(`   ✅ Fetched ${issues.length} issues in ${Math.round((endTime - startTime) / 1000)}s`);
-    
-    // If we got exactly the max page size, there might be more - log a warning
+
+    // If we got exactly the max page size, there might be more - log a warning and throw error to trigger fallback
     if (issues.length === maxPageSize) {
       await log(`   ⚠️  Hit the ${maxPageSize} issue limit - there may be more issues available`, { level: 'warning' });
-      if (maxPageSize >= 1000) {
+      if (isSearchCommand) {
+        await log('   💡 GitHub Search API is limited to 1000 results max. Triggering repository fallback for complete results.', { level: 'info' });
+        // Throw an error to trigger the fallback to fetchIssuesFromRepositories which uses GraphQL pagination
+        throw new Error(`Hit search API limit of ${maxPageSize} issues - need repository-by-repository fallback for complete results`);
+      } else if (maxPageSize >= 1000) {
         await log(`   💡 Consider filtering by labels or date ranges for repositories with >${maxPageSize} open issues`, { level: 'info' });
       }
     }
-    
+
     // Add a 5-second delay after the call to be extra safe with rate limits
     await log('   ⏰ Adding 5-second delay after API call to respect rate limits...', { verbose: true });
     await new Promise(resolve => setTimeout(resolve, timeouts.githubApiDelay));
-    
+
     return issues;
   } catch (error) {
     await log(`   ❌ Enhanced fetch failed: ${cleanErrorMessage(error)}`, { level: 'error' });
 
-    // Check if this is a rate limit error - if so, don't try fallback with the same command
+    // Check if this is a rate limit error - if so, re-throw immediately
     if (isRateLimitError(error)) {
-      await log('   ⚠️  Rate limit detected - not attempting fallback with same command', { verbose: true });
-      // Re-throw the error so the caller can handle rate limiting appropriately
+      await log('   ⚠️  Rate limit detected - re-throwing for caller to handle', { verbose: true });
       throw error;
     }
 
-    // Only try fallback for non-rate-limit errors
+    // Check if this is the "hit search API limit" error - if so, re-throw to trigger repository fallback
+    const errorMsg = error.message || error.toString();
+    if (errorMsg.includes('Hit search API limit') || errorMsg.includes('repository-by-repository fallback')) {
+      await log('   🔄 Re-throwing error to trigger repository-by-repository fallback...', { verbose: true });
+      throw error;
+    }
+
+    // For other errors, try a simple fallback with default limit
     try {
       await log('   🔄 Falling back to default behavior...', { verbose: true });
       const fallbackCommand = baseCommand.includes('--limit') ? baseCommand : `${baseCommand} --limit 100`;
@@ -748,7 +766,7 @@ export async function fetchAllIssuesWithPagination(baseCommand) {
       return issues;
     } catch (fallbackError) {
       await log(`   ❌ Fallback also failed: ${cleanErrorMessage(fallbackError)}`, { level: 'error' });
-      // Re-throw the error so the caller can handle rate limiting appropriately
+      // Re-throw the error so the caller can handle it appropriately
       throw fallbackError;
     }
   }
@@ -849,150 +867,8 @@ export async function fetchProjectIssues(projectNumber, owner, statusFilter) {
   }
 }
 
-/**
- * Batch fetch pull request information for multiple issues using GraphQL
- * @param {string} owner - Repository owner
- * @param {string} repo - Repository name
- * @param {Array<number>} issueNumbers - Array of issue numbers to check
- * @returns {Promise<Object>} Object mapping issue numbers to their linked PRs
- */
-export async function batchCheckPullRequestsForIssues(owner, repo, issueNumbers) {
-  try {
-    if (!issueNumbers || issueNumbers.length === 0) {
-      return {};
-    }
-
-    await log(`   🔍 Batch checking PRs for ${issueNumbers.length} issues using GraphQL...`, { verbose: true });
-
-    // GraphQL has complexity limits, so batch in groups of 50
-    const BATCH_SIZE = 50;
-    const results = {};
-
-    for (let i = 0; i < issueNumbers.length; i += BATCH_SIZE) {
-      const batch = issueNumbers.slice(i, i + BATCH_SIZE);
-
-      // Build GraphQL query for this batch
-      const query = `
-        query GetPullRequestsForIssues {
-          repository(owner: "${owner}", name: "${repo}") {
-            ${batch.map(num => `
-            issue${num}: issue(number: ${num}) {
-              number
-              title
-              state
-              timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on PullRequest {
-                        number
-                        title
-                        state
-                        isDraft
-                        url
-                      }
-                    }
-                  }
-                }
-              }
-            }`).join('\n')}
-          }
-        }
-      `;
-
-      try {
-        // Add small delay between batches to respect rate limits
-        if (i > 0) {
-          await log('   ⏰ Waiting 2 seconds before next batch...', { verbose: true });
-          await new Promise(resolve => setTimeout(resolve, timeouts.githubRepoDelay));
-        }
-
-        // Execute GraphQL query
-        const { execSync } = await import('child_process');
-        const result = execSync(`gh api graphql -f query='${query}'`, {
-          encoding: 'utf8',
-          maxBuffer: githubLimits.bufferMaxSize
-        });
-
-        const data = JSON.parse(result);
-
-        // Process results for this batch
-        for (const issueNum of batch) {
-          const issueData = data.data?.repository?.[`issue${issueNum}`];
-          if (issueData) {
-            const linkedPRs = [];
-
-            // Extract linked PRs from timeline items
-            for (const item of issueData.timelineItems?.nodes || []) {
-              if (item?.source && item.source.state === 'OPEN' && !item.source.isDraft) {
-                linkedPRs.push({
-                  number: item.source.number,
-                  title: item.source.title,
-                  state: item.source.state,
-                  url: item.source.url
-                });
-              }
-            }
-
-            results[issueNum] = {
-              title: issueData.title,
-              state: issueData.state,
-              openPRCount: linkedPRs.length,
-              linkedPRs: linkedPRs
-            };
-          } else {
-            // Issue not found or error
-            results[issueNum] = {
-              openPRCount: 0,
-              linkedPRs: [],
-              error: 'Issue not found'
-            };
-          }
-        }
-
-        await log(`   ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(issueNumbers.length / BATCH_SIZE)} processed (${batch.length} issues)`, { verbose: true });
-
-      } catch (batchError) {
-        await log(`   ⚠️  GraphQL batch query failed: ${cleanErrorMessage(batchError)}`, { level: 'warning' });
-
-        // Fall back to individual REST API calls for this batch
-        await log('   🔄 Falling back to REST API for batch...', { verbose: true });
-
-        for (const issueNum of batch) {
-          try {
-            const { execSync } = await import('child_process');
-            const cmd = `gh api repos/${owner}/${repo}/issues/${issueNum}/timeline --jq '[.[] | select(.event == "cross-referenced" and .source.issue.pull_request != null and .source.issue.state == "open")] | length'`;
-
-            const output = execSync(cmd, { encoding: 'utf8' }).trim();
-            const openPrCount = parseInt(output) || 0;
-
-            results[issueNum] = {
-              openPRCount: openPrCount,
-              linkedPRs: [] // REST API doesn't give us PR details easily
-            };
-          } catch (restError) {
-            results[issueNum] = {
-              openPRCount: 0,
-              linkedPRs: [],
-              error: cleanErrorMessage(restError)
-            };
-          }
-        }
-      }
-    }
-
-    // Log summary
-    const totalIssues = issueNumbers.length;
-    const issuesWithPRs = Object.values(results).filter(r => r.openPRCount > 0).length;
-    await log(`   📊 Batch PR check complete: ${issuesWithPRs}/${totalIssues} issues have open PRs`, { verbose: true });
-
-    return results;
-
-  } catch (error) {
-    await log(`   ❌ Batch PR check failed: ${cleanErrorMessage(error)}`, { level: 'error' });
-    return {};
-  }
-}
+// Re-export batch operations from separate module
+export const batchCheckPullRequestsForIssues = batchCheckPRs;
 
 /**
  * Universal GitHub URL parser that handles various formats
@@ -1437,6 +1313,9 @@ export async function detectRepositoryVisibility(owner, repo) {
   }
 }
 
+// Re-export batch archived check from separate module
+export const batchCheckArchivedRepositories = batchCheckArchived;
+
 // Export all functions as default object too
 export default {
   maskGitHubToken,
@@ -1457,5 +1336,6 @@ export default {
   ghPrView,
   ghIssueView,
   handlePRNotFoundError,
-  detectRepositoryVisibility
+  detectRepositoryVisibility,
+  batchCheckArchivedRepositories
 };
