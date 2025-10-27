@@ -6,66 +6,9 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Load use-m dynamically from unpkg (same pattern as solve.mjs and github.lib.mjs)
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-
-// Dynamically load parse-github-url using use-m
-const parseGitHubUrlModule = await use('parse-github-url@1.0.3');
-const parseGitHubUrlLib = parseGitHubUrlModule.default || parseGitHubUrlModule;
-
-// Wrapper function to match our expected interface using parse-github-url from npm via use-m
-function parseGitHubUrl(url) {
-  if (!url || typeof url !== 'string') {
-    return {
-      valid: false,
-      error: 'Invalid input: URL must be a non-empty string'
-    };
-  }
-
-  try {
-    // Use parse-github-url library loaded via use-m
-    const parsed = parseGitHubUrlLib(url);
-
-    if (!parsed || !parsed.owner || !parsed.name) {
-      return {
-        valid: false,
-        error: 'Invalid GitHub URL: missing owner/repo'
-      };
-    }
-
-    const result = {
-      valid: true,
-      normalized: parsed.href || url,
-      hostname: parsed.host || 'github.com',
-      owner: parsed.owner,
-      repo: parsed.name,
-      type: 'unknown',
-      path: parsed.filepath || '',
-      number: null
-    };
-
-    // Determine the type based on branch and filepath
-    // Note: parse-github-url treats "issues" as a branch, not part of filepath
-    if (parsed.branch === 'issues' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
-      result.type = 'issue';
-      result.number = parseInt(parsed.filepath, 10);
-    } else if (parsed.branch === 'pull' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
-      result.type = 'pr';
-      result.number = parseInt(parsed.filepath, 10);
-    } else if (parsed.owner && parsed.name) {
-      result.type = 'repo';
-    } else if (parsed.owner) {
-      result.type = 'owner';
-    }
-
-    return result;
-  } catch (error) {
-    return {
-      valid: false,
-      error: 'Invalid GitHub URL format: ' + error.message
-    };
-  }
-}
+// Import parseGitHubUrl from github.lib.mjs to use the same validation logic as hive command
+// This ensures consistency across all commands and handles shorthand formats like "owner" or "owner/repo"
+import { parseGitHubUrl } from './github.lib.mjs';
 
 /**
  * Generate a screen session name based on the command and GitHub URL
