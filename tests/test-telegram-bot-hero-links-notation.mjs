@@ -93,9 +93,12 @@ function runTest(testName, args, expectedSuccess) {
 }
 
 async function main() {
-  // Hero example configuration from README.md using Links Notation
-  // This is the EXACT configuration shown in the recommended example
-  const heroConfiguration = `TELEGRAM_BOT_TOKEN: test_token_hero_example
+  const tests = [
+    // Test 1: Hero example with --configuration option (Issue #623)
+    {
+      name: 'Issue #623: Hero example with Links Notation',
+      args: [
+        '--configuration', `TELEGRAM_BOT_TOKEN: test_token_hero_example
 TELEGRAM_ALLOWED_CHATS: (
   -1002975819706
   -1002861722681
@@ -116,14 +119,7 @@ TELEGRAM_SOLVE_OVERRIDES: (
   --verbose
   --no-tool-check
 )
-TELEGRAM_BOT_VERBOSE: true`;
-
-  const tests = [
-    // Test 1: Hero example with --configuration option (Issue #623)
-    {
-      name: 'Issue #623: Hero example with Links Notation',
-      args: [
-        '--configuration', heroConfiguration,
+TELEGRAM_BOT_VERBOSE: true`,
         '--dry-run'
       ],
       shouldPass: true
@@ -162,7 +158,28 @@ TELEGRAM_BOT_VERBOSE: true`,
     {
       name: 'Full hero configuration with all options',
       args: [
-        '--configuration', heroConfiguration,
+        '--configuration', `TELEGRAM_BOT_TOKEN: test_token_hero_example
+TELEGRAM_ALLOWED_CHATS: (
+  -1002975819706
+  -1002861722681
+)
+TELEGRAM_HIVE_OVERRIDES: (
+  --all-issues
+  --once
+  --auto-fork
+  --skip-issues-with-prs
+  --attach-logs
+  --verbose
+  --no-tool-check
+)
+TELEGRAM_SOLVE_OVERRIDES: (
+  --auto-fork
+  --auto-continue
+  --attach-logs
+  --verbose
+  --no-tool-check
+)
+TELEGRAM_BOT_VERBOSE: true`,
         '--dry-run'
       ],
       shouldPass: true
