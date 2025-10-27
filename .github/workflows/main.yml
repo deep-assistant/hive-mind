@@ -382,6 +382,11 @@ jobs:
         echo "Running test suite for telegram-bot --dry-run mode..."
         node tests/test-telegram-bot-dry-run.mjs
 
+    - name: Run telegram-bot hero Links Notation test (Issue #623)
+      run: |
+        echo "Running test suite for telegram-bot hero example with Links Notation..."
+        node tests/test-telegram-bot-hero-links-notation.mjs
+
     - name: Run hive command silent failure test (Issue #504)
       run: |
         echo "Running test suite for hive command silent failures..."
