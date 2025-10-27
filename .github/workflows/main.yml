@@ -407,6 +407,11 @@ jobs:
         echo "Running test suite for Telegram URL extraction..."
         node tests/test-telegram-url-extraction.mjs
 
+    - name: Run start-screen test (Issue #539)
+      run: |
+        echo "Running test suite for start-screen.mjs..."
+        node tests/test-start-screen.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
