@@ -98,9 +98,43 @@ npm install -g @deep-assistant/hive-mind
    Note: opencode at the moment comes with free Grok Code Fast 1 model by default - so no authorization here is required.
 
 6. Launch the Hive Mind telegram bot:
+
+   **Using Links Notation (recommended):**
    ```
    screen -S bot # Enter new screen for bot
-  
+
+   hive-telegram-bot --configuration "(
+     TELEGRAM_BOT_TOKEN: 84905...xTjw
+     TELEGRAM_ALLOWED_CHATS: (
+       -1002975819706
+       -1002861722681
+     )
+     TELEGRAM_HIVE_OVERRIDES: (
+       --all-issues
+       --once
+       --auto-fork
+       --skip-issues-with-prs
+       --attach-logs
+       --verbose
+       --no-tool-check
+     )
+     TELEGRAM_SOLVE_OVERRIDES: (
+       --auto-fork
+       --auto-continue
+       --attach-logs
+       --verbose
+       --no-tool-check
+     )
+     TELEGRAM_BOT_VERBOSE: true
+   )"
+
+   # Press CTRL + A + D for detach from screen
+   ```
+
+   **Using individual command-line options:**
+   ```
+   screen -S bot # Enter new screen for bot
+
    hive-telegram-bot --token 84905...xTjw --allowed-chats "(
      -1002975819706
      -1002861722681
@@ -112,7 +146,7 @@ npm install -g @deep-assistant/hive-mind
      --attach-logs
      --verbose
      --no-tool-check
-   )" --solve-overrides "( 
+   )" --solve-overrides "(
      --auto-fork
      --auto-continue
      --attach-logs
@@ -122,6 +156,7 @@ npm install -g @deep-assistant/hive-mind
 
    # Press CTRL + A + D for detach from screen
    ```
+
    Note: You may need to register you own bot with https://t.me/BotFather to get the bot token.
 
 ### Core Operations
