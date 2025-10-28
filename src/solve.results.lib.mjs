@@ -78,8 +78,65 @@ export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = 
         await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
       }
     } else {
-      await log('   Warning: Could not revert CLAUDE.md commit', { verbose: true });
-      await log(`   Revert output: ${revertResult.stderr || revertResult.stdout}`, { verbose: true });
+      // Check if the failure was due to a merge conflict in CLAUDE.md
+      const revertOutput = revertResult.stderr || revertResult.stdout || '';
+      const hasConflict = revertOutput.includes('CONFLICT') || revertOutput.includes('conflict');
+
+      if (hasConflict) {
+        await log('   Detected merge conflict in revert, attempting automatic resolution...', { verbose: true });
+
+        // Check git status to see what files are in conflict
+        const statusResult = await $({ cwd: tempDir })`git status --short 2>&1`;
+        const statusOutput = statusResult.stdout || '';
+
+        // Check if CLAUDE.md is in the conflict
+        if (statusOutput.includes('CLAUDE.md')) {
+          await log('   Resolving CLAUDE.md conflict by restoring pre-session state...', { verbose: true });
+
+          // Get the state of CLAUDE.md from before the initial commit (parent of the commit we're reverting)
+          const parentCommit = `${commitToRevert}~1`;
+          const parentFileExists = await $({ cwd: tempDir })`git cat-file -e ${parentCommit}:CLAUDE.md 2>&1`;
+
+          if (parentFileExists.code === 0) {
+            // CLAUDE.md existed before the initial commit - restore it to that state
+            await log('   CLAUDE.md existed before session, restoring to previous state...', { verbose: true });
+            await $({ cwd: tempDir })`git checkout ${parentCommit} -- CLAUDE.md`;
+            // Stage the resolved CLAUDE.md
+            await $({ cwd: tempDir })`git add CLAUDE.md 2>&1`;
+          } else {
+            // CLAUDE.md didn't exist before the initial commit - delete it
+            await log('   CLAUDE.md was created in session, removing it...', { verbose: true });
+            await $({ cwd: tempDir })`git rm -f CLAUDE.md 2>&1`;
+            // No need to git add since git rm stages the deletion
+          }
+
+          // Complete the revert with the resolved conflict
+          const continueResult = await $({ cwd: tempDir })`git revert --continue --no-edit 2>&1`;
+
+          if (continueResult.code === 0) {
+            await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert (conflict resolved)'));
+
+            // Push the revert
+            const pushRevertResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+            if (pushRevertResult.code === 0) {
+              await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md revert to GitHub'));
+            } else {
+              await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
+            }
+          } else {
+            await log('   Warning: Could not complete revert after conflict resolution', { verbose: true });
+            await log(`   Continue output: ${continueResult.stderr || continueResult.stdout}`, { verbose: true });
+          }
+        } else {
+          // Conflict in some other file, not CLAUDE.md - this is unexpected
+          await log('   Warning: Revert conflict in unexpected file(s), aborting revert', { verbose: true });
+          await $({ cwd: tempDir })`git revert --abort 2>&1`;
+        }
+      } else {
+        // Non-conflict error
+        await log('   Warning: Could not revert CLAUDE.md commit', { verbose: true });
+        await log(`   Revert output: ${revertOutput}`, { verbose: true });
+      }
     }
   } catch (e) {
     reportError(e, {
