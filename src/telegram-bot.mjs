@@ -13,11 +13,19 @@ if (typeof use === 'undefined') {
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 const { reportError, initializeSentry, addBreadcrumb } = await import('./sentry.lib.mjs');
+const { loadLenvConfig } = await import('./lenv-reader.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
 const dotenvx = dotenvxModule.default || dotenvxModule;
 
+const getenv = await use('getenv');
+
+// Load .env configuration as base
 dotenvx.config({ quiet: true });
+
+// Load .lenv configuration (if exists)
+// .lenv overrides .env
+loadLenvConfig({ override: true, quiet: true });
 
 const yargsModule = await use('yargs@17.7.2');
 const yargs = yargsModule.default || yargsModule;
@@ -30,46 +38,62 @@ const { createYargsConfig: createSolveYargsConfig } = solveConfigLib;
 const hiveConfigLib = await import('./hive.config.lib.mjs');
 const { createYargsConfig: createHiveYargsConfig } = hiveConfigLib;
 
-const argv = yargs(hideBin(process.argv))
+// Import GitHub URL parser for extracting URLs from messages
+const { parseGitHubUrl } = await import('./github.lib.mjs');
+
+const config = yargs(hideBin(process.argv))
   .usage('Usage: hive-telegram-bot [options]')
+  .option('configuration', {
+    type: 'string',
+    description: 'LINO configuration string for environment variables',
+    alias: 'c',
+    default: getenv('TELEGRAM_CONFIGURATION', '')
+  })
   .option('token', {
     type: 'string',
     description: 'Telegram bot token from @BotFather',
-    alias: 't'
+    alias: 't',
+    default: getenv('TELEGRAM_BOT_TOKEN', '')
   })
-  .option('allowed-chats', {
+  .option('allowedChats', {
     type: 'string',
     description: 'Allowed chat IDs in lino notation, e.g., "(\n  123456789\n  987654321\n)"',
-    alias: 'a'
+    alias: 'allowed-chats',
+    default: getenv('TELEGRAM_ALLOWED_CHATS', '')
   })
-  .option('solve-overrides', {
+  .option('solveOverrides', {
     type: 'string',
-    description: 'Override options for /solve command in lino notation, e.g., "(\n  --auto-continue\n  --attach-logs\n)"'
+    description: 'Override options for /solve command in lino notation, e.g., "(\n  --auto-continue\n  --attach-logs\n)"',
+    alias: 'solve-overrides',
+    default: getenv('TELEGRAM_SOLVE_OVERRIDES', '')
   })
-  .option('hive-overrides', {
+  .option('hiveOverrides', {
     type: 'string',
-    description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"'
+    description: 'Override options for /hive command in lino notation, e.g., "(\n  --verbose\n  --all-issues\n)"',
+    alias: 'hive-overrides',
+    default: getenv('TELEGRAM_HIVE_OVERRIDES', '')
   })
   .option('solve', {
     type: 'boolean',
     description: 'Enable /solve command (use --no-solve to disable)',
-    default: true
+    default: getenv('TELEGRAM_SOLVE', 'true') !== 'false'
   })
   .option('hive', {
     type: 'boolean',
     description: 'Enable /hive command (use --no-hive to disable)',
-    default: true
+    default: getenv('TELEGRAM_HIVE', 'true') !== 'false'
   })
-  .option('dry-run', {
+  .option('dryRun', {
     type: 'boolean',
     description: 'Validate configuration and options without starting the bot',
+    alias: 'dry-run',
     default: false
   })
   .option('verbose', {
     type: 'boolean',
     description: 'Enable verbose logging for debugging',
-    default: false,
-    alias: 'v'
+    alias: 'v',
+    default: getenv('TELEGRAM_BOT_VERBOSE', 'false') === 'true'
   })
   .help('h')
   .alias('h', 'help')
@@ -80,8 +104,25 @@ const argv = yargs(hideBin(process.argv))
   .strict()  // Enable strict mode to reject unknown options (consistent with solve.mjs and hive.mjs)
   .parse();
 
-const BOT_TOKEN = argv.token || process.env.TELEGRAM_BOT_TOKEN;
-const VERBOSE = argv.verbose || argv.v || process.env.TELEGRAM_BOT_VERBOSE === 'true';
+// Load configuration from --configuration option if provided
+// This allows users to pass environment variables via command line
+//
+// Complete configuration priority order (highest priority last):
+// 1. .env (base configuration, loaded first - already loaded above at line 24)
+// 2. .lenv (overrides .env - already loaded above at line 28)
+// 3. yargs CLI options parsed above (lines 41-102) use getenv() for defaults,
+//    which reads from process.env populated by .env and .lenv
+// 4. --configuration option (overrides process.env, affecting getenv() calls below)
+// 5. Final resolution (lines 116+): CLI option values > environment variables
+//    Pattern: config.X || getenv('VAR') means CLI options have highest priority
+if (config.configuration) {
+  loadLenvConfig({ configuration: config.configuration, override: true, quiet: true });
+}
+
+// After loading configuration, resolve final values
+// Priority: CLI option > environment variable
+const BOT_TOKEN = config.token || getenv('TELEGRAM_BOT_TOKEN', '');
+const VERBOSE = config.verbose || getenv('TELEGRAM_BOT_VERBOSE', 'false') === 'true';
 
 if (!BOT_TOKEN) {
   console.error('Error: TELEGRAM_BOT_TOKEN environment variable or --token option is not set');
@@ -109,29 +150,29 @@ const bot = new Telegraf(BOT_TOKEN, {
 // Using Unix timestamp (seconds since epoch) to match Telegram's message.date format
 const BOT_START_TIME = Math.floor(Date.now() / 1000);
 
-const allowedChatsInput = argv.allowedChats || argv['allowed-chats'] || process.env.TELEGRAM_ALLOWED_CHATS;
-const allowedChats = allowedChatsInput
-  ? lino.parseNumericIds(allowedChatsInput)
+// After loading configuration, resolve final values from environment or config
+// Priority: CLI option > environment variable (from .lenv or .env)
+const resolvedAllowedChats = config.allowedChats || getenv('TELEGRAM_ALLOWED_CHATS', '');
+const allowedChats = resolvedAllowedChats
+  ? lino.parseNumericIds(resolvedAllowedChats)
   : null;
 
 // Parse override options
-const solveOverridesInput = argv.solveOverrides || argv['solve-overrides'] || process.env.TELEGRAM_SOLVE_OVERRIDES;
-const solveOverrides = solveOverridesInput
-  ? lino.parse(solveOverridesInput).map(line => line.trim()).filter(line => line)
+const resolvedSolveOverrides = config.solveOverrides || getenv('TELEGRAM_SOLVE_OVERRIDES', '');
+const solveOverrides = resolvedSolveOverrides
+  ? lino.parse(resolvedSolveOverrides).map(line => line.trim()).filter(line => line)
   : [];
 
-const hiveOverridesInput = argv.hiveOverrides || argv['hive-overrides'] || process.env.TELEGRAM_HIVE_OVERRIDES;
-const hiveOverrides = hiveOverridesInput
-  ? lino.parse(hiveOverridesInput).map(line => line.trim()).filter(line => line)
+const resolvedHiveOverrides = config.hiveOverrides || getenv('TELEGRAM_HIVE_OVERRIDES', '');
+const hiveOverrides = resolvedHiveOverrides
+  ? lino.parse(resolvedHiveOverrides).map(line => line.trim()).filter(line => line)
   : [];
 
 // Command enable/disable flags
 // Note: yargs automatically supports --no-solve and --no-hive for negation
-// Check both the camelCase and kebab-case versions
-const solveEnabled = argv.solve !== false &&
-  (process.env.TELEGRAM_SOLVE === undefined || process.env.TELEGRAM_SOLVE !== 'false');
-const hiveEnabled = argv.hive !== false &&
-  (process.env.TELEGRAM_HIVE === undefined || process.env.TELEGRAM_HIVE !== 'false');
+// Priority: CLI option > environment variable
+const solveEnabled = config.solve;
+const hiveEnabled = config.hive;
 
 // Validate solve overrides early using solve's yargs config
 // Only validate if solve command is enabled
@@ -214,7 +255,7 @@ if (hiveEnabled && hiveOverrides.length > 0) {
 }
 
 // Handle dry-run mode - exit after validation
-if (argv.dryRun || argv['dry-run']) {
+if (config.dryRun) {
   console.log('\n✅ Dry-run mode: All validations passed successfully!');
   console.log('\nConfiguration summary:');
   console.log('  Token:', BOT_TOKEN ? `${BOT_TOKEN.substring(0, 10)}...` : 'not set');
@@ -550,6 +591,46 @@ function escapeMarkdown(text) {
   return text.replace(/_/g, '\\_').replace(/\*/g, '\\*');
 }
 
+/**
+ * Extract GitHub issue/PR URL from message text
+ * Validates that message contains exactly one GitHub issue/PR link
+ *
+ * @param {string} text - Message text to search
+ * @returns {{ url: string|null, error: string|null, linkCount: number }}
+ */
+function extractGitHubUrl(text) {
+  if (!text || typeof text !== 'string') {
+    return { url: null, error: null, linkCount: 0 };
+  }
+
+  // Split text into words and check each one
+  const words = text.split(/\s+/);
+  const foundUrls = [];
+
+  for (const word of words) {
+    // Try to parse as GitHub URL
+    const parsed = parseGitHubUrl(word);
+
+    // Accept issue or PR URLs
+    if (parsed.valid && (parsed.type === 'issue' || parsed.type === 'pull')) {
+      foundUrls.push(parsed.normalized);
+    }
+  }
+
+  // Check if multiple links were found
+  if (foundUrls.length === 0) {
+    return { url: null, error: null, linkCount: 0 };
+  } else if (foundUrls.length === 1) {
+    return { url: foundUrls[0], error: null, linkCount: 1 };
+  } else {
+    return {
+      url: null,
+      error: `Found ${foundUrls.length} GitHub links in the message. Please reply to a message with only one GitHub issue or PR link.`,
+      linkCount: foundUrls.length
+    };
+  }
+}
+
 bot.command('help', async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /help command received');
@@ -585,7 +666,8 @@ bot.command('help', async (ctx) => {
   if (solveEnabled) {
     message += '*/solve* - Solve a GitHub issue\n';
     message += 'Usage: `/solve <github-url> [options]`\n';
-    message += 'Example: `/solve https://github.com/owner/repo/issues/123 --verbose`\n';
+    message += 'Example: `/solve https://github.com/owner/repo/issues/123`\n';
+    message += 'Or reply to a message with a GitHub link: `/solve`\n';
     if (solveOverrides.length > 0) {
       message += `🔒 Locked options: \`${solveOverrides.join(' ')}\`\n`;
     }
@@ -668,10 +750,17 @@ bot.command('solve', async (ctx) => {
     return;
   }
 
-  // Ignore forwarded or reply messages
-  if (isForwardedOrReply(ctx)) {
+  // Check if this is a forwarded message (not allowed)
+  // But allow reply messages for URL extraction feature
+  const message = ctx.message;
+  const isForwarded = message.forward_origin && message.forward_origin.type;
+  const isOldApiForwarded = message.forward_from || message.forward_from_chat ||
+                            message.forward_from_message_id || message.forward_signature ||
+                            message.forward_sender_name || message.forward_date;
+
+  if (isForwarded || isOldApiForwarded) {
     if (VERBOSE) {
-      console.log('[VERBOSE] /solve ignored: forwarded or reply');
+      console.log('[VERBOSE] /solve ignored: forwarded message');
     }
     return;
   }
@@ -697,11 +786,49 @@ bot.command('solve', async (ctx) => {
     console.log('[VERBOSE] /solve passed all checks, executing...');
   }
 
-  const userArgs = parseCommandArgs(ctx.message.text);
+  let userArgs = parseCommandArgs(ctx.message.text);
+
+  // Check if this is a reply to a message and user didn't provide URL
+  // In that case, try to extract GitHub URL from the replied message
+  const isReply = message.reply_to_message &&
+                  message.reply_to_message.message_id &&
+                  !message.reply_to_message.forum_topic_created;
+
+  if (isReply && userArgs.length === 0) {
+    if (VERBOSE) {
+      console.log('[VERBOSE] /solve is a reply without URL, extracting from replied message...');
+    }
+
+    const replyText = message.reply_to_message.text || '';
+    const extraction = extractGitHubUrl(replyText);
+
+    if (extraction.error) {
+      // Multiple links found
+      if (VERBOSE) {
+        console.log('[VERBOSE] Multiple GitHub URLs found in replied message');
+      }
+      await ctx.reply(`❌ ${extraction.error}`, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+      return;
+    } else if (extraction.url) {
+      // Single link found
+      if (VERBOSE) {
+        console.log('[VERBOSE] Extracted URL from reply:', extraction.url);
+      }
+      // Add the extracted URL as the first argument
+      userArgs = [extraction.url];
+    } else {
+      // No link found
+      if (VERBOSE) {
+        console.log('[VERBOSE] No GitHub URL found in replied message');
+      }
+      await ctx.reply(`❌ No GitHub issue/PR link found in the replied message.\n\nExample: Reply to a message containing a GitHub issue link with \`/solve\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+      return;
+    }
+  }
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123 --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/solve https://github.com/owner/repo/issues/123\`\n\nOr reply to a message containing a GitHub link with \`/solve\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 
@@ -829,7 +956,7 @@ bot.command('hive', async (ctx) => {
 
   const validation = validateGitHubUrl(userArgs);
   if (!validation.valid) {
-    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo --verbose\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+    await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
   }
 

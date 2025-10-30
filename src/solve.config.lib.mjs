@@ -63,7 +63,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o, etc.)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
