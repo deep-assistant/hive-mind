@@ -338,7 +338,7 @@ Issue: ${argv._[0]}`;
           await log('');
           await log('  Option 1: Contact the repository owner');
           await log('  ──────────────────────────────────────');
-          await log(`  Ask the owner to unarchive the repository at:`);
+          await log('  Ask the owner to unarchive the repository at:');
           await log(`    https://github.com/${owner}/${repo}/settings`);
           await log('');
           await log('  Option 2: Close the issue');
