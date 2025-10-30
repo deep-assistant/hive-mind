@@ -16,19 +16,23 @@ import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts, retryLimits } from './config.lib.mjs';
 
+// Available model configurations
+export const availableModels = {
+  'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
+  'opus': 'claude-opus-4-1-20250805',       // Opus 4.1
+  'haiku': 'claude-haiku-4-5-20251001',     // Haiku 4.5
+  'haiku-3-5': 'claude-3-5-haiku-20241022', // Haiku 3.5
+  'haiku-3': 'claude-3-haiku-20240307',     // Haiku 3
+};
+
 // Model mapping to translate aliases to full model IDs
 export const mapModelToId = (model) => {
-  const modelMap = {
-    'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
-    'opus': 'claude-opus-4-1-20250805',       // Opus 4.1
-  };
-
   // Return mapped model ID if it's an alias, otherwise return as-is (for full model IDs)
-  return modelMap[model] || model;
+  return availableModels[model] || model;
 };
 
 // Function to validate Claude CLI connection with retry logic
-export const validateClaudeConnection = async (model = 'sonnet') => {
+export const validateClaudeConnection = async (model = 'haiku-3') => {
   // Map model alias to full ID
   const mappedModel = mapModelToId(model);
   // Retry configuration for API overload errors
@@ -682,6 +686,24 @@ export const executeClaudeCommand = async (params) => {
               messageCount++;
             } else if (data.type === 'tool_use') {
               toolUseCount++;
+            }
+
+            // Handle session result type from Claude CLI
+            // This is emitted when a session completes, either successfully or with an error
+            // Example: {"type": "result", "subtype": "success", "is_error": true, "result": "Session limit reached ∙ resets 10am"}
+            if (data.type === 'result') {
+              // Check if the result indicates an error
+              if (data.is_error === true) {
+                commandFailed = true;
+                lastMessage = data.result || JSON.stringify(data);
+                await log('⚠️ Detected error result from Claude CLI', { verbose: true });
+
+                // Check if this is a session limit error
+                if (lastMessage.includes('Session limit reached') || lastMessage.includes('limit reached')) {
+                  limitReached = true;
+                  await log('⚠️ Detected session limit in result', { verbose: true });
+                }
+              }
             }
 
             // Store last message for error detection
