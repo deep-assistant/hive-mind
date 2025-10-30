@@ -570,6 +570,23 @@ function validateGitHubUrl(args) {
     };
   }
 
+  // Parse the URL to ensure it's an issue or pull request
+  const parsed = parseGitHubUrl(url);
+  if (!parsed.valid) {
+    return {
+      valid: false,
+      error: parsed.error || 'Invalid GitHub URL'
+    };
+  }
+
+  // Only accept issue or pull request URLs
+  if (parsed.type !== 'issue' && parsed.type !== 'pull') {
+    return {
+      valid: false,
+      error: 'URL must be a GitHub issue or pull request (not just a repository URL)'
+    };
+  }
+
   return { valid: true };
 }
 
