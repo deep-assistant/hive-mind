@@ -412,6 +412,11 @@ jobs:
         echo "Running test suite for Telegram URL extraction..."
         node tests/test-telegram-url-extraction.mjs
 
+    - name: Run Telegram URL validation test (Issue #630)
+      run: |
+        echo "Running test suite for Telegram URL validation..."
+        node tests/test-telegram-validate-url.mjs
+
     - name: Run start-screen test (Issue #539)
       run: |
         echo "Running test suite for start-screen.mjs..."
