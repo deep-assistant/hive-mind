@@ -554,11 +554,28 @@ function mergeArgsWithOverrides(userArgs, overrides) {
   return [...filteredArgs, ...overrides];
 }
 
-function validateGitHubUrl(args) {
+/**
+ * Validate GitHub URL for Telegram bot commands
+ *
+ * @param {string[]} args - Command arguments (first arg should be URL)
+ * @param {Object} options - Validation options
+ * @param {string[]} options.allowedTypes - Allowed URL types (e.g., ['issue', 'pull'] or ['repository', 'organization', 'user'])
+ * @param {string} options.commandName - Command name for error messages (e.g., 'solve' or 'hive')
+ * @param {string} options.exampleUrl - Example URL for error messages
+ * @returns {{ valid: boolean, error?: string }}
+ */
+function validateGitHubUrl(args, options = {}) {
+  // Default options for /solve command (backward compatibility)
+  const {
+    allowedTypes = ['issue', 'pull'],
+    commandName = 'solve',
+    exampleUrl = 'https://github.com/owner/repo/issues/123'
+  } = options;
+
   if (args.length === 0) {
     return {
       valid: false,
-      error: 'Missing GitHub URL. Usage: /solve <github-url> [options]'
+      error: `Missing GitHub URL. Usage: /${commandName} <github-url> [options]`
     };
   }
 
@@ -570,7 +587,7 @@ function validateGitHubUrl(args) {
     };
   }
 
-  // Parse the URL to ensure it's an issue or pull request
+  // Parse the URL to validate structure
   const parsed = parseGitHubUrl(url);
   if (!parsed.valid) {
     return {
@@ -579,11 +596,12 @@ function validateGitHubUrl(args) {
     };
   }
 
-  // Only accept issue or pull request URLs
-  if (parsed.type !== 'issue' && parsed.type !== 'pull') {
+  // Check if the URL type is allowed for this command
+  if (!allowedTypes.includes(parsed.type)) {
+    const allowedTypesStr = allowedTypes.map(t => t === 'pull' ? 'pull request' : t).join(', ');
     return {
       valid: false,
-      error: 'URL must be a GitHub issue or pull request (not just a repository URL)'
+      error: `URL must be a GitHub ${allowedTypesStr} (not ${parsed.type})`
     };
   }
 
@@ -971,7 +989,11 @@ bot.command('hive', async (ctx) => {
 
   const userArgs = parseCommandArgs(ctx.message.text);
 
-  const validation = validateGitHubUrl(userArgs);
+  const validation = validateGitHubUrl(userArgs, {
+    allowedTypes: ['repo', 'organization', 'user'],
+    commandName: 'hive',
+    exampleUrl: 'https://github.com/owner/repo'
+  });
   if (!validation.valid) {
     await ctx.reply(`❌ ${validation.error}\n\nExample: \`/hive https://github.com/owner/repo\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
     return;
