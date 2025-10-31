@@ -510,7 +510,7 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
   try {
     // Check if file exists
     await fs.access(sessionFile);
-  } catch (accessError) {
+  } catch {
     // File doesn't exist yet or can't be accessed
     return null;
   }
@@ -557,7 +557,7 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
             outputTokens += usage.output_tokens;
           }
         }
-      } catch (parseError) {
+      } catch {
         // Skip lines that aren't valid JSON
         continue;
       }
@@ -1037,7 +1037,7 @@ export const executeClaudeCommand = async (params) => {
       try {
         const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
         if (tokenUsage) {
-          await log(`\n💰 Token Usage Summary:`);
+          await log('\n💰 Token Usage Summary:');
           await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
           if (tokenUsage.cacheCreationTokens > 0) {
             await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
