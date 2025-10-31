@@ -104,25 +104,25 @@ npm install -g @deep-assistant/hive-mind
    screen -S bot # Enter new screen for bot
 
    hive-telegram-bot --configuration "
-   TELEGRAM_BOT_TOKEN: '849...355:AAG...rgk_YZk...aPU'
-   TELEGRAM_ALLOWED_CHATS:
-     -1002975819706
-     -1002861722681
-   TELEGRAM_HIVE_OVERRIDES:
-     --all-issues
-     --once
-     --auto-fork
-     --skip-issues-with-prs
-     --attach-logs
-     --verbose
-     --no-tool-check
-   TELEGRAM_SOLVE_OVERRIDES:
-     --auto-fork
-     --auto-continue
-     --attach-logs
-     --verbose
-     --no-tool-check
-   TELEGRAM_BOT_VERBOSE: true
+     TELEGRAM_BOT_TOKEN: '849...355:AAG...rgk_YZk...aPU'
+     TELEGRAM_ALLOWED_CHATS:
+       -1002975819706
+       -1002861722681
+     TELEGRAM_HIVE_OVERRIDES:
+       --all-issues
+       --once
+       --auto-fork
+       --skip-issues-with-prs
+       --attach-logs
+       --verbose
+       --no-tool-check
+     TELEGRAM_SOLVE_OVERRIDES:
+       --auto-fork
+       --auto-continue
+       --attach-logs
+       --verbose
+       --no-tool-check
+     TELEGRAM_BOT_VERBOSE: true
    "
 
    # Press CTRL + A + D for detach from screen
