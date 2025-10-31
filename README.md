@@ -11,6 +11,10 @@
 
 It is also possible to connect this AI to collective human intelligence, meaning this system can communicate with humans for requirements, expertise, feedback.
 
+[![Universal Problem Solving Algorithm](https://github.com/user-attachments/assets/1d91e911-9ba4-456e-a00a-14cdd60d9a0a)](https://github.com/konard/problem-solving)
+
+Inspired by [konard/problem-solving](https://github.com/konard/problem-solving)
+
 ## ⚠️ WARNING
 
 It is UNSAFE to run this software on your developer machine.
@@ -22,6 +26,32 @@ This software uses full autonomous mode of Claude Code, that means it is free to
 That means it can lead to unexpected side effects.
 
 There is also a known issue of space leakage. So you need to make sure you are able to reinstall your virtual machine to clear space and/or any damage to the virtual machine.
+
+### ⚠️ CRITICAL: Token and Sensitive Data Security
+
+**THIS SOFTWARE CANNOT GUARANTEE ANY SAFETY FOR YOUR TOKENS OR OTHER SENSITIVE DATA ON THE VIRTUAL MACHINE.**
+
+There are infinite ways to extract tokens from a virtual machine connected to the internet. This includes but is not limited to:
+
+- **Claude MAX tokens** - Required for AI operations
+- **GitHub tokens** - Required for repository access
+- **API keys and credentials** - Any sensitive data on the system
+
+**IMPORTANT SECURITY CONSIDERATIONS:**
+
+- Running on a developer machine is **ABSOLUTELY UNSAFE**
+- Running on a virtual machine is **LESS UNSAFE** but still has risks
+- Even though your developer machine data isn't directly exposed, the VM still contains sensitive tokens
+- Any token stored on an internet-connected system can potentially be compromised
+
+**USE THIS SOFTWARE ENTIRELY AT YOUR OWN RISK AND RESPONSIBILITY.**
+
+We strongly recommend:
+- Using dedicated, isolated virtual machines
+- Rotating tokens regularly
+- Monitoring token usage for suspicious activity
+- Never using production tokens or credentials
+- Being prepared to revoke and replace all tokens used with this system
 
 Minimum system requirements to run `hive.mjs`:
 ```
@@ -46,19 +76,95 @@ npm install -g @deep-assistant/hive-mind
 ```
 
 ### Installation on Ubuntu 24.04 server
-```bash
-curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/ubuntu-24-server-install.sh | bash
-```
+
+1. Reset/install VPS/VDS server with fresh Ubuntu 24.04
+2. Login to `root` user.
+3. Execute main installation script
+   ```bash
+   curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
+   ```
+   Note: in the process of installation you will be asked to authorize using GitHub account, it is required for gh tool to be working, the system will do all actions using that GitHub account.
+
+4. Login to `hive` user
+   ```bash
+   su - hive
+   ```
+
+5. Claude Code CLI and OpenCode AI CLI are preinstalled with the previous script, now you need to make sure claude is authorized also. Execute claude command, and follow all steps to authorize the local claude
+   ```bash
+   claude
+   ```
+
+   Note: opencode at the moment comes with free Grok Code Fast 1 model by default - so no authorization here is required.
+
+6. Launch the Hive Mind telegram bot:
+
+   **Using Links Notation (recommended):**
+   ```
+   screen -S bot # Enter new screen for bot
+
+   hive-telegram-bot --configuration "
+   TELEGRAM_BOT_TOKEN: '849...355:AAG...rgk_YZk...aPU'
+   TELEGRAM_ALLOWED_CHATS:
+     -1002975819706
+     -1002861722681
+   TELEGRAM_HIVE_OVERRIDES:
+     --all-issues
+     --once
+     --auto-fork
+     --skip-issues-with-prs
+     --attach-logs
+     --verbose
+     --no-tool-check
+   TELEGRAM_SOLVE_OVERRIDES:
+     --auto-fork
+     --auto-continue
+     --attach-logs
+     --verbose
+     --no-tool-check
+   TELEGRAM_BOT_VERBOSE: true
+   "
+
+   # Press CTRL + A + D for detach from screen
+   ```
+
+   **Using individual command-line options:**
+   ```
+   screen -S bot # Enter new screen for bot
+
+   hive-telegram-bot --token 849...355:AAG...rgk_YZk...aPU --allowed-chats "(
+     -1002975819706
+     -1002861722681
+   )" --hive-overrides "(
+     --all-issues
+     --once
+     --auto-fork
+     --skip-issues-with-prs
+     --attach-logs
+     --verbose
+     --no-tool-check
+   )" --solve-overrides "(
+     --auto-fork
+     --auto-continue
+     --attach-logs
+     --verbose
+     --no-tool-check
+   )" --verbose
+
+   # Press CTRL + A + D for detach from screen
+   ```
+
+   Note: You may need to register you own bot with https://t.me/BotFather to get the bot token.
 
 ### Core Operations
 ```bash
 # Solve using maximum power
-solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --fork --think max
+solve https://github.com/Veronika89-lang/index.html/issues/1 --auto-continue --attach-logs --verbose --model opus --auto-fork --think max
 
-# Solve GitHub issues automatically
-solve https://github.com/owner/repo/issues/123 --fork --model sonnet
+# Solve GitHub issues automatically (auto-fork if no write access)
+solve https://github.com/owner/repo/issues/123 --auto-fork --model sonnet
 
-# Solve issue with PR to custom branch
+# Solve issue with PR to custom branch (manual fork mode)
 solve https://github.com/owner/repo/issues/123 --base-branch develop --fork
 
 # Continue working on existing PR
@@ -70,8 +176,8 @@ solve https://github.com/owner/repo/issues/123 --resume session-id
 # Start hive orchestration (monitor and solve issues automatically)
 hive https://github.com/owner/repo --monitor-tag "help wanted" --concurrency 3
 
-# Monitor all issues in organization
-hive https://github.com/microsoft --all-issues --max-issues 10
+# Monitor all issues in organization with auto-fork
+hive https://github.com/microsoft --all-issues --max-issues 10 --auto-fork
 
 # Run collaborative review process
 review --repo owner/repo --pr 456
@@ -94,15 +200,48 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus)                  [default: sonnet]
+  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode]
+  --tool                AI tool (claude, opencode)           [default: claude]
   --fork, -f            Fork repo if no write access         [default: false]
-  --base-branch, -b     Target branch for PR                  [default: repo default]
+  --auto-fork           Automatically fork public repos without write access (fails for private)
+                        [default: false]
+  --base-branch, -b     Target branch for PR                 [default: repo default]
   --resume, -r          Resume from session ID
-  --verbose, -v         Enable verbose logging                [default: false]
+  --verbose, -v         Enable verbose logging               [default: false]
   --dry-run, -n         Prepare only, don't execute          [default: false]
-  --auto-pull-request-creation  Create draft PR before Claude [default: false]
-  --attach-logs           Attach logs to PR (⚠️ sensitive)   [default: false]
+  --only-prepare-command  Only prepare and print the command [default: false]
+  --skip-tool-check     Skip tool connection check (use --no-tool-check to disable)
+                        [default: false]
+  --auto-pull-request-creation  Create draft PR before execution [default: true]
+  --attach-logs         Attach logs to PR (⚠️ sensitive)    [default: false]
+  --auto-close-pull-request-on-fail  Close PR on fail        [default: false]
+  --auto-continue       Continue with existing PR when issue URL is provided
+                        [default: false]
+  --auto-continue-limit, -c  Auto-continue when limit resets [default: false]
+  --auto-resume-on-errors  Auto-resume on network errors (503, etc.)
+                        [default: false]
+  --auto-continue-only-on-new-comments  Fail if no new comments
+                        [default: false]
+  --auto-commit-uncommitted-changes  Auto-commit changes    [default: false]
+  --auto-merge-default-branch-to-pull-request-branch  Merge default branch to PR branch
+                        (only in continue mode) [default: false]
+  --allow-fork-divergence-resolution-using-force-push-with-lease
+                        Allow force-push with --force-with-lease when fork diverges
+                        (DANGEROUS: can overwrite fork history) [default: false]
+  --continue-only-on-feedback  Only continue if feedback detected
+                        [default: false]
+  --watch, -w           Monitor for feedback and auto-restart [default: false]
+  --watch-interval      Feedback check interval (seconds)    [default: 60]
+  --min-disk-space      Minimum disk space in MB             [default: 500]
+  --log-dir, -l         Directory for log files              [default: cwd]
   --think               Thinking level (low, medium, high, max)  [optional]
+  --sentry              Enable Sentry error tracking (use --no-sentry to disable)
+                        [default: true]
+  --auto-cleanup        Delete temp directory on completion
+                        [default: true for private repos, false for public repos]
+  --version             Show version number
+  --help, -h            Show help
 ```
 
 ## 🔧 hive Options
@@ -111,17 +250,43 @@ hive <github-url> [options]
 
   --monitor-tag, -t     Label to monitor                     [default: "help wanted"]
   --all-issues, -a      Monitor all issues (ignore labels)   [default: false]
+  --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
-  --max-issues          Limit processed issues               [default: unlimited]
+  --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
+  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode]
+  --tool                AI tool (claude, opencode)           [default: claude]
   --interval, -i        Poll interval (seconds)              [default: 300]
+  --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
-  --skip-issues-with-prs  Skip issues with existing PRs     [default: false]
-  --pull-requests-per-issue  Number of PRs per issue        [default: 1]
   --dry-run             List issues without processing       [default: false]
+  --skip-tool-check     Skip tool connection check (use --no-tool-check to disable)
+                        [default: false]
   --verbose, -v         Enable verbose logging               [default: false]
   --min-disk-space      Minimum disk space in MB             [default: 500]
   --auto-cleanup        Clean /tmp/* /var/tmp/* on success   [default: false]
-  --fork, -f            Fork repos if no write access       [default: false]
+  --fork, -f            Fork repos if no write access        [default: false]
+  --auto-fork           Automatically fork public repos without write access
+                        [default: false]
+  --attach-logs         Attach logs to PRs (⚠️ sensitive)   [default: false]
+  --project-number, -pn  GitHub Project number to monitor
+  --project-owner, -po  GitHub Project owner (org or user)
+  --project-status, -ps  Project status column to monitor    [default: "Ready"]
+  --project-mode, -pm   Enable project-based monitoring      [default: false]
+  --youtrack-mode       Enable YouTrack mode instead of GitHub  [default: false]
+  --youtrack-stage      Override YouTrack stage to monitor
+  --youtrack-project    Override YouTrack project code
+  --target-branch, -tb  Target branch for pull requests      [default: repo default]
+  --log-dir, -l         Directory for log files              [default: cwd]
+  --auto-continue       Pass --auto-continue to solve for each issue
+                        [default: false]
+  --think               Thinking level (low, medium, high, max)  [optional]
+  --sentry              Enable Sentry error tracking (use --no-sentry to disable)
+                        [default: true]
+  --watch, -w           Monitor for feedback and auto-restart  [default: false]
+  --issue-order, -o     Order issues by date (asc, desc)     [default: asc]
+  --version             Show version number
+  --help, -h            Show help
 ```
 
 ## 🤖 Telegram Bot
@@ -156,8 +321,7 @@ Want to see the Hive Mind in action? Join our Telegram channel where you can exe
 
 3. **Start the Bot**
    ```bash
-   # Load environment variables and start
-   source .env && telegram-bot
+   hive-telegram-bot
    ```
 
 ### Bot Commands
@@ -170,8 +334,8 @@ All commands work in **group chats only** (not in private messages with the bot)
 
 Examples:
 /solve https://github.com/owner/repo/issues/123
-/solve https://github.com/owner/repo/issues/123 --fork --verbose
-/solve https://github.com/owner/repo/issues/123 --fork --auto-continue --attach-logs --verbose --model sonnet --think max
+/solve https://github.com/owner/repo/issues/123 --auto-fork --verbose
+/solve https://github.com/owner/repo/issues/123 --auto-fork --auto-continue --attach-logs --verbose --model sonnet --think max
 ```
 
 #### `/hive` - Run Hive Orchestration
@@ -297,7 +461,10 @@ sequenceDiagram
 
 ### Automated Issue Resolution
 ```bash
-# Fork and solve issue (if no write access)
+# Auto-fork and solve issue (automatic fork detection for public repos)
+solve https://github.com/owner/repo/issues/123 --auto-fork --model opus
+
+# Manual fork and solve issue (works for both public and private repos)
 solve https://github.com/owner/repo/issues/123 --fork --model opus
 
 # Continue work on existing PR
@@ -315,17 +482,17 @@ solve https://github.com/owner/repo/issues/123 --dry-run
 # Monitor single repository with specific label
 hive https://github.com/owner/repo --monitor-tag "bug" --concurrency 4
 
-# Monitor all issues in an organization
-hive https://github.com/microsoft --all-issues --max-issues 20 --once
+# Monitor all issues in an organization with auto-fork
+hive https://github.com/microsoft --all-issues --max-issues 20 --once --auto-fork
 
 # Monitor user repositories with high concurrency
-hive https://github.com/username --all-issues --concurrency 8 --interval 120
+hive https://github.com/username --all-issues --concurrency 8 --interval 120 --auto-fork
 
 # Skip issues that already have PRs
 hive https://github.com/org/repo --skip-issues-with-prs --verbose
 
-# Auto-cleanup temporary files and fork repos if needed
-hive https://github.com/org/repo --auto-cleanup --fork --concurrency 5
+# Auto-cleanup temporary files and auto-fork if needed
+hive https://github.com/org/repo --auto-cleanup --auto-fork --concurrency 5
 ```
 
 ### Session Management

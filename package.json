@@ -1,6 +1,6 @@
 {
   "name": "@deep-assistant/hive-mind",
-  "version": "0.18.4",
+  "version": "0.25.8",
   "description": "AI-powered issue solver and hive mind for collaborative problem solving",
   "main": "src/hive.mjs",
   "type": "module",
@@ -9,7 +9,7 @@
     "solve": "./src/solve.mjs",
     "task": "./src/task.mjs",
     "review": "./src/review.mjs",
-    "start-screen": "./start-screen.mjs",
+    "start-screen": "./src/start-screen.mjs",
     "hive-telegram-bot": "./src/telegram-bot.mjs"
   },
   "scripts": {

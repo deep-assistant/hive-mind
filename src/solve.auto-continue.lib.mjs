@@ -37,6 +37,10 @@ const validation = await import('./solve.validation.lib.mjs');
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
+// Import GitHub linking detection library
+const githubLinking = await import('./github-linking.lib.mjs');
+const { extractLinkedIssueNumber } = githubLinking;
+
 // Import configuration
 import { autoContinue } from './config.lib.mjs';
 
@@ -267,12 +271,13 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
       await log(`📝 PR branch: ${prBranch}`);
 
-      // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
+      // Extract issue number from PR body using GitHub linking detection library
+      // This ensures we only detect actual GitHub-recognized linking keywords
       const prBody = prData.body || '';
-      const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
+      const extractedIssueNumber = extractLinkedIssueNumber(prBody);
 
-      if (issueMatch) {
-        issueNumber = issueMatch[1];
+      if (extractedIssueNumber) {
+        issueNumber = extractedIssueNumber;
         await log(`🔗 Found linked issue #${issueNumber}`);
       } else {
         // If no linked issue found, we can still continue but warn
@@ -303,6 +308,82 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
 
   const issueNumber = urlNumber;
   await log(`🔍 Auto-continue enabled: Checking for existing PRs for issue #${issueNumber}...`);
+
+  // Check for existing branches in the repository (main repo or fork)
+  let existingBranches = [];
+
+  if (argv.fork) {
+    // When in fork mode, check for existing branches in the fork
+    try {
+      // Get current user to determine fork name
+      const userResult = await $`gh api user --jq .login`;
+      if (userResult.code === 0) {
+        const currentUser = userResult.stdout.toString().trim();
+        const forkRepo = `${currentUser}/${repo}`;
+
+        // Check if fork exists
+        const forkCheckResult = await $`gh repo view ${forkRepo} --json name 2>/dev/null`;
+        if (forkCheckResult.code === 0) {
+          await log(`🔍 Fork mode: Checking for existing branches in ${forkRepo}...`);
+
+          // List all branches in the fork that match the pattern issue-{issueNumber}-*
+          const branchPattern = `issue-${issueNumber}-`;
+          const branchListResult = await $`gh api --paginate repos/${forkRepo}/branches --jq '.[].name'`;
+
+          if (branchListResult.code === 0) {
+            const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
+            existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+
+            if (existingBranches.length > 0) {
+              await log(`📋 Found ${existingBranches.length} existing branch(es) in fork matching pattern '${branchPattern}*':`);
+              for (const branch of existingBranches) {
+                await log(`  • ${branch}`);
+              }
+            }
+          }
+        }
+      }
+    } catch (forkBranchError) {
+      reportError(forkBranchError, {
+        context: 'check_fork_branches',
+        owner,
+        repo,
+        issueNumber,
+        operation: 'search_fork_branches'
+      });
+      await log(`⚠️  Warning: Could not check for existing branches in fork: ${forkBranchError.message}`, { level: 'warning' });
+    }
+  } else {
+    // NOT in fork mode - check for existing branches in the main repository
+    try {
+      await log(`🔍 Checking for existing branches in ${owner}/${repo}...`);
+
+      // List all branches in the main repo that match the pattern issue-{issueNumber}-*
+      const branchPattern = `issue-${issueNumber}-`;
+      const branchListResult = await $`gh api --paginate repos/${owner}/${repo}/branches --jq '.[].name'`;
+
+      if (branchListResult.code === 0) {
+        const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
+        existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+
+        if (existingBranches.length > 0) {
+          await log(`📋 Found ${existingBranches.length} existing branch(es) in main repo matching pattern '${branchPattern}*':`);
+          for (const branch of existingBranches) {
+            await log(`  • ${branch}`);
+          }
+        }
+      }
+    } catch (mainBranchError) {
+      reportError(mainBranchError, {
+        context: 'check_main_repo_branches',
+        owner,
+        repo,
+        issueNumber,
+        operation: 'search_main_repo_branches'
+      });
+      await log(`⚠️  Warning: Could not check for existing branches in main repo: ${mainBranchError.message}`, { level: 'warning' });
+    }
+  }
 
   try {
     // Get all PRs linked to this issue
@@ -390,6 +471,66 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     });
     await log(`⚠️  Warning: Could not search for existing PRs: ${prSearchError.message}`, { level: 'warning' });
     await log('   Continuing with normal flow...');
+  }
+
+  // If no suitable PR was found but we have existing branches, use the first one
+  if (existingBranches.length > 0) {
+    // Sort branches by name (newest hash suffix last) and use the most recent one
+    const sortedBranches = existingBranches.sort();
+    const selectedBranch = sortedBranches[sortedBranches.length - 1];
+
+    const repoType = argv.fork ? 'fork' : 'main repo';
+    await log(`✅ Using existing branch from ${repoType}: ${selectedBranch}`);
+    await log(`   Found ${existingBranches.length} matching branch(es), selected most recent`);
+
+    // Check if there's a PR for this branch (including merged/closed PRs)
+    try {
+      const prForBranchResult = await $`gh pr list --repo ${owner}/${repo} --head ${selectedBranch} --state all --json number,state --limit 10`;
+      if (prForBranchResult.code === 0) {
+        const prsForBranch = JSON.parse(prForBranchResult.stdout.toString().trim() || '[]');
+        if (prsForBranch.length > 0) {
+          // Check if any PR is MERGED or CLOSED
+          const mergedOrClosedPr = prsForBranch.find(pr => pr.state === 'MERGED' || pr.state === 'CLOSED');
+          if (mergedOrClosedPr) {
+            await log(`   Branch ${selectedBranch} has a ${mergedOrClosedPr.state} PR #${mergedOrClosedPr.number} - cannot reuse`);
+            await log(`   Will create a new branch for issue #${issueNumber}`);
+            return { isContinueMode: false, issueNumber };
+          }
+
+          // All PRs are OPEN - find the first open PR
+          const openPr = prsForBranch.find(pr => pr.state === 'OPEN');
+          if (openPr) {
+            await log(`   Existing open PR found: #${openPr.number}`);
+            return {
+              isContinueMode: true,
+              prNumber: openPr.number,
+              prBranch: selectedBranch,
+              issueNumber
+            };
+          }
+        }
+      }
+    } catch (prCheckError) {
+      reportError(prCheckError, {
+        context: 'check_pr_for_existing_branch',
+        owner,
+        repo,
+        selectedBranch,
+        operation: 'search_pr_for_branch'
+      });
+      // If we can't check for PR, still continue with the branch
+      await log(`⚠️  Warning: Could not check for existing PR for branch: ${prCheckError.message}`, { level: 'warning' });
+    }
+
+    // No PR exists yet for this branch, but we can still use the branch
+    await log('   No existing PR for this branch - will create PR from existing branch');
+
+    return {
+      isContinueMode: true,
+      prNumber: null, // No PR yet
+      prBranch: selectedBranch,
+      issueNumber
+    };
   }
 
   return { isContinueMode: false, issueNumber };

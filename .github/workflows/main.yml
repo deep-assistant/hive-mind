@@ -377,6 +377,51 @@ jobs:
         echo "Running test suite for Sentry integration..."
         node tests/test-sentry.mjs
 
+    - name: Run telegram-bot dry-run test (Issue #487)
+      run: |
+        echo "Running test suite for telegram-bot --dry-run mode..."
+        node tests/test-telegram-bot-dry-run.mjs
+
+    - name: Run telegram-bot hero Links Notation test (Issue #623)
+      run: |
+        echo "Running test suite for telegram-bot hero example with Links Notation..."
+        node tests/test-telegram-bot-hero-links-notation.mjs
+
+    - name: Run hive command silent failure test (Issue #504)
+      run: |
+        echo "Running test suite for hive command silent failures..."
+        node tests/test-hive-no-silent-failure.mjs
+
+    - name: Run GitHub linking keyword detection test (Issue #568)
+      run: |
+        echo "Running test suite for GitHub linking keyword detection..."
+        node tests/test-github-linking.mjs
+
+    - name: Run Telegram Markdown escaping test (Issue #580)
+      run: |
+        echo "Running test suite for Telegram Markdown escaping..."
+        node tests/test-telegram-markdown-escaping.mjs
+
+    - name: Run lenv-reader test (Issue #604)
+      run: |
+        echo "Running test suite for lenv-reader.lib.mjs..."
+        node tests/test-lenv-reader.mjs
+
+    - name: Run Telegram URL extraction test (Issue #603)
+      run: |
+        echo "Running test suite for Telegram URL extraction..."
+        node tests/test-telegram-url-extraction.mjs
+
+    - name: Run Telegram URL validation test (Issue #630)
+      run: |
+        echo "Running test suite for Telegram URL validation..."
+        node tests/test-telegram-validate-url.mjs
+
+    - name: Run start-screen test (Issue #539)
+      run: |
+        echo "Running test suite for start-screen.mjs..."
+        node tests/test-start-screen.mjs
+
   # === EXECUTION TESTS ===
   test-execution:
     runs-on: ubuntu-latest
@@ -400,13 +445,77 @@ jobs:
         timeout 10s ./src/solve.mjs --help || echo "Help command completed"
         echo "✅ solve.mjs executes without critical errors"
         timeout 10s ./src/solve.mjs --version || true
-    
+
+    - name: Verify log files contain version and command (Issue #517)
+      run: |
+        echo "Testing that log files contain version and command at the start..."
+        # Run solve with dry-run and capture log file location
+        timeout 30s ./src/solve.mjs "https://github.com/test/repo/issues/1" --dry-run --skip-tool-check 2>&1 | tee test-log-output.txt || true
+
+        # Extract log file path from output (pattern includes T for timestamp format)
+        LOG_FILE=$(grep -o "solve-[0-9T-]*Z\.log" test-log-output.txt | head -1)
+
+        if [ -z "$LOG_FILE" ]; then
+          echo "⚠️  Could not find log file path in output"
+          cat test-log-output.txt
+          exit 1
+        fi
+
+        echo "Log file: $LOG_FILE"
+
+        if [ ! -f "$LOG_FILE" ]; then
+          echo "❌ Log file not found: $LOG_FILE"
+          ls -la solve-*.log || echo "No solve log files found"
+          exit 1
+        fi
+
+        echo ""
+        echo "Checking log file contents..."
+        head -30 "$LOG_FILE"
+
+        echo ""
+        echo "Verifying version appears in log..."
+        if grep -q "🚀 solve v" "$LOG_FILE"; then
+          echo "✅ Version found in log file"
+        else
+          echo "❌ Version NOT found in log file"
+          exit 1
+        fi
+
+        echo ""
+        echo "Verifying command appears in log..."
+        if grep -q "🔧 Raw command executed:" "$LOG_FILE"; then
+          echo "✅ Command found in log file"
+        else
+          echo "❌ Command NOT found in log file"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ Log file verification passed - version and command are present"
+
     - name: Test hive.mjs execution
       run: |
         echo "Testing hive.mjs basic execution..."
         timeout 10s ./src/hive.mjs --help || echo "Help command completed"
         echo "✅ hive.mjs executes without critical errors"
         timeout 10s ./src/hive.mjs --version || true
+
+    - name: Test telegram-bot.mjs execution
+      run: |
+        echo "Testing telegram-bot.mjs basic execution..."
+        timeout 10s ./src/telegram-bot.mjs --help || echo "Help command completed"
+        echo "✅ telegram-bot.mjs executes without critical errors"
+
+        echo ""
+        echo "Testing telegram-bot.mjs --dry-run with issue #487 command..."
+        timeout 10s ./src/telegram-bot.mjs \
+          --token "test_token_123" \
+          --allowed-chats "(-1002975819706 -1002861722681)" \
+          --no-hive \
+          --solve-overrides $'( \n  --auto-continue\n  --attach-logs\n  --verbose\n  --no-tool-check\n)' \
+          --dry-run
+        echo "✅ Issue #487 command passes with --dry-run"
     
     - name: Test memory-check.mjs execution
       run: |
@@ -432,6 +541,21 @@ jobs:
         echo "✅ 'solve' global command works"
 
         echo ""
+        echo "Testing 'hive-telegram-bot' global command..."
+        timeout 10s hive-telegram-bot --help || echo "Help command completed"
+        echo "✅ 'hive-telegram-bot' global command works"
+
+        echo ""
+        echo "Testing hive-telegram-bot --dry-run (issue #487)..."
+        timeout 10s hive-telegram-bot \
+          --token "test_token" \
+          --allowed-chats "(-1 -2)" \
+          --no-hive \
+          --solve-overrides "(--auto-continue --verbose)" \
+          --dry-run
+        echo "✅ 'hive-telegram-bot --dry-run' works"
+
+        echo ""
         echo "Cleaning up global link..."
         npm unlink || true
 
@@ -453,6 +577,45 @@ jobs:
         echo "Testing solve.mjs with --dry-run and --skip-claude-check flags..."
         timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --dry-run --skip-claude-check 2>&1 | head -20 || true
         echo "✅ solve.mjs accepts --dry-run and --skip-claude-check flags"
+
+    - name: Test --auto-fork option
+      run: |
+        echo "Testing --auto-fork option with dry-run mode..."
+
+        # Test solve with --auto-fork
+        echo ""
+        echo "Testing solve.mjs with --auto-fork and --dry-run..."
+        timeout 10s ./src/solve.mjs https://github.com/test/repo/issues/1 --auto-fork --dry-run --skip-tool-check 2>&1 | tee solve_auto_fork.log || true
+        if grep -qE "(auto-fork|Auto-fork)" solve_auto_fork.log; then
+          echo "✅ solve.mjs recognizes --auto-fork flag"
+        else
+          echo "⚠️ Could not verify --auto-fork flag in solve output"
+        fi
+
+        # Test hive with --auto-fork
+        echo ""
+        echo "Testing hive.mjs with --auto-fork and --dry-run..."
+        timeout 30s ./src/hive.mjs https://github.com/test/repo --auto-fork --dry-run --skip-tool-check --once --max-issues 1 2>&1 | tee hive_auto_fork.log || true
+        if grep -qE "(auto-fork|Auto-fork)" hive_auto_fork.log; then
+          echo "✅ hive.mjs recognizes --auto-fork flag"
+        else
+          echo "⚠️ Could not verify --auto-fork flag in hive output"
+        fi
+
+        # Test start-screen with --auto-fork (just verify it accepts the flag)
+        echo ""
+        echo "Testing start-screen.mjs passes --auto-fork to solve..."
+        # start-screen requires screen to be installed, so we just test flag parsing
+        timeout 5s ./src/start-screen.mjs solve https://github.com/test/repo/issues/1 --auto-fork 2>&1 | tee start_screen_auto_fork.log || true
+        # If screen is not installed, that's okay - we just want to verify the flag is accepted
+        if grep -qE "(auto-fork|GNU Screen|screen.*not.*installed)" start_screen_auto_fork.log; then
+          echo "✅ start-screen.mjs accepts --auto-fork flag"
+        else
+          echo "⚠️ Could not verify start-screen flag acceptance"
+        fi
+
+        echo ""
+        echo "✅ All --auto-fork option tests completed"
 
   # === MEMORY CHECKS - LINUX ===
   memory-check-linux:

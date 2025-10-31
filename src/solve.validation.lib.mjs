@@ -204,8 +204,8 @@ export const validateContinueOnlyOnFeedback = async (argv, isPrUrl, isIssueUrl) 
   return true;
 };
 
-// Perform all system checks (disk space, memory, Claude connection, GitHub permissions)
-export const performSystemChecks = async (minDiskSpace = 500, skipClaude = false, model = 'sonnet') => {
+// Perform all system checks (disk space, memory, tool connection, GitHub permissions)
+export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, model = 'sonnet', argv = {}) => {
   // Check disk space before proceeding
   const hasEnoughSpace = await checkDiskSpace(minDiskSpace);
   if (!hasEnoughSpace) {
@@ -218,22 +218,36 @@ export const performSystemChecks = async (minDiskSpace = 500, skipClaude = false
     return false;
   }
 
-  // Skip Claude CLI validation if in dry-run mode or explicitly requested
-  if (!skipClaude) {
-    // Validate Claude CLI connection before proceeding with the same model that will be used
-    const isClaudeConnected = await validateClaudeConnection(model);
-    if (!isClaudeConnected) {
-      await log('❌ Cannot proceed without Claude CLI connection', { level: 'error' });
+  // Skip tool validation if in dry-run mode or explicitly requested
+  if (!skipTool) {
+    let isToolConnected = false;
+    if (argv.tool === 'opencode') {
+      // Validate OpenCode connection
+      const opencodeLib = await import('./opencode.lib.mjs');
+      isToolConnected = await opencodeLib.validateOpenCodeConnection(model);
+      if (!isToolConnected) {
+        await log('❌ Cannot proceed without OpenCode connection', { level: 'error' });
+        return false;
+      }
+    } else {
+      // Validate Claude CLI connection (default)
+      const isClaudeConnected = await validateClaudeConnection(model);
+      if (!isClaudeConnected) {
+        await log('❌ Cannot proceed without Claude CLI connection', { level: 'error' });
+        return false;
+      }
+      isToolConnected = true;
+    }
+
+    // Check GitHub permissions (only when tool check is not skipped)
+    // Skip in dry-run mode to allow CI tests without authentication
+    const hasValidAuth = await checkGitHubPermissions();
+    if (!hasValidAuth) {
       return false;
     }
   } else {
-    await log('⏩ Skipping Claude CLI validation (dry-run mode)', { verbose: true });
-  }
-
-  // Check GitHub permissions
-  const hasValidAuth = await checkGitHubPermissions();
-  if (!hasValidAuth) {
-    return false;
+    await log('⏩ Skipping tool validation (dry-run mode)', { verbose: true });
+    await log('⏩ Skipping GitHub authentication check (dry-run mode)', { verbose: true });
   }
 
   return true;

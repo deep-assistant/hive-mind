@@ -15,7 +15,6 @@ const use = globalThis.use;
 const { $ } = await use('command-stream');
 
 const path = (await use('path')).default;
-const fs = (await use('fs')).promises;
 
 // Import shared library functions
 const lib = await import('./lib.mjs');
@@ -47,35 +46,151 @@ const {
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
-// Remove CLAUDE.md and commit the deletion
-export const cleanupClaudeFile = async (tempDir, branchName) => {
+// Import GitHub linking detection library
+const githubLinking = await import('./github-linking.lib.mjs');
+const { hasGitHubLinkingKeyword } = githubLinking;
+
+// Revert the CLAUDE.md commit to restore original state
+export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
   try {
-    await fs.unlink(path.join(tempDir, 'CLAUDE.md'));
-    await log(formatAligned('🗑️', 'Cleanup:', 'Removing CLAUDE.md'));
+    // Only revert if we have the commit hash from this session
+    // This prevents reverting the wrong commit in continue mode
+    if (!claudeCommitHash) {
+      await log('   No CLAUDE.md commit to revert (not created in this session)', { verbose: true });
+      return;
+    }
 
-    // Commit the deletion
-    const deleteCommitResult = await $({ cwd: tempDir })`git add CLAUDE.md && git commit -m "Remove CLAUDE.md - Claude command completed" 2>&1`;
-    if (deleteCommitResult.code === 0) {
-      await log(formatAligned('📦', 'Committed:', 'CLAUDE.md deletion'));
+    await log(formatAligned('🔄', 'Cleanup:', 'Reverting CLAUDE.md commit'));
+    await log(`   Using saved commit hash: ${claudeCommitHash.substring(0, 7)}...`, { verbose: true });
 
-      // Push the deletion
-      const pushDeleteResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
-      if (pushDeleteResult.code === 0) {
-        await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md removal to GitHub'));
+    const commitToRevert = claudeCommitHash;
+
+    // APPROACH 3: Check for modifications before reverting (proactive detection)
+    // This is the main strategy - detect if CLAUDE.md was modified after initial commit
+    await log('   Checking if CLAUDE.md was modified since initial commit...', { verbose: true });
+    const diffResult = await $({ cwd: tempDir })`git diff ${commitToRevert} HEAD -- CLAUDE.md 2>&1`;
+
+    if (diffResult.stdout && diffResult.stdout.trim()) {
+      // CLAUDE.md was modified after initial commit - use manual approach to avoid conflicts
+      await log('   CLAUDE.md was modified after initial commit, using manual cleanup...', { verbose: true });
+
+      // Get the state of CLAUDE.md from before the initial commit (parent of the commit we're reverting)
+      const parentCommit = `${commitToRevert}~1`;
+      const parentFileExists = await $({ cwd: tempDir })`git cat-file -e ${parentCommit}:CLAUDE.md 2>&1`;
+
+      if (parentFileExists.code === 0) {
+        // CLAUDE.md existed before the initial commit - restore it to that state
+        await log('   CLAUDE.md existed before session, restoring to previous state...', { verbose: true });
+        await $({ cwd: tempDir })`git checkout ${parentCommit} -- CLAUDE.md`;
       } else {
-        await log('   Warning: Could not push CLAUDE.md deletion', { verbose: true });
+        // CLAUDE.md didn't exist before the initial commit - delete it
+        await log('   CLAUDE.md was created in session, removing it...', { verbose: true });
+        await $({ cwd: tempDir })`git rm -f CLAUDE.md 2>&1`;
+      }
+
+      // Create a manual revert commit
+      const commitResult = await $({ cwd: tempDir })`git commit -m "Revert: Remove CLAUDE.md changes from initial commit" 2>&1`;
+
+      if (commitResult.code === 0) {
+        await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert (manual)'));
+
+        // Push the revert
+        const pushRevertResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+        if (pushRevertResult.code === 0) {
+          await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md revert to GitHub'));
+        } else {
+          await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
+        }
+      } else {
+        await log('   Warning: Could not create manual revert commit', { verbose: true });
+        await log(`   Commit output: ${commitResult.stderr || commitResult.stdout}`, { verbose: true });
       }
     } else {
-      await log('   Warning: Could not commit CLAUDE.md deletion', { verbose: true });
+      // No modifications detected - safe to use git revert (standard approach)
+      await log('   No modifications detected, using standard git revert...', { verbose: true });
+
+      // FALLBACK 1: Standard git revert
+      const revertResult = await $({ cwd: tempDir })`git revert ${commitToRevert} --no-edit 2>&1`;
+      if (revertResult.code === 0) {
+        await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert'));
+
+        // Push the revert
+        const pushRevertResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+        if (pushRevertResult.code === 0) {
+          await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md revert to GitHub'));
+        } else {
+          await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
+        }
+      } else {
+        // FALLBACK 2: Handle unexpected conflicts (three-way merge with automatic resolution)
+        const revertOutput = revertResult.stderr || revertResult.stdout || '';
+        const hasConflict = revertOutput.includes('CONFLICT') || revertOutput.includes('conflict');
+
+        if (hasConflict) {
+          await log('   Unexpected conflict detected, attempting automatic resolution...', { verbose: true });
+
+          // Check git status to see what files are in conflict
+          const statusResult = await $({ cwd: tempDir })`git status --short 2>&1`;
+          const statusOutput = statusResult.stdout || '';
+
+          // Check if CLAUDE.md is in the conflict
+          if (statusOutput.includes('CLAUDE.md')) {
+            await log('   Resolving CLAUDE.md conflict by restoring pre-session state...', { verbose: true });
+
+            // Get the state of CLAUDE.md from before the initial commit (parent of the commit we're reverting)
+            const parentCommit = `${commitToRevert}~1`;
+            const parentFileExists = await $({ cwd: tempDir })`git cat-file -e ${parentCommit}:CLAUDE.md 2>&1`;
+
+            if (parentFileExists.code === 0) {
+              // CLAUDE.md existed before the initial commit - restore it to that state
+              await log('   CLAUDE.md existed before session, restoring to previous state...', { verbose: true });
+              await $({ cwd: tempDir })`git checkout ${parentCommit} -- CLAUDE.md`;
+              // Stage the resolved CLAUDE.md
+              await $({ cwd: tempDir })`git add CLAUDE.md 2>&1`;
+            } else {
+              // CLAUDE.md didn't exist before the initial commit - delete it
+              await log('   CLAUDE.md was created in session, removing it...', { verbose: true });
+              await $({ cwd: tempDir })`git rm -f CLAUDE.md 2>&1`;
+              // No need to git add since git rm stages the deletion
+            }
+
+            // Complete the revert with the resolved conflict
+            const continueResult = await $({ cwd: tempDir })`git revert --continue --no-edit 2>&1`;
+
+            if (continueResult.code === 0) {
+              await log(formatAligned('📦', 'Committed:', 'CLAUDE.md revert (conflict resolved)'));
+
+              // Push the revert
+              const pushRevertResult = await $({ cwd: tempDir })`git push origin ${branchName} 2>&1`;
+              if (pushRevertResult.code === 0) {
+                await log(formatAligned('📤', 'Pushed:', 'CLAUDE.md revert to GitHub'));
+              } else {
+                await log('   Warning: Could not push CLAUDE.md revert', { verbose: true });
+              }
+            } else {
+              await log('   Warning: Could not complete revert after conflict resolution', { verbose: true });
+              await log(`   Continue output: ${continueResult.stderr || continueResult.stdout}`, { verbose: true });
+            }
+          } else {
+            // Conflict in some other file, not CLAUDE.md - this is unexpected
+            await log('   Warning: Revert conflict in unexpected file(s), aborting revert', { verbose: true });
+            await $({ cwd: tempDir })`git revert --abort 2>&1`;
+          }
+        } else {
+          // Non-conflict error
+          await log('   Warning: Could not revert CLAUDE.md commit', { verbose: true });
+          await log(`   Revert output: ${revertOutput}`, { verbose: true });
+        }
+      }
     }
   } catch (e) {
     reportError(e, {
       context: 'cleanup_claude_file',
       tempDir,
-      operation: 'remove_claude_md'
+      operation: 'revert_claude_md_commit'
     });
-    // File might not exist or already removed, that's fine
-    await log('   CLAUDE.md already removed or not found', { verbose: true });
+    // If revert fails, that's okay - the task is still complete
+    await log('   CLAUDE.md revert failed or not needed', { verbose: true });
   }
 };
 
@@ -185,12 +300,16 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           const prBody = prBodyResult.stdout.toString();
           const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
 
-          // Check if any linking keywords exist (case-insensitive)
-          const linkingKeywords = ['fixes', 'closes', 'resolves', 'fix', 'close', 'resolve'];
-          const hasLinkingKeyword = linkingKeywords.some(keyword => {
-            const pattern = new RegExp(`\\b${keyword}\\s+.*?#?${issueNumber}\\b`, 'i');
-            return pattern.test(prBody);
-          });
+          // Use the new GitHub linking detection library to check for valid keywords
+          // This ensures we only detect actual GitHub-recognized linking keywords
+          // (fixes, closes, resolves and their variants) in proper format
+          // See: https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue
+          const hasLinkingKeyword = hasGitHubLinkingKeyword(
+            prBody,
+            issueNumber,
+            argv.fork ? owner : null,
+            argv.fork ? repo : null
+          );
 
           if (!hasLinkingKeyword) {
             await log(`  📝 Updating PR body to link issue #${issueNumber}...`);
@@ -199,11 +318,27 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
             const linkingText = `\n\nFixes ${issueRef}`;
             const updatedBody = prBody + linkingText;
 
-            const updateResult = await $`gh pr edit ${pr.number} --repo ${owner}/${repo} --body "${updatedBody}"`;
-            if (updateResult.code === 0) {
-              await log(`  ✅ Updated PR body to include "Fixes ${issueRef}"`);
-            } else {
-              await log(`  ⚠️  Could not update PR body: ${updateResult.stderr ? updateResult.stderr.toString().trim() : 'Unknown error'}`);
+            // Use --body-file instead of --body to avoid command-line length limits
+            // and special character escaping issues that can cause hangs/timeouts
+            const fs = (await use('fs')).promises;
+            const tempBodyFile = `/tmp/pr-body-update-${pr.number}-${Date.now()}.md`;
+            await fs.writeFile(tempBodyFile, updatedBody);
+
+            try {
+              const updateResult = await $`gh pr edit ${pr.number} --repo ${owner}/${repo} --body-file "${tempBodyFile}"`;
+
+              // Clean up temp file
+              await fs.unlink(tempBodyFile).catch(() => {});
+
+              if (updateResult.code === 0) {
+                await log(`  ✅ Updated PR body to include "Fixes ${issueRef}"`);
+              } else {
+                await log(`  ⚠️  Could not update PR body: ${updateResult.stderr ? updateResult.stderr.toString().trim() : 'Unknown error'}`);
+              }
+            } catch (updateError) {
+              // Clean up temp file on error
+              await fs.unlink(tempBodyFile).catch(() => {});
+              throw updateError;
             }
           } else {
             await log('  ✅ PR body already contains issue reference');

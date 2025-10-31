@@ -4,8 +4,8 @@
 // This module expects 'use' to be passed in from the parent module
 // to avoid duplicate use-m initialization issues
 
-// Import configuration
-import { autoContinue } from './config.lib.mjs';
+// Note: Strict options validation is now handled by yargs built-in .strict() mode (see below)
+// This approach was adopted per issue #482 feedback to minimize custom code maintenance
 
 // Export an initialization function that accepts 'use'
 export const initializeConfig = async (use) => {
@@ -21,9 +21,20 @@ export const initializeConfig = async (use) => {
 export const createYargsConfig = (yargsInstance) => {
   return yargsInstance
     .usage('Usage: solve.mjs <issue-url> [options]')
-    .positional('issue-url', {
-      type: 'string',
-      description: 'The GitHub issue URL to solve'
+    .command('$0 <issue-url>', 'Solve a GitHub issue or pull request', (yargs) => {
+      yargs.positional('issue-url', {
+        type: 'string',
+        description: 'The GitHub issue URL to solve'
+      });
+    })
+    .fail((msg, err, _yargs) => {
+      // Custom fail handler to suppress yargs error output
+      // Errors will be handled in the parseArguments catch block
+      if (err) throw err; // Rethrow actual errors
+      // For validation errors, throw a clean error object with the message
+      const error = new Error(msg);
+      error.name = 'YargsValidationError';
+      throw error;
     })
     .option('resume', {
       type: 'string',
@@ -39,17 +50,25 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Prepare everything but do not execute Claude (alias for --only-prepare-command)',
       alias: 'n'
     })
-    .option('skip-claude-check', {
+    .option('skip-tool-check', {
       type: 'boolean',
-      description: 'Skip Claude connection check (useful in CI environments where Claude is not installed)',
+      description: 'Skip tool connection check (useful in CI environments)',
       default: false
+    })
+    .option('tool-check', {
+      type: 'boolean',
+      description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
+      default: true,
+      hidden: true
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (opus, sonnet, or full model ID like claude-sonnet-4-5-20250929)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o, etc.)',
       alias: 'm',
-      default: 'sonnet',
-      choices: ['opus', 'sonnet', 'claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805']
+      default: (currentParsedArgs) => {
+        // Dynamic default based on tool selection
+        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+      }
     })
     .option('auto-pull-request-creation', {
       type: 'boolean',
@@ -68,6 +87,11 @@ export const createYargsConfig = (yargsInstance) => {
       alias: 'f',
       default: false
     })
+    .option('auto-fork', {
+      type: 'boolean',
+      description: 'Automatically fork public repositories without write access (fails for private repos)',
+      default: false
+    })
     .option('attach-logs', {
       type: 'boolean',
       description: 'Upload the solution draft log file to the Pull Request on completion (⚠️ WARNING: May expose sensitive data)',
@@ -80,7 +104,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue', {
       type: 'boolean',
-      description: `Automatically continue with existing PRs for this issue if they are older than ${autoContinue.ageThresholdHours} hours`,
+      description: 'Continue with existing PR when issue URL is provided (instead of creating new PR)',
       default: false
     })
     .option('auto-continue-limit', {
@@ -88,6 +112,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically continue when Claude limit resets (waits until reset time)',
       default: false,
       alias: 'c'
+    })
+    .option('auto-resume-on-errors', {
+      type: 'boolean',
+      description: 'Automatically resume on network errors (503, etc.) with exponential backoff',
+      default: false
     })
     .option('auto-continue-only-on-new-comments', {
       type: 'boolean',
@@ -136,16 +165,38 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Target branch for the pull request (defaults to repository default branch)',
       alias: 'b'
     })
-    .option('no-sentry', {
+    .option('sentry', {
       type: 'boolean',
-      description: 'Disable Sentry error tracking and monitoring',
-      default: false
+      description: 'Enable Sentry error tracking and monitoring (use --no-sentry to disable)',
+      default: true
     })
     .option('auto-cleanup', {
       type: 'boolean',
-      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Use --no-auto-cleanup to keep it for debugging.',
-      default: true
+      description: 'Automatically delete temporary working directory on completion (error, success, or CTRL+C). Default: true for private repos, false for public repos. Use explicit flag to override.',
+      default: undefined
     })
+    .option('auto-merge-default-branch-to-pull-request-branch', {
+      type: 'boolean',
+      description: 'Automatically merge the default branch to the pull request branch when continuing work (only in continue mode)',
+      default: false
+    })
+    .option('allow-fork-divergence-resolution-using-force-push-with-lease', {
+      type: 'boolean',
+      description: 'Allow automatic force-push (--force-with-lease) when fork diverges from upstream (DANGEROUS: can overwrite fork history)',
+      default: false
+    })
+    .option('tool', {
+      type: 'string',
+      description: 'AI tool to use for solving issues',
+      choices: ['claude', 'opencode'],
+      default: 'claude'
+    })
+    .parserConfiguration({
+      'boolean-negation': true
+    })
+    // Use yargs built-in strict mode to reject unrecognized options
+    // This prevents issues like #453 and #482 where unknown options are silently ignored
+    .strict()
     .help('h')
     .alias('h', 'help');
 };
@@ -153,5 +204,67 @@ export const createYargsConfig = (yargsInstance) => {
 // Parse command line arguments - now needs yargs and hideBin passed in
 export const parseArguments = async (yargs, hideBin) => {
   const rawArgs = hideBin(process.argv);
-  return await createYargsConfig(yargs(rawArgs)).argv;
+  // Use .parse() instead of .argv to ensure .strict() mode works correctly
+  // When you call yargs(args) and use .argv, strict mode doesn't trigger
+  // See: https://github.com/yargs/yargs/issues - .strict() only works with .parse()
+
+  let argv;
+  try {
+    // Suppress stderr output from yargs during parsing to prevent validation errors from appearing
+    // This prevents "YError: Not enough arguments" from polluting stderr (issue #583)
+    // Save the original stderr.write
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+
+    // Temporarily override stderr.write to capture output
+    process.stderr.write = function(chunk, encoding, callback) {
+      stderrBuffer.push(chunk.toString());
+      // Call the callback if provided (for compatibility)
+      if (typeof encoding === 'function') {
+        encoding();
+      } else if (typeof callback === 'function') {
+        callback();
+      }
+      return true;
+    };
+
+    try {
+      argv = await createYargsConfig(yargs()).parse(rawArgs);
+    } finally {
+      // Always restore stderr.write
+      process.stderr.write = originalStderrWrite;
+
+      // In verbose mode, show what was captured from stderr (for debugging)
+      if (global.verboseMode && stderrBuffer.length > 0) {
+        const captured = stderrBuffer.join('');
+        if (captured.trim()) {
+          console.error('[Suppressed yargs stderr]:', captured);
+        }
+      }
+    }
+  } catch (error) {
+    // Yargs throws errors for validation issues
+    // If the error is about unknown arguments (strict mode), re-throw it
+    if (error.message && error.message.includes('Unknown arguments')) {
+      throw error;
+    }
+    // For other validation errors, show a warning in verbose mode
+    if (error.message && global.verboseMode) {
+      console.error('Yargs parsing warning:', error.message);
+    }
+    // Try to get the argv even with the error
+    argv = error.argv || {};
+  }
+
+  // Post-processing: Fix model default for opencode tool
+  // Yargs doesn't properly handle dynamic defaults based on other arguments,
+  // so we need to handle this manually after parsing
+  const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
+
+  if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for opencode
+    argv.model = 'grok-code-fast-1';
+  }
+
+  return argv;
 };

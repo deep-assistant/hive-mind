@@ -82,7 +82,8 @@ const log = async (message, options = {}) => {
 };
 
 // Configure command line arguments - task description as positional argument
-const argv = yargs(process.argv.slice(2))
+// Use yargs().parse(args) instead of yargs(args).argv to ensure .strict() mode works
+const argv = yargs()
   .usage('Usage: $0 <task-description> [options]')
   .positional('task-description', {
     type: 'string',
@@ -150,9 +151,15 @@ const argv = yargs(process.argv.slice(2))
     
     return true;
   })
+  .parserConfiguration({
+    'boolean-negation': true
+  })
   .help()
   .alias('h', 'help')
-  .argv;
+  // Use yargs built-in strict mode to reject unrecognized options
+  // This prevents issues like #453 and #482 where unknown options are silently ignored
+  .strict()
+  .parse(process.argv.slice(2));
 
 const taskDescription = argv._[0];
 

@@ -7,10 +7,21 @@
 
 // Use use-m to dynamically import modules
 if (typeof globalThis.use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  try {
+    globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
+  } catch (error) {
+    console.error('❌ Fatal error: Failed to load dependencies for configuration');
+    console.error(`   ${error.message}`);
+    console.error('   This might be due to network issues or missing dependencies.');
+    console.error('   Please check your internet connection and try again.');
+    process.exit(1);
+  }
 }
 
 const getenv = await use('getenv');
+
+// Import lino for parsing Links Notation format
+const { lino } = await import('./lino.lib.mjs');
 
 // Helper function to safely parse integers with fallback
 const parseIntWithDefault = (envVar, defaultValue) => {
@@ -29,6 +40,7 @@ const parseFloatWithDefault = (envVar, defaultValue) => {
 // Timeout configurations (in milliseconds)
 export const timeouts = {
   claudeCli: parseIntWithDefault('HIVE_MIND_CLAUDE_TIMEOUT_SECONDS', 60) * 1000,
+  opencodeCli: parseIntWithDefault('HIVE_MIND_OPENCODE_TIMEOUT_SECONDS', 60) * 1000,
   githubApiDelay: parseIntWithDefault('HIVE_MIND_GITHUB_API_DELAY_MS', 5000),
   githubRepoDelay: parseIntWithDefault('HIVE_MIND_GITHUB_REPO_DELAY_MS', 2000),
   retryBaseDelay: parseIntWithDefault('HIVE_MIND_RETRY_BASE_DELAY_MS', 5000),
@@ -61,6 +73,8 @@ export const retryLimits = {
   maxVerifyRetries: parseIntWithDefault('HIVE_MIND_MAX_VERIFY_RETRIES', 5),
   maxApiRetries: parseIntWithDefault('HIVE_MIND_MAX_API_RETRIES', 3),
   retryBackoffMultiplier: parseFloatWithDefault('HIVE_MIND_RETRY_BACKOFF_MULTIPLIER', 2),
+  max503Retries: parseIntWithDefault('HIVE_MIND_MAX_503_RETRIES', 3),
+  initial503RetryDelayMs: parseIntWithDefault('HIVE_MIND_INITIAL_503_RETRY_DELAY_MS', 5 * 60 * 1000), // 5 minutes
 };
 
 // File and path configurations
@@ -100,9 +114,24 @@ export const externalUrls = {
 };
 
 // Model configurations
+// Default available models in Links Notation format (only aliases)
+const defaultAvailableModels = `(
+  opus
+  sonnet
+  haiku
+)`;
+
 export const modelConfig = {
-  availableModels: getenv('HIVE_MIND_AVAILABLE_MODELS', 'opus,sonnet,claude-sonnet-4-5-20250929,claude-opus-4-1-20250805').split(','),
+  availableModels: (() => {
+    const envValue = getenv('HIVE_MIND_AVAILABLE_MODELS', defaultAvailableModels);
+    // Parse Links Notation format
+    const parsed = lino.parse(envValue);
+    // If parsing returns empty array, fall back to the three aliases
+    return parsed.length > 0 ? parsed : ['opus', 'sonnet', 'haiku'];
+  })(),
   defaultModel: getenv('HIVE_MIND_DEFAULT_MODEL', 'sonnet'),
+  // Allow any model ID - validation is delegated to the tool implementation
+  restrictModels: getenv('HIVE_MIND_RESTRICT_MODELS', 'false').toLowerCase() === 'true',
 };
 
 // Version configurations
