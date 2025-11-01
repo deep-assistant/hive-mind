@@ -96,46 +96,112 @@ Proceed.`;
     }
 
     // Verify the file was actually staged
-    const statusResult = await $({ cwd: tempDir })`git status --short`;
-    const gitStatus = statusResult.stdout ? statusResult.stdout.toString().trim() : '';
+    let statusResult = await $({ cwd: tempDir })`git status --short`;
+    let gitStatus = statusResult.stdout ? statusResult.stdout.toString().trim() : '';
 
     if (argv.verbose) {
       await log(`   Git status after add: ${gitStatus || 'empty'}`);
     }
 
+    // Track which file we're using for the commit
+    let commitFileName = 'CLAUDE.md';
+
     // Check if anything was actually staged
     if (!gitStatus || gitStatus.length === 0) {
       await log('');
-      await log(formatAligned('❌', 'GIT ADD FAILED:', 'Nothing was staged'), { level: 'error' });
-      await log('');
-      await log('  🔍 What happened:');
-      await log('     CLAUDE.md was created but git did not stage any changes.');
-      await log('');
-      await log('  💡 Possible causes:');
-      await log('     • CLAUDE.md already exists with identical content');
-      await log('     • The file is in .gitignore');
-      await log('     • File system sync issue');
-      await log('');
-      await log('  🔧 Troubleshooting steps:');
-      await log(`     1. Check file exists: ls -la "${tempDir}/CLAUDE.md"`);
-      await log(`     2. Check git status: cd "${tempDir}" && git status`);
-      await log(`     3. Check .gitignore: grep CLAUDE "${tempDir}/.gitignore"`);
-      await log(`     4. Force add: cd "${tempDir}" && git add -f CLAUDE.md`);
-      await log('');
-      await log('  📂 Debug information:');
-      await log(`     Working directory: ${tempDir}`);
-      await log(`     Branch: ${branchName}`);
-      if (existingContent) {
-        await log('     Note: CLAUDE.md already existed (attempted to update with timestamp)');
+      await log(formatAligned('⚠️', 'CLAUDE.md not staged:', 'Checking if file is ignored'), { level: 'warning' });
+
+      // Check if CLAUDE.md is in .gitignore
+      const checkIgnoreResult = await $({ cwd: tempDir })`git check-ignore CLAUDE.md`;
+      const isIgnored = checkIgnoreResult.code === 0;
+
+      if (isIgnored) {
+        await log(formatAligned('ℹ️', 'CLAUDE.md is ignored:', 'Using .gitkeep fallback'));
+        await log('');
+        await log('  📝 Fallback strategy:');
+        await log('     CLAUDE.md is in .gitignore, using .gitkeep instead.');
+        await log('     This allows auto-PR creation to proceed without modifying .gitignore.');
+        await log('');
+
+        // Create a .gitkeep file as fallback
+        const gitkeepPath = path.join(tempDir, '.gitkeep');
+        const gitkeepContent = `# Auto-generated file for PR creation
+# Issue: ${argv._[0]}
+# Branch: ${branchName}
+# This file was created because CLAUDE.md is in .gitignore
+# It will be removed when the task is complete`;
+
+        await fs.writeFile(gitkeepPath, gitkeepContent);
+        await log(formatAligned('✅', 'Created:', '.gitkeep file'));
+
+        // Try to add .gitkeep
+        const gitkeepAddResult = await $({ cwd: tempDir })`git add .gitkeep`;
+
+        if (gitkeepAddResult.code !== 0) {
+          await log('❌ Failed to add .gitkeep', { level: 'error' });
+          await log(`   Error: ${gitkeepAddResult.stderr ? gitkeepAddResult.stderr.toString() : 'Unknown error'}`, { level: 'error' });
+          throw new Error('Failed to add .gitkeep');
+        }
+
+        // Verify .gitkeep was staged
+        statusResult = await $({ cwd: tempDir })`git status --short`;
+        gitStatus = statusResult.stdout ? statusResult.stdout.toString().trim() : '';
+
+        if (!gitStatus || gitStatus.length === 0) {
+          await log('');
+          await log(formatAligned('❌', 'GIT ADD FAILED:', 'Neither CLAUDE.md nor .gitkeep could be staged'), { level: 'error' });
+          await log('');
+          await log('  🔍 What happened:');
+          await log('     Both CLAUDE.md and .gitkeep failed to stage.');
+          await log('');
+          await log('  🔧 Troubleshooting steps:');
+          await log(`     1. Check git status: cd "${tempDir}" && git status`);
+          await log(`     2. Check .gitignore: cat "${tempDir}/.gitignore"`);
+          await log(`     3. Try force add: cd "${tempDir}" && git add -f .gitkeep`);
+          await log('');
+          throw new Error('Git add staged nothing - both files failed');
+        }
+
+        commitFileName = '.gitkeep';
+        await log(formatAligned('✅', 'File staged:', '.gitkeep'));
+      } else {
+        await log('');
+        await log(formatAligned('❌', 'GIT ADD FAILED:', 'Nothing was staged'), { level: 'error' });
+        await log('');
+        await log('  🔍 What happened:');
+        await log('     CLAUDE.md was created but git did not stage any changes.');
+        await log('');
+        await log('  💡 Possible causes:');
+        await log('     • CLAUDE.md already exists with identical content');
+        await log('     • File system sync issue');
+        await log('');
+        await log('  🔧 Troubleshooting steps:');
+        await log(`     1. Check file exists: ls -la "${tempDir}/CLAUDE.md"`);
+        await log(`     2. Check git status: cd "${tempDir}" && git status`);
+        await log(`     3. Force add: cd "${tempDir}" && git add -f CLAUDE.md`);
+        await log('');
+        await log('  📂 Debug information:');
+        await log(`     Working directory: ${tempDir}`);
+        await log(`     Branch: ${branchName}`);
+        if (existingContent) {
+          await log('     Note: CLAUDE.md already existed (attempted to update with timestamp)');
+        }
+        await log('');
+        throw new Error('Git add staged nothing - CLAUDE.md may be unchanged');
       }
-      await log('');
-      throw new Error('Git add staged nothing - CLAUDE.md may be unchanged or ignored');
     }
 
-    await log(formatAligned('📝', 'Creating commit:', 'With CLAUDE.md file'));
-    const commitMessage = `Initial commit with task details for issue #${issueNumber}
+    await log(formatAligned('📝', 'Creating commit:', `With ${commitFileName} file`));
+    const commitMessage = commitFileName === 'CLAUDE.md'
+      ? `Initial commit with task details for issue #${issueNumber}
 
 Adding CLAUDE.md with task information for AI processing.
+This file will be removed when the task is complete.
+
+Issue: ${argv._[0]}`
+      : `Initial commit with task details for issue #${issueNumber}
+
+Adding .gitkeep for PR creation (CLAUDE.md is in .gitignore).
 This file will be removed when the task is complete.
 
 Issue: ${argv._[0]}`;
@@ -187,7 +253,7 @@ Issue: ${argv._[0]}`;
 
       throw new Error('Failed to create initial commit');
     } else {
-      await log(formatAligned('✅', 'Commit created:', 'Successfully with CLAUDE.md'));
+      await log(formatAligned('✅', 'Commit created:', `Successfully with ${commitFileName}`));
       if (argv.verbose) {
         await log(`   Commit output: ${commitResult.stdout.toString().trim()}`, { verbose: true });
       }
@@ -249,6 +315,47 @@ Issue: ${argv._[0]}`;
 
       if (pushResult.code !== 0) {
         const errorOutput = pushResult.stderr ? pushResult.stderr.toString() : pushResult.stdout ? pushResult.stdout.toString() : 'Unknown error';
+
+        // Check for archived repository error
+        if (errorOutput.includes('archived') && errorOutput.includes('read-only')) {
+          await log(`\n${formatAligned('❌', 'REPOSITORY ARCHIVED:', 'Cannot push to archived repository')}`, { level: 'error' });
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          await log(`  📦 Repository ${owner}/${repo} has been archived`);
+          await log('');
+          await log('  Archived repositories are read-only and cannot accept new commits.');
+          await log('');
+          await log('  📋 WHAT THIS MEANS:');
+          await log('');
+          await log('  This repository has been archived by its owner, which means:');
+          await log('    • No new commits can be pushed');
+          await log('    • No new pull requests can be created');
+          await log('    • The repository is in read-only mode');
+          await log('    • Issues cannot be worked on');
+          await log('');
+          await log('  🔧 POSSIBLE ACTIONS:');
+          await log('');
+          await log('  Option 1: Contact the repository owner');
+          await log('  ──────────────────────────────────────');
+          await log('  Ask the owner to unarchive the repository at:');
+          await log(`    https://github.com/${owner}/${repo}/settings`);
+          await log('');
+          await log('  Option 2: Close the issue');
+          await log('  ──────────────────────────────────────');
+          await log('  If the repository is intentionally archived, close the issue:');
+          await log(`    gh issue close ${issueNumber} --repo ${owner}/${repo} \\`);
+          await log('      --comment "Closing as repository is archived"');
+          await log('');
+          await log('  Option 3: Fork and work independently');
+          await log('  ──────────────────────────────────────');
+          await log('  You can fork the archived repository and make changes there,');
+          await log('  but note that you cannot create a PR back to the archived repo.');
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          throw new Error('Repository is archived and read-only');
+        }
 
         // Check for permission denied error
         if (errorOutput.includes('Permission to') && errorOutput.includes('denied')) {

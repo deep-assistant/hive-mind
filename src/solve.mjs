@@ -62,6 +62,9 @@ const { cleanupClaudeFile, showSessionSummary, verifyResults } = results;
 const claudeLib = await import('./claude.lib.mjs');
 const { executeClaude } = claudeLib;
 
+const githubLinking = await import('./github-linking.lib.mjs');
+const { extractLinkedIssueNumber } = githubLinking;
+
 const errorHandlers = await import('./solve.error-handlers.lib.mjs');
 const { createUncaughtExceptionHandler, createUnhandledRejectionHandler, handleMainExecutionError } = errorHandlers;
 
@@ -404,11 +407,12 @@ if (isPrUrl) {
       }
     }
     await log(`📝 PR branch: ${prBranch}`);
-    // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
+    // Extract issue number from PR body using GitHub linking detection library
+    // This ensures we only detect actual GitHub-recognized linking keywords
     const prBody = prData.body || '';
-    const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
-    if (issueMatch) {
-      issueNumber = issueMatch[1];
+    const extractedIssueNumber = extractLinkedIssueNumber(prBody);
+    if (extractedIssueNumber) {
+      issueNumber = extractedIssueNumber;
       await log(`🔗 Found linked issue #${issueNumber}`);
     } else {
       // If no linked issue found, we can still continue but warn
@@ -791,7 +795,9 @@ try {
   }
 
   // Check for uncommitted changes
-  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, argv['auto-commit-uncommitted-changes']);
+  // When limit is reached, force auto-commit of any uncommitted changes to preserve work
+  const shouldAutoCommit = argv['auto-commit-uncommitted-changes'] || limitReached;
+  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, shouldAutoCommit);
 
   // Remove CLAUDE.md now that Claude command has finished
   await cleanupClaudeFile(tempDir, branchName, claudeCommitHash);

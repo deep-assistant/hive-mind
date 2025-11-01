@@ -63,7 +63,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
@@ -215,18 +215,46 @@ export const parseArguments = async (yargs, hideBin) => {
 
   let argv;
   try {
-    argv = await createYargsConfig(yargs()).parse(rawArgs);
+    // Suppress stderr output from yargs during parsing to prevent validation errors from appearing
+    // This prevents "YError: Not enough arguments" from polluting stderr (issue #583)
+    // Save the original stderr.write
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+
+    // Temporarily override stderr.write to capture output
+    process.stderr.write = function(chunk, encoding, callback) {
+      stderrBuffer.push(chunk.toString());
+      // Call the callback if provided (for compatibility)
+      if (typeof encoding === 'function') {
+        encoding();
+      } else if (typeof callback === 'function') {
+        callback();
+      }
+      return true;
+    };
+
+    try {
+      argv = await createYargsConfig(yargs()).parse(rawArgs);
+    } finally {
+      // Always restore stderr.write
+      process.stderr.write = originalStderrWrite;
+
+      // In verbose mode, show what was captured from stderr (for debugging)
+      if (global.verboseMode && stderrBuffer.length > 0) {
+        const captured = stderrBuffer.join('');
+        if (captured.trim()) {
+          console.error('[Suppressed yargs stderr]:', captured);
+        }
+      }
+    }
   } catch (error) {
-    // Yargs throws errors for validation issues, but we might still get a parsed object
+    // Yargs throws errors for validation issues
     // If the error is about unknown arguments (strict mode), re-throw it
     if (error.message && error.message.includes('Unknown arguments')) {
       throw error;
     }
-    // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
-    // This appears to be a yargs quirk with command definitions
-    // The error.argv object still contains the parsed arguments, so we can safely continue
-    // Only show warning in verbose mode to avoid confusing output
-    if (error.message && !error.message.includes('Not enough arguments')) {
+    // For other validation errors, show a warning in verbose mode
+    if (error.message && global.verboseMode) {
       console.error('Yargs parsing warning:', error.message);
     }
     // Try to get the argv even with the error

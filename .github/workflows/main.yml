@@ -382,10 +382,45 @@ jobs:
         echo "Running test suite for telegram-bot --dry-run mode..."
         node tests/test-telegram-bot-dry-run.mjs
 
+    - name: Run telegram-bot hero Links Notation test (Issue #623)
+      run: |
+        echo "Running test suite for telegram-bot hero example with Links Notation..."
+        node tests/test-telegram-bot-hero-links-notation.mjs
+
     - name: Run hive command silent failure test (Issue #504)
       run: |
         echo "Running test suite for hive command silent failures..."
         node tests/test-hive-no-silent-failure.mjs
+
+    - name: Run GitHub linking keyword detection test (Issue #568)
+      run: |
+        echo "Running test suite for GitHub linking keyword detection..."
+        node tests/test-github-linking.mjs
+
+    - name: Run Telegram Markdown escaping test (Issue #580)
+      run: |
+        echo "Running test suite for Telegram Markdown escaping..."
+        node tests/test-telegram-markdown-escaping.mjs
+
+    - name: Run lenv-reader test (Issue #604)
+      run: |
+        echo "Running test suite for lenv-reader.lib.mjs..."
+        node tests/test-lenv-reader.mjs
+
+    - name: Run Telegram URL extraction test (Issue #603)
+      run: |
+        echo "Running test suite for Telegram URL extraction..."
+        node tests/test-telegram-url-extraction.mjs
+
+    - name: Run Telegram URL validation test (Issue #630)
+      run: |
+        echo "Running test suite for Telegram URL validation..."
+        node tests/test-telegram-validate-url.mjs
+
+    - name: Run start-screen test (Issue #539)
+      run: |
+        echo "Running test suite for start-screen.mjs..."
+        node tests/test-start-screen.mjs
 
   # === EXECUTION TESTS ===
   test-execution:
