@@ -496,6 +496,91 @@ export const executeClaude = async (params) => {
  * @param {string} tempDir - The temporary directory where the session ran
  * @returns {Object} Token usage statistics
  */
+/**
+ * Fetches model information from models.dev API
+ * @param {string} modelId - The model ID (e.g., "claude-sonnet-4-5-20250929")
+ * @returns {Promise<Object|null>} Model information or null if not found
+ */
+export const fetchModelInfo = async (modelId) => {
+  try {
+    const https = (await use('https')).default;
+
+    return new Promise((resolve, reject) => {
+      https.get('https://models.dev/api.json', (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const apiData = JSON.parse(data);
+
+            // Search for the model across all providers
+            for (const provider of Object.values(apiData)) {
+              if (provider.models && provider.models[modelId]) {
+                const modelInfo = provider.models[modelId];
+                // Add provider info
+                modelInfo.provider = provider.name || provider.id;
+                resolve(modelInfo);
+                return;
+              }
+            }
+
+            // Model not found
+            resolve(null);
+          } catch (parseError) {
+            reject(parseError);
+          }
+        });
+      }).on('error', (err) => {
+        reject(err);
+      });
+    });
+  } catch {
+    // If we can't fetch model info, return null and continue without it
+    return null;
+  }
+};
+
+/**
+ * Calculate USD cost for a model's usage
+ * @param {Object} usage - Token usage object
+ * @param {Object} modelInfo - Model information from models.dev
+ * @returns {number} Cost in USD
+ */
+export const calculateModelCost = (usage, modelInfo) => {
+  if (!modelInfo || !modelInfo.cost) {
+    return 0;
+  }
+
+  const cost = modelInfo.cost;
+  let totalCost = 0;
+
+  // Input tokens cost (per million tokens)
+  if (usage.inputTokens && cost.input) {
+    totalCost += (usage.inputTokens / 1000000) * cost.input;
+  }
+
+  // Cache creation tokens cost
+  if (usage.cacheCreationTokens && cost.cache_write) {
+    totalCost += (usage.cacheCreationTokens / 1000000) * cost.cache_write;
+  }
+
+  // Cache read tokens cost
+  if (usage.cacheReadTokens && cost.cache_read) {
+    totalCost += (usage.cacheReadTokens / 1000000) * cost.cache_read;
+  }
+
+  // Output tokens cost
+  if (usage.outputTokens && cost.output) {
+    totalCost += (usage.outputTokens / 1000000) * cost.output;
+  }
+
+  return totalCost;
+};
+
 export const calculateSessionTokens = async (sessionId, tempDir) => {
   const os = (await use('os')).default;
   const homeDir = os.homedir();
@@ -515,18 +600,15 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
     return null;
   }
 
-  // Initialize counters
-  let inputTokens = 0;
-  let cacheCreationTokens = 0;
-  let cacheReadTokens = 0;
-  let outputTokens = 0;
+  // Initialize per-model usage tracking
+  const modelUsage = {};
 
   try {
     // Read the entire file
     const fileContent = await fs.readFile(sessionFile, 'utf8');
     const lines = fileContent.trim().split('\n');
 
-    // Parse each line and accumulate token counts
+    // Parse each line and accumulate token counts per model
     for (const line of lines) {
       if (!line.trim()) continue;
 
@@ -534,27 +616,39 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
         const entry = JSON.parse(line);
 
         // Check if this entry has usage data
-        if (entry.message && entry.message.usage) {
+        if (entry.message && entry.message.usage && entry.message.model) {
+          const model = entry.message.model;
           const usage = entry.message.usage;
+
+          // Initialize model entry if it doesn't exist
+          if (!modelUsage[model]) {
+            modelUsage[model] = {
+              inputTokens: 0,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+              outputTokens: 0,
+              webSearchRequests: 0
+            };
+          }
 
           // Add input tokens
           if (usage.input_tokens) {
-            inputTokens += usage.input_tokens;
+            modelUsage[model].inputTokens += usage.input_tokens;
           }
 
           // Add cache creation tokens
           if (usage.cache_creation_input_tokens) {
-            cacheCreationTokens += usage.cache_creation_input_tokens;
+            modelUsage[model].cacheCreationTokens += usage.cache_creation_input_tokens;
           }
 
           // Add cache read tokens
           if (usage.cache_read_input_tokens) {
-            cacheReadTokens += usage.cache_read_input_tokens;
+            modelUsage[model].cacheReadTokens += usage.cache_read_input_tokens;
           }
 
           // Add output tokens
           if (usage.output_tokens) {
-            outputTokens += usage.output_tokens;
+            modelUsage[model].outputTokens += usage.output_tokens;
           }
         }
       } catch {
@@ -563,15 +657,73 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
       }
     }
 
-    // Calculate total (input + cache_creation + output, cache_read doesn't count as new tokens)
-    const totalTokens = inputTokens + cacheCreationTokens + outputTokens;
+    // If no usage data was found, return null
+    if (Object.keys(modelUsage).length === 0) {
+      return null;
+    }
+
+    // Fetch model information from models.dev for each model
+    const modelInfoPromises = Object.keys(modelUsage).map(async (modelId) => {
+      const modelInfo = await fetchModelInfo(modelId);
+      return { modelId, modelInfo };
+    });
+
+    const modelInfoResults = await Promise.all(modelInfoPromises);
+    const modelInfoMap = {};
+    for (const { modelId, modelInfo } of modelInfoResults) {
+      if (modelInfo) {
+        modelInfoMap[modelId] = modelInfo;
+      }
+    }
+
+    // Calculate cost for each model
+    for (const [modelId, usage] of Object.entries(modelUsage)) {
+      const modelInfo = modelInfoMap[modelId];
+      if (modelInfo) {
+        usage.costUSD = calculateModelCost(usage, modelInfo);
+        usage.contextWindow = modelInfo.limit?.context || null;
+        usage.modelName = modelInfo.name || modelId;
+      } else {
+        usage.costUSD = null;
+        usage.contextWindow = null;
+        usage.modelName = modelId;
+      }
+    }
+
+    // Calculate grand totals across all models
+    let totalInputTokens = 0;
+    let totalCacheCreationTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCostUSD = 0;
+    let hasCostData = false;
+
+    for (const usage of Object.values(modelUsage)) {
+      totalInputTokens += usage.inputTokens;
+      totalCacheCreationTokens += usage.cacheCreationTokens;
+      totalCacheReadTokens += usage.cacheReadTokens;
+      totalOutputTokens += usage.outputTokens;
+
+      if (usage.costUSD !== null) {
+        totalCostUSD += usage.costUSD;
+        hasCostData = true;
+      }
+    }
+
+    // Calculate total tokens (input + cache_creation + output, cache_read doesn't count as new tokens)
+    const totalTokens = totalInputTokens + totalCacheCreationTokens + totalOutputTokens;
 
     return {
-      inputTokens,
-      cacheCreationTokens,
-      cacheReadTokens,
-      outputTokens,
-      totalTokens
+      // Per-model breakdown
+      modelUsage,
+
+      // Grand totals
+      inputTokens: totalInputTokens,
+      cacheCreationTokens: totalCacheCreationTokens,
+      cacheReadTokens: totalCacheReadTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens,
+      totalCostUSD: hasCostData ? totalCostUSD : null
     };
   } catch (readError) {
     throw new Error(`Failed to read session file: ${readError.message}`);
@@ -1038,15 +1190,73 @@ export const executeClaudeCommand = async (params) => {
         const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
         if (tokenUsage) {
           await log('\n💰 Token Usage Summary:');
-          await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
-          if (tokenUsage.cacheCreationTokens > 0) {
-            await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+
+          // Display per-model breakdown
+          if (tokenUsage.modelUsage) {
+            const modelIds = Object.keys(tokenUsage.modelUsage);
+
+            for (const modelId of modelIds) {
+              const usage = tokenUsage.modelUsage[modelId];
+
+              await log(`\n   📊 ${usage.modelName || modelId}:`);
+
+              if (usage.contextWindow) {
+                await log(`      Context window: ${usage.contextWindow.toLocaleString()} tokens`);
+              }
+
+              await log(`      Input tokens: ${usage.inputTokens.toLocaleString()}`);
+
+              if (usage.cacheCreationTokens > 0) {
+                await log(`      Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
+              }
+
+              if (usage.cacheReadTokens > 0) {
+                await log(`      Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
+              }
+
+              await log(`      Output tokens: ${usage.outputTokens.toLocaleString()}`);
+
+              if (usage.webSearchRequests > 0) {
+                await log(`      Web search requests: ${usage.webSearchRequests}`);
+              }
+
+              if (usage.costUSD !== null && usage.costUSD !== undefined) {
+                await log(`      Cost (USD): $${usage.costUSD.toFixed(6)}`);
+              }
+            }
+
+            // Show totals if multiple models were used
+            if (modelIds.length > 1) {
+              await log('\n   📈 Total across all models:');
+              await log(`      Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+              if (tokenUsage.cacheCreationTokens > 0) {
+                await log(`      Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+              }
+              if (tokenUsage.cacheReadTokens > 0) {
+                await log(`      Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+              }
+              await log(`      Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+
+              if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
+                await log(`      Total cost (USD): $${tokenUsage.totalCostUSD.toFixed(6)}`);
+              }
+            } else {
+              // Single model - just show total tokens
+              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+            }
+          } else {
+            // Fallback to old format if modelUsage is not available
+            await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+            if (tokenUsage.cacheCreationTokens > 0) {
+              await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+            }
+            if (tokenUsage.cacheReadTokens > 0) {
+              await log(`   Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+            }
+            await log(`   Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+            await log(`   Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
           }
-          if (tokenUsage.cacheReadTokens > 0) {
-            await log(`   Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
-          }
-          await log(`   Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
-          await log(`   Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
         }
       } catch (tokenError) {
         reportError(tokenError, {
