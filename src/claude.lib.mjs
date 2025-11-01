@@ -545,37 +545,68 @@ export const fetchModelInfo = async (modelId) => {
 };
 
 /**
- * Calculate USD cost for a model's usage
+ * Calculate USD cost for a model's usage with detailed breakdown
  * @param {Object} usage - Token usage object
  * @param {Object} modelInfo - Model information from models.dev
- * @returns {number} Cost in USD
+ * @param {boolean} includeBreakdown - Whether to include detailed calculation breakdown
+ * @returns {Object} Cost data with optional breakdown
  */
-export const calculateModelCost = (usage, modelInfo) => {
+export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) => {
   if (!modelInfo || !modelInfo.cost) {
-    return 0;
+    return includeBreakdown ? { total: 0, breakdown: null } : 0;
   }
 
   const cost = modelInfo.cost;
-  let totalCost = 0;
+  const breakdown = {
+    input: { tokens: 0, costPerMillion: 0, cost: 0 },
+    cacheWrite: { tokens: 0, costPerMillion: 0, cost: 0 },
+    cacheRead: { tokens: 0, costPerMillion: 0, cost: 0 },
+    output: { tokens: 0, costPerMillion: 0, cost: 0 }
+  };
 
   // Input tokens cost (per million tokens)
   if (usage.inputTokens && cost.input) {
-    totalCost += (usage.inputTokens / 1000000) * cost.input;
+    breakdown.input = {
+      tokens: usage.inputTokens,
+      costPerMillion: cost.input,
+      cost: (usage.inputTokens / 1000000) * cost.input
+    };
   }
 
   // Cache creation tokens cost
   if (usage.cacheCreationTokens && cost.cache_write) {
-    totalCost += (usage.cacheCreationTokens / 1000000) * cost.cache_write;
+    breakdown.cacheWrite = {
+      tokens: usage.cacheCreationTokens,
+      costPerMillion: cost.cache_write,
+      cost: (usage.cacheCreationTokens / 1000000) * cost.cache_write
+    };
   }
 
   // Cache read tokens cost
   if (usage.cacheReadTokens && cost.cache_read) {
-    totalCost += (usage.cacheReadTokens / 1000000) * cost.cache_read;
+    breakdown.cacheRead = {
+      tokens: usage.cacheReadTokens,
+      costPerMillion: cost.cache_read,
+      cost: (usage.cacheReadTokens / 1000000) * cost.cache_read
+    };
   }
 
   // Output tokens cost
   if (usage.outputTokens && cost.output) {
-    totalCost += (usage.outputTokens / 1000000) * cost.output;
+    breakdown.output = {
+      tokens: usage.outputTokens,
+      costPerMillion: cost.output,
+      cost: (usage.outputTokens / 1000000) * cost.output
+    };
+  }
+
+  const totalCost = breakdown.input.cost + breakdown.cacheWrite.cost + breakdown.cacheRead.cost + breakdown.output.cost;
+
+  if (includeBreakdown) {
+    return {
+      total: totalCost,
+      breakdown
+    };
   }
 
   return totalCost;
@@ -676,17 +707,36 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
       }
     }
 
-    // Calculate cost for each model
+    // Calculate cost for each model and store all characteristics
     for (const [modelId, usage] of Object.entries(modelUsage)) {
       const modelInfo = modelInfoMap[modelId];
       if (modelInfo) {
-        usage.costUSD = calculateModelCost(usage, modelInfo);
-        usage.contextWindow = modelInfo.limit?.context || null;
+        const costData = calculateModelCost(usage, modelInfo, true);
+        usage.costUSD = costData.total;
+        usage.costBreakdown = costData.breakdown;
         usage.modelName = modelInfo.name || modelId;
+        // Store all model characteristics from models.dev
+        usage.modelInfo = {
+          id: modelInfo.id,
+          name: modelInfo.name,
+          provider: modelInfo.provider,
+          attachment: modelInfo.attachment,
+          reasoning: modelInfo.reasoning,
+          temperature: modelInfo.temperature,
+          tool_call: modelInfo.tool_call,
+          knowledge: modelInfo.knowledge,
+          release_date: modelInfo.release_date,
+          last_updated: modelInfo.last_updated,
+          modalities: modelInfo.modalities,
+          open_weights: modelInfo.open_weights,
+          cost: modelInfo.cost,
+          limit: modelInfo.limit
+        };
       } else {
         usage.costUSD = null;
-        usage.contextWindow = null;
+        usage.costBreakdown = null;
         usage.modelName = modelId;
+        usage.modelInfo = null;
       }
     }
 
@@ -1200,28 +1250,93 @@ export const executeClaudeCommand = async (params) => {
 
               await log(`\n   📊 ${usage.modelName || modelId}:`);
 
-              if (usage.contextWindow) {
-                await log(`      Context window: ${usage.contextWindow.toLocaleString()} tokens`);
+              // Show all model characteristics from models.dev if available
+              if (usage.modelInfo) {
+                const info = usage.modelInfo;
+                await log(`      Model ID: ${info.id}`);
+                await log(`      Provider: ${info.provider || 'Unknown'}`);
+
+                if (info.limit?.context) {
+                  await log(`      Context window: ${info.limit.context.toLocaleString()} tokens`);
+                }
+
+                if (info.limit?.output) {
+                  await log(`      Max output: ${info.limit.output.toLocaleString()} tokens`);
+                }
+
+                if (info.modalities) {
+                  await log(`      Input modalities: ${info.modalities.input?.join(', ') || 'N/A'}`);
+                  await log(`      Output modalities: ${info.modalities.output?.join(', ') || 'N/A'}`);
+                }
+
+                if (info.knowledge) {
+                  await log(`      Knowledge cutoff: ${info.knowledge}`);
+                }
+
+                if (info.release_date) {
+                  await log(`      Released: ${info.release_date}`);
+                }
+
+                await log(`      Capabilities: ${[
+                  info.attachment ? 'Attachments' : null,
+                  info.reasoning ? 'Reasoning' : null,
+                  info.temperature ? 'Temperature' : null,
+                  info.tool_call ? 'Tool calls' : null
+                ].filter(Boolean).join(', ') || 'N/A'}`);
+
+                await log(`      Open weights: ${info.open_weights ? 'Yes' : 'No'}`);
+                await log('');
+              } else {
+                await log(`      ⚠️  Model info not available from models.dev`);
+                await log('');
               }
 
-              await log(`      Input tokens: ${usage.inputTokens.toLocaleString()}`);
+              // Show usage data
+              await log(`      Usage:`);
+              await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
 
               if (usage.cacheCreationTokens > 0) {
-                await log(`      Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
+                await log(`        Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
               }
 
               if (usage.cacheReadTokens > 0) {
-                await log(`      Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
+                await log(`        Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
               }
 
-              await log(`      Output tokens: ${usage.outputTokens.toLocaleString()}`);
+              await log(`        Output tokens: ${usage.outputTokens.toLocaleString()}`);
 
               if (usage.webSearchRequests > 0) {
-                await log(`      Web search requests: ${usage.webSearchRequests}`);
+                await log(`        Web search requests: ${usage.webSearchRequests}`);
               }
 
-              if (usage.costUSD !== null && usage.costUSD !== undefined) {
-                await log(`      Cost (USD): $${usage.costUSD.toFixed(6)}`);
+              // Show detailed cost calculation
+              if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
+                await log('');
+                await log(`      Cost Calculation (USD):`);
+
+                const breakdown = usage.costBreakdown;
+
+                if (breakdown.input.tokens > 0) {
+                  await log(`        Input: ${breakdown.input.tokens.toLocaleString()} tokens × $${breakdown.input.costPerMillion}/M = $${breakdown.input.cost.toFixed(6)}`);
+                }
+
+                if (breakdown.cacheWrite.tokens > 0) {
+                  await log(`        Cache write: ${breakdown.cacheWrite.tokens.toLocaleString()} tokens × $${breakdown.cacheWrite.costPerMillion}/M = $${breakdown.cacheWrite.cost.toFixed(6)}`);
+                }
+
+                if (breakdown.cacheRead.tokens > 0) {
+                  await log(`        Cache read: ${breakdown.cacheRead.tokens.toLocaleString()} tokens × $${breakdown.cacheRead.costPerMillion}/M = $${breakdown.cacheRead.cost.toFixed(6)}`);
+                }
+
+                if (breakdown.output.tokens > 0) {
+                  await log(`        Output: ${breakdown.output.tokens.toLocaleString()} tokens × $${breakdown.output.costPerMillion}/M = $${breakdown.output.cost.toFixed(6)}`);
+                }
+
+                await log(`        ─────────────────────────────────`);
+                await log(`        Total: $${usage.costUSD.toFixed(6)}`);
+              } else if (usage.modelInfo === null) {
+                await log('');
+                await log(`      Cost: Not available (could not fetch pricing from models.dev)`);
               }
             }
 
