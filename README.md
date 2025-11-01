@@ -156,6 +156,23 @@ npm install -g @deep-assistant/hive-mind
 
    Note: You may need to register you own bot with https://t.me/BotFather to get the bot token.
 
+
+#### Codex sign-in
+
+1. Connect to your instance of VPS with Hive Mind installed, using SSH with tunnel opened
+```bash
+ssh -L 1455:localhost:1455 root@123.123.123.123
+```
+
+2. Start codex login oAuth server:
+
+```bash
+codex login
+```
+The oAuth callback server on 1455 port will be started, and the link to oAuth will be printed, copy the link.
+
+3. Use your browser on machine where you started the tunnel from, paste there the link from `codex login` command, and go there using your browser. Once redirected to localhost:1455 you will see successful login page, and in `codex login` you will see `Successfully logged in`. After that `codex login` command will complete, and you can use `codex` command as usual to verify. It should also be working with `--tool codex` in `solve` and `hive` commands.
+
 ### Core Operations
 ```bash
 # Solve using maximum power
