@@ -63,7 +63,7 @@ export const validateCodexConnection = async (model = 'codex') => {
       }
 
       // Test basic Codex functionality with a simple "hi" message
-      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.claudeCli / 1000)} codex --model ${mappedModel} --output-format json`;
+      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.claudeCli / 1000)} codex exec --model ${mappedModel} --json`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
@@ -257,13 +257,13 @@ export const executeCodexCommand = async (params) => {
     // Map model alias to full ID
     const mappedModel = mapModelToId(argv.model);
 
-    // Build codex command arguments - prefer JSON output as requested
-    let codexArgs = `--model ${mappedModel} --output-format json`;
+    // Build codex command arguments - use JSON output for structural data
+    let codexArgs = `exec --model ${mappedModel} --json`;
 
     if (argv.resume) {
       await log(`🔄 Resuming from session: ${argv.resume}`);
-      // Codex may not support resume, but if it does, add it
-      codexArgs = `--resume ${argv.resume} ${codexArgs}`;
+      // Use resume subcommand
+      codexArgs = `exec resume ${argv.resume} --model ${mappedModel} --json`;
     }
 
     // For Codex, combine system and user prompts
@@ -280,18 +280,44 @@ export const executeCodexCommand = async (params) => {
     await log(`${fullCommand}`);
     await log('');
 
+    // Output prompts in verbose mode for debugging
+    if (argv.verbose) {
+      await log('📋 User prompt:', { verbose: true });
+      await log('---BEGIN USER PROMPT---', { verbose: true });
+      await log(prompt, { verbose: true });
+      await log('---END USER PROMPT---', { verbose: true });
+      await log('', { verbose: true });
+      await log('📋 System prompt:', { verbose: true });
+      await log('---BEGIN SYSTEM PROMPT---', { verbose: true });
+      await log(systemPrompt, { verbose: true });
+      await log('---END SYSTEM PROMPT---', { verbose: true });
+      await log('', { verbose: true });
+    }
+
     try {
-      // Pipe the prompt file to codex
+      // Execute codex command
       if (argv.resume) {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`cat ${promptFile} | ${codexPath} --resume ${argv.resume} --model ${mappedModel} --output-format json`;
+        })`cat ${promptFile} | ${codexPath} exec resume ${argv.resume} --model ${mappedModel} --json`;
       } else {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`cat ${promptFile} | ${codexPath} --model ${mappedModel} --output-format json`;
+        })`cat ${promptFile} | ${codexPath} exec --model ${mappedModel} --json`;
+      }
+      // Execute codex command
+      if (argv.resume) {
+        execCommand = $({
+          cwd: tempDir,
+          mirror: false
+        })`cat ${promptFile} | ${codexPath} exec resume ${argv.resume} --model ${mappedModel} --json`;
+      } else {
+        execCommand = $({
+          cwd: tempDir,
+          mirror: false
+        })`cat ${promptFile} | ${codexPath} exec --model ${mappedModel} --json`;
       }
 
       await log(`${formatAligned('📋', 'Command details:', '')}`);
