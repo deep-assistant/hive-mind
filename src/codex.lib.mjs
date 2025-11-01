@@ -75,7 +75,10 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
         const stderr = testResult.stderr?.toString() || '';
         const stdout = testResult.stdout?.toString() || '';
 
-        if (stderr.includes('auth') || stderr.includes('login') || stdout.includes('Not logged in')) {
+        // Check for authentication errors in both stderr and stdout
+        // Codex CLI may return auth errors in JSON format on stdout
+        if (stderr.includes('auth') || stderr.includes('login') ||
+            stdout.includes('Not logged in') || stdout.includes('401 Unauthorized')) {
           await log(`❌ Codex authentication failed`, { level: 'error' });
           await log('   💡 Please run: codex login', { level: 'error' });
           return false;
@@ -83,6 +86,7 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
 
         await log(`❌ Codex validation failed with exit code ${testResult.code}`, { level: 'error' });
         if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
+        if (stdout && !stderr) await log(`   Output: ${stdout.trim()}`, { level: 'error' });
         return false;
       }
 
