@@ -330,13 +330,15 @@ export const executeCodexCommand = async (params) => {
           lastMessage = output;
 
           // Try to parse JSON output to extract session info
+          // Codex CLI uses thread_id instead of session_id
           try {
             const lines = output.split('\n');
             for (const line of lines) {
               if (!line.trim()) continue;
               const data = JSON.parse(line);
-              if (data.session_id && !sessionId) {
-                sessionId = data.session_id;
+              // Check for both thread_id (codex) and session_id (legacy)
+              if ((data.thread_id || data.session_id) && !sessionId) {
+                sessionId = data.thread_id || data.session_id;
                 await log(`📌 Session ID: ${sessionId}`);
               }
             }
