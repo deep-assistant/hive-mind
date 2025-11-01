@@ -490,6 +490,94 @@ export const executeClaude = async (params) => {
   });
 };
 
+/**
+ * Calculate total token usage from a session's JSONL file
+ * @param {string} sessionId - The session ID
+ * @param {string} tempDir - The temporary directory where the session ran
+ * @returns {Object} Token usage statistics
+ */
+export const calculateSessionTokens = async (sessionId, tempDir) => {
+  const os = (await use('os')).default;
+  const homeDir = os.homedir();
+
+  // Construct the path to the session JSONL file
+  // Format: ~/.claude/projects/<project-dir>/<session-id>.jsonl
+  // The project directory name is the full path with slashes replaced by dashes
+  // e.g., /tmp/gh-issue-solver-123 becomes -tmp-gh-issue-solver-123
+  const projectDirName = tempDir.replace(/\//g, '-');
+  const sessionFile = path.join(homeDir, '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
+
+  try {
+    // Check if file exists
+    await fs.access(sessionFile);
+  } catch {
+    // File doesn't exist yet or can't be accessed
+    return null;
+  }
+
+  // Initialize counters
+  let inputTokens = 0;
+  let cacheCreationTokens = 0;
+  let cacheReadTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    // Read the entire file
+    const fileContent = await fs.readFile(sessionFile, 'utf8');
+    const lines = fileContent.trim().split('\n');
+
+    // Parse each line and accumulate token counts
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      try {
+        const entry = JSON.parse(line);
+
+        // Check if this entry has usage data
+        if (entry.message && entry.message.usage) {
+          const usage = entry.message.usage;
+
+          // Add input tokens
+          if (usage.input_tokens) {
+            inputTokens += usage.input_tokens;
+          }
+
+          // Add cache creation tokens
+          if (usage.cache_creation_input_tokens) {
+            cacheCreationTokens += usage.cache_creation_input_tokens;
+          }
+
+          // Add cache read tokens
+          if (usage.cache_read_input_tokens) {
+            cacheReadTokens += usage.cache_read_input_tokens;
+          }
+
+          // Add output tokens
+          if (usage.output_tokens) {
+            outputTokens += usage.output_tokens;
+          }
+        }
+      } catch {
+        // Skip lines that aren't valid JSON
+        continue;
+      }
+    }
+
+    // Calculate total (input + cache_creation + output, cache_read doesn't count as new tokens)
+    const totalTokens = inputTokens + cacheCreationTokens + outputTokens;
+
+    return {
+      inputTokens,
+      cacheCreationTokens,
+      cacheReadTokens,
+      outputTokens,
+      totalTokens
+    };
+  } catch (readError) {
+    throw new Error(`Failed to read session file: ${readError.message}`);
+  }
+};
+
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -944,6 +1032,32 @@ export const executeClaudeCommand = async (params) => {
     await log('\n\n✅ Claude command completed');
     await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
+    // Calculate and display total token usage from session JSONL file
+    if (sessionId && tempDir) {
+      try {
+        const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
+        if (tokenUsage) {
+          await log('\n💰 Token Usage Summary:');
+          await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+          if (tokenUsage.cacheCreationTokens > 0) {
+            await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+          }
+          if (tokenUsage.cacheReadTokens > 0) {
+            await log(`   Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+          }
+          await log(`   Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+          await log(`   Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+        }
+      } catch (tokenError) {
+        reportError(tokenError, {
+          context: 'calculate_session_tokens',
+          sessionId,
+          operation: 'read_session_jsonl'
+        });
+        await log(`   ⚠️ Could not calculate token usage: ${tokenError.message}`, { verbose: true });
+      }
+    }
+
     return {
       success: true,
       sessionId,
@@ -1095,5 +1209,6 @@ export default {
   handleClaudeRuntimeSwitch,
   executeClaude,
   executeClaudeCommand,
-  checkForUncommittedChanges
+  checkForUncommittedChanges,
+  calculateSessionTokens
 };
