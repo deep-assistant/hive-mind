@@ -612,6 +612,73 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
   return totalCost;
 };
 
+/**
+ * Display detailed model usage information
+ * @param {Object} usage - Usage data for a model
+ * @param {Function} log - Logging function
+ */
+const displayModelUsage = async (usage, log) => {
+  // Show all model characteristics from models.dev if available
+  if (usage.modelInfo) {
+    const info = usage.modelInfo;
+    const fields = [
+      { label: 'Model ID', value: info.id },
+      { label: 'Provider', value: info.provider || 'Unknown' },
+      { label: 'Context window', value: info.limit?.context ? `${info.limit.context.toLocaleString()} tokens` : null },
+      { label: 'Max output', value: info.limit?.output ? `${info.limit.output.toLocaleString()} tokens` : null },
+      { label: 'Input modalities', value: info.modalities?.input?.join(', ') || 'N/A' },
+      { label: 'Output modalities', value: info.modalities?.output?.join(', ') || 'N/A' },
+      { label: 'Knowledge cutoff', value: info.knowledge },
+      { label: 'Released', value: info.release_date },
+      { label: 'Capabilities', value: [info.attachment && 'Attachments', info.reasoning && 'Reasoning', info.temperature && 'Temperature', info.tool_call && 'Tool calls'].filter(Boolean).join(', ') || 'N/A' },
+      { label: 'Open weights', value: info.open_weights ? 'Yes' : 'No' }
+    ];
+    for (const { label, value } of fields) {
+      if (value) await log(`      ${label}: ${value}`);
+    }
+    await log('');
+  } else {
+    await log('      ⚠️  Model info not available from models.dev\n');
+  }
+
+  // Show usage data
+  await log('      Usage:');
+  await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
+  if (usage.cacheCreationTokens > 0) {
+    await log(`        Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
+  }
+  if (usage.cacheReadTokens > 0) {
+    await log(`        Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
+  }
+  await log(`        Output tokens: ${usage.outputTokens.toLocaleString()}`);
+  if (usage.webSearchRequests > 0) {
+    await log(`        Web search requests: ${usage.webSearchRequests}`);
+  }
+
+  // Show detailed cost calculation
+  if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
+    await log('');
+    await log('      Cost Calculation (USD):');
+    const breakdown = usage.costBreakdown;
+    const types = [
+      { key: 'input', label: 'Input' },
+      { key: 'cacheWrite', label: 'Cache write' },
+      { key: 'cacheRead', label: 'Cache read' },
+      { key: 'output', label: 'Output' }
+    ];
+    for (const { key, label } of types) {
+      if (breakdown[key].tokens > 0) {
+        await log(`        ${label}: ${breakdown[key].tokens.toLocaleString()} tokens × $${breakdown[key].costPerMillion}/M = $${breakdown[key].cost.toFixed(6)}`);
+      }
+    }
+    await log('        ─────────────────────────────────');
+    await log(`        Total: $${usage.costUSD.toFixed(6)}`);
+  } else if (usage.modelInfo === null) {
+    await log('');
+    await log('      Cost: Not available (could not fetch pricing from models.dev)');
+  }
+};
+
 export const calculateSessionTokens = async (sessionId, tempDir) => {
   const os = (await use('os')).default;
   const homeDir = os.homedir();
@@ -715,23 +782,7 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
         usage.costUSD = costData.total;
         usage.costBreakdown = costData.breakdown;
         usage.modelName = modelInfo.name || modelId;
-        // Store all model characteristics from models.dev
-        usage.modelInfo = {
-          id: modelInfo.id,
-          name: modelInfo.name,
-          provider: modelInfo.provider,
-          attachment: modelInfo.attachment,
-          reasoning: modelInfo.reasoning,
-          temperature: modelInfo.temperature,
-          tool_call: modelInfo.tool_call,
-          knowledge: modelInfo.knowledge,
-          release_date: modelInfo.release_date,
-          last_updated: modelInfo.last_updated,
-          modalities: modelInfo.modalities,
-          open_weights: modelInfo.open_weights,
-          cost: modelInfo.cost,
-          limit: modelInfo.limit
-        };
+        usage.modelInfo = modelInfo; // Store complete model info from models.dev
       } else {
         usage.costUSD = null;
         usage.costBreakdown = null;
@@ -1247,97 +1298,8 @@ export const executeClaudeCommand = async (params) => {
 
             for (const modelId of modelIds) {
               const usage = tokenUsage.modelUsage[modelId];
-
               await log(`\n   📊 ${usage.modelName || modelId}:`);
-
-              // Show all model characteristics from models.dev if available
-              if (usage.modelInfo) {
-                const info = usage.modelInfo;
-                await log(`      Model ID: ${info.id}`);
-                await log(`      Provider: ${info.provider || 'Unknown'}`);
-
-                if (info.limit?.context) {
-                  await log(`      Context window: ${info.limit.context.toLocaleString()} tokens`);
-                }
-
-                if (info.limit?.output) {
-                  await log(`      Max output: ${info.limit.output.toLocaleString()} tokens`);
-                }
-
-                if (info.modalities) {
-                  await log(`      Input modalities: ${info.modalities.input?.join(', ') || 'N/A'}`);
-                  await log(`      Output modalities: ${info.modalities.output?.join(', ') || 'N/A'}`);
-                }
-
-                if (info.knowledge) {
-                  await log(`      Knowledge cutoff: ${info.knowledge}`);
-                }
-
-                if (info.release_date) {
-                  await log(`      Released: ${info.release_date}`);
-                }
-
-                await log(`      Capabilities: ${[
-                  info.attachment ? 'Attachments' : null,
-                  info.reasoning ? 'Reasoning' : null,
-                  info.temperature ? 'Temperature' : null,
-                  info.tool_call ? 'Tool calls' : null
-                ].filter(Boolean).join(', ') || 'N/A'}`);
-
-                await log(`      Open weights: ${info.open_weights ? 'Yes' : 'No'}`);
-                await log('');
-              } else {
-                await log(`      ⚠️  Model info not available from models.dev`);
-                await log('');
-              }
-
-              // Show usage data
-              await log(`      Usage:`);
-              await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
-
-              if (usage.cacheCreationTokens > 0) {
-                await log(`        Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
-              }
-
-              if (usage.cacheReadTokens > 0) {
-                await log(`        Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
-              }
-
-              await log(`        Output tokens: ${usage.outputTokens.toLocaleString()}`);
-
-              if (usage.webSearchRequests > 0) {
-                await log(`        Web search requests: ${usage.webSearchRequests}`);
-              }
-
-              // Show detailed cost calculation
-              if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
-                await log('');
-                await log(`      Cost Calculation (USD):`);
-
-                const breakdown = usage.costBreakdown;
-
-                if (breakdown.input.tokens > 0) {
-                  await log(`        Input: ${breakdown.input.tokens.toLocaleString()} tokens × $${breakdown.input.costPerMillion}/M = $${breakdown.input.cost.toFixed(6)}`);
-                }
-
-                if (breakdown.cacheWrite.tokens > 0) {
-                  await log(`        Cache write: ${breakdown.cacheWrite.tokens.toLocaleString()} tokens × $${breakdown.cacheWrite.costPerMillion}/M = $${breakdown.cacheWrite.cost.toFixed(6)}`);
-                }
-
-                if (breakdown.cacheRead.tokens > 0) {
-                  await log(`        Cache read: ${breakdown.cacheRead.tokens.toLocaleString()} tokens × $${breakdown.cacheRead.costPerMillion}/M = $${breakdown.cacheRead.cost.toFixed(6)}`);
-                }
-
-                if (breakdown.output.tokens > 0) {
-                  await log(`        Output: ${breakdown.output.tokens.toLocaleString()} tokens × $${breakdown.output.costPerMillion}/M = $${breakdown.output.cost.toFixed(6)}`);
-                }
-
-                await log(`        ─────────────────────────────────`);
-                await log(`        Total: $${usage.costUSD.toFixed(6)}`);
-              } else if (usage.modelInfo === null) {
-                await log('');
-                await log(`      Cost: Not available (could not fetch pricing from models.dev)`);
-              }
+              await displayModelUsage(usage, log);
             }
 
             // Show totals if multiple models were used
