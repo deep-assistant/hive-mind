@@ -433,10 +433,8 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           return true;
         } else {
           await log('');
-          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
-          await log('   OpenCode made changes that were not committed.');
-          await log('   Auto-restart is disabled (--no-auto-restart-on-uncommitted-changes).');
-          await log('   Please review and commit these changes manually, or enable --auto-restart-on-uncommitted-changes.');
+          await log('⚠️  Uncommitted changes detected but auto-restart is disabled.');
+          await log('   Use --auto-restart-on-uncommitted-changes to enable or commit manually.');
           await log('');
           return false;
         }
