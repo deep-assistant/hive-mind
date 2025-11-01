@@ -806,7 +806,8 @@ try {
   await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
 
   // Search for newly created pull requests and comments
-  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
+  // Pass shouldRestart to prevent early exit when auto-restart is needed
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs, shouldRestart);
 
   // Start watch mode if enabled OR if we need to handle uncommitted changes
   if (argv.verbose) {

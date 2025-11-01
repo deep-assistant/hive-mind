@@ -250,7 +250,7 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
 };
 
 // Verify results by searching for new PRs and comments
-export const verifyResults = async (owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs) => {
+export const verifyResults = async (owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs, shouldRestart = false) => {
   await log('\n🔍 Searching for created pull requests or comments...');
 
   try {
@@ -383,11 +383,11 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
           await log('⚠️  Solution draft log upload was requested but failed');
         }
         await log('\n✨ Please review the pull request for the proposed solution draft.');
-        // Don't exit if watch mode is enabled - it needs to continue monitoring
-        if (!argv.watch) {
+        // Don't exit if watch mode is enabled OR if auto-restart is needed for uncommitted changes
+        if (!argv.watch && !shouldRestart) {
           await safeExit(0, 'Process completed successfully');
         }
-        return; // Return normally for watch mode
+        return; // Return normally for watch mode or auto-restart
       } else {
         await log(`  ℹ️  Found pull request #${pr.number} but it appears to be from a different session`);
       }
@@ -439,11 +439,11 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
         await log('📎 Solution draft log has been attached to the issue');
       }
       await log('\n✨ A clarifying comment has been added to the issue.');
-      // Don't exit if watch mode is enabled - it needs to continue monitoring
-      if (!argv.watch) {
+      // Don't exit if watch mode is enabled OR if auto-restart is needed for uncommitted changes
+      if (!argv.watch && !shouldRestart) {
         await safeExit(0, 'Process completed successfully');
       }
-      return; // Return normally for watch mode
+      return; // Return normally for watch mode or auto-restart
     } else if (allComments.length > 0) {
       await log(`  ℹ️  Issue has ${allComments.length} existing comment(s)`);
     } else {
