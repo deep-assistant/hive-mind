@@ -812,9 +812,10 @@ try {
   // Start watch mode if enabled OR if we need to handle uncommitted changes
   if (argv.verbose) {
     await log('');
-    await log('🔍 Watch mode debug:', { verbose: true });
-    await log(`   argv.watch: ${argv.watch}`, { verbose: true });
-    await log(`   shouldRestart: ${shouldRestart}`, { verbose: true });
+    await log('🔍 Auto-restart debug:', { verbose: true });
+    await log(`   argv.watch (user flag): ${argv.watch}`, { verbose: true });
+    await log(`   shouldRestart (auto-detected): ${shouldRestart}`, { verbose: true });
+    await log(`   temporaryWatch (will be enabled): ${shouldRestart && !argv.watch}`, { verbose: true });
     await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
     await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
     await log(`   branchName: ${branchName}`, { verbose: true });
@@ -825,8 +826,11 @@ try {
   const temporaryWatchMode = shouldRestart && !argv.watch;
   if (temporaryWatchMode) {
     await log('');
-    await log('🔄 Uncommitted changes detected - entering temporary watch mode to handle them...');
-    await log('   Watch mode will exit automatically once changes are committed.');
+    await log('🔄 AUTO-RESTART: Uncommitted changes detected');
+    await log('   Starting temporary monitoring cycle (NOT --watch mode)');
+    await log('   The tool will run once more to commit the changes');
+    await log('   Will exit automatically after changes are committed');
+    await log('');
   }
 
   await startWatchMode({
@@ -844,6 +848,35 @@ try {
       temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
     }
   });
+
+  // After watch mode completes (either user watch or temporary)
+  // Push any committed changes if this was a temporary watch mode
+  if (temporaryWatchMode) {
+    await log('');
+    await log('📤 Pushing committed changes to GitHub...');
+    await log(`   (${argv.tool.charAt(0).toUpperCase() + argv.tool.slice(1)} cannot push directly due to network restrictions)`);
+    await log('');
+
+    try {
+      const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+      if (pushResult.code === 0) {
+        await log('✅ Changes pushed successfully to remote branch');
+        await log(`   Branch: ${branchName}`);
+        await log('');
+      } else {
+        const errorMsg = pushResult.stderr?.toString() || 'Unknown error';
+        await log('⚠️  Push failed:', { level: 'error' });
+        await log(`   ${errorMsg.trim()}`, { level: 'error' });
+        await log('   Please push manually:', { level: 'error' });
+        await log(`   cd ${tempDir} && git push origin ${branchName}`, { level: 'error' });
+      }
+    } catch (error) {
+      await log('⚠️  Push failed:', { level: 'error' });
+      await log(`   ${cleanErrorMessage(error)}`, { level: 'error' });
+      await log('   Please push manually:', { level: 'error' });
+      await log(`   cd ${tempDir} && git push origin ${branchName}`, { level: 'error' });
+    }
+  }
 
   // End work session using the new module
   await endWorkSession({

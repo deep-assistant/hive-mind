@@ -92,13 +92,17 @@ export const watchForFeedback = async (params) => {
   const isTemporaryWatch = argv.temporaryWatch || false;
 
   await log('');
-  await log(formatAligned('👁️', 'WATCH MODE ACTIVATED', ''));
-  await log(formatAligned('', 'Checking interval:', `${watchInterval} seconds`, 2));
-  await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
   if (isTemporaryWatch) {
-    await log(formatAligned('', 'Mode:', 'Temporary (will exit when changes are committed)', 2));
+    await log(formatAligned('🔄', 'AUTO-RESTART MODE ACTIVE', ''));
+    await log(formatAligned('', 'Purpose:', 'Complete unfinished work from previous run', 2));
+    await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
+    await log(formatAligned('', 'Mode:', 'Temporary (NOT user-requested --watch)', 2));
     await log(formatAligned('', 'Stop conditions:', 'All changes committed OR PR merged', 2));
+    await log(formatAligned('', 'Check interval:', `${watchInterval} seconds`, 2));
   } else {
+    await log(formatAligned('👁️', 'WATCH MODE ACTIVATED', ''));
+    await log(formatAligned('', 'Checking interval:', `${watchInterval} seconds`, 2));
+    await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
     await log(formatAligned('', 'Stop condition:', 'PR merged by maintainer', 2));
   }
   await log('');
