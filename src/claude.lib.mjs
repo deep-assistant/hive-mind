@@ -1415,11 +1415,9 @@ export const executeClaudeCommand = async (params) => {
 };
 
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
-  // Check for uncommitted changes made by Claude
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false, autoRestartEnabled = true) => {
   await log('\n🔍 Checking for uncommitted changes...');
   try {
-    // Check git status to see if there are any uncommitted changes
     const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
 
     if (gitStatusResult.code === 0) {
@@ -1433,9 +1431,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
         }
 
         if (autoCommit) {
-          // Auto-commit the changes if option is enabled
           await log('💾 Auto-committing changes (--auto-commit-uncommitted-changes is enabled)...');
-
           const addResult = await $({ cwd: tempDir })`git add -A`;
           if (addResult.code === 0) {
             const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
@@ -1443,8 +1439,6 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
 
             if (commitResult.code === 0) {
               await log('✅ Changes committed successfully');
-
-              // Push the changes
               await log('📤 Pushing changes to remote...');
               const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
 
@@ -1459,34 +1453,30 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           } else {
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
-          return false; // No restart needed when auto-commit is enabled
-        } else {
-          // When auto-commit is disabled, trigger auto-restart
-          await log('');
-          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
-          await log('   Claude made changes that were not committed.');
-          await log('');
+          return false;
+        } else if (autoRestartEnabled) {
+          await log('\n⚠️  IMPORTANT: Uncommitted changes detected!');
+          await log('   Claude made changes that were not committed.\n');
           await log('🔄 AUTO-RESTART: Restarting Claude to handle uncommitted changes...');
-          await log('   Claude will review the changes and decide what to commit.');
-          await log('');
-          return true; // Return true to indicate restart is needed
+          await log('   Claude will review the changes and decide what to commit.\n');
+          return true;
+        } else {
+          await log('\n⚠️  Uncommitted changes detected but auto-restart is disabled.');
+          await log('   Use --auto-restart-on-uncommitted-changes to enable or commit manually.\n');
+          return false;
         }
       } else {
         await log('✅ No uncommitted changes found');
-        return false; // No restart needed
+        return false;
       }
     } else {
       await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr?.toString().trim()}`, { level: 'warning' });
-      return false; // No restart needed on error
+      return false;
     }
   } catch (gitError) {
-    reportError(gitError, {
-      context: 'check_uncommitted_changes',
-      tempDir,
-      operation: 'git_status_check'
-    });
+    reportError(gitError, { context: 'check_uncommitted_changes', tempDir, operation: 'git_status_check' });
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
-    return false; // No restart needed on error
+    return false;
   }
 };
 

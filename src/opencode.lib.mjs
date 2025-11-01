@@ -381,7 +381,7 @@ export const executeOpenCodeCommand = async (params) => {
   return await executeWithRetry();
 };
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false, autoRestartEnabled = true) => {
   // Similar to Claude version, check for uncommitted changes
   await log('\n🔍 Checking for uncommitted changes...');
   try {
@@ -422,7 +422,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
           return false;
-        } else {
+        } else if (autoRestartEnabled) {
           await log('');
           await log('⚠️  IMPORTANT: Uncommitted changes detected!');
           await log('   OpenCode made changes that were not committed.');
@@ -431,6 +431,12 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           await log('   OpenCode will review the changes and decide what to commit.');
           await log('');
           return true;
+        } else {
+          await log('');
+          await log('⚠️  Uncommitted changes detected but auto-restart is disabled.');
+          await log('   Use --auto-restart-on-uncommitted-changes to enable or commit manually.');
+          await log('');
+          return false;
         }
       } else {
         await log('✅ No uncommitted changes found');
