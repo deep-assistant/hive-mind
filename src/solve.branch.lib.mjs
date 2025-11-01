@@ -27,7 +27,7 @@ export async function createOrCheckoutBranch({
     checkoutResult = await checkoutPrBranch(tempDir, branchName, null, null); // prForkRemote and prForkOwner not needed here
   } else {
     // Traditional mode: create new branch for issue
-    const randomHex = crypto.randomBytes(4).toString('hex');
+    const randomHex = crypto.randomBytes(6).toString('hex');
     branchName = `issue-${issueNumber}-${randomHex}`;
     await log(`\n${formatAligned('🌿', 'Creating branch:', `${branchName} from ${defaultBranch}`)}`);
 
