@@ -190,6 +190,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Allow automatic force-push (--force-with-lease) when fork diverges from upstream (DANGEROUS: can overwrite fork history)',
       default: false
     })
+    .option('allow-to-push-to-contributors-pull-requests-as-maintainer', {
+      type: 'boolean',
+      description: 'When continuing a fork PR as a maintainer, attempt to push directly to the contributor\'s fork if "Allow edits by maintainers" is enabled. Requires --auto-fork to be enabled.',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',

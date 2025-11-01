@@ -348,6 +348,23 @@ if (autoContinueResult.isContinueMode) {
             await log(`   Fork owner: ${forkOwner}`, { verbose: true });
             await log('   Will clone fork repository for continue mode', { verbose: true });
           }
+
+          // Check if maintainer can push to the fork when --allow-to-push-to-contributors-pull-requests-as-maintainer is enabled
+          if (argv.allowToPushToContributorsPullRequestsAsMaintainer && argv.autoFork) {
+            const { checkMaintainerCanModifyPR, requestMaintainerAccess } = githubLib;
+            const { canModify } = await checkMaintainerCanModifyPR(owner, repo, prNumber);
+
+            if (canModify) {
+              await log('✅ Maintainer can push to fork: Enabled by contributor');
+              await log('   Will push changes directly to contributor\'s fork instead of creating own fork');
+              // Don't disable fork mode, but we'll use the contributor's fork
+            } else {
+              await log('⚠️  Maintainer cannot push to fork: "Allow edits by maintainers" is not enabled', { level: 'warning' });
+              await log('   Posting comment to request access...', { level: 'warning' });
+              await requestMaintainerAccess(owner, repo, prNumber);
+              await log('   Comment posted. Proceeding with own fork instead.', { level: 'warning' });
+            }
+          }
         }
       }
     } catch (forkCheckError) {
@@ -404,6 +421,23 @@ if (isPrUrl) {
       if (argv.verbose) {
         await log(`   Fork owner: ${forkOwner}`, { verbose: true });
         await log('   Will clone fork repository for continue mode', { verbose: true });
+      }
+
+      // Check if maintainer can push to the fork when --allow-to-push-to-contributors-pull-requests-as-maintainer is enabled
+      if (argv.allowToPushToContributorsPullRequestsAsMaintainer && argv.autoFork) {
+        const { checkMaintainerCanModifyPR, requestMaintainerAccess } = githubLib;
+        const { canModify } = await checkMaintainerCanModifyPR(owner, repo, prNumber);
+
+        if (canModify) {
+          await log('✅ Maintainer can push to fork: Enabled by contributor');
+          await log('   Will push changes directly to contributor\'s fork instead of creating own fork');
+          // Don't disable fork mode, but we'll use the contributor's fork
+        } else {
+          await log('⚠️  Maintainer cannot push to fork: "Allow edits by maintainers" is not enabled', { level: 'warning' });
+          await log('   Posting comment to request access...', { level: 'warning' });
+          await requestMaintainerAccess(owner, repo, prNumber);
+          await log('   Comment posted. Proceeding with own fork instead.', { level: 'warning' });
+        }
       }
     }
     await log(`📝 PR branch: ${prBranch}`);
