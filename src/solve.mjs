@@ -701,6 +701,34 @@ try {
       opencodePath,
       $
     });
+  } else if (argv.tool === 'codex') {
+    const codexLib = await import('./codex.lib.mjs');
+    const { executeCodex } = codexLib;
+    const codexPath = process.env.CODEX_PATH || 'codex';
+
+    toolResult = await executeCodex({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      codexPath,
+      $
+    });
   } else {
     // Default to Claude
     const claudeResult = await executeClaude({

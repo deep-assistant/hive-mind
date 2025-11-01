@@ -265,6 +265,34 @@ export const watchForFeedback = async (params) => {
             opencodePath,
             $
           });
+        } else if (argv.tool === 'codex') {
+          // Use Codex
+          const codexExecLib = await import('./codex.lib.mjs');
+          const { executeCodex } = codexExecLib;
+
+          // Get codex path
+          const codexPath = argv.codexPath || 'codex';
+
+          toolResult = await executeCodex({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            owner,
+            repo,
+            argv,
+            log,
+            formatAligned,
+            getResourceSnapshot,
+            codexPath,
+            $
+          });
         } else {
           // Use Claude (default)
           const claudeExecLib = await import('./claude.lib.mjs');
