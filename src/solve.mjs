@@ -112,6 +112,9 @@ let checkForUncommittedChanges;
 if (argv.tool === 'opencode') {
   const opencodeLib = await import('./opencode.lib.mjs');
   checkForUncommittedChanges = opencodeLib.checkForUncommittedChanges;
+} else if (argv.tool === 'codex') {
+  const codexLib = await import('./codex.lib.mjs');
+  checkForUncommittedChanges = codexLib.checkForUncommittedChanges;
 } else {
   checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
 }
@@ -701,6 +704,34 @@ try {
       opencodePath,
       $
     });
+  } else if (argv.tool === 'codex') {
+    const codexLib = await import('./codex.lib.mjs');
+    const { executeCodex } = codexLib;
+    const codexPath = process.env.CODEX_PATH || 'codex';
+
+    toolResult = await executeCodex({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      codexPath,
+      $
+    });
   } else {
     // Default to Claude
     const claudeResult = await executeClaude({
@@ -775,7 +806,8 @@ try {
   await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
 
   // Search for newly created pull requests and comments
-  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
+  // Pass shouldRestart to prevent early exit when auto-restart is needed
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs, shouldRestart);
 
   // Start watch mode if enabled OR if we need to handle uncommitted changes
   if (argv.verbose) {

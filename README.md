@@ -217,9 +217,9 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode]
-  --tool                AI tool (claude, opencode)           [default: claude]
+  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
+  --tool                AI tool (claude, opencode, codex)    [default: claude]
   --fork, -f            Fork repo if no write access         [default: false]
   --auto-fork           Automatically fork public repos without write access (fails for private)
                         [default: false]
@@ -270,9 +270,9 @@ hive <github-url> [options]
   --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
   --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
-  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode]
-  --tool                AI tool (claude, opencode)           [default: claude]
+  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
+  --tool                AI tool (claude, opencode, codex)    [default: claude]
   --interval, -i        Poll interval (seconds)              [default: 300]
   --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
