@@ -191,7 +191,7 @@ export const watchForFeedback = async (params) => {
             // Ignore errors
           }
           await log('');
-          await log(formatAligned('🔄', 'Initial restart:', 'Running Claude to handle uncommitted changes...'));
+          await log(formatAligned('🔄', 'Initial restart:', `Running ${argv.tool.toUpperCase()} to handle uncommitted changes...`));
 
           // Add uncommitted changes info to feedbackLines for the first run
           if (!feedbackLines) {
@@ -229,7 +229,7 @@ export const watchForFeedback = async (params) => {
             await log(formatAligned('', `• ${line}`, '', 4));
           });
           await log('');
-          await log(formatAligned('🔄', 'Restarting:', 'Re-running Claude to handle feedback...'));
+          await log(formatAligned('🔄', 'Restarting:', `Re-running ${argv.tool.toUpperCase()} to handle feedback...`));
         }
 
         // Import necessary modules for tool execution
@@ -263,6 +263,37 @@ export const watchForFeedback = async (params) => {
             formatAligned,
             getResourceSnapshot,
             opencodePath,
+            $
+          });
+        } else if (argv.tool === 'codex') {
+          // Use Codex
+          const codexExecLib = await import('./codex.lib.mjs');
+          const { executeCodex } = codexExecLib;
+
+          // Get codex path
+          const codexPath = argv.codexPath || 'codex';
+
+          toolResult = await executeCodex({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            forkActionsUrl: null,
+            owner,
+            repo,
+            argv,
+            log,
+            setLogFile: () => {},
+            getLogFile: () => '',
+            formatAligned,
+            getResourceSnapshot,
+            codexPath,
             $
           });
         } else {
