@@ -1415,7 +1415,7 @@ export const executeClaudeCommand = async (params) => {
 };
 
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false, autoRestartEnabled = true) => {
   // Check for uncommitted changes made by Claude
   await log('\n🔍 Checking for uncommitted changes...');
   try {
@@ -1460,8 +1460,8 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
           return false; // No restart needed when auto-commit is enabled
-        } else {
-          // When auto-commit is disabled, trigger auto-restart
+        } else if (autoRestartEnabled) {
+          // When auto-commit is disabled but auto-restart is enabled, trigger auto-restart
           await log('');
           await log('⚠️  IMPORTANT: Uncommitted changes detected!');
           await log('   Claude made changes that were not committed.');
@@ -1470,6 +1470,15 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           await log('   Claude will review the changes and decide what to commit.');
           await log('');
           return true; // Return true to indicate restart is needed
+        } else {
+          // Auto-restart is disabled
+          await log('');
+          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
+          await log('   Claude made changes that were not committed.');
+          await log('   Auto-restart is disabled (--no-auto-restart-on-uncommitted-changes).');
+          await log('   Please review and commit these changes manually, or enable --auto-restart-on-uncommitted-changes.');
+          await log('');
+          return false; // No restart when auto-restart is disabled
         }
       } else {
         await log('✅ No uncommitted changes found');

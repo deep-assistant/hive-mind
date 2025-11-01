@@ -133,6 +133,16 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically commit and push uncommitted changes made by Claude (disabled by default)',
       default: false
     })
+    .option('auto-restart-on-uncommitted-changes', {
+      type: 'boolean',
+      description: 'Automatically restart when uncommitted changes are detected to allow the tool to handle them (default: true, use --no-auto-restart-on-uncommitted-changes to disable)',
+      default: true
+    })
+    .option('auto-restart-max-iterations', {
+      type: 'number',
+      description: 'Maximum number of auto-restart iterations when uncommitted changes are detected (default: 3)',
+      default: 3
+    })
     .option('continue-only-on-feedback', {
       type: 'boolean',
       description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
