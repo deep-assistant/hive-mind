@@ -345,7 +345,7 @@ Review this pull request thoroughly.`;
     $
   });
 
-  const { success: commandSuccess, sessionId, limitReached: limitReachedResult, messageCount: _messageCount, toolUseCount: _toolUseCount } = result;
+  const { success: commandSuccess, sessionId, limitReached: limitReachedResult } = result;
   limitReached = limitReachedResult;
 
   // Handle command failure

@@ -38,7 +38,6 @@ export default [
       'no-undef': 'error',
       'no-unused-vars': ['error', {
         argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_'
       }],
       'no-console': 'off',
@@ -46,7 +45,7 @@ export default [
       'quotes': ['error', 'single', { avoidEscape: true }],
       'no-useless-escape': 'warn',
       'no-case-declarations': 'warn',
-      'no-empty': 'warn',
+      'no-empty': 'error',
       'camelcase': ['error', {
         properties: 'never',
         ignoreDestructuring: true,

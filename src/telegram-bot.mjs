@@ -568,8 +568,7 @@ function validateGitHubUrl(args, options = {}) {
   // Default options for /solve command (backward compatibility)
   const {
     allowedTypes = ['issue', 'pull'],
-    commandName = 'solve',
-    exampleUrl: _exampleUrl = 'https://github.com/owner/repo/issues/123'
+    commandName = 'solve'
   } = options;
 
   if (args.length === 0) {

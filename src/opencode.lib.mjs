@@ -213,8 +213,6 @@ export const executeOpenCodeCommand = async (params) => {
     systemPrompt,
     argv,
     log,
-    _setLogFile,
-    _getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
