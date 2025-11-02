@@ -63,7 +63,7 @@ export function validateYouTrackConfig(config) {
   // Validate URL format
   try {
     new URL(config.url);
-  } catch (_error) {
+  } catch {
     throw new Error(`Invalid YOUTRACK_URL format: ${config.url}`);
   }
 

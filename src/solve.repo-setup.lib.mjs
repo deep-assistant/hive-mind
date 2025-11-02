@@ -11,7 +11,6 @@ export async function setupRepositoryAndClone({
   tempDir,
   isContinueMode,
   log,
-  formatAligned: _formatAligned,
   $
 }) {
   // Set up repository and handle forking

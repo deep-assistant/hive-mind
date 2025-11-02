@@ -52,7 +52,7 @@ async function screenSessionExists(sessionName) {
   try {
     const { stdout } = await execAsync('screen -ls');
     return stdout.includes(sessionName);
-  } catch (_error) {
+  } catch {
     // screen -ls returns non-zero exit code when no sessions exist
     return false;
   }
@@ -91,7 +91,7 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
             await execAsync(`rm -f ${markerFile}`).catch(() => { });
             return true;
           }
-        } catch (_error) {
+        } catch {
           // Marker file doesn't exist yet
         }
 
@@ -102,7 +102,7 @@ async function waitForSessionReady(sessionName, maxWaitSeconds = 5) {
       // Marker file didn't appear, session is still busy
       // Clean up any leftover marker file from the queued command
       await execAsync(`rm -f ${markerFile}`).catch(() => { });
-    } catch (_error) {
+    } catch {
       // Error sending test command or checking marker
     }
 
@@ -301,7 +301,7 @@ async function main() {
   // Check for screen availability
   try {
     await execAsync('which screen');
-  } catch (_error) {
+  } catch {
     console.error('Error: GNU Screen is not installed or not in PATH.');
     console.error('Please install it using your package manager:');
     console.error('  Ubuntu/Debian: sudo apt-get install screen');

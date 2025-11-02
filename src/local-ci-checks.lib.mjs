@@ -56,7 +56,7 @@ export async function detectCITools(workDir) {
     try {
       await fs.access(ruffConfigPath);
       tools.python.ruff = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, ruff not configured
     }
 
@@ -66,7 +66,7 @@ export async function detectCITools(workDir) {
       if (pyproject.includes('[tool.mypy]')) tools.python.mypy = true;
       if (pyproject.includes('[tool.black]')) tools.python.black = true;
       if (pyproject.includes('[tool.pytest]')) tools.python.pytest = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist or can't be read, tools not configured in pyproject.toml
     }
 
@@ -74,7 +74,7 @@ export async function detectCITools(workDir) {
     try {
       await fs.access(mypyConfigPath);
       tools.python.mypy = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, mypy not configured
     }
 
@@ -82,7 +82,7 @@ export async function detectCITools(workDir) {
     try {
       await fs.access(noxfilePath);
       tools.python.nox = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, nox not configured
     }
 
@@ -90,7 +90,7 @@ export async function detectCITools(workDir) {
     try {
       await fs.access(flake8ConfigPath);
       tools.python.flake8 = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, flake8 not configured
     }
 
@@ -111,7 +111,7 @@ export async function detectCITools(workDir) {
       if (packageJson.devDependencies?.vitest || packageJson.dependencies?.vitest) {
         tools.javascript.vitest = true;
       }
-    } catch (_err) {
+    } catch {
       // File doesn't exist or can't be parsed, JavaScript tools not configured
     }
 
@@ -122,7 +122,7 @@ export async function detectCITools(workDir) {
       tools.rust.rustfmt = true;
       tools.rust.clippy = true;
       tools.rust.cargoTest = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, Rust tools not configured
     }
 
@@ -131,7 +131,7 @@ export async function detectCITools(workDir) {
     try {
       await fs.access(preCommitPath);
       tools.general.preCommit = true;
-    } catch (_err) {
+    } catch {
       // File doesn't exist, pre-commit not configured
     }
 

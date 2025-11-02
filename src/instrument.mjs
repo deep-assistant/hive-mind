@@ -83,7 +83,7 @@ if (!shouldDisableSentry()) {
       debug: process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development',
 
       // Before send hook to filter out sensitive data
-      beforeSend(event, _hint) {
+      beforeSend(event) {
         // Filter out sensitive environment variables
         if (event.contexts && event.contexts.runtime && event.contexts.runtime.env) {
           const sensitiveKeys = ['API_KEY', 'TOKEN', 'SECRET', 'PASSWORD', 'ANTHROPIC'];

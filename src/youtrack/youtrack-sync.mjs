@@ -49,7 +49,7 @@ export async function findGitHubIssueForYouTrack(youTrackId, owner, repo, $) {
     );
 
     return closedIssue || null;
-  } catch (_error) {
+  } catch {
     return null;
   }
 }
@@ -121,7 +121,7 @@ ${youTrackIssue.description || 'No description provided.'}
       try {
         await $`gh issue edit ${existingIssue.number} --repo ${owner}/${repo} --add-label "help wanted"`;
         await log(`   🏷️ Added 'help wanted' label to #${existingIssue.number}`);
-      } catch (_labelError) {
+      } catch {
         // Silently skip if label doesn't exist
         await log('   ⚠️ Could not add \'help wanted\' label (may not exist in repo)', { verbose: true });
       }
@@ -151,8 +151,8 @@ ${youTrackIssue.description || 'No description provided.'}
         await log(`   ❌ Failed to create issue for ${youTrackId}`, { level: 'error' });
         return null;
       }
-    } catch (_error) {
-      await log(`   ❌ Error creating issue: ${_error.message}`, { level: 'error' });
+    } catch (error) {
+      await log(`   ❌ Error creating issue: ${error.message}`, { level: 'error' });
       return null;
     }
   }

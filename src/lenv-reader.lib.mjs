@@ -172,10 +172,9 @@ export class LenvReader {
   /**
    * Check if .lenv file exists and has priority over .env
    * @param {string} lenvPath - Path to .lenv file
-   * @param {string} envPath - Path to .env file
    * @returns {boolean} - True if .lenv should be used
    */
-  shouldUseLenv(lenvPath = '.lenv', _envPath = '.env') {
+  shouldUseLenv(lenvPath = '.lenv') {
     // If .lenv exists, use it (has priority)
     if (fs.existsSync(lenvPath)) {
       return true;

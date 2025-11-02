@@ -799,7 +799,7 @@ async function worker(workerId) {
         let exitCode = 0;
 
         // Create promise to handle async spawn process
-        await new Promise((resolve, _reject) => {
+        await new Promise((resolve) => {
           const child = spawn(solveCommand, args, {
             stdio: ['pipe', 'pipe', 'pipe']
           });

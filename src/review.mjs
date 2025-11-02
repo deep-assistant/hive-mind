@@ -8,7 +8,7 @@ if (earlyArgs.includes('--version')) {
   try {
     const version = await getVersion();
     console.log(version);
-  } catch (_versionError) {
+  } catch {
     console.error('Error: Unable to determine version');
     process.exit(1);
   }

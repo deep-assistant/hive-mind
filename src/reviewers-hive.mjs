@@ -174,7 +174,7 @@ if (!repo) {
     const typeResult = await $`gh api users/${owner} --jq .type`;
     const accountType = typeResult.stdout.toString().trim();
     scope = accountType === 'Organization' ? 'organization' : 'user';
-  } catch (_e) {
+  } catch {
     // Default to user if API call fails
     scope = 'user';
   }

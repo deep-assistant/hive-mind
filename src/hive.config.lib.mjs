@@ -12,7 +12,7 @@ export const createYargsConfig = (yargsInstance) => {
       });
     })
     .usage('Usage: $0 <github-url> [options]')
-    .fail((msg, err, _yargs) => {
+    .fail((msg, err) => {
       // Custom fail handler to suppress yargs' automatic error output to stderr
       // We handle errors in the calling code's try-catch block
       // If there's an existing error object, throw it as-is to preserve the full trace

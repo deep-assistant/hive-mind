@@ -99,7 +99,7 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
 };
 
 // Function to handle OpenCode runtime switching (if applicable)
-export const handleOpenCodeRuntimeSwitch = async (_argv) => {
+export const handleOpenCodeRuntimeSwitch = async () => {
   // OpenCode is typically run as a CLI tool, runtime switching may not be applicable
   // This function can be used for any runtime-specific configurations if needed
   await log('ℹ️  OpenCode runtime handling not required for this operation');

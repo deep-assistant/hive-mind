@@ -104,7 +104,7 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
 };
 
 // Function to handle Codex runtime switching (if applicable)
-export const handleCodexRuntimeSwitch = async (_argv) => {
+export const handleCodexRuntimeSwitch = async () => {
   // Codex is typically run as a CLI tool, runtime switching may not be applicable
   // This function can be used for any runtime-specific configurations if needed
   await log('ℹ️  Codex runtime handling not required for this operation');
@@ -338,7 +338,7 @@ export const executeCodexCommand = async (params) => {
                 await log(`📌 Session ID: ${sessionId}`);
               }
             }
-          } catch (_parseError) {
+          } catch {
             // Not JSON, continue
           }
         }
