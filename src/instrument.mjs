@@ -46,9 +46,11 @@ if (!shouldDisableSentry()) {
     const { sentry, version } = await import('./config.lib.mjs');
 
     // Dynamically import Sentry packages only when needed
-    const sentryModule = await import('@sentry/node');
+    // eslint-disable-next-line quotes
+    const sentryModule = await import("@sentry/node");
     Sentry = sentryModule;
-    const profilingModule = await import('@sentry/profiling-node');
+    // eslint-disable-next-line quotes
+    const profilingModule = await import("@sentry/profiling-node");
     nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
 
     // Initialize Sentry with configuration
