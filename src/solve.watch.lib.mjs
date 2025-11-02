@@ -214,7 +214,8 @@ export const watchForFeedback = async (params) => {
           if (prNumber) {
             try {
               autoRestartCount++;
-              const commentBody = `🔄 **Auto-restart #${autoRestartCount}**: Detected uncommitted changes from previous run. Starting new session to review and commit them.\n\nThis is NOT watch mode. Auto-restart will stop after changes are committed or after ${maxAutoRestartIterations} iterations.`;
+              const remainingIterations = maxAutoRestartIterations - autoRestartCount;
+              const commentBody = `## 🔄 Auto-restart ${autoRestartCount}/${maxAutoRestartIterations}\n\nDetected uncommitted changes from previous run. Starting new session to review and commit them.\n\n---\n*Auto-restart will stop after changes are committed or after ${remainingIterations} more iteration${remainingIterations !== 1 ? 's' : ''}. Please wait until working session will end and give your feedback.*`;
               await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${commentBody}`;
               await log(formatAligned('', '💬 Posted auto-restart notification to PR', '', 2));
             } catch (commentError) {
