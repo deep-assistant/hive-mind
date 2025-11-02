@@ -7,7 +7,7 @@
  * Regular expressions for branch name validation
  * Supports both legacy (8-char) and new (12-char) formats
  */
-const BRANCH_NAME_REGEX = {
+const branchNameRegex = {
   // Legacy format: issue-{number}-{8-hex-chars}
   legacy: /^issue-(\d+)-([a-f0-9]{8})$/,
   // New format: issue-{number}-{12-hex-chars}
@@ -31,12 +31,12 @@ export function isValidIssueBranchName(branchName, issueNumber = null) {
 
   if (issueNumber !== null) {
     // Validate against specific issue number
-    const regex = BRANCH_NAME_REGEX.prefix(issueNumber);
+    const regex = branchNameRegex.prefix(issueNumber);
     return regex.test(branchName);
   }
 
   // Validate against any issue branch pattern
-  return BRANCH_NAME_REGEX.any.test(branchName);
+  return branchNameRegex.any.test(branchName);
 }
 
 /**
@@ -49,7 +49,7 @@ export function parseIssueBranchName(branchName) {
     return null;
   }
 
-  const match = branchName.match(BRANCH_NAME_REGEX.any);
+  const match = branchName.match(branchNameRegex.any);
   if (!match) {
     return null;
   }
@@ -61,7 +61,7 @@ export function parseIssueBranchName(branchName) {
 }
 
 /**
- * Gets the expected branch name prefix for a given issue number
+ * Creates the branch name prefix for a given issue number
  * @param {number|string} issueNumber - The issue number
  * @returns {string} The branch name prefix (e.g., "issue-123-")
  */
@@ -89,11 +89,11 @@ export function detectBranchFormat(branchName) {
     return null;
   }
 
-  if (BRANCH_NAME_REGEX.new.test(branchName)) {
+  if (branchNameRegex.new.test(branchName)) {
     return 'new';
   }
 
-  if (BRANCH_NAME_REGEX.legacy.test(branchName)) {
+  if (branchNameRegex.legacy.test(branchName)) {
     return 'legacy';
   }
 

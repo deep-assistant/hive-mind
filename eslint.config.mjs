@@ -38,7 +38,13 @@ export default [
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'no-console': 'off',
       'semi': ['error', 'always'],
-      'quotes': ['error', 'single', { avoidEscape: true }]
+      'quotes': ['error', 'single', { avoidEscape: true }],
+      'camelcase': ['error', {
+        properties: 'always',
+        ignoreDestructuring: false,
+        ignoreImports: false,
+        ignoreGlobals: false
+      }]
     }
   }
 ];
