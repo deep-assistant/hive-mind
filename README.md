@@ -543,6 +543,30 @@ All documentation files are automatically checked:
 find docs/ -name "*.md" -exec wc -l {} + | awk '$1 > 1000 {print "ERROR: " $2 " has " $1 " lines (max 1000)"}'
 ```
 
+## Server diagnostics
+
+Identify screens that are parents of processes that eating the resources
+
+```bash
+TARGETS="62220 65988 63094 66606 1028071 4127023"
+
+# build screen PID -> session name map
+declare -A NAME
+while read -r id; do spid=${id%%.*}; NAME[$spid]="$id"; done \
+  < <(screen -ls | awk '/(Detached|Attached)/{print $1}')
+
+# check each PID's environment for STY and map back to session
+for p in $TARGETS; do
+  sty=$(tr '\0' '\n' < /proc/$p/environ 2>/dev/null | awk -F= '$1=="STY"{print $2}')
+  if [ -n "$sty" ]; then
+    spid=${sty%%.*}
+    echo "$p  ->  ${NAME[$spid]:-$sty}"
+  else
+    echo "$p  ->  (no STY; not from screen or env cleared / double-forked)"
+  fi
+done
+```
+
 ## 📄 License
 
 Unlicense License - see [LICENSE](./LICENSE)
