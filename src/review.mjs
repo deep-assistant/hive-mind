@@ -166,6 +166,8 @@ if (isResuming) {
   await log(`Creating temporary directory: ${tempDir}\n`);
 }
 
+let limitReached = false;
+
 try {
   // Get PR details first
   await log(`📊 Getting pull request details...`);
@@ -343,7 +345,8 @@ Review this pull request thoroughly.`;
     $
   });
 
-  const { success: commandSuccess, sessionId, limitReached, messageCount, toolUseCount } = result;
+  const { success: commandSuccess, sessionId, limitReached: limitReachedResult, messageCount, toolUseCount } = result;
+  limitReached = limitReachedResult;
 
   // Handle command failure
   if (!commandSuccess) {
