@@ -36,10 +36,14 @@ export default [
     files: ['src/**/*.{js,mjs,cjs}'],
     rules: {
       'no-undef': 'error',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_|^e$|^error$' }],
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_'
+      }],
       'no-console': 'off',
       'semi': ['error', 'always'],
-      'quotes': ['warn', 'single', { avoidEscape: true }],
+      'quotes': ['error', 'single', { avoidEscape: true }],
       'no-useless-escape': 'warn',
       'no-case-declarations': 'warn',
       'no-empty': 'warn',

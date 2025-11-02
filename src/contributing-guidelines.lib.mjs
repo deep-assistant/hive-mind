@@ -65,13 +65,13 @@ export async function detectContributingGuidelines(owner, repo) {
             // Decode base64 content
             result.content = Buffer.from(data.content, 'base64').toString('utf-8');
           }
-        } catch (err) {
+        } catch (_err) {
           // Content parse failed, but we know the file exists
         }
 
         break;
       }
-    } catch (err) {
+    } catch (_err) {
       // File doesn't exist, try next path
     }
   }
@@ -106,7 +106,7 @@ export async function detectContributingGuidelines(owner, repo) {
           }
         }
       }
-    } catch (err) {
+    } catch (_err) {
       // README fetch failed
     }
   }
@@ -246,7 +246,7 @@ export async function buildContributingSection(owner, repo) {
  * @param {string} prNumber - Pull request number
  * @returns {Promise<Object>} Workflow status info
  */
-export async function checkWorkflowApprovalStatus(owner, repo, prNumber) {
+export async function checkWorkflowApprovalStatus(owner, repo, _prNumber) {
   try {
     // Get workflow runs for the PR
     const runsResult = await $`gh run list --repo ${owner}/${repo} --json databaseId,status,conclusion,event --limit 5`.trim();

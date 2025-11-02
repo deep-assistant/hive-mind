@@ -17,7 +17,7 @@ export const buildUserPrompt = (params) => {
     branchName,
     tempDir,
     isContinueMode,
-    mergeStateStatus,
+    _mergeStateStatus,
     forkedRepo,
     feedbackLines,
     owner,

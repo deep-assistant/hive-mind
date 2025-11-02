@@ -7,7 +7,7 @@ const getSentry = async () => {
   if (!Sentry) {
     try {
       Sentry = await import('@sentry/node');
-    } catch (error) {
+    } catch (_error) {
       // Sentry not installed, return null
       return null;
     }
