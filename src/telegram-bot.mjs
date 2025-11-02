@@ -568,8 +568,7 @@ function validateGitHubUrl(args, options = {}) {
   // Default options for /solve command (backward compatibility)
   const {
     allowedTypes = ['issue', 'pull'],
-    commandName = 'solve',
-    exampleUrl = 'https://github.com/owner/repo/issues/123'
+    commandName = 'solve'
   } = options;
 
   if (args.length === 0) {
@@ -856,7 +855,7 @@ bot.command('solve', async (ctx) => {
       if (VERBOSE) {
         console.log('[VERBOSE] No GitHub URL found in replied message');
       }
-      await ctx.reply(`❌ No GitHub issue/PR link found in the replied message.\n\nExample: Reply to a message containing a GitHub issue link with \`/solve\``, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
+      await ctx.reply('❌ No GitHub issue/PR link found in the replied message.\n\nExample: Reply to a message containing a GitHub issue link with `/solve`', { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
       return;
     }
   }

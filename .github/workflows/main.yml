@@ -358,6 +358,11 @@ jobs:
         echo "Running test suite for memory-check.mjs..."
         node tests/test-memory-check.mjs
 
+    - name: Run branch name validation test (Issue #647)
+      run: |
+        echo "Running test suite for branch name validation..."
+        node tests/test-branch-name-validation.mjs
+
     - name: Run feedback lines regression test (Issue #168)
       run: |
         echo "Running feedback lines regression test..."

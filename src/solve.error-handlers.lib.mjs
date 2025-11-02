@@ -172,7 +172,7 @@ export const createUnhandledRejectionHandler = (options) => {
     $
   } = options;
 
-  return async (reason, _promise) => {
+  return async (reason) => {
     await log(`\n❌ Unhandled Rejection: ${cleanErrorMessage(reason)}`, { level: 'error' });
     await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
 

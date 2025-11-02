@@ -37,7 +37,6 @@ const linoModule = await use('links-notation');
 const LinoParser = linoModule.Parser || linoModule.default?.Parser;
 
 const fs = await import('fs');
-const path = await import('path');
 
 /**
  * LenvReader - Reads and parses .lenv files using LINO notation
@@ -173,10 +172,9 @@ export class LenvReader {
   /**
    * Check if .lenv file exists and has priority over .env
    * @param {string} lenvPath - Path to .lenv file
-   * @param {string} envPath - Path to .env file
    * @returns {boolean} - True if .lenv should be used
    */
-  shouldUseLenv(lenvPath = '.lenv', envPath = '.env') {
+  shouldUseLenv(lenvPath = '.lenv') {
     // If .lenv exists, use it (has priority)
     if (fs.existsSync(lenvPath)) {
       return true;

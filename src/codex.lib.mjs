@@ -12,9 +12,9 @@ const fs = (await use('fs')).promises;
 const path = (await use('path')).default;
 
 // Import log from general lib
-import { log, cleanErrorMessage } from './lib.mjs';
+import { log } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
-import { timeouts, retryLimits } from './config.lib.mjs';
+import { timeouts } from './config.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs for Codex
 export const mapModelToId = (model) => {
@@ -41,7 +41,6 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
 
   const attemptValidation = async () => {
@@ -79,7 +78,7 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
         // Codex CLI may return auth errors in JSON format on stdout
         if (stderr.includes('auth') || stderr.includes('login') ||
             stdout.includes('Not logged in') || stdout.includes('401 Unauthorized')) {
-          await log(`❌ Codex authentication failed`, { level: 'error' });
+          await log('❌ Codex authentication failed', { level: 'error' });
           await log('   💡 Please run: codex login', { level: 'error' });
           return false;
         }
@@ -105,7 +104,7 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
 };
 
 // Function to handle Codex runtime switching (if applicable)
-export const handleCodexRuntimeSwitch = async (argv) => {
+export const handleCodexRuntimeSwitch = async () => {
   // Codex is typically run as a CLI tool, runtime switching may not be applicable
   // This function can be used for any runtime-specific configurations if needed
   await log('ℹ️  Codex runtime handling not required for this operation');
@@ -129,8 +128,6 @@ export const executeCodex = async (params) => {
     repo,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     codexPath = 'codex',
@@ -200,8 +197,6 @@ export const executeCodex = async (params) => {
     systemPrompt,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -219,8 +214,6 @@ export const executeCodexCommand = async (params) => {
     systemPrompt,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -231,7 +224,6 @@ export const executeCodexCommand = async (params) => {
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
 
   const executeWithRetry = async () => {
@@ -342,7 +334,7 @@ export const executeCodexCommand = async (params) => {
                 await log(`📌 Session ID: ${sessionId}`);
               }
             }
-          } catch (parseError) {
+          } catch {
             // Not JSON, continue
           }
         }
