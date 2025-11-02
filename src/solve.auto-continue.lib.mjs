@@ -27,7 +27,6 @@ import { safeExit } from './exit-handler.lib.mjs';
 // Import branch name validation functions
 const branchLib = await import('./solve.branch.lib.mjs');
 const {
-  isValidIssueBranchName,
   getIssueBranchPrefix,
   matchesIssuePattern
 } = branchLib;
