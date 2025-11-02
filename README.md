@@ -618,6 +618,38 @@ procinfo() {
 procinfo 62220
 ```
 
+## Maintenance
+
+Close all screens to free up RAM.
+
+```bash
+# close all (Attached or Detached) sessions
+screen -ls | awk '/(Detached|Attached)/{print $1}' \
+| while read s; do screen -S "$s" -X quit; done
+
+# remove any zombie sockets
+screen -wipe
+
+# verify
+screen -ls
+```
+
+Cleanup disk space.
+
+```
+df -h
+
+rm -rf /tmp
+
+df -h
+```
+
+Reboot server.
+
+```
+sudo reboot
+```
+
 ## 📄 License
 
 Unlicense License - see [LICENSE](./LICENSE)
