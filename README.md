@@ -567,6 +567,57 @@ for p in $TARGETS; do
 done
 ```
 
+Show details about the proccess
+
+```bash
+procinfo() {
+  local pid=$1
+  if [ -z "$pid" ]; then
+    echo "Usage: procinfo <pid>"
+    return 1
+  fi
+  if [ ! -d "/proc/$pid" ]; then
+    echo "Process $pid not found."
+    return 1
+  fi
+
+  echo "=== Process $pid ==="
+  # Basic process info
+  ps -p "$pid" -o user=,uid=,pid=,ppid=,c=,stime=,etime=,tty=,time=,cmd=
+
+  echo
+  # Working directory
+  echo "CWD: $(readlink -f /proc/$pid/cwd 2>/dev/null)"
+
+  # Executable path
+  echo "EXE: $(readlink -f /proc/$pid/exe 2>/dev/null)"
+
+  # Root directory of the process
+  echo "ROOT: $(readlink -f /proc/$pid/root 2>/dev/null)"
+
+  # Command line (full, raw)
+  echo "CMDLINE:"
+  tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null
+  echo
+
+  # Environment variables
+  echo
+  echo "ENVIRONMENT (key=value):"
+  tr '\0' '\n' < /proc/$pid/environ 2>/dev/null | head -n 20
+
+  # Open files (first few)
+  echo
+  echo "OPEN FILES:"
+  ls -l /proc/$pid/fd 2>/dev/null | head -n 10
+
+  # Child processes
+  echo
+  echo "CHILDREN:"
+  ps --ppid "$pid" -o pid=,cmd= 2>/dev/null
+}
+procinfo 62220
+```
+
 ## 📄 License
 
 Unlicense License - see [LICENSE](./LICENSE)
