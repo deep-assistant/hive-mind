@@ -4,9 +4,15 @@ This directory contains a comprehensive analysis of issue #655 - PDF processing 
 
 ## Quick Links
 
+### Core Analysis
 - **Start Here**: [README.md](./README.md) - Executive summary and overview
 - **Technical Details**: [TECHNICAL_ANALYSIS.md](./TECHNICAL_ANALYSIS.md) - In-depth technical analysis
 - **Action Items**: [RECOMMENDATIONS.md](./RECOMMENDATIONS.md) - Recommendations and solutions
+
+### Tool Research
+- **PDF to Markdown**: [PDF_TO_MARKDOWN_TOOLS.md](./PDF_TO_MARKDOWN_TOOLS.md) - Tools to convert PDFs to Markdown (Marker, MinerU, etc.)
+- **PDF to Images**: [PDF_TO_IMAGES_TOOLS.md](./PDF_TO_IMAGES_TOOLS.md) - Tools to extract images from PDFs for OCR
+- **OCR Tools**: [OCR_TOOLS.md](./OCR_TOOLS.md) - OCR solutions for scanned PDFs (PaddleOCR, Tesseract, etc.)
 
 ## File Structure
 
@@ -16,6 +22,9 @@ This directory contains a comprehensive analysis of issue #655 - PDF processing 
 | `README.md` | 11KB | Main case study document with executive summary, timeline, and root cause analysis |
 | `TECHNICAL_ANALYSIS.md` | 16KB | Detailed technical analysis with log excerpts, size calculations, and failure mechanisms |
 | `RECOMMENDATIONS.md` | 9.8KB | Short, medium, and long-term recommendations with implementation priorities |
+| `PDF_TO_MARKDOWN_TOOLS.md` | 17KB | Comprehensive research on PDF-to-Markdown conversion tools (Marker, MinerU, Pandoc, etc.) |
+| `PDF_TO_IMAGES_TOOLS.md` | 18KB | Research on PDF-to-images conversion tools for Node.js and Python (pdf2pic, PyMuPDF, etc.) |
+| `OCR_TOOLS.md` | 20KB | Research on OCR tools for scanned PDFs (PaddleOCR, EasyOCR, Tesseract, Azure AI, etc.) |
 | `INDEX.md` | This file | Navigation and overview of case study |
 
 ### Raw Data
@@ -25,7 +34,7 @@ This directory contains a comprehensive analysis of issue #655 - PDF processing 
 | `pr3-full-log.txt` | 901KB | Complete log from PR #3 (Cybersyn21/asistente#3) |
 | `key-log-excerpts.txt` | 16KB | Extracted key sections from logs |
 
-**Total Size**: ~1.8MB of logs + 50KB of analysis
+**Total Size**: ~1.8MB of logs + 105KB of analysis and research
 
 ## Key Findings (TL;DR)
 
