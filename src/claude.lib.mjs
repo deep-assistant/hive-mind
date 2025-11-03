@@ -1305,15 +1305,6 @@ export const executeClaudeCommand = async (params) => {
             // Show totals if multiple models were used
             if (modelIds.length > 1) {
               await log('\n   📈 Total across all models:');
-              await log(`      Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
-              if (tokenUsage.cacheCreationTokens > 0) {
-                await log(`      Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
-              }
-              if (tokenUsage.cacheReadTokens > 0) {
-                await log(`      Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
-              }
-              await log(`      Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
-              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
 
               if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
                 await log(`      Total cost (USD): $${tokenUsage.totalCostUSD.toFixed(6)}`);
