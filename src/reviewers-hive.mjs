@@ -136,7 +136,7 @@ const argv = yargs(process.argv.slice(2))
   .alias('h', 'help')
   .argv;
 
-const githubUrl = argv._[0];
+const githubUrl = argv['github-url'] || argv._[0];
 
 // Set global verbose mode
 global.verboseMode = argv.verbose;

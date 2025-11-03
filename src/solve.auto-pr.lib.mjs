@@ -60,7 +60,18 @@ export async function handleAutoPrCreation({
     }
 
     // Build task info section
-    const taskInfo = `Issue to solve: ${argv._[0]}
+    // Use argv['issue-url'] (named positional) with fallback to argv._[0] (raw positional)
+    // This handles both yargs command mode (argv['issue-url']) and direct positional mode (argv._[0])
+    const issueUrl = argv['issue-url'] || argv._[0];
+
+    // Verbose logging to help debug issue URL parsing issues (issue #651)
+    if (argv.verbose) {
+      await log(`   Issue URL from argv['issue-url']: ${argv['issue-url'] || 'undefined'}`, { verbose: true });
+      await log(`   Issue URL from argv._[0]: ${argv._[0] || 'undefined'}`, { verbose: true });
+      await log(`   Final issue URL: ${issueUrl}`, { verbose: true });
+    }
+
+    const taskInfo = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
 Your forked repository: ${forkedRepo}
@@ -126,7 +137,7 @@ Proceed.`;
         // Create a .gitkeep file as fallback
         const gitkeepPath = path.join(tempDir, '.gitkeep');
         const gitkeepContent = `# Auto-generated file for PR creation
-# Issue: ${argv._[0]}
+# Issue: ${issueUrl}
 # Branch: ${branchName}
 # This file was created because CLAUDE.md is in .gitignore
 # It will be removed when the task is complete`;
@@ -198,13 +209,13 @@ Proceed.`;
 Adding CLAUDE.md with task information for AI processing.
 This file will be removed when the task is complete.
 
-Issue: ${argv._[0]}`
+Issue: ${issueUrl}`
       : `Initial commit with task details for issue #${issueNumber}
 
 Adding .gitkeep for PR creation (CLAUDE.md is in .gitignore).
 This file will be removed when the task is complete.
 
-Issue: ${argv._[0]}`;
+Issue: ${issueUrl}`;
 
     // Use explicit cwd option for better reliability
     const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
@@ -402,7 +413,7 @@ Issue: ${argv._[0]}`;
           await log('');
           await log('  Run the command again with --fork:');
           await log('');
-          await log(`    ./solve.mjs "${argv._[0]}" --fork`);
+          await log(`    ./solve.mjs "${issueUrl}" --fork`);
           await log('');
           await log('  This will automatically:');
           if (userHasFork) {
@@ -905,7 +916,7 @@ ${prBody}`, { verbose: true });
               await log('');
               await log('     Option 3: Retry the solve command');
               await log('     The code will try to avoid adding --assignee if it detects issues.');
-              await log(`       ./solve.mjs "${argv._[0]}" --continue`);
+              await log(`       ./solve.mjs "${issueUrl}" --continue`);
               await log('');
               throw new Error('PR creation failed - assignee validation issue');
             }
@@ -987,13 +998,13 @@ ${prBody}`, { verbose: true });
     await log('  🔧 How to fix:');
     await log('');
     await log('  Option 1: Retry without auto-PR creation');
-    await log(`     ./solve.mjs "${argv._[0]}" --no-auto-pull-request-creation`);
+    await log(`     ./solve.mjs "${issueUrl}" --no-auto-pull-request-creation`);
     await log('     (Claude will create the PR during the session)');
     await log('');
     await log('  Option 2: Create PR manually first');
     await log(`     cd ${tempDir}`);
     await log(`     gh pr create --draft --title "Fix issue #${issueNumber}" --body "Fixes #${issueNumber}"`);
-    await log(`     Then use: ./solve.mjs "${argv._[0]}" --continue`);
+    await log(`     Then use: ./solve.mjs "${issueUrl}" --continue`);
     await log('');
     await log('  Option 3: Debug the issue');
     await log(`     cd ${tempDir}`);

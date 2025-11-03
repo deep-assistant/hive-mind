@@ -125,7 +125,7 @@ const argv = yargs()
     choices: ['text', 'json']
   })
   .check((argv) => {
-    if (!argv._[0]) {
+    if (!argv['task-description'] && !argv._[0]) {
       throw new Error('Please provide a task description');
     }
     
@@ -156,7 +156,7 @@ const argv = yargs()
   .strict()
   .parse(process.argv.slice(2));
 
-const taskDescription = argv._[0];
+const taskDescription = argv['task-description'] || argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
