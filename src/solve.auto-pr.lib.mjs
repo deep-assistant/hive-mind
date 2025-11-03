@@ -41,6 +41,11 @@ export async function handleAutoPrCreation({
   let localPrNumber = null;
   let claudeCommitHash = null;
 
+  // Extract issue URL at the top level so it's available in error handlers
+  // Use argv['issue-url'] (named positional) with fallback to argv._[0] (raw positional)
+  // This handles both yargs command mode (argv['issue-url']) and direct positional mode (argv._[0])
+  const issueUrl = argv['issue-url'] || argv._[0];
+
   try {
     // Create CLAUDE.md file with the task details
     await log(formatAligned('📝', 'Creating:', 'CLAUDE.md with task details'));
@@ -60,9 +65,6 @@ export async function handleAutoPrCreation({
     }
 
     // Build task info section
-    // Use argv['issue-url'] (named positional) with fallback to argv._[0] (raw positional)
-    // This handles both yargs command mode (argv['issue-url']) and direct positional mode (argv._[0])
-    const issueUrl = argv['issue-url'] || argv._[0];
 
     // Verbose logging to help debug issue URL parsing issues (issue #651)
     if (argv.verbose) {
