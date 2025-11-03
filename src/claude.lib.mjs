@@ -21,6 +21,8 @@ export const availableModels = {
   'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
   'opus': 'claude-opus-4-1-20250805',       // Opus 4.1
   'haiku': 'claude-haiku-4-5-20251001',     // Haiku 4.5
+  'haiku-3-5': 'claude-3-5-haiku-20241022', // Haiku 3.5
+  'haiku-3': 'claude-3-haiku-20240307',     // Haiku 3
 };
 
 // Model mapping to translate aliases to full model IDs
@@ -30,7 +32,7 @@ export const mapModelToId = (model) => {
 };
 
 // Function to validate Claude CLI connection with retry logic
-export const validateClaudeConnection = async (model = 'sonnet') => {
+export const validateClaudeConnection = async (model = 'haiku-3') => {
   // Map model alias to full ID
   const mappedModel = mapModelToId(model);
   // Retry configuration for API overload errors
@@ -488,6 +490,347 @@ export const executeClaude = async (params) => {
   });
 };
 
+/**
+ * Calculate total token usage from a session's JSONL file
+ * @param {string} sessionId - The session ID
+ * @param {string} tempDir - The temporary directory where the session ran
+ * @returns {Object} Token usage statistics
+ */
+/**
+ * Fetches model information from models.dev API
+ * @param {string} modelId - The model ID (e.g., "claude-sonnet-4-5-20250929")
+ * @returns {Promise<Object|null>} Model information or null if not found
+ */
+export const fetchModelInfo = async (modelId) => {
+  try {
+    const https = (await use('https')).default;
+
+    return new Promise((resolve, reject) => {
+      https.get('https://models.dev/api.json', (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            const apiData = JSON.parse(data);
+
+            // Search for the model across all providers
+            for (const provider of Object.values(apiData)) {
+              if (provider.models && provider.models[modelId]) {
+                const modelInfo = provider.models[modelId];
+                // Add provider info
+                modelInfo.provider = provider.name || provider.id;
+                resolve(modelInfo);
+                return;
+              }
+            }
+
+            // Model not found
+            resolve(null);
+          } catch (parseError) {
+            reject(parseError);
+          }
+        });
+      }).on('error', (err) => {
+        reject(err);
+      });
+    });
+  } catch {
+    // If we can't fetch model info, return null and continue without it
+    return null;
+  }
+};
+
+/**
+ * Calculate USD cost for a model's usage with detailed breakdown
+ * @param {Object} usage - Token usage object
+ * @param {Object} modelInfo - Model information from models.dev
+ * @param {boolean} includeBreakdown - Whether to include detailed calculation breakdown
+ * @returns {Object} Cost data with optional breakdown
+ */
+export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) => {
+  if (!modelInfo || !modelInfo.cost) {
+    return includeBreakdown ? { total: 0, breakdown: null } : 0;
+  }
+
+  const cost = modelInfo.cost;
+  const breakdown = {
+    input: { tokens: 0, costPerMillion: 0, cost: 0 },
+    cacheWrite: { tokens: 0, costPerMillion: 0, cost: 0 },
+    cacheRead: { tokens: 0, costPerMillion: 0, cost: 0 },
+    output: { tokens: 0, costPerMillion: 0, cost: 0 }
+  };
+
+  // Input tokens cost (per million tokens)
+  if (usage.inputTokens && cost.input) {
+    breakdown.input = {
+      tokens: usage.inputTokens,
+      costPerMillion: cost.input,
+      cost: (usage.inputTokens / 1000000) * cost.input
+    };
+  }
+
+  // Cache creation tokens cost
+  if (usage.cacheCreationTokens && cost.cache_write) {
+    breakdown.cacheWrite = {
+      tokens: usage.cacheCreationTokens,
+      costPerMillion: cost.cache_write,
+      cost: (usage.cacheCreationTokens / 1000000) * cost.cache_write
+    };
+  }
+
+  // Cache read tokens cost
+  if (usage.cacheReadTokens && cost.cache_read) {
+    breakdown.cacheRead = {
+      tokens: usage.cacheReadTokens,
+      costPerMillion: cost.cache_read,
+      cost: (usage.cacheReadTokens / 1000000) * cost.cache_read
+    };
+  }
+
+  // Output tokens cost
+  if (usage.outputTokens && cost.output) {
+    breakdown.output = {
+      tokens: usage.outputTokens,
+      costPerMillion: cost.output,
+      cost: (usage.outputTokens / 1000000) * cost.output
+    };
+  }
+
+  const totalCost = breakdown.input.cost + breakdown.cacheWrite.cost + breakdown.cacheRead.cost + breakdown.output.cost;
+
+  if (includeBreakdown) {
+    return {
+      total: totalCost,
+      breakdown
+    };
+  }
+
+  return totalCost;
+};
+
+/**
+ * Display detailed model usage information
+ * @param {Object} usage - Usage data for a model
+ * @param {Function} log - Logging function
+ */
+const displayModelUsage = async (usage, log) => {
+  // Show all model characteristics from models.dev if available
+  if (usage.modelInfo) {
+    const info = usage.modelInfo;
+    const fields = [
+      { label: 'Model ID', value: info.id },
+      { label: 'Provider', value: info.provider || 'Unknown' },
+      { label: 'Context window', value: info.limit?.context ? `${info.limit.context.toLocaleString()} tokens` : null },
+      { label: 'Max output', value: info.limit?.output ? `${info.limit.output.toLocaleString()} tokens` : null },
+      { label: 'Input modalities', value: info.modalities?.input?.join(', ') || 'N/A' },
+      { label: 'Output modalities', value: info.modalities?.output?.join(', ') || 'N/A' },
+      { label: 'Knowledge cutoff', value: info.knowledge },
+      { label: 'Released', value: info.release_date },
+      { label: 'Capabilities', value: [info.attachment && 'Attachments', info.reasoning && 'Reasoning', info.temperature && 'Temperature', info.tool_call && 'Tool calls'].filter(Boolean).join(', ') || 'N/A' },
+      { label: 'Open weights', value: info.open_weights ? 'Yes' : 'No' }
+    ];
+    for (const { label, value } of fields) {
+      if (value) await log(`      ${label}: ${value}`);
+    }
+    await log('');
+  } else {
+    await log('      ⚠️  Model info not available from models.dev\n');
+  }
+
+  // Show usage data
+  await log('      Usage:');
+  await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
+  if (usage.cacheCreationTokens > 0) {
+    await log(`        Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
+  }
+  if (usage.cacheReadTokens > 0) {
+    await log(`        Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
+  }
+  await log(`        Output tokens: ${usage.outputTokens.toLocaleString()}`);
+  if (usage.webSearchRequests > 0) {
+    await log(`        Web search requests: ${usage.webSearchRequests}`);
+  }
+
+  // Show detailed cost calculation
+  if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
+    await log('');
+    await log('      Cost Calculation (USD):');
+    const breakdown = usage.costBreakdown;
+    const types = [
+      { key: 'input', label: 'Input' },
+      { key: 'cacheWrite', label: 'Cache write' },
+      { key: 'cacheRead', label: 'Cache read' },
+      { key: 'output', label: 'Output' }
+    ];
+    for (const { key, label } of types) {
+      if (breakdown[key].tokens > 0) {
+        await log(`        ${label}: ${breakdown[key].tokens.toLocaleString()} tokens × $${breakdown[key].costPerMillion}/M = $${breakdown[key].cost.toFixed(6)}`);
+      }
+    }
+    await log('        ─────────────────────────────────');
+    await log(`        Total: $${usage.costUSD.toFixed(6)}`);
+  } else if (usage.modelInfo === null) {
+    await log('');
+    await log('      Cost: Not available (could not fetch pricing from models.dev)');
+  }
+};
+
+export const calculateSessionTokens = async (sessionId, tempDir) => {
+  const os = (await use('os')).default;
+  const homeDir = os.homedir();
+
+  // Construct the path to the session JSONL file
+  // Format: ~/.claude/projects/<project-dir>/<session-id>.jsonl
+  // The project directory name is the full path with slashes replaced by dashes
+  // e.g., /tmp/gh-issue-solver-123 becomes -tmp-gh-issue-solver-123
+  const projectDirName = tempDir.replace(/\//g, '-');
+  const sessionFile = path.join(homeDir, '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
+
+  try {
+    // Check if file exists
+    await fs.access(sessionFile);
+  } catch {
+    // File doesn't exist yet or can't be accessed
+    return null;
+  }
+
+  // Initialize per-model usage tracking
+  const modelUsage = {};
+
+  try {
+    // Read the entire file
+    const fileContent = await fs.readFile(sessionFile, 'utf8');
+    const lines = fileContent.trim().split('\n');
+
+    // Parse each line and accumulate token counts per model
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      try {
+        const entry = JSON.parse(line);
+
+        // Check if this entry has usage data
+        if (entry.message && entry.message.usage && entry.message.model) {
+          const model = entry.message.model;
+          const usage = entry.message.usage;
+
+          // Initialize model entry if it doesn't exist
+          if (!modelUsage[model]) {
+            modelUsage[model] = {
+              inputTokens: 0,
+              cacheCreationTokens: 0,
+              cacheReadTokens: 0,
+              outputTokens: 0,
+              webSearchRequests: 0
+            };
+          }
+
+          // Add input tokens
+          if (usage.input_tokens) {
+            modelUsage[model].inputTokens += usage.input_tokens;
+          }
+
+          // Add cache creation tokens
+          if (usage.cache_creation_input_tokens) {
+            modelUsage[model].cacheCreationTokens += usage.cache_creation_input_tokens;
+          }
+
+          // Add cache read tokens
+          if (usage.cache_read_input_tokens) {
+            modelUsage[model].cacheReadTokens += usage.cache_read_input_tokens;
+          }
+
+          // Add output tokens
+          if (usage.output_tokens) {
+            modelUsage[model].outputTokens += usage.output_tokens;
+          }
+        }
+      } catch {
+        // Skip lines that aren't valid JSON
+        continue;
+      }
+    }
+
+    // If no usage data was found, return null
+    if (Object.keys(modelUsage).length === 0) {
+      return null;
+    }
+
+    // Fetch model information from models.dev for each model
+    const modelInfoPromises = Object.keys(modelUsage).map(async (modelId) => {
+      const modelInfo = await fetchModelInfo(modelId);
+      return { modelId, modelInfo };
+    });
+
+    const modelInfoResults = await Promise.all(modelInfoPromises);
+    const modelInfoMap = {};
+    for (const { modelId, modelInfo } of modelInfoResults) {
+      if (modelInfo) {
+        modelInfoMap[modelId] = modelInfo;
+      }
+    }
+
+    // Calculate cost for each model and store all characteristics
+    for (const [modelId, usage] of Object.entries(modelUsage)) {
+      const modelInfo = modelInfoMap[modelId];
+      if (modelInfo) {
+        const costData = calculateModelCost(usage, modelInfo, true);
+        usage.costUSD = costData.total;
+        usage.costBreakdown = costData.breakdown;
+        usage.modelName = modelInfo.name || modelId;
+        usage.modelInfo = modelInfo; // Store complete model info from models.dev
+      } else {
+        usage.costUSD = null;
+        usage.costBreakdown = null;
+        usage.modelName = modelId;
+        usage.modelInfo = null;
+      }
+    }
+
+    // Calculate grand totals across all models
+    let totalInputTokens = 0;
+    let totalCacheCreationTokens = 0;
+    let totalCacheReadTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCostUSD = 0;
+    let hasCostData = false;
+
+    for (const usage of Object.values(modelUsage)) {
+      totalInputTokens += usage.inputTokens;
+      totalCacheCreationTokens += usage.cacheCreationTokens;
+      totalCacheReadTokens += usage.cacheReadTokens;
+      totalOutputTokens += usage.outputTokens;
+
+      if (usage.costUSD !== null) {
+        totalCostUSD += usage.costUSD;
+        hasCostData = true;
+      }
+    }
+
+    // Calculate total tokens (input + cache_creation + output, cache_read doesn't count as new tokens)
+    const totalTokens = totalInputTokens + totalCacheCreationTokens + totalOutputTokens;
+
+    return {
+      // Per-model breakdown
+      modelUsage,
+
+      // Grand totals
+      inputTokens: totalInputTokens,
+      cacheCreationTokens: totalCacheCreationTokens,
+      cacheReadTokens: totalCacheReadTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens,
+      totalCostUSD: hasCostData ? totalCostUSD : null
+    };
+  } catch (readError) {
+    throw new Error(`Failed to read session file: ${readError.message}`);
+  }
+};
+
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -942,6 +1285,66 @@ export const executeClaudeCommand = async (params) => {
     await log('\n\n✅ Claude command completed');
     await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
 
+    // Calculate and display total token usage from session JSONL file
+    if (sessionId && tempDir) {
+      try {
+        const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
+        if (tokenUsage) {
+          await log('\n💰 Token Usage Summary:');
+
+          // Display per-model breakdown
+          if (tokenUsage.modelUsage) {
+            const modelIds = Object.keys(tokenUsage.modelUsage);
+
+            for (const modelId of modelIds) {
+              const usage = tokenUsage.modelUsage[modelId];
+              await log(`\n   📊 ${usage.modelName || modelId}:`);
+              await displayModelUsage(usage, log);
+            }
+
+            // Show totals if multiple models were used
+            if (modelIds.length > 1) {
+              await log('\n   📈 Total across all models:');
+              await log(`      Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+              if (tokenUsage.cacheCreationTokens > 0) {
+                await log(`      Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+              }
+              if (tokenUsage.cacheReadTokens > 0) {
+                await log(`      Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+              }
+              await log(`      Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+
+              if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
+                await log(`      Total cost (USD): $${tokenUsage.totalCostUSD.toFixed(6)}`);
+              }
+            } else {
+              // Single model - just show total tokens
+              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+            }
+          } else {
+            // Fallback to old format if modelUsage is not available
+            await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+            if (tokenUsage.cacheCreationTokens > 0) {
+              await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+            }
+            if (tokenUsage.cacheReadTokens > 0) {
+              await log(`   Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+            }
+            await log(`   Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
+            await log(`   Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+          }
+        }
+      } catch (tokenError) {
+        reportError(tokenError, {
+          context: 'calculate_session_tokens',
+          sessionId,
+          operation: 'read_session_jsonl'
+        });
+        await log(`   ⚠️ Could not calculate token usage: ${tokenError.message}`, { verbose: true });
+      }
+    }
+
     return {
       success: true,
       sessionId,
@@ -1012,11 +1415,9 @@ export const executeClaudeCommand = async (params) => {
 };
 
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
-  // Check for uncommitted changes made by Claude
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false, autoRestartEnabled = true) => {
   await log('\n🔍 Checking for uncommitted changes...');
   try {
-    // Check git status to see if there are any uncommitted changes
     const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
 
     if (gitStatusResult.code === 0) {
@@ -1030,9 +1431,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
         }
 
         if (autoCommit) {
-          // Auto-commit the changes if option is enabled
           await log('💾 Auto-committing changes (--auto-commit-uncommitted-changes is enabled)...');
-
           const addResult = await $({ cwd: tempDir })`git add -A`;
           if (addResult.code === 0) {
             const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
@@ -1040,8 +1439,6 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
 
             if (commitResult.code === 0) {
               await log('✅ Changes committed successfully');
-
-              // Push the changes
               await log('📤 Pushing changes to remote...');
               const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
 
@@ -1056,34 +1453,30 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           } else {
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
-          return false; // No restart needed when auto-commit is enabled
-        } else {
-          // When auto-commit is disabled, trigger auto-restart
-          await log('');
-          await log('⚠️  IMPORTANT: Uncommitted changes detected!');
-          await log('   Claude made changes that were not committed.');
-          await log('');
+          return false;
+        } else if (autoRestartEnabled) {
+          await log('\n⚠️  IMPORTANT: Uncommitted changes detected!');
+          await log('   Claude made changes that were not committed.\n');
           await log('🔄 AUTO-RESTART: Restarting Claude to handle uncommitted changes...');
-          await log('   Claude will review the changes and decide what to commit.');
-          await log('');
-          return true; // Return true to indicate restart is needed
+          await log('   Claude will review the changes and decide what to commit.\n');
+          return true;
+        } else {
+          await log('\n⚠️  Uncommitted changes detected but auto-restart is disabled.');
+          await log('   Use --auto-restart-on-uncommitted-changes to enable or commit manually.\n');
+          return false;
         }
       } else {
         await log('✅ No uncommitted changes found');
-        return false; // No restart needed
+        return false;
       }
     } else {
       await log(`⚠️ Warning: Could not check git status: ${gitStatusResult.stderr?.toString().trim()}`, { level: 'warning' });
-      return false; // No restart needed on error
+      return false;
     }
   } catch (gitError) {
-    reportError(gitError, {
-      context: 'check_uncommitted_changes',
-      tempDir,
-      operation: 'git_status_check'
-    });
+    reportError(gitError, { context: 'check_uncommitted_changes', tempDir, operation: 'git_status_check' });
     await log(`⚠️ Warning: Error checking for uncommitted changes: ${gitError.message}`, { level: 'warning' });
-    return false; // No restart needed on error
+    return false;
   }
 };
 
@@ -1093,5 +1486,6 @@ export default {
   handleClaudeRuntimeSwitch,
   executeClaude,
   executeClaudeCommand,
-  checkForUncommittedChanges
+  checkForUncommittedChanges,
+  calculateSessionTokens
 };

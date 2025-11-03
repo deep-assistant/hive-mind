@@ -112,6 +112,9 @@ let checkForUncommittedChanges;
 if (argv.tool === 'opencode') {
   const opencodeLib = await import('./opencode.lib.mjs');
   checkForUncommittedChanges = opencodeLib.checkForUncommittedChanges;
+} else if (argv.tool === 'codex') {
+  const codexLib = await import('./codex.lib.mjs');
+  checkForUncommittedChanges = codexLib.checkForUncommittedChanges;
 } else {
   checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
 }
@@ -345,6 +348,23 @@ if (autoContinueResult.isContinueMode) {
             await log(`   Fork owner: ${forkOwner}`, { verbose: true });
             await log('   Will clone fork repository for continue mode', { verbose: true });
           }
+
+          // Check if maintainer can push to the fork when --allow-to-push-to-contributors-pull-requests-as-maintainer is enabled
+          if (argv.allowToPushToContributorsPullRequestsAsMaintainer && argv.autoFork) {
+            const { checkMaintainerCanModifyPR, requestMaintainerAccess } = githubLib;
+            const { canModify } = await checkMaintainerCanModifyPR(owner, repo, prNumber);
+
+            if (canModify) {
+              await log('✅ Maintainer can push to fork: Enabled by contributor');
+              await log('   Will push changes directly to contributor\'s fork instead of creating own fork');
+              // Don't disable fork mode, but we'll use the contributor's fork
+            } else {
+              await log('⚠️  Maintainer cannot push to fork: "Allow edits by maintainers" is not enabled', { level: 'warning' });
+              await log('   Posting comment to request access...', { level: 'warning' });
+              await requestMaintainerAccess(owner, repo, prNumber);
+              await log('   Comment posted. Proceeding with own fork instead.', { level: 'warning' });
+            }
+          }
         }
       }
     } catch (forkCheckError) {
@@ -401,6 +421,23 @@ if (isPrUrl) {
       if (argv.verbose) {
         await log(`   Fork owner: ${forkOwner}`, { verbose: true });
         await log('   Will clone fork repository for continue mode', { verbose: true });
+      }
+
+      // Check if maintainer can push to the fork when --allow-to-push-to-contributors-pull-requests-as-maintainer is enabled
+      if (argv.allowToPushToContributorsPullRequestsAsMaintainer && argv.autoFork) {
+        const { checkMaintainerCanModifyPR, requestMaintainerAccess } = githubLib;
+        const { canModify } = await checkMaintainerCanModifyPR(owner, repo, prNumber);
+
+        if (canModify) {
+          await log('✅ Maintainer can push to fork: Enabled by contributor');
+          await log('   Will push changes directly to contributor\'s fork instead of creating own fork');
+          // Don't disable fork mode, but we'll use the contributor's fork
+        } else {
+          await log('⚠️  Maintainer cannot push to fork: "Allow edits by maintainers" is not enabled', { level: 'warning' });
+          await log('   Posting comment to request access...', { level: 'warning' });
+          await requestMaintainerAccess(owner, repo, prNumber);
+          await log('   Comment posted. Proceeding with own fork instead.', { level: 'warning' });
+        }
       }
     }
     await log(`📝 PR branch: ${prBranch}`);
@@ -701,6 +738,34 @@ try {
       opencodePath,
       $
     });
+  } else if (argv.tool === 'codex') {
+    const codexLib = await import('./codex.lib.mjs');
+    const { executeCodex } = codexLib;
+    const codexPath = process.env.CODEX_PATH || 'codex';
+
+    toolResult = await executeCodex({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      codexPath,
+      $
+    });
   } else {
     // Default to Claude
     const claudeResult = await executeClaude({
@@ -766,7 +831,8 @@ try {
   // Check for uncommitted changes
   // When limit is reached, force auto-commit of any uncommitted changes to preserve work
   const shouldAutoCommit = argv['auto-commit-uncommitted-changes'] || limitReached;
-  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, shouldAutoCommit);
+  const autoRestartEnabled = argv['autoRestartOnUncommittedChanges'] !== false;
+  const shouldRestart = await checkForUncommittedChanges(tempDir, owner, repo, branchName, $, log, shouldAutoCommit, autoRestartEnabled);
 
   // Remove CLAUDE.md now that Claude command has finished
   await cleanupClaudeFile(tempDir, branchName, claudeCommitHash);
@@ -775,14 +841,16 @@ try {
   await showSessionSummary(sessionId, limitReached, argv, issueUrl, tempDir, shouldAttachLogs);
 
   // Search for newly created pull requests and comments
-  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs);
+  // Pass shouldRestart to prevent early exit when auto-restart is needed
+  await verifyResults(owner, repo, branchName, issueNumber, prNumber, prUrl, referenceTime, argv, shouldAttachLogs, shouldRestart);
 
   // Start watch mode if enabled OR if we need to handle uncommitted changes
   if (argv.verbose) {
     await log('');
-    await log('🔍 Watch mode debug:', { verbose: true });
-    await log(`   argv.watch: ${argv.watch}`, { verbose: true });
-    await log(`   shouldRestart: ${shouldRestart}`, { verbose: true });
+    await log('🔍 Auto-restart debug:', { verbose: true });
+    await log(`   argv.watch (user flag): ${argv.watch}`, { verbose: true });
+    await log(`   shouldRestart (auto-detected): ${shouldRestart}`, { verbose: true });
+    await log(`   temporaryWatch (will be enabled): ${shouldRestart && !argv.watch}`, { verbose: true });
     await log(`   prNumber: ${prNumber || 'null'}`, { verbose: true });
     await log(`   prBranch: ${prBranch || 'null'}`, { verbose: true });
     await log(`   branchName: ${branchName}`, { verbose: true });
@@ -793,8 +861,11 @@ try {
   const temporaryWatchMode = shouldRestart && !argv.watch;
   if (temporaryWatchMode) {
     await log('');
-    await log('🔄 Uncommitted changes detected - entering temporary watch mode to handle them...');
-    await log('   Watch mode will exit automatically once changes are committed.');
+    await log('🔄 AUTO-RESTART: Uncommitted changes detected');
+    await log('   Starting temporary monitoring cycle (NOT --watch mode)');
+    await log('   The tool will run once more to commit the changes');
+    await log('   Will exit automatically after changes are committed');
+    await log('');
   }
 
   await startWatchMode({
@@ -812,6 +883,60 @@ try {
       temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
     }
   });
+
+  // After watch mode completes (either user watch or temporary)
+  // Push any committed changes if this was a temporary watch mode
+  if (temporaryWatchMode) {
+    await log('');
+    await log('📤 Pushing committed changes to GitHub...');
+    await log('');
+
+    try {
+      const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
+      if (pushResult.code === 0) {
+        await log('✅ Changes pushed successfully to remote branch');
+        await log(`   Branch: ${branchName}`);
+        await log('');
+      } else {
+        const errorMsg = pushResult.stderr?.toString() || 'Unknown error';
+        await log('⚠️  Push failed:', { level: 'error' });
+        await log(`   ${errorMsg.trim()}`, { level: 'error' });
+        await log('   Please push manually:', { level: 'error' });
+        await log(`   cd ${tempDir} && git push origin ${branchName}`, { level: 'error' });
+      }
+    } catch (error) {
+      await log('⚠️  Push failed:', { level: 'error' });
+      await log(`   ${cleanErrorMessage(error)}`, { level: 'error' });
+      await log('   Please push manually:', { level: 'error' });
+      await log(`   cd ${tempDir} && git push origin ${branchName}`, { level: 'error' });
+    }
+
+    // Attach updated logs to PR after auto-restart completes
+    if (shouldAttachLogs && prNumber) {
+      await log('📎 Uploading working session logs to Pull Request...');
+      try {
+        const logUploadSuccess = await attachLogToGitHub({
+          logFile: getLogFile(),
+          targetType: 'pr',
+          targetNumber: prNumber,
+          owner,
+          repo,
+          $,
+          log,
+          sanitizeLogContent,
+          verbose: argv.verbose
+        });
+
+        if (logUploadSuccess) {
+          await log('✅ Working session logs uploaded successfully');
+        } else {
+          await log('⚠️  Failed to upload working session logs', { level: 'warning' });
+        }
+      } catch (uploadError) {
+        await log(`⚠️  Error uploading logs: ${uploadError.message}`, { level: 'warning' });
+      }
+    }
+  }
 
   // End work session using the new module
   await endWorkSession({

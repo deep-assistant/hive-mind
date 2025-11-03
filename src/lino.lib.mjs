@@ -2,7 +2,7 @@ if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
 
-const linoModule = await use('@linksplatform/protocols-lino');
+const linoModule = await use('links-notation');
 const LinoParser = linoModule.Parser || linoModule.default?.Parser;
 
 const fs = await import('fs');
@@ -151,7 +151,7 @@ export class LinksNotationManager {
     if (!cache) {
       const cacheFile = this.getCachePath(filename);
       console.error(`❌ ${errorMessage || `Cache file not found: ${cacheFile}`}`);
-      console.log(`💡 Run the appropriate script first to create the cache file`);
+      console.log('💡 Run the appropriate script first to create the cache file');
       process.exit(1);
     }
 

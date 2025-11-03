@@ -83,9 +83,11 @@ export const getGitVersion = async (execSync, currentVersion) => {
 // Helper function for async git operations with zx
 export const getGitVersionAsync = async ($, currentVersion) => {
   // First check if we're in a git repository to avoid "fatal: not a git repository" errors
+  // Redirect stderr to /dev/null at shell level to prevent error messages from appearing
   try {
-    const gitCheckResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --git-dir`;
-    if (gitCheckResult.code !== 0) {
+    const gitCheckResult = await $`git rev-parse --git-dir 2>/dev/null || true`;
+    const output = gitCheckResult.stdout.toString().trim();
+    if (!output || gitCheckResult.code !== 0) {
       // Not in a git repository, use package.json version
       return currentVersion;
     }
@@ -96,9 +98,10 @@ export const getGitVersionAsync = async ($, currentVersion) => {
 
   // We're in a git repo, proceed with version detection
   // Check if this is a release version (has a git tag)
+  // Redirect stderr to /dev/null at shell level to prevent error messages from appearing
   try {
-    const gitTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --exact-match --tags HEAD`;
-    if (gitTagResult.code === 0) {
+    const gitTagResult = await $`git describe --exact-match --tags HEAD 2>/dev/null || true`;
+    if (gitTagResult.code === 0 && gitTagResult.stdout.toString().trim()) {
       // It's a tagged release, use the version from package.json
       return currentVersion;
     }
@@ -107,13 +110,15 @@ export const getGitVersionAsync = async ($, currentVersion) => {
   }
 
   // Not a tagged release, get the latest tag and commit SHA
+  // Redirect stderr to /dev/null at shell level to prevent error messages from appearing
   try {
-    const latestTagResult = await $({ silent: true, stderr: 'ignore' })`git describe --tags --abbrev=0`;
-    const commitShaResult = await $({ silent: true, stderr: 'ignore' })`git rev-parse --short HEAD`;
+    const latestTagResult = await $`git describe --tags --abbrev=0 2>/dev/null || true`;
+    const commitShaResult = await $`git rev-parse --short HEAD 2>/dev/null || true`;
 
-    if (latestTagResult.code === 0 && commitShaResult.code === 0) {
-      const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
-      const commitSha = commitShaResult.stdout.toString().trim();
+    const latestTag = latestTagResult.stdout.toString().trim().replace(/^v/, '');
+    const commitSha = commitShaResult.stdout.toString().trim();
+
+    if (latestTag && commitSha && latestTagResult.code === 0 && commitShaResult.code === 0) {
       return `${latestTag}.${commitSha}`;
     }
   } catch {
