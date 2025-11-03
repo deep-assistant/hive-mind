@@ -889,7 +889,6 @@ try {
   if (temporaryWatchMode) {
     await log('');
     await log('📤 Pushing committed changes to GitHub...');
-    await log(`   (${argv.tool.charAt(0).toUpperCase() + argv.tool.slice(1)} cannot push directly due to network restrictions)`);
     await log('');
 
     try {
@@ -910,6 +909,32 @@ try {
       await log(`   ${cleanErrorMessage(error)}`, { level: 'error' });
       await log('   Please push manually:', { level: 'error' });
       await log(`   cd ${tempDir} && git push origin ${branchName}`, { level: 'error' });
+    }
+
+    // Attach updated logs to PR after auto-restart completes
+    if (shouldAttachLogs && prNumber) {
+      await log('📎 Uploading working session logs to Pull Request...');
+      try {
+        const logUploadSuccess = await attachLogToGitHub({
+          logFile: getLogFile(),
+          targetType: 'pr',
+          targetNumber: prNumber,
+          owner,
+          repo,
+          $,
+          log,
+          sanitizeLogContent,
+          verbose: argv.verbose
+        });
+
+        if (logUploadSuccess) {
+          await log('✅ Working session logs uploaded successfully');
+        } else {
+          await log('⚠️  Failed to upload working session logs', { level: 'warning' });
+        }
+      } catch (uploadError) {
+        await log(`⚠️  Error uploading logs: ${uploadError.message}`, { level: 'warning' });
+      }
     }
   }
 
