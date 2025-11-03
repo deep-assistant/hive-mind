@@ -9,15 +9,9 @@
  * @see case-studies/issue-661-session-resume-cost-optimization/
  */
 
-// Check if use is already defined globally (when imported from solve.mjs)
-// If not, fetch it (when running standalone)
-if (typeof globalThis.use === 'undefined') {
-  globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
-}
-const use = globalThis.use;
-
-// Use command-stream for consistent $ behavior across runtimes
-const { $ } = await use('command-stream');
+// Note: This module does not import $ directly
+// Functions receive $ as a parameter from the calling module
+// This ensures consistent command executor usage across the codebase
 
 /**
  * Generate minimal prompt for auto-restart with session resume
@@ -40,8 +34,7 @@ export const generateMinimalRestartPrompt = async (tempDir, $) => {
   // Count changes
   const fileCount = uncommittedFiles.split('\n').filter(line => line.trim()).length;
 
-  return `
-🔄 Auto-restart: Previous session completed with uncommitted changes.
+  return `🔄 Auto-restart: Previous session completed with uncommitted changes.
 
 Uncommitted files (${fileCount}):
 ${uncommittedFiles}
@@ -50,8 +43,7 @@ Changes summary:
 ${diffSummary}
 
 Please review these changes and commit them with an appropriate commit message.
-Follow the repository's commit message conventions from previous commits.
-  `.trim();
+Follow the repository's commit message conventions from previous commits.`;
 };
 
 /**
@@ -93,7 +85,7 @@ Previous session completed but left uncommitted changes.
 
   prompt += `\n\nUncommitted changes:\n${uncommittedFiles}\n\nFull diff:\n${fullDiff}`;
 
-  prompt += `\n\nPlease review these changes and commit them appropriately.`;
+  prompt += '\n\nPlease review these changes and commit them appropriately.';
 
   return prompt;
 };

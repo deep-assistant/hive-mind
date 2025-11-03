@@ -354,7 +354,7 @@ export const watchForFeedback = async (params) => {
             try {
               tokensBefore = await calculateSessionTokens(global.previousSessionId, tempDir);
               await log(formatAligned('', `📊 Previous session tokens: ${tokensBefore.totalTokens.toLocaleString()}`, '', 2));
-            } catch (err) {
+            } catch {
               // Ignore token tracking errors
               await log(formatAligned('', '⚠️  Could not read previous session tokens', '', 2));
             }
@@ -427,7 +427,7 @@ export const watchForFeedback = async (params) => {
                 await log(formatAligned('', `Cost saved: $${costSaved.toFixed(4)}`, '', 2));
               }
               await log('');
-            } catch (err) {
+            } catch {
               // Ignore token tracking errors
               await log(formatAligned('', '⚠️  Could not calculate token savings', '', 2));
             }
