@@ -501,7 +501,9 @@ export async function attachLogToGitHub(options) {
     sanitizeLogContent,
     verbose = false,
     errorMessage,
-    customTitle = '🤖 Solution Draft Log'
+    customTitle = '🤖 Solution Draft Log',
+    sessionId = null,
+    tempDir = null
   } = options;
 
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
@@ -516,6 +518,26 @@ export async function attachLogToGitHub(options) {
     } else if (logStats.size > githubLimits.fileMaxSize) {
       await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is ${Math.round(githubLimits.fileMaxSize / 1024 / 1024)}MB`);
       return false;
+    }
+
+    // Calculate token usage if sessionId and tempDir are provided
+    let totalCostUSD = null;
+    if (sessionId && tempDir && !errorMessage) {
+      try {
+        const { calculateSessionTokens } = await import('./claude.lib.mjs');
+        const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
+        if (tokenUsage && tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
+          totalCostUSD = tokenUsage.totalCostUSD;
+          if (verbose) {
+            await log(`  💰 Calculated total cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
+          }
+        }
+      } catch (tokenError) {
+        // Don't fail the entire upload if token calculation fails
+        if (verbose) {
+          await log(`  ⚠️  Could not calculate token cost: ${tokenError.message}`, { verbose: true });
+        }
+      }
     }
 
     // Read and sanitize log content
@@ -549,9 +571,10 @@ ${logContent}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
     } else {
       // Success log format
+      const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
       logComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
 
 <details>
 <summary>Click to expand solution draft log (${Math.round(logStats.size / 1024)}KB)</summary>
@@ -633,9 +656,10 @@ ${errorMessage}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
           } else {
             // Success log gist format
+            const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
             gistComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
 
 📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
 🔗 [View complete solution draft log](${gistUrl})
