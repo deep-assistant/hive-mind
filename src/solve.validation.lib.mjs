@@ -39,6 +39,14 @@ const claudeLib = await import('./claude.lib.mjs');
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
+// Import security scanner
+const securityScanner = await import('./security-scanner.lib.mjs');
+const {
+  scanGitHubIssue,
+  logSecurityScanResults,
+  shouldBlockExecution
+} = securityScanner;
+
 const {
   validateClaudeConnection
 } = claudeLib;
@@ -307,4 +315,122 @@ export const calculateWaitTime = (resetTime) => {
   }
 
   return today.getTime() - now.getTime();
+};
+
+/**
+ * Scan GitHub issue for security risks
+ * @param {Object} params - Parameters for security scanning
+ * @param {string} params.owner - Repository owner
+ * @param {string} params.repo - Repository name
+ * @param {string} params.issueNumber - Issue number
+ * @param {Object} params.argv - Command line arguments
+ * @param {Object} params.$ - Command executor
+ * @returns {Promise<Object>} Security scan results with blocking decision
+ */
+export const scanIssueForSecurityRisks = async (params) => {
+  const { owner, repo, issueNumber, argv, $ } = params;
+
+  // Skip security scan if explicitly disabled
+  if (argv.skipSecurityScan || argv['skip-security-scan']) {
+    await log('⏩ Security scanning disabled by user', { verbose: true });
+    return { safe: true, shouldBlock: false, skipped: true };
+  }
+
+  try {
+    await log('');
+    await log('🔒 Scanning issue for security risks...');
+
+    // Fetch issue details including body and comments
+    const issueResult = await $`gh issue view ${issueNumber} --repo ${owner}/${repo} --json title,body`;
+
+    if (issueResult.code !== 0) {
+      await log('   ⚠️  Could not fetch issue details for security scan', { level: 'warning' });
+      return { safe: true, shouldBlock: false, error: 'fetch_failed' };
+    }
+
+    const issueData = JSON.parse(issueResult.stdout.toString());
+    const issueText = `${issueData.title || ''}\n\n${issueData.body || ''}`;
+
+    // Fetch issue comments
+    const commentsResult = await $`gh issue view ${issueNumber} --repo ${owner}/${repo} --json comments --jq '.comments[].body'`;
+
+    const comments = commentsResult.code === 0
+      ? commentsResult.stdout.toString().trim().split('\n').filter(c => c)
+      : [];
+
+    // Perform security scan
+    const scanResult = scanGitHubIssue(issueText, comments, {
+      includeContext: true,
+      verbose: argv.verbose
+    });
+
+    // Log results
+    await logSecurityScanResults(scanResult);
+
+    // Determine if execution should be blocked
+    const blockingPolicy = {
+      blockOnCritical: true,  // Always block on critical risks
+      blockOnHigh: argv.securityBlockOnHigh || false,
+      blockOnMedium: argv.securityBlockOnMedium || false,
+      minRiskCount: 1
+    };
+
+    const shouldBlock = shouldBlockExecution(scanResult, blockingPolicy);
+
+    if (shouldBlock) {
+      await log('');
+      await log('❌ SECURITY SCAN BLOCKED EXECUTION', { level: 'error' });
+      await log('');
+      await log('   The issue text contains potentially dangerous commands or requests.', { level: 'error' });
+      await log('   This is a safety measure to prevent malicious actions.', { level: 'error' });
+      await log('');
+      await log('   🔍 What was detected:', { level: 'error' });
+      if (scanResult.criticalCount > 0) {
+        await log(`      • ${scanResult.criticalCount} critical security risk(s)`, { level: 'error' });
+      }
+      if (scanResult.highCount > 0) {
+        await log(`      • ${scanResult.highCount} high security risk(s)`, { level: 'error' });
+      }
+      await log('');
+      await log('   💡 Why this matters:', { level: 'error' });
+      await log('      This system is designed to solve legitimate programming issues.', { level: 'error' });
+      await log('      Requests for credential discovery, filesystem manipulation outside', { level: 'error' });
+      await log('      the project scope, or other security-sensitive operations are blocked.', { level: 'error' });
+      await log('');
+      await log('   🔧 What you can do:', { level: 'error' });
+      await log('      1. Review the issue description and ensure it contains only', { level: 'error' });
+      await log('         legitimate programming tasks within the project scope', { level: 'error' });
+      await log('      2. Remove any requests for system-wide searches or credential access', { level: 'error' });
+      await log('      3. If this is a false positive, you can disable the scan with:', { level: 'error' });
+      await log('         --skip-security-scan (use with caution)', { level: 'error' });
+      await log('');
+    } else if (!scanResult.safe) {
+      await log('');
+      await log('⚠️  Security scan detected risks but allowing execution', { level: 'warning' });
+      await log('   Lower-severity risks detected - proceeding with caution', { level: 'warning' });
+      await log('');
+    } else {
+      await log('   ✅ No security risks detected');
+    }
+
+    return {
+      safe: scanResult.safe,
+      shouldBlock,
+      scanResult,
+      blockingPolicy
+    };
+  } catch (error) {
+    reportError(error, {
+      context: 'security_scan',
+      operation: 'scan_issue',
+      issueNumber
+    });
+
+    await log('   ⚠️  Security scan failed, proceeding with caution', { level: 'warning' });
+    if (argv.verbose) {
+      await log(`   Error: ${error.message}`, { verbose: true });
+    }
+
+    return { safe: true, shouldBlock: false, error: error.message };
+  }
 };

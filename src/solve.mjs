@@ -52,7 +52,7 @@ const { log, setLogFile, getLogFile, getAbsoluteLogPath, cleanErrorMessage, form
 const githubLib = await import('./github.lib.mjs');
 const { sanitizeLogContent, attachLogToGitHub } = githubLib;
 const validation = await import('./solve.validation.lib.mjs');
-const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents } = validation;
+const { validateGitHubUrl, showAttachLogsWarning, initializeLogFile, validateUrlRequirement, validateContinueOnlyOnFeedback, performSystemChecks, parseUrlComponents, scanIssueForSecurityRisks } = validation;
 const autoContinue = await import('./solve.auto-continue.lib.mjs');
 const { processAutoContinueForIssue } = autoContinue;
 const repository = await import('./solve.repository.lib.mjs');
@@ -469,6 +469,23 @@ if (isPrUrl) {
   issueNumber = urlNumber;
   await log(`📝 Issue mode: Working with issue #${issueNumber}`);
 }
+
+// Security scan: Analyze issue text for dangerous commands
+// This happens after we have issue number but before we start any work
+if (issueNumber && !isContinueMode) {
+  const securityScanResult = await scanIssueForSecurityRisks({
+    owner,
+    repo,
+    issueNumber,
+    argv,
+    $
+  });
+
+  if (securityScanResult.shouldBlock) {
+    await safeExit(1, 'Security scan blocked execution');
+  }
+}
+
 // Create or find temporary directory for cloning the repository
 const { tempDir } = await setupTempDirectory(argv);
 // Populate cleanup context for signal handlers
