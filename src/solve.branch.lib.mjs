@@ -144,7 +144,7 @@ export async function createOrCheckoutBranch({
         branchName,
         prNumber: null, // Will be set later
         errorOutput,
-        issueUrl: argv._[0],
+        issueUrl: argv['issue-url'] || argv._[0],
         owner: null, // Will be set later
         repo: null,  // Will be set later
         tempDir,

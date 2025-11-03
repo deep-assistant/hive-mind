@@ -682,7 +682,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('              May cause merge conflicts in pull requests');
                     await log('');
                     await log('  🔧 To proceed with auto-resolution, restart with:');
-                    await log(`     solve ${argv.url || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
+                    await log(`     solve ${argv.url || argv['issue-url'] || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
                     await log('');
                     await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
                   }
