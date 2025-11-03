@@ -337,10 +337,56 @@ export const watchForFeedback = async (params) => {
         } else {
           // Use Claude (default)
           const claudeExecLib = await import('./claude.lib.mjs');
-          const { executeClaude } = claudeExecLib;
+          const { executeClaude, calculateSessionTokens } = claudeExecLib;
 
           // Get claude path
           const claudePath = argv.claudePath || 'claude';
+
+          // Check if we should use session resume for auto-restart (issue #661)
+          const shouldUseSessionResume = isTemporaryWatch &&
+                                         argv['resume-on-auto-restart'] &&
+                                         global.previousSessionId &&
+                                         firstIterationInTemporaryMode;
+
+          // Track tokens before auto-restart for comparison
+          let tokensBefore = null;
+          if (shouldUseSessionResume && argv.verbose) {
+            try {
+              tokensBefore = await calculateSessionTokens(global.previousSessionId, tempDir);
+              await log(formatAligned('', `📊 Previous session tokens: ${tokensBefore.totalTokens.toLocaleString()}`, '', 2));
+            } catch (err) {
+              // Ignore token tracking errors
+              await log(formatAligned('', '⚠️  Could not read previous session tokens', '', 2));
+            }
+          }
+
+          // If session resume is enabled, use minimal context
+          let modifiedFeedbackLines = feedbackLines;
+          let modifiedArgv = argv;
+
+          if (shouldUseSessionResume) {
+            await log(formatAligned('', '🧪 EXPERIMENTAL: Using session resume with minimal context', '', 2));
+            await log(formatAligned('', `   Resuming from session: ${global.previousSessionId}`, '', 2));
+
+            // Import minimal prompt generator
+            const minimalPromptLib = await import('./solve.minimal-restart-prompt.lib.mjs');
+            const { generateMinimalRestartPrompt } = minimalPromptLib;
+
+            // Generate minimal restart prompt
+            const minimalPrompt = await generateMinimalRestartPrompt(tempDir, $);
+
+            // Replace feedbackLines with minimal prompt content
+            modifiedFeedbackLines = [minimalPrompt];
+
+            // Add resume flag to argv
+            modifiedArgv = {
+              ...argv,
+              resume: global.previousSessionId,
+              minimalRestartContext: true
+            };
+
+            await log(formatAligned('', `   Minimal prompt size: ~${minimalPrompt.length} chars`, '', 2));
+          }
 
           toolResult = await executeClaude({
             issueUrl,
@@ -352,16 +398,45 @@ export const watchForFeedback = async (params) => {
             isContinueMode: true,
             mergeStateStatus,
             forkedRepo: argv.fork,
-            feedbackLines,
+            feedbackLines: modifiedFeedbackLines,
             owner,
             repo,
-            argv,
+            argv: modifiedArgv,
             log,
             formatAligned,
             getResourceSnapshot,
             claudePath,
             $
           });
+
+          // Track token savings if session resume was used
+          if (shouldUseSessionResume && tokensBefore && toolResult.sessionId) {
+            try {
+              const tokensAfter = await calculateSessionTokens(toolResult.sessionId, tempDir);
+              const tokensSaved = tokensBefore.totalTokens - tokensAfter.totalTokens;
+              const percentSaved = ((tokensSaved / tokensBefore.totalTokens) * 100).toFixed(1);
+
+              await log('');
+              await log(formatAligned('💰', 'TOKEN SAVINGS FROM SESSION RESUME:', ''));
+              await log(formatAligned('', `Previous session: ${tokensBefore.totalTokens.toLocaleString()} tokens`, '', 2));
+              await log(formatAligned('', `Current session: ${tokensAfter.totalTokens.toLocaleString()} tokens`, '', 2));
+              await log(formatAligned('', `Tokens saved: ${tokensSaved.toLocaleString()} (${percentSaved}%)`, '', 2));
+
+              if (tokensBefore.totalCostUSD && tokensAfter.totalCostUSD) {
+                const costSaved = tokensBefore.totalCostUSD - tokensAfter.totalCostUSD;
+                await log(formatAligned('', `Cost saved: $${costSaved.toFixed(4)}`, '', 2));
+              }
+              await log('');
+            } catch (err) {
+              // Ignore token tracking errors
+              await log(formatAligned('', '⚠️  Could not calculate token savings', '', 2));
+            }
+          }
+
+          // Store the new session ID for potential next iteration
+          if (toolResult.sessionId && argv['resume-on-auto-restart']) {
+            global.previousSessionId = toolResult.sessionId;
+          }
         }
 
         if (!toolResult.success) {

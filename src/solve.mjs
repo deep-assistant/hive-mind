@@ -798,6 +798,15 @@ try {
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
+  // Store session ID for potential resume in auto-restart (issue #661)
+  // This allows the watch mode to resume from this session with minimal context
+  if (sessionId && argv['resume-on-auto-restart']) {
+    global.previousSessionId = sessionId;
+    if (argv.verbose) {
+      await log(`📌 Session ID stored for auto-restart resume: ${sessionId}`, { verbose: true });
+    }
+  }
+
   if (!success) {
     // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
     if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {

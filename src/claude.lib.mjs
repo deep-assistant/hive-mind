@@ -410,38 +410,54 @@ export const executeClaude = async (params) => {
   // Import prompt building functions from claude.prompts.lib.mjs
   const { buildUserPrompt, buildSystemPrompt } = await import('./claude.prompts.lib.mjs');
 
-  // Build the user prompt
-  const prompt = buildUserPrompt({
-    issueUrl,
-    issueNumber,
-    prNumber,
-    prUrl,
-    branchName,
-    tempDir,
-    isContinueMode,
-    mergeStateStatus,
-    forkedRepo,
-    feedbackLines,
-    forkActionsUrl,
-    owner,
-    repo,
-    argv
-  });
+  let prompt, systemPrompt;
 
-  // Build the system prompt
-  const systemPrompt = buildSystemPrompt({
-    owner,
-    repo,
-    issueNumber,
-    issueUrl,
-    prNumber,
-    prUrl,
-    branchName,
-    tempDir,
-    isContinueMode,
-    forkedRepo,
-    argv
-  });
+  // If minimal restart context is enabled (session resume), use minimal prompt only
+  if (argv.minimalRestartContext && argv.resume) {
+    // Use the minimal prompt from feedbackLines (already generated in watch mode)
+    // This assumes context is preserved from previous session
+    prompt = feedbackLines && feedbackLines.length > 0 ? feedbackLines.join('\n') : '';
+    systemPrompt = ''; // Empty system prompt for resume to avoid redundancy
+
+    if (argv.verbose) {
+      await log('🧪 Using minimal restart context (session resume mode)', { verbose: true });
+      await log(`   Resume session: ${argv.resume}`, { verbose: true });
+      await log(`   Minimal prompt length: ${prompt.length} chars`, { verbose: true });
+    }
+  } else {
+    // Build the full user prompt (normal mode)
+    prompt = buildUserPrompt({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv
+    });
+
+    // Build the full system prompt (normal mode)
+    systemPrompt = buildSystemPrompt({
+      owner,
+      repo,
+      issueNumber,
+      issueUrl,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      forkedRepo,
+      argv
+    });
+  }
 
   // Log prompt details in verbose mode
   if (argv.verbose) {
