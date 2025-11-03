@@ -226,7 +226,7 @@ export const watchForFeedback = async (params) => {
                     uncommittedFilesList = '\n\n**Uncommitted files:**\n```\n' + statusOutput + '\n```';
                   }
                 }
-              } catch (e) {
+              } catch {
                 // If we can't get the file list, continue without it
               }
 
