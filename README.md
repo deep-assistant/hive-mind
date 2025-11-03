@@ -536,6 +536,18 @@ Authentication is handled through:
 
 No environment variable configuration is currently supported.
 
+## 🐛 Reporting Issues
+
+### Hive Mind Issues
+If you encounter issues with **Hive Mind** (this project), please report them on our GitHub Issues page:
+- **Repository**: https://github.com/deep-assistant/hive-mind
+- **Issues**: https://github.com/deep-assistant/hive-mind/issues
+
+### Claude Code CLI Issues
+If you encounter issues with the **Claude Code CLI** itself (e.g., `claude` command errors, installation problems, or CLI bugs), please report them to the official Claude Code repository:
+- **Repository**: https://github.com/anthropics/claude-code
+- **Issues**: https://github.com/anthropics/claude-code/issues
+
 ## 🛡️ File Size Enforcement
 
 All documentation files are automatically checked:
