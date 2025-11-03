@@ -548,14 +548,6 @@ If you encounter issues with the **Claude Code CLI** itself (e.g., `claude` comm
 - **Repository**: https://github.com/anthropics/claude-code
 - **Issues**: https://github.com/anthropics/claude-code/issues
 
-Common Claude Code CLI issues include:
-- Module not found errors (e.g., `Cannot find module './yoga.wasm'`)
-- Command execution failures
-- Authentication problems
-- Performance issues
-
-For more information about Claude Code CLI issues we've encountered and documented, see [docs/dependencies-research/claude-code-issues/README.md](./docs/dependencies-research/claude-code-issues/README.md).
-
 ## 🛡️ File Size Enforcement
 
 All documentation files are automatically checked:
