@@ -215,7 +215,22 @@ export const watchForFeedback = async (params) => {
             try {
               autoRestartCount++;
               const remainingIterations = maxAutoRestartIterations - autoRestartCount;
-              const commentBody = `## 🔄 Auto-restart ${autoRestartCount}/${maxAutoRestartIterations}\n\nDetected uncommitted changes from previous run. Starting new session to review and commit them.\n\n---\n*Auto-restart will stop after changes are committed or after ${remainingIterations} more iteration${remainingIterations !== 1 ? 's' : ''}. Please wait until working session will end and give your feedback.*`;
+
+              // Get uncommitted files list for the comment
+              let uncommittedFilesList = '';
+              try {
+                const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+                if (gitStatusResult.code === 0) {
+                  const statusOutput = gitStatusResult.stdout.toString().trim();
+                  if (statusOutput) {
+                    uncommittedFilesList = '\n\n**Uncommitted files:**\n```\n' + statusOutput + '\n```';
+                  }
+                }
+              } catch (e) {
+                // If we can't get the file list, continue without it
+              }
+
+              const commentBody = `## 🔄 Auto-restart ${autoRestartCount}/${maxAutoRestartIterations}\n\nDetected uncommitted changes from previous run. Starting new session to review and commit them.${uncommittedFilesList}\n\n---\n*Auto-restart will stop after changes are committed or after ${remainingIterations} more iteration${remainingIterations !== 1 ? 's' : ''}. Please wait until working session will end and give your feedback.*`;
               await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${commentBody}`;
               await log(formatAligned('', '💬 Posted auto-restart notification to PR', '', 2));
             } catch (commentError) {
