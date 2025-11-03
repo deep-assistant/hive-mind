@@ -143,6 +143,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Maximum number of auto-restart iterations when uncommitted changes are detected (default: 3)',
       default: 3
     })
+    .option('resume-on-auto-restart', {
+      type: 'boolean',
+      description: '🧪 EXPERIMENTAL: Use session resume with minimal context on auto-restart to reduce token costs by ~95% (requires --resume support)',
+      default: false
+    })
     .option('continue-only-on-feedback', {
       type: 'boolean',
       description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
