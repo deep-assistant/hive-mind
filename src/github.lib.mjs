@@ -469,7 +469,7 @@ export async function attachLogToGitHub(options) {
           if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
             totalCostUSD = tokenUsage.totalCostUSD;
             if (verbose) {
-              await log(`  💰 Calculated models.dev cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
+              await log(`  💰 Calculated cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
             }
           }
         }

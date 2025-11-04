@@ -452,7 +452,7 @@ export const executeClaude = async (params) => {
  * @returns {Object} Token usage statistics
  */
 /**
- * Fetches model information from models.dev API
+ * Fetches model information from pricing API
  * @param {string} modelId - The model ID (e.g., "claude-sonnet-4-5-20250929")
  * @returns {Promise<Object|null>} Model information or null if not found
  */
@@ -496,7 +496,7 @@ export const fetchModelInfo = async (modelId) => {
 /**
  * Calculate USD cost for a model's usage with detailed breakdown
  * @param {Object} usage - Token usage object
- * @param {Object} modelInfo - Model information from models.dev
+ * @param {Object} modelInfo - Model information from pricing API
  * @param {boolean} includeBreakdown - Whether to include detailed calculation breakdown
  * @returns {Object} Cost data with optional breakdown
  */
@@ -558,7 +558,7 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
  * @param {Function} log - Logging function
  */
 const displayModelUsage = async (usage, log) => {
-  // Show all model characteristics from models.dev if available
+  // Show all model characteristics if available
   if (usage.modelInfo) {
     const info = usage.modelInfo;
     const fields = [
@@ -578,7 +578,7 @@ const displayModelUsage = async (usage, log) => {
     }
     await log('');
   } else {
-    await log('      ⚠️  Model info not available from models.dev\n');
+    await log('      ⚠️  Model info not available\n');
   }
   // Show usage data
   await log('      Usage:');
@@ -593,10 +593,10 @@ const displayModelUsage = async (usage, log) => {
   if (usage.webSearchRequests > 0) {
     await log(`        Web search requests: ${usage.webSearchRequests}`);
   }
-  // Show detailed cost calculation from models.dev
+  // Show detailed cost calculation
   if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
     await log('');
-    await log('      Cost Calculation - models.dev pricing (USD):');
+    await log('      Cost Calculation (USD):');
     const breakdown = usage.costBreakdown;
     const types = [
       { key: 'input', label: 'Input' },
@@ -613,7 +613,7 @@ const displayModelUsage = async (usage, log) => {
     await log(`        Total: $${usage.costUSD.toFixed(6)}`);
   } else if (usage.modelInfo === null) {
     await log('');
-    await log('      Cost (models.dev): Not available (could not fetch pricing from models.dev)');
+    await log('      Cost: Not available (could not fetch pricing)');
   }
 };
 export const calculateSessionTokens = async (sessionId, tempDir) => {
@@ -692,7 +692,7 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
     if (Object.keys(modelUsage).length === 0) {
       return null;
     }
-    // Fetch model information from models.dev for each model
+    // Fetch model information for each model
     const modelInfoPromises = Object.keys(modelUsage).map(async (modelId) => {
       const modelInfo = await fetchModelInfo(modelId);
       return { modelId, modelInfo };
@@ -707,13 +707,13 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
     // Calculate cost for each model and store all characteristics
     for (const [modelId, usage] of Object.entries(modelUsage)) {
       const modelInfo = modelInfoMap[modelId];
-      // Calculate cost using models.dev pricing
+      // Calculate cost using pricing API
       if (modelInfo) {
         const costData = calculateModelCost(usage, modelInfo, true);
         usage.costUSD = costData.total;
         usage.costBreakdown = costData.breakdown;
         usage.modelName = modelInfo.name || modelId;
-        usage.modelInfo = modelInfo; // Store complete model info from models.dev
+        usage.modelInfo = modelInfo; // Store complete model info
       } else {
         usage.costUSD = null;
         usage.costBreakdown = null;
