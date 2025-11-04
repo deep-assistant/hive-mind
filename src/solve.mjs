@@ -884,6 +884,9 @@ try {
     }
   });
 
+  // Track whether logs were successfully attached (used by endWorkSession)
+  let logsAttached = false;
+
   // After watch mode completes (either user watch or temporary)
   // Push any committed changes if this was a temporary watch mode
   if (temporaryWatchMode) {
@@ -912,7 +915,6 @@ try {
     }
 
     // Attach updated logs to PR after auto-restart completes
-    let logsAttached = false;
     if (shouldAttachLogs && prNumber) {
       await log('📎 Uploading working session logs to Pull Request...');
       try {
