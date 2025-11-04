@@ -156,7 +156,7 @@ export async function getClaudeUsage() {
       }
     });
 
-    child.on('close', (code) => {
+    child.on('close', () => {
       if (resolved) return;
       resolved = true;
       clearTimeout(noDataTimer);
