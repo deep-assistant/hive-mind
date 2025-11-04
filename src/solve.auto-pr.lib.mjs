@@ -645,7 +645,45 @@ ${prBody}`, { verbose: true });
             await log(`   Command: ${command}`, { verbose: true });
           }
 
-          const output = execSync(command, { encoding: 'utf8', cwd: tempDir });
+          let output;
+          let assigneeFailed = false;
+
+          // Try to create PR with assignee first (if specified)
+          try {
+            output = execSync(command, { encoding: 'utf8', cwd: tempDir });
+          } catch (firstError) {
+            // Check if the error is specifically about assignee validation
+            const errorMsg = firstError.message || '';
+            if ((errorMsg.includes('could not assign user') || errorMsg.includes('not found')) && currentUser && canAssign) {
+              // Assignee validation failed - retry without assignee
+              assigneeFailed = true;
+              await log('');
+              await log(formatAligned('⚠️', 'Warning:', `User assignment failed for '${currentUser}'`), { level: 'warning' });
+              await log('     Retrying PR creation without assignee...');
+
+              // Rebuild command without --assignee flag
+              if (argv.fork && forkedRepo) {
+                const forkUser = forkedRepo.split('/')[0];
+                command = `cd "${tempDir}" && gh pr create --draft --title "$(cat '${prTitleFile}')" --body-file "${prBodyFile}" --base ${targetBranch} --head ${forkUser}:${branchName} --repo ${owner}/${repo}`;
+              } else {
+                command = `cd "${tempDir}" && gh pr create --draft --title "$(cat '${prTitleFile}')" --body-file "${prBodyFile}" --base ${targetBranch} --head ${branchName}`;
+              }
+
+              if (argv.verbose) {
+                await log(`   Retry command (without assignee): ${command}`, { verbose: true });
+              }
+
+              try {
+                output = execSync(command, { encoding: 'utf8', cwd: tempDir });
+              } catch (retryError) {
+                // If retry also failed, re-throw the retry error
+                throw retryError;
+              }
+            } else {
+              // Not an assignee error, re-throw the original error
+              throw firstError;
+            }
+          }
 
           // Clean up temp files
           await fs.unlink(prBodyFile).catch((unlinkError) => {
@@ -728,7 +766,35 @@ ${prBody}`, { verbose: true });
               global.createdPR = { number: localPrNumber, url: prUrl };
               await log(formatAligned('✅', 'PR created:', `#${localPrNumber}`));
               await log(formatAligned('📍', 'PR URL:', prUrl));
-              if (currentUser && canAssign) {
+              if (assigneeFailed) {
+                // Show detailed information about why assignee failed and how to fix it
+                await log('');
+                await log(formatAligned('⚠️', 'Assignee Note:', 'PR created without assignee'));
+                await log('');
+                await log(`  The PR was created successfully, but user '${currentUser}' could not be assigned.`);
+                await log('');
+                await log('  📋 Why this happened:');
+                await log(`     • User '${currentUser}' may not have collaborator access to ${owner}/${repo}`);
+                await log('     • GitHub requires users to be repository collaborators to be assigned');
+                await log('     • The GitHub CLI enforces strict assignee validation');
+                await log('');
+                await log('  🔧 How to fix:');
+                await log('');
+                await log('     Option 1: Assign manually in the PR page');
+                await log('     ─────────────────────────────────────────');
+                await log(`     1. Visit the PR: ${prUrl}`);
+                await log('     2. Click "Assignees" in the right sidebar');
+                await log('     3. Add yourself to the PR');
+                await log('');
+                await log('     Option 2: Request collaborator access');
+                await log('     ─────────────────────────────────────────');
+                await log('     Ask the repository owner to add you as a collaborator:');
+                await log(`       → Go to: https://github.com/${owner}/${repo}/settings/access`);
+                await log(`       → Add user: ${currentUser}`);
+                await log('');
+                await log('  ℹ️  Note: This does not affect the PR itself - it was created successfully.');
+                await log('');
+              } else if (currentUser && canAssign) {
                 await log(formatAligned('👤', 'Assigned to:', currentUser));
               } else if (currentUser && !canAssign) {
                 await log(formatAligned('ℹ️', 'Note:', 'Could not assign (no permission)'));
@@ -842,87 +908,9 @@ ${prBody}`, { verbose: true });
           }
 
           // Check for specific error types
-          if (errorMsg.includes('could not assign user') || errorMsg.includes('not found')) {
-            // Assignment failed but PR might have been created
-            await log('');
-            await log(formatAligned('⚠️', 'Warning:', 'User assignment failed'), { level: 'warning' });
-            await log('     Checking if PR was created anyway...');
-
-            // Try to get the PR that was just created (use silent mode)
-            const prListResult = await $({ silent: true })`cd ${tempDir} && gh pr list --head ${branchName} --json url,number --jq '.[0]' 2>&1`;
-            if (prListResult.code === 0 && prListResult.stdout.toString().trim()) {
-              try {
-                const prData = JSON.parse(prListResult.stdout.toString().trim());
-                prUrl = prData.url;
-                localPrNumber = prData.number;
-                // Store PR info globally for error handlers
-                global.createdPR = { number: localPrNumber, url: prUrl };
-                await log(formatAligned('✅', 'PR created:', `#${localPrNumber} (without assignee)`));
-                await log(formatAligned('📍', 'PR URL:', prUrl));
-                await log('');
-                await log('  ℹ️  Note: The PR was created successfully but user assignment failed.');
-                await log('     You can manually assign yourself in the PR page if needed.');
-              } catch (parseErr) {
-                reportError(parseErr, {
-                  context: 'pr_output_parsing',
-                  operation: 'parse_pr_creation_output'
-                });
-                // If we can't parse, this is a critical error
-                await log('');
-                await log(formatAligned('❌', 'PR VERIFICATION FAILED', ''), { level: 'error' });
-                await log('');
-                await log('  🔍 What happened:');
-                await log('     Could not verify if PR was created.');
-                await log('');
-                await log('  📦 Parse error:');
-                await log(`     ${parseErr.message}`);
-                await log('');
-                await log('  🔧 How to fix:');
-                await log('     1. Check GitHub manually:');
-                await log(`        https://github.com/${owner}/${repo}/pulls`);
-                await log('     2. Look for a PR from branch: ' + branchName);
-                await log('     3. If no PR exists, create it manually:');
-                await log(`        cd ${tempDir} && gh pr create --draft`);
-                await log('');
-                throw new Error('PR verification failed - cannot determine PR status');
-              }
-            } else {
-              // PR creation actually failed
-              await log('');
-              await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
-              await log('');
-              await log('  🔍 What happened:');
-              await log('     Failed to create pull request after pushing branch.');
-              await log('     The error mentions user assignment, but the PR was not created at all.');
-              await log('');
-              await log('  📦 Error details:');
-              for (const line of cleanError.split('\n')) {
-                if (line.trim()) await log(`     ${line.trim()}`);
-              }
-              await log('');
-              await log('  💡 Why this happened:');
-              await log('     GitHub rejected the PR creation command entirely.');
-              await log('     This usually means the specified assignee doesn\'t have access to the repo.');
-              await log('');
-              await log('  🔧 How to fix:');
-              await log('');
-              await log('     Option 1: The assignee validation is too strict');
-              await log('     This is a bug in GitHub CLI or the repository settings.');
-              await log('     Try creating PR manually without --assignee flag:');
-              await log(`       cd ${tempDir}`);
-              await log(`       gh pr create --draft --title "Fix issue #${issueNumber}" --body "Fixes #${issueNumber}"`);
-              await log('');
-              await log('     Option 2: Check collaborator permissions');
-              await log(`     Verify that user '${currentUser}' has access to ${owner}/${repo}:`);
-              await log(`       gh api repos/${owner}/${repo}/collaborators/${currentUser}`);
-              await log('');
-              await log('     Option 3: Retry the solve command');
-              await log('     The code will try to avoid adding --assignee if it detects issues.');
-              await log(`       ./solve.mjs "${issueUrl}" --continue`);
-              await log('');
-              throw new Error('PR creation failed - assignee validation issue');
-            }
-          } else if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'t be blank')) {
+          // Note: Assignee errors are now handled by automatic retry in the try block above
+          // This catch block only handles other types of PR creation failures
+          if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'t be blank')) {
             // Empty PR error
             await log('');
             await log(formatAligned('❌', 'PR CREATION FAILED', ''), { level: 'error' });
