@@ -884,6 +884,9 @@ try {
     }
   });
 
+  // Track whether logs were successfully attached (used by endWorkSession)
+  let logsAttached = false;
+
   // After watch mode completes (either user watch or temporary)
   // Push any committed changes if this was a temporary watch mode
   if (temporaryWatchMode) {
@@ -929,6 +932,7 @@ try {
 
         if (logUploadSuccess) {
           await log('✅ Working session logs uploaded successfully');
+          logsAttached = true;
         } else {
           await log('⚠️  Failed to upload working session logs', { level: 'warning' });
         }
@@ -945,7 +949,8 @@ try {
     argv,
     log,
     formatAligned,
-    $
+    $,
+    logsAttached
   });
 } catch (error) {
   reportError(error, {
