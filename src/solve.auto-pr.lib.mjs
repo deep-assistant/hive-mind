@@ -673,12 +673,8 @@ ${prBody}`, { verbose: true });
                 await log(`   Retry command (without assignee): ${command}`, { verbose: true });
               }
 
-              try {
-                output = execSync(command, { encoding: 'utf8', cwd: tempDir });
-              } catch (retryError) {
-                // If retry also failed, re-throw the retry error
-                throw retryError;
-              }
+              // Retry without assignee - if this fails, let the error propagate to outer catch
+              output = execSync(command, { encoding: 'utf8', cwd: tempDir });
             } else {
               // Not an assignee error, re-throw the original error
               throw firstError;
