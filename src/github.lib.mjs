@@ -503,7 +503,8 @@ export async function attachLogToGitHub(options) {
     errorMessage,
     customTitle = '🤖 Solution Draft Log',
     sessionId = null,
-    tempDir = null
+    tempDir = null,
+    anthropicTotalCostUSD = null
   } = options;
 
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
@@ -522,7 +523,6 @@ export async function attachLogToGitHub(options) {
 
     // Calculate token usage if sessionId and tempDir are provided
     let totalCostUSD = null;
-    let totalAnthropicCostUSD = null;
     if (sessionId && tempDir && !errorMessage) {
       try {
         const { calculateSessionTokens } = await import('./claude.lib.mjs');
@@ -532,12 +532,6 @@ export async function attachLogToGitHub(options) {
             totalCostUSD = tokenUsage.totalCostUSD;
             if (verbose) {
               await log(`  💰 Calculated models.dev cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
-            }
-          }
-          if (tokenUsage.totalAnthropicCostUSD !== null && tokenUsage.totalAnthropicCostUSD !== undefined) {
-            totalAnthropicCostUSD = tokenUsage.totalAnthropicCostUSD;
-            if (verbose) {
-              await log(`  💰 Calculated Anthropic cost: $${totalAnthropicCostUSD.toFixed(6)}`, { verbose: true });
             }
           }
         }
@@ -580,20 +574,24 @@ ${logContent}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
     } else {
       // Success log format
-      let costInfo = '';
-      if (totalCostUSD !== null || totalAnthropicCostUSD !== null) {
-        costInfo = '\n\n💰 **Cost Comparison:**';
+      let costInfo = '\n\n💰 **Cost estimation:**';
+      if (totalCostUSD !== null) {
+        costInfo += `\n- Public pricing estimate: $${totalCostUSD.toFixed(6)} USD`;
+      } else {
+        costInfo += '\n- Public pricing estimate: unknown';
+      }
+      if (anthropicTotalCostUSD !== null && anthropicTotalCostUSD !== undefined) {
+        costInfo += `\n- Calculated by Anthropic: $${anthropicTotalCostUSD.toFixed(6)} USD`;
         if (totalCostUSD !== null) {
-          costInfo += `\n- models.dev estimate: $${totalCostUSD.toFixed(6)} USD`;
-        }
-        if (totalAnthropicCostUSD !== null) {
-          costInfo += `\n- Anthropic official: $${totalAnthropicCostUSD.toFixed(6)} USD`;
-        }
-        if (totalCostUSD !== null && totalAnthropicCostUSD !== null) {
-          const difference = totalAnthropicCostUSD - totalCostUSD;
+          const difference = anthropicTotalCostUSD - totalCostUSD;
           const percentDiff = totalCostUSD > 0 ? ((difference / totalCostUSD) * 100) : 0;
           costInfo += `\n- Difference: $${difference.toFixed(6)} (${percentDiff > 0 ? '+' : ''}${percentDiff.toFixed(2)}%)`;
+        } else {
+          costInfo += '\n- Difference: unknown';
         }
+      } else {
+        costInfo += '\n- Calculated by Anthropic: unknown';
+        costInfo += '\n- Difference: unknown';
       }
       logComment = `## ${customTitle}
 
@@ -679,20 +677,24 @@ ${errorMessage}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
           } else {
             // Success log gist format
-            let costInfo = '';
-            if (totalCostUSD !== null || totalAnthropicCostUSD !== null) {
-              costInfo = '\n\n💰 **Cost Comparison:**';
+            let costInfo = '\n\n💰 **Cost estimation:**';
+            if (totalCostUSD !== null) {
+              costInfo += `\n- Public pricing estimate: $${totalCostUSD.toFixed(6)} USD`;
+            } else {
+              costInfo += '\n- Public pricing estimate: unknown';
+            }
+            if (anthropicTotalCostUSD !== null && anthropicTotalCostUSD !== undefined) {
+              costInfo += `\n- Calculated by Anthropic: $${anthropicTotalCostUSD.toFixed(6)} USD`;
               if (totalCostUSD !== null) {
-                costInfo += `\n- models.dev estimate: $${totalCostUSD.toFixed(6)} USD`;
-              }
-              if (totalAnthropicCostUSD !== null) {
-                costInfo += `\n- Anthropic official: $${totalAnthropicCostUSD.toFixed(6)} USD`;
-              }
-              if (totalCostUSD !== null && totalAnthropicCostUSD !== null) {
-                const difference = totalAnthropicCostUSD - totalCostUSD;
+                const difference = anthropicTotalCostUSD - totalCostUSD;
                 const percentDiff = totalCostUSD > 0 ? ((difference / totalCostUSD) * 100) : 0;
                 costInfo += `\n- Difference: $${difference.toFixed(6)} (${percentDiff > 0 ? '+' : ''}${percentDiff.toFixed(2)}%)`;
+              } else {
+                costInfo += '\n- Difference: unknown';
               }
+            } else {
+              costInfo += '\n- Calculated by Anthropic: unknown';
+              costInfo += '\n- Difference: unknown';
             }
             gistComment = `## ${customTitle}
 

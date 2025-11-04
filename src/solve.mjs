@@ -794,7 +794,7 @@ try {
     toolResult = claudeResult;
   }
 
-  const { success, sessionId } = toolResult;
+  const { success, sessionId, anthropicTotalCostUSD } = toolResult;
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
@@ -927,7 +927,10 @@ try {
           $,
           log,
           sanitizeLogContent,
-          verbose: argv.verbose
+          verbose: argv.verbose,
+          sessionId,
+          tempDir: argv.tempDir || process.cwd(),
+          anthropicTotalCostUSD
         });
 
         if (logUploadSuccess) {
