@@ -1,21 +1,16 @@
 #!/usr/bin/env node
 // Claude CLI-related utility functions
-
-// Check if use is already defined (when imported from solve.mjs)
 // If not, fetch it (when running standalone)
 if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
-
 const { $ } = await use('command-stream');
 const fs = (await use('fs')).promises;
 const path = (await use('path')).default;
-
 // Import log from general lib
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts, retryLimits } from './config.lib.mjs';
-
 // Available model configurations
 export const availableModels = {
   'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
@@ -24,13 +19,10 @@ export const availableModels = {
   'haiku-3-5': 'claude-3-5-haiku-20241022', // Haiku 3.5
   'haiku-3': 'claude-3-haiku-20240307',     // Haiku 3
 };
-
 // Model mapping to translate aliases to full model IDs
 export const mapModelToId = (model) => {
-  // Return mapped model ID if it's an alias, otherwise return as-is (for full model IDs)
   return availableModels[model] || model;
 };
-
 // Function to validate Claude CLI connection with retry logic
 export const validateClaudeConnection = async (model = 'haiku-3') => {
   // Map model alias to full ID
@@ -39,7 +31,6 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
   const maxRetries = 3;
   const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
-
   const attemptValidation = async () => {
     try {
       if (retryCount === 0) {
@@ -47,10 +38,8 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
       } else {
         await log(`🔄 Retry attempt ${retryCount}/${maxRetries} for Claude CLI validation...`);
       }
-
       // First try a quick validation approach
       try {
-        // Check if Claude CLI is installed and get version
         const versionResult = await $`timeout ${Math.floor(timeouts.claudeCli / 6000)} claude --version`;
         if (versionResult.code === 0) {
           const version = versionResult.stdout?.toString().trim();
@@ -64,7 +53,6 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
           await log(`⚠️  Claude CLI version check failed (${versionError.code}), proceeding with connection test...`);
         }
       }
-
       let result;
       try {
         // Primary validation: use printf piping with specified model
@@ -89,7 +77,6 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
       // Check for common error patterns
       const stdout = result.stdout?.toString() || '';
       const stderr = result.stderr?.toString() || '';
-
       // Check for JSON errors in stdout or stderr
       const checkForJsonError = (text) => {
         try {
@@ -112,9 +99,7 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
         }
         return null;
       };
-
       const jsonError = checkForJsonError(stdout) || checkForJsonError(stderr);
-
       // Check for API overload error pattern
       const isOverloadError = (stdout.includes('API Error: 500') && stdout.includes('Overloaded')) ||
                              (stderr.includes('API Error: 500') && stderr.includes('Overloaded')) ||
@@ -134,10 +119,8 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
           return false;
         }
       }
-
       // Use exitCode if code is undefined (Bun shell behavior)
       const exitCode = result.code ?? result.exitCode ?? 0;
-
       if (exitCode !== 0) {
         // Command failed
         if (jsonError) {
@@ -146,17 +129,13 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
           await log(`❌ Claude CLI failed with exit code ${exitCode}`, { level: 'error' });
           if (stderr) await log(`   Error: ${stderr.trim()}`, { level: 'error' });
         }
-
         if (stderr.includes('Please run /login') || (jsonError && jsonError.type === 'forbidden')) {
           await log('   💡 Please run: claude login', { level: 'error' });
         }
-
         return false;
       }
-
       // Check for error patterns in successful response
       if (jsonError) {
-        // Check if this is an overload error even with exit code 0
         if (jsonError.type === 'api_error' && jsonError.message === 'Overloaded') {
           if (retryCount < maxRetries) {
             const delay = baseDelay * Math.pow(2, retryCount);
@@ -169,19 +148,16 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
             return false;
           }
         }
-
         await log(`❌ Claude CLI returned error: ${jsonError.type} - ${jsonError.message}`, { level: 'error' });
         if (jsonError.type === 'forbidden') {
           await log('   💡 Please run: claude login', { level: 'error' });
         }
         return false;
       }
-
       // Success - Claude responded (LLM responses are probabilistic, so any response is good)
       await log('✅ Claude CLI connection validated successfully');
       return true;
     } catch (error) {
-      // Check if the error is an overload error
       const errorStr = error.message || error.toString();
       if ((errorStr.includes('API Error: 500') && errorStr.includes('Overloaded')) ||
           (errorStr.includes('api_error') && errorStr.includes('Overloaded'))) {
@@ -196,23 +172,19 @@ export const validateClaudeConnection = async (model = 'haiku-3') => {
           return false;
         }
       }
-
       await log(`❌ Failed to validate Claude CLI connection: ${error.message}`, { level: 'error' });
       await log('   💡 Make sure Claude CLI is installed and accessible', { level: 'error' });
       return false;
     }
   }; // End of attemptValidation function
-
   // Start the validation with retry logic
   return await attemptValidation();
 };
-
 // Function to handle Claude runtime switching between Node.js and Bun
 export const handleClaudeRuntimeSwitch = async (argv) => {
   if (argv['force-claude-bun-run']) {
     await log('\n🔧 Switching Claude runtime to bun...');
     try {
-      // Check if bun is available
       try {
         await $`which bun`;
         await log('   ✅ Bun runtime found');
@@ -236,7 +208,6 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       
       await log(`   Claude path: ${claudePath}`);
       
-      // Check if file is writable
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
@@ -248,12 +219,10 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
-
       // Read current shebang
       const firstLine = await $`head -1 "${claudePath}"`;
       const currentShebang = firstLine.stdout.toString().trim();
       await log(`   Current shebang: ${currentShebang}`);
-
       if (currentShebang.includes('bun')) {
         await log('   ✅ Claude is already configured to use bun');
         process.exit(0);
@@ -290,7 +259,6 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
   if (argv['force-claude-nodejs-run']) {
     await log('\n🔧 Restoring Claude runtime to Node.js...');
     try {
-      // Check if Node.js is available
       try {
         await $`which node`;
         await log('   ✅ Node.js runtime found');
@@ -314,7 +282,6 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
       
       await log(`   Claude path: ${claudePath}`);
       
-      // Check if file is writable
       try {
         await fs.access(claudePath, fs.constants.W_OK);
       } catch (accessError) {
@@ -326,18 +293,15 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
         await log('   Try running with sudo or changing file permissions', { level: 'error' });
         process.exit(1);
       }
-
       // Read current shebang
       const firstLine = await $`head -1 "${claudePath}"`;
       const currentShebang = firstLine.stdout.toString().trim();
       await log(`   Current shebang: ${currentShebang}`);
-
       if (currentShebang.includes('node') && !currentShebang.includes('bun')) {
         await log('   ✅ Claude is already configured to use Node.js');
         process.exit(0);
       }
       
-      // Check if backup exists
       const backupPath = `${claudePath}.nodejs-backup`;
       try {
         await fs.access(backupPath);
@@ -375,7 +339,6 @@ export const handleClaudeRuntimeSwitch = async (argv) => {
     process.exit(0);
   }
 };
-
 /**
  * Execute Claude with all prompts and settings
  * This is the main entry point that handles all prompt building and execution
@@ -406,10 +369,8 @@ export const executeClaude = async (params) => {
     claudePath,
     $
   } = params;
-
   // Import prompt building functions from claude.prompts.lib.mjs
   const { buildUserPrompt, buildSystemPrompt } = await import('./claude.prompts.lib.mjs');
-
   // Build the user prompt
   const prompt = buildUserPrompt({
     issueUrl,
@@ -427,7 +388,6 @@ export const executeClaude = async (params) => {
     repo,
     argv
   });
-
   // Build the system prompt
   const systemPrompt = buildSystemPrompt({
     owner,
@@ -442,7 +402,6 @@ export const executeClaude = async (params) => {
     forkedRepo,
     argv
   });
-
   // Log prompt details in verbose mode
   if (argv.verbose) {
     await log('\n📝 Final prompt structure:', { verbose: true });
@@ -451,7 +410,6 @@ export const executeClaude = async (params) => {
     if (feedbackLines && feedbackLines.length > 0) {
       await log('   Feedback info: Included', { verbose: true });
     }
-
     // In dry-run mode, output the actual prompts for debugging
     if (argv.dryRun) {
       await log('\n📋 User prompt content:', { verbose: true });
@@ -464,11 +422,9 @@ export const executeClaude = async (params) => {
       await log('---END SYSTEM PROMPT---', { verbose: true });
     }
   }
-
   // Escape prompts for shell usage
   const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
   const escapedSystemPrompt = systemPrompt.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-
   // Execute the Claude command
   return await executeClaudeCommand({
     tempDir,
@@ -489,7 +445,6 @@ export const executeClaude = async (params) => {
     $
   });
 };
-
 /**
  * Calculate total token usage from a session's JSONL file
  * @param {string} sessionId - The session ID
@@ -504,19 +459,15 @@ export const executeClaude = async (params) => {
 export const fetchModelInfo = async (modelId) => {
   try {
     const https = (await use('https')).default;
-
     return new Promise((resolve, reject) => {
       https.get('https://models.dev/api.json', (res) => {
         let data = '';
-
         res.on('data', (chunk) => {
           data += chunk;
         });
-
         res.on('end', () => {
           try {
             const apiData = JSON.parse(data);
-
             // Search for the model across all providers
             for (const provider of Object.values(apiData)) {
               if (provider.models && provider.models[modelId]) {
@@ -527,7 +478,6 @@ export const fetchModelInfo = async (modelId) => {
                 return;
               }
             }
-
             // Model not found
             resolve(null);
           } catch (parseError) {
@@ -554,7 +504,6 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
   if (!modelInfo || !modelInfo.cost) {
     return includeBreakdown ? { total: 0, breakdown: null } : 0;
   }
-
   const cost = modelInfo.cost;
   const breakdown = {
     input: { tokens: 0, costPerMillion: 0, cost: 0 },
@@ -562,7 +511,6 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
     cacheRead: { tokens: 0, costPerMillion: 0, cost: 0 },
     output: { tokens: 0, costPerMillion: 0, cost: 0 }
   };
-
   // Input tokens cost (per million tokens)
   if (usage.inputTokens && cost.input) {
     breakdown.input = {
@@ -571,7 +519,6 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
       cost: (usage.inputTokens / 1000000) * cost.input
     };
   }
-
   // Cache creation tokens cost
   if (usage.cacheCreationTokens && cost.cache_write) {
     breakdown.cacheWrite = {
@@ -580,7 +527,6 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
       cost: (usage.cacheCreationTokens / 1000000) * cost.cache_write
     };
   }
-
   // Cache read tokens cost
   if (usage.cacheReadTokens && cost.cache_read) {
     breakdown.cacheRead = {
@@ -589,7 +535,6 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
       cost: (usage.cacheReadTokens / 1000000) * cost.cache_read
     };
   }
-
   // Output tokens cost
   if (usage.outputTokens && cost.output) {
     breakdown.output = {
@@ -598,19 +543,15 @@ export const calculateModelCost = (usage, modelInfo, includeBreakdown = false) =
       cost: (usage.outputTokens / 1000000) * cost.output
     };
   }
-
   const totalCost = breakdown.input.cost + breakdown.cacheWrite.cost + breakdown.cacheRead.cost + breakdown.output.cost;
-
   if (includeBreakdown) {
     return {
       total: totalCost,
       breakdown
     };
   }
-
   return totalCost;
 };
-
 /**
  * Display detailed model usage information
  * @param {Object} usage - Usage data for a model
@@ -639,7 +580,6 @@ const displayModelUsage = async (usage, log) => {
   } else {
     await log('      ⚠️  Model info not available from models.dev\n');
   }
-
   // Show usage data
   await log('      Usage:');
   await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
@@ -653,7 +593,6 @@ const displayModelUsage = async (usage, log) => {
   if (usage.webSearchRequests > 0) {
     await log(`        Web search requests: ${usage.webSearchRequests}`);
   }
-
   // Show detailed cost calculation from models.dev
   if (usage.costUSD !== null && usage.costUSD !== undefined && usage.costBreakdown) {
     await log('');
@@ -677,46 +616,35 @@ const displayModelUsage = async (usage, log) => {
     await log('      Cost (models.dev): Not available (could not fetch pricing from models.dev)');
   }
 };
-
 export const calculateSessionTokens = async (sessionId, tempDir) => {
   const os = (await use('os')).default;
   const homeDir = os.homedir();
-
   // Construct the path to the session JSONL file
   // Format: ~/.claude/projects/<project-dir>/<session-id>.jsonl
   // The project directory name is the full path with slashes replaced by dashes
   // e.g., /tmp/gh-issue-solver-123 becomes -tmp-gh-issue-solver-123
   const projectDirName = tempDir.replace(/\//g, '-');
   const sessionFile = path.join(homeDir, '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
-
   try {
-    // Check if file exists
     await fs.access(sessionFile);
   } catch {
     // File doesn't exist yet or can't be accessed
     return null;
   }
-
   // Initialize per-model usage tracking
   const modelUsage = {};
-
   try {
     // Read the entire file
     const fileContent = await fs.readFile(sessionFile, 'utf8');
     const lines = fileContent.trim().split('\n');
-
     // Parse each line and accumulate token counts per model
     for (const line of lines) {
       if (!line.trim()) continue;
-
       try {
         const entry = JSON.parse(line);
-
-        // Check if this entry has usage data
         if (entry.message && entry.message.usage && entry.message.model) {
           const model = entry.message.model;
           const usage = entry.message.usage;
-
           // Initialize model entry if it doesn't exist
           if (!modelUsage[model]) {
             modelUsage[model] = {
@@ -729,17 +657,14 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
               webSearchRequests: 0
             };
           }
-
           // Add input tokens
           if (usage.input_tokens) {
             modelUsage[model].inputTokens += usage.input_tokens;
           }
-
           // Add cache creation tokens (total)
           if (usage.cache_creation_input_tokens) {
             modelUsage[model].cacheCreationTokens += usage.cache_creation_input_tokens;
           }
-
           // Add cache creation tokens breakdown (5m and 1h)
           if (usage.cache_creation) {
             if (usage.cache_creation.ephemeral_5m_input_tokens) {
@@ -749,12 +674,10 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
               modelUsage[model].cacheCreation1hTokens += usage.cache_creation.ephemeral_1h_input_tokens;
             }
           }
-
           // Add cache read tokens
           if (usage.cache_read_input_tokens) {
             modelUsage[model].cacheReadTokens += usage.cache_read_input_tokens;
           }
-
           // Add output tokens
           if (usage.output_tokens) {
             modelUsage[model].outputTokens += usage.output_tokens;
@@ -765,18 +688,15 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
         continue;
       }
     }
-
     // If no usage data was found, return null
     if (Object.keys(modelUsage).length === 0) {
       return null;
     }
-
     // Fetch model information from models.dev for each model
     const modelInfoPromises = Object.keys(modelUsage).map(async (modelId) => {
       const modelInfo = await fetchModelInfo(modelId);
       return { modelId, modelInfo };
     });
-
     const modelInfoResults = await Promise.all(modelInfoPromises);
     const modelInfoMap = {};
     for (const { modelId, modelInfo } of modelInfoResults) {
@@ -784,11 +704,9 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
         modelInfoMap[modelId] = modelInfo;
       }
     }
-
     // Calculate cost for each model and store all characteristics
     for (const [modelId, usage] of Object.entries(modelUsage)) {
       const modelInfo = modelInfoMap[modelId];
-
       // Calculate cost using models.dev pricing
       if (modelInfo) {
         const costData = calculateModelCost(usage, modelInfo, true);
@@ -803,7 +721,6 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
         usage.modelInfo = null;
       }
     }
-
     // Calculate grand totals across all models
     let totalInputTokens = 0;
     let totalCacheCreationTokens = 0;
@@ -811,26 +728,21 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
     let totalOutputTokens = 0;
     let totalCostUSD = 0;
     let hasCostData = false;
-
     for (const usage of Object.values(modelUsage)) {
       totalInputTokens += usage.inputTokens;
       totalCacheCreationTokens += usage.cacheCreationTokens;
       totalCacheReadTokens += usage.cacheReadTokens;
       totalOutputTokens += usage.outputTokens;
-
       if (usage.costUSD !== null) {
         totalCostUSD += usage.costUSD;
         hasCostData = true;
       }
     }
-
     // Calculate total tokens (input + cache_creation + output, cache_read doesn't count as new tokens)
     const totalTokens = totalInputTokens + totalCacheCreationTokens + totalOutputTokens;
-
     return {
       // Per-model breakdown
       modelUsage,
-
       // Grand totals
       inputTokens: totalInputTokens,
       cacheCreationTokens: totalCacheCreationTokens,
@@ -843,7 +755,6 @@ export const calculateSessionTokens = async (sessionId, tempDir) => {
     throw new Error(`Failed to read session file: ${readError.message}`);
   }
 };
-
 export const executeClaudeCommand = async (params) => {
   const {
     tempDir,
@@ -863,12 +774,10 @@ export const executeClaudeCommand = async (params) => {
     claudePath,
     $  // Add command-stream $ to params
   } = params;
-
   // Retry configuration for API overload errors
   const maxRetries = 3;
   const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
-
   // Function to execute with retry logic
   const executeWithRetry = async () => {
     // Execute claude command from the cloned repository directory
@@ -877,7 +786,6 @@ export const executeClaudeCommand = async (params) => {
     } else {
       await log(`\n${formatAligned('🔄', 'Retry attempt:', `${retryCount}/${maxRetries}`)}`);
     }
-
     if (argv.verbose) {
     // Output the actual model being used
     const modelName = argv.model === 'opus' ? 'opus' : 'sonnet';
@@ -892,13 +800,11 @@ export const executeClaudeCommand = async (params) => {
       await log('   Feedback info included: No', { verbose: true });
     }
   }
-
   // Take resource snapshot before execution
   const resourcesBefore = await getResourceSnapshot();
   await log('📈 System resources before execution:', { verbose: true });
   await log(`   Memory: ${resourcesBefore.memory.split('\n')[1]}`, { verbose: true });
   await log(`   Load: ${resourcesBefore.load}`, { verbose: true });
-
     // Use command-stream's async iteration for real-time streaming with file logging
     let commandFailed = false;
     let sessionId = null;
@@ -910,31 +816,23 @@ export const executeClaudeCommand = async (params) => {
     let is503Error = false;
     let stderrErrors = [];
     let anthropicTotalCostUSD = null; // Capture Anthropic's official total_cost_usd from result
-
   // Build claude command with optional resume flag
   let execCommand;
-
   // Map model alias to full ID
   const mappedModel = mapModelToId(argv.model);
-
   // Build claude command arguments
   let claudeArgs = `--output-format stream-json --verbose --dangerously-skip-permissions --model ${mappedModel}`;
-
   if (argv.resume) {
     await log(`🔄 Resuming from session: ${argv.resume}`);
     claudeArgs = `--resume ${argv.resume} ${claudeArgs}`;
   }
-
   claudeArgs += ` -p "${escapedPrompt}" --append-system-prompt "${escapedSystemPrompt}"`;
-
   // Build the full command for display (with jq for formatting as in v0.3.2)
   const fullCommand = `(cd "${tempDir}" && ${claudePath} ${claudeArgs} | jq -c .)`;
-
   // Print the actual raw command being executed
   await log(`\n${formatAligned('📝', 'Raw command:', '')}`);
   await log(`${fullCommand}`);
   await log('');
-
   // Output prompts in verbose mode for debugging
   if (argv.verbose) {
     await log('📋 User prompt:', { verbose: true });
@@ -948,14 +846,12 @@ export const executeClaudeCommand = async (params) => {
     await log('---END SYSTEM PROMPT---', { verbose: true });
     await log('', { verbose: true });
   }
-
   try {
     if (argv.resume) {
       // When resuming, pass prompt directly with -p flag
       // Use simpler escaping - just escape double quotes
       const simpleEscapedPrompt = prompt.replace(/"/g, '\\"');
       const simpleEscapedSystem = systemPrompt.replace(/"/g, '\\"');
-
       execCommand = $({
         cwd: tempDir,
         mirror: false
@@ -964,14 +860,12 @@ export const executeClaudeCommand = async (params) => {
       // When not resuming, pass prompt via stdin
       // For system prompt, escape it properly for shell - just escape double quotes
       const simpleEscapedSystem = systemPrompt.replace(/"/g, '\\"');
-
       execCommand = $({
         cwd: tempDir,
         stdin: prompt,
         mirror: false
       })`${claudePath} --output-format stream-json --verbose --dangerously-skip-permissions --model ${mappedModel} --append-system-prompt "${simpleEscapedSystem}"`;
     }
-
     await log(`${formatAligned('📋', 'Command details:', '')}`);
     await log(formatAligned('📂', 'Working directory:', tempDir, 2));
     await log(formatAligned('🌿', 'Branch:', branchName, 2));
@@ -979,50 +873,38 @@ export const executeClaudeCommand = async (params) => {
     if (argv.fork && forkedRepo) {
       await log(formatAligned('🍴', 'Fork:', forkedRepo, 2));
     }
-
     await log(`\n${formatAligned('▶️', 'Streaming output:', '')}\n`);
-
     // Use command-stream's async iteration for real-time streaming
     let exitCode = 0;
-
     for await (const chunk of execCommand.stream()) {
       if (chunk.type === 'stdout') {
         const output = chunk.data.toString();
-
         // Split output into individual lines for NDJSON parsing
         // Claude CLI outputs NDJSON (newline-delimited JSON) format where each line is a separate JSON object
         // This allows us to parse each event independently and extract structured data like session IDs,
         // message counts, and error patterns. Attempting to parse the entire chunk as single JSON would fail
         // since multiple JSON objects aren't valid JSON together.
         const lines = output.split('\n');
-
         for (const line of lines) {
           if (!line.trim()) continue;
-
           try {
             const data = JSON.parse(line);
-
             // Output formatted JSON as in v0.3.2
             await log(JSON.stringify(data, null, 2));
-
             // Capture session ID from the first message
             if (!sessionId && data.session_id) {
               sessionId = data.session_id;
               await log(`📌 Session ID: ${sessionId}`);
-
               // Try to rename log file to include session ID
               let sessionLogFile;
               try {
                 const currentLogFile = getLogFile();
                 const logDir = path.dirname(currentLogFile);
                 sessionLogFile = path.join(logDir, `${sessionId}.log`);
-
                 // Use fs.promises to rename the file
                 await fs.rename(currentLogFile, sessionLogFile);
-
                 // Update the global log file reference
                 setLogFile(sessionLogFile);
-
                 await log(`📁 Log renamed to: ${sessionLogFile}`);
               } catch (renameError) {
                 reportError(renameError, {
@@ -1035,14 +917,12 @@ export const executeClaudeCommand = async (params) => {
                 await log(`⚠️ Could not rename log file: ${renameError.message}`, { verbose: true });
               }
             }
-
             // Track message and tool use counts
             if (data.type === 'message') {
               messageCount++;
             } else if (data.type === 'tool_use') {
               toolUseCount++;
             }
-
             // Handle session result type from Claude CLI
             // This is emitted when a session completes, either successfully or with an error
             // Example: {"type": "result", "subtype": "success", "is_error": true, "result": "Session limit reached ∙ resets 10am"}
@@ -1052,28 +932,22 @@ export const executeClaudeCommand = async (params) => {
                 anthropicTotalCostUSD = data.total_cost_usd;
                 await log(`💰 Anthropic official cost captured: $${anthropicTotalCostUSD.toFixed(6)}`, { verbose: true });
               }
-
-              // Check if the result indicates an error
               if (data.is_error === true) {
                 commandFailed = true;
                 lastMessage = data.result || JSON.stringify(data);
                 await log('⚠️ Detected error result from Claude CLI', { verbose: true });
-
-                // Check if this is a session limit error
                 if (lastMessage.includes('Session limit reached') || lastMessage.includes('limit reached')) {
                   limitReached = true;
                   await log('⚠️ Detected session limit in result', { verbose: true });
                 }
               }
             }
-
             // Store last message for error detection
             if (data.type === 'text' && data.text) {
               lastMessage = data.text;
             } else if (data.type === 'error') {
               lastMessage = data.error || JSON.stringify(data);
             }
-
             // Check for API overload error and 503 errors
             if (data.type === 'assistant' && data.message && data.message.content) {
               const content = Array.isArray(data.message.content) ? data.message.content : [data.message.content];
@@ -1098,7 +972,6 @@ export const executeClaudeCommand = async (params) => {
                 }
               }
             }
-
           } catch (parseError) {
             // JSON parse errors are expected for non-JSON output
             // Only report in verbose mode
@@ -1118,7 +991,6 @@ export const executeClaudeCommand = async (params) => {
           }
         }
       }
-
       if (chunk.type === 'stderr') {
         const errorOutput = chunk.data.toString();
         // Log stderr immediately
@@ -1142,22 +1014,17 @@ export const executeClaudeCommand = async (params) => {
         // Don't break here - let the loop finish naturally to process all output
       }
     }
-
-    // Check if this is an overload error that should be retried
     if ((commandFailed || isOverloadError) &&
         (isOverloadError ||
          (lastMessage.includes('API Error: 500') && lastMessage.includes('Overloaded')) ||
          (lastMessage.includes('api_error') && lastMessage.includes('Overloaded')))) {
-
       if (retryCount < maxRetries) {
         // Calculate exponential backoff delay
         const delay = baseDelay * Math.pow(2, retryCount);
         await log(`\n⚠️ API overload error detected. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
         await log(`   Error: ${lastMessage.substring(0, 200)}`, { verbose: true });
-
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, delay));
-
         // Increment retry count and retry
         retryCount++;
         return await executeWithRetry();
@@ -1173,14 +1040,11 @@ export const executeClaudeCommand = async (params) => {
         };
       }
     }
-
-    // Check if this is a 503 error that should be retried (only if --auto-resume-on-errors is enabled)
     if ((commandFailed || is503Error) && argv.autoResumeOnErrors &&
         (is503Error ||
          lastMessage.includes('API Error: 503') ||
          (lastMessage.includes('503') && lastMessage.includes('upstream connect error')) ||
          (lastMessage.includes('503') && lastMessage.includes('remote connection failure')))) {
-
       if (retryCount < retryLimits.max503Retries) {
         // Calculate exponential backoff delay starting from 5 minutes
         const delay = retryLimits.initial503RetryDelayMs * Math.pow(retryLimits.retryBackoffMultiplier, retryCount);
@@ -1188,7 +1052,6 @@ export const executeClaudeCommand = async (params) => {
         await log(`\n⚠️ 503 network error detected. Retrying in ${delayMinutes} minutes...`, { level: 'warning' });
         await log(`   Error: ${lastMessage.substring(0, 200)}`, { verbose: true });
         await log(`   Retry ${retryCount + 1}/${retryLimits.max503Retries}`, { verbose: true });
-
         // Show countdown for long waits
         if (delay > 60000) {
           const countdownInterval = 60000; // Every minute
@@ -1200,7 +1063,6 @@ export const executeClaudeCommand = async (params) => {
               await log(`⏳ ${remainingMinutes} minutes remaining until retry...`);
             }
           }, countdownInterval);
-
           // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, delay));
           clearInterval(countdownTimer);
@@ -1208,9 +1070,7 @@ export const executeClaudeCommand = async (params) => {
           // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, delay));
         }
-
         await log('\n🔄 Retrying now...');
-
         // Increment retry count and retry
         retryCount++;
         return await executeWithRetry();
@@ -1228,15 +1088,12 @@ export const executeClaudeCommand = async (params) => {
         };
       }
     }
-
     if (commandFailed) {
-      // Check if we hit a rate limit
       if (lastMessage.includes('rate_limit_exceeded') ||
           lastMessage.includes('You have exceeded your rate limit') ||
           lastMessage.includes('rate limit')) {
         limitReached = true;
         await log('\n\n⏳ Rate limit reached. The session can be resumed later.', { level: 'warning' });
-
         if (sessionId) {
           await log(`📌 Session ID for resuming: ${sessionId}`);
           await log('\nTo continue when the rate limit resets, run:');
@@ -1253,7 +1110,6 @@ export const executeClaudeCommand = async (params) => {
         }
       }
     }
-
     // Additional failure detection: if no messages were processed and there were stderr errors,
     // or if the command produced no output at all, treat it as a failure
     //
@@ -1281,18 +1137,14 @@ export const executeClaudeCommand = async (params) => {
         await log(`   ${err.substring(0, 200)}`, { level: 'error' });
       }
     }
-
-    // Check if command failed
     if (commandFailed) {
       // Take resource snapshot after failure
       const resourcesAfter = await getResourceSnapshot();
       await log('\n📈 System resources after execution:', { verbose: true });
       await log(`   Memory: ${resourcesAfter.memory.split('\n')[1]}`, { verbose: true });
       await log(`   Load: ${resourcesAfter.load}`, { verbose: true });
-
       // Log attachment will be handled by solve.mjs when it receives success=false
       await log('', { verbose: true });
-
       return {
         success: false,
         sessionId,
@@ -1301,43 +1153,34 @@ export const executeClaudeCommand = async (params) => {
         toolUseCount
       };
     }
-
     await log('\n\n✅ Claude command completed');
     await log(`📊 Total messages: ${messageCount}, Tool uses: ${toolUseCount}`);
-
     // Calculate and display total token usage from session JSONL file
     if (sessionId && tempDir) {
       try {
         const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
         if (tokenUsage) {
           await log('\n💰 Token Usage Summary:');
-
           // Display per-model breakdown
           if (tokenUsage.modelUsage) {
             const modelIds = Object.keys(tokenUsage.modelUsage);
-
             for (const modelId of modelIds) {
               const usage = tokenUsage.modelUsage[modelId];
               await log(`\n   📊 ${usage.modelName || modelId}:`);
               await displayModelUsage(usage, log);
             }
-
             // Show totals if multiple models were used
             if (modelIds.length > 1) {
               await log('\n   📈 Total across all models:');
-
               // Show cost comparison
               await log('\n   💰 Cost estimation:');
-
               if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
                 await log(`      Public pricing estimate: $${tokenUsage.totalCostUSD.toFixed(6)} USD`);
               } else {
                 await log('      Public pricing estimate: unknown');
               }
-
               if (anthropicTotalCostUSD !== null && anthropicTotalCostUSD !== undefined) {
                 await log(`      Calculated by Anthropic: $${anthropicTotalCostUSD.toFixed(6)} USD`);
-
                 // Show comparison if both are available
                 if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
                   const difference = anthropicTotalCostUSD - tokenUsage.totalCostUSD;
@@ -1353,16 +1196,13 @@ export const executeClaudeCommand = async (params) => {
             } else {
               // Single model - show cost comparison
               await log('\n   💰 Cost estimation:');
-
               if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
                 await log(`      Public pricing estimate: $${tokenUsage.totalCostUSD.toFixed(6)} USD`);
               } else {
                 await log('      Public pricing estimate: unknown');
               }
-
               if (anthropicTotalCostUSD !== null && anthropicTotalCostUSD !== undefined) {
                 await log(`      Calculated by Anthropic: $${anthropicTotalCostUSD.toFixed(6)} USD`);
-
                 // Show comparison if both are available
                 if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
                   const difference = anthropicTotalCostUSD - tokenUsage.totalCostUSD;
@@ -1375,7 +1215,6 @@ export const executeClaudeCommand = async (params) => {
                 await log('      Calculated by Anthropic: unknown');
                 await log('      Difference:              unknown');
               }
-
               await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
             }
           } else {
@@ -1400,7 +1239,6 @@ export const executeClaudeCommand = async (params) => {
         await log(`   ⚠️ Could not calculate token usage: ${tokenError.message}`, { verbose: true });
       }
     }
-
     return {
       success: true,
       sessionId,
@@ -1416,46 +1254,36 @@ export const executeClaudeCommand = async (params) => {
       claudePath: params.claudePath,
       operation: 'run_claude_command'
     });
-    // Check if this is an overload error in the exception
     const errorStr = error.message || error.toString();
     if ((errorStr.includes('API Error: 500') && errorStr.includes('Overloaded')) ||
         (errorStr.includes('api_error') && errorStr.includes('Overloaded'))) {
-
       if (retryCount < maxRetries) {
         // Calculate exponential backoff delay
         const delay = baseDelay * Math.pow(2, retryCount);
         await log(`\n⚠️ API overload error in exception. Retrying in ${delay / 1000} seconds...`, { level: 'warning' });
-
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, delay));
-
         // Increment retry count and retry
         retryCount++;
         return await executeWithRetry();
       }
     }
-
-    // Check if this is a 503 error in the exception (only if --auto-resume-on-errors is enabled)
     if (argv.autoResumeOnErrors &&
         (errorStr.includes('API Error: 503') ||
          (errorStr.includes('503') && errorStr.includes('upstream connect error')) ||
          (errorStr.includes('503') && errorStr.includes('remote connection failure')))) {
-
       if (retryCount < retryLimits.max503Retries) {
         // Calculate exponential backoff delay starting from 5 minutes
         const delay = retryLimits.initial503RetryDelayMs * Math.pow(retryLimits.retryBackoffMultiplier, retryCount);
         const delayMinutes = Math.round(delay / (1000 * 60));
         await log(`\n⚠️ 503 network error in exception. Retrying in ${delayMinutes} minutes...`, { level: 'warning' });
-
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, delay));
-
         // Increment retry count and retry
         retryCount++;
         return await executeWithRetry();
       }
     }
-
     await log(`\n\n❌ Error executing Claude command: ${error.message}`, { level: 'error' });
     return {
       success: false,
@@ -1466,7 +1294,6 @@ export const executeClaudeCommand = async (params) => {
     };
   }
   }; // End of executeWithRetry function
-
   // Start the execution with retry logic
   return await executeWithRetry();
 };
@@ -1474,29 +1301,24 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
   await log('\n🔍 Checking for uncommitted changes...');
   try {
     const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
-
     if (gitStatusResult.code === 0) {
       const statusOutput = gitStatusResult.stdout.toString().trim();
-
       if (statusOutput) {
         await log('📝 Found uncommitted changes');
         await log('Changes:');
         for (const line of statusOutput.split('\n')) {
           await log(`   ${line}`);
         }
-
         if (autoCommit) {
           await log('💾 Auto-committing changes (--auto-commit-uncommitted-changes is enabled)...');
           const addResult = await $({ cwd: tempDir })`git add -A`;
           if (addResult.code === 0) {
             const commitMessage = 'Auto-commit: Changes made by Claude during problem-solving session';
             const commitResult = await $({ cwd: tempDir })`git commit -m ${commitMessage}`;
-
             if (commitResult.code === 0) {
               await log('✅ Changes committed successfully');
               await log('📤 Pushing changes to remote...');
               const pushResult = await $({ cwd: tempDir })`git push origin ${branchName}`;
-
               if (pushResult.code === 0) {
                 await log('✅ Changes pushed successfully');
               } else {
@@ -1534,7 +1356,6 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
     return false;
   }
 };
-
 // Export all functions as default object too
 export default {
   validateClaudeConnection,
