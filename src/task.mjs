@@ -8,7 +8,7 @@ if (earlyArgs.includes('--version')) {
   try {
     const version = await getVersion();
     console.log(version);
-  } catch (versionError) {
+  } catch {
     console.error('Error: Unable to determine version');
     process.exit(1);
   }
@@ -34,18 +34,13 @@ if (earlyArgs.includes('--help') || earlyArgs.includes('-h')) {
 // Use use-m to dynamically import modules for cross-runtime compatibility
 const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
 
-// Use command-stream for consistent $ behavior across runtimes
-const { $ } = await use('command-stream');
-
 const yargs = (await use('yargs@latest')).default;
-const os = (await use('os')).default;
 const path = (await use('path')).default;
 const fs = (await use('fs')).promises;
-const crypto = (await use('crypto')).default;
 const { spawn } = (await use('child_process')).default;
 
 // Import Claude execution functions
-import { validateClaudeConnection, mapModelToId } from './claude.lib.mjs';
+import { mapModelToId } from './claude.lib.mjs';
 
 // Global log file reference
 let logFile = null;
@@ -130,7 +125,7 @@ const argv = yargs()
     choices: ['text', 'json']
   })
   .check((argv) => {
-    if (!argv._[0]) {
+    if (!argv['task-description'] && !argv._[0]) {
       throw new Error('Please provide a task description');
     }
     
@@ -161,7 +156,7 @@ const argv = yargs()
   .strict()
   .parse(process.argv.slice(2));
 
-const taskDescription = argv._[0];
+const taskDescription = argv['task-description'] || argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;

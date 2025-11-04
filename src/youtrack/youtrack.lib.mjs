@@ -7,9 +7,6 @@ if (typeof use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
 
-// Use command-stream for consistent $ behavior
-const { $ } = await use('command-stream');
-
 // Import log and other utilities from general lib
 import { log, cleanErrorMessage } from '../lib.mjs';
 

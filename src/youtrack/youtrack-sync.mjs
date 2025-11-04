@@ -12,7 +12,6 @@
 // Import YouTrack functions
 const youTrackLib = await import('./youtrack.lib.mjs');
 const {
-  getYouTrackIssue,
   fetchYouTrackIssues
 } = youTrackLib;
 
@@ -122,7 +121,7 @@ ${youTrackIssue.description || 'No description provided.'}
       try {
         await $`gh issue edit ${existingIssue.number} --repo ${owner}/${repo} --add-label "help wanted"`;
         await log(`   🏷️ Added 'help wanted' label to #${existingIssue.number}`);
-      } catch (labelError) {
+      } catch {
         // Silently skip if label doesn't exist
         await log('   ⚠️ Could not add \'help wanted\' label (may not exist in repo)', { verbose: true });
       }

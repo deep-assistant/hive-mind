@@ -57,7 +57,7 @@ export async function detectCITools(workDir) {
       await fs.access(ruffConfigPath);
       tools.python.ruff = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, ruff not configured
     }
 
     try {
@@ -67,7 +67,7 @@ export async function detectCITools(workDir) {
       if (pyproject.includes('[tool.black]')) tools.python.black = true;
       if (pyproject.includes('[tool.pytest]')) tools.python.pytest = true;
     } catch {
-      // File doesn't exist or can't be read
+      // File doesn't exist or can't be read, tools not configured in pyproject.toml
     }
 
     // Check mypy
@@ -75,7 +75,7 @@ export async function detectCITools(workDir) {
       await fs.access(mypyConfigPath);
       tools.python.mypy = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, mypy not configured
     }
 
     // Check nox
@@ -83,7 +83,7 @@ export async function detectCITools(workDir) {
       await fs.access(noxfilePath);
       tools.python.nox = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, nox not configured
     }
 
     // Check flake8
@@ -91,7 +91,7 @@ export async function detectCITools(workDir) {
       await fs.access(flake8ConfigPath);
       tools.python.flake8 = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, flake8 not configured
     }
 
     // Check for JavaScript tools
@@ -112,7 +112,7 @@ export async function detectCITools(workDir) {
         tools.javascript.vitest = true;
       }
     } catch {
-      // File doesn't exist or can't be parsed
+      // File doesn't exist or can't be parsed, JavaScript tools not configured
     }
 
     // Check for Rust tools
@@ -123,7 +123,7 @@ export async function detectCITools(workDir) {
       tools.rust.clippy = true;
       tools.rust.cargoTest = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, Rust tools not configured
     }
 
     // Check for pre-commit
@@ -132,7 +132,7 @@ export async function detectCITools(workDir) {
       await fs.access(preCommitPath);
       tools.general.preCommit = true;
     } catch {
-      // File doesn't exist
+      // File doesn't exist, pre-commit not configured
     }
 
   } catch (err) {

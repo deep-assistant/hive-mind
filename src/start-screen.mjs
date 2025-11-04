@@ -6,66 +6,9 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Load use-m dynamically from unpkg (same pattern as solve.mjs and github.lib.mjs)
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-
-// Dynamically load parse-github-url using use-m
-const parseGitHubUrlModule = await use('parse-github-url@1.0.3');
-const parseGitHubUrlLib = parseGitHubUrlModule.default || parseGitHubUrlModule;
-
-// Wrapper function to match our expected interface using parse-github-url from npm via use-m
-function parseGitHubUrl(url) {
-  if (!url || typeof url !== 'string') {
-    return {
-      valid: false,
-      error: 'Invalid input: URL must be a non-empty string'
-    };
-  }
-
-  try {
-    // Use parse-github-url library loaded via use-m
-    const parsed = parseGitHubUrlLib(url);
-
-    if (!parsed || !parsed.owner || !parsed.name) {
-      return {
-        valid: false,
-        error: 'Invalid GitHub URL: missing owner/repo'
-      };
-    }
-
-    const result = {
-      valid: true,
-      normalized: parsed.href || url,
-      hostname: parsed.host || 'github.com',
-      owner: parsed.owner,
-      repo: parsed.name,
-      type: 'unknown',
-      path: parsed.filepath || '',
-      number: null
-    };
-
-    // Determine the type based on branch and filepath
-    // Note: parse-github-url treats "issues" as a branch, not part of filepath
-    if (parsed.branch === 'issues' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
-      result.type = 'issue';
-      result.number = parseInt(parsed.filepath, 10);
-    } else if (parsed.branch === 'pull' && parsed.filepath && /^\d+$/.test(parsed.filepath)) {
-      result.type = 'pr';
-      result.number = parseInt(parsed.filepath, 10);
-    } else if (parsed.owner && parsed.name) {
-      result.type = 'repo';
-    } else if (parsed.owner) {
-      result.type = 'owner';
-    }
-
-    return result;
-  } catch {
-    return {
-      valid: false,
-      error: 'Invalid GitHub URL format: ' + error.message
-    };
-  }
-}
+// Import the shared parseGitHubUrl function from github.lib.mjs
+// This ensures consistent URL validation across all commands (hive, solve, start-screen)
+const { parseGitHubUrl } = await import('./github.lib.mjs');
 
 /**
  * Generate a screen session name based on the command and GitHub URL
@@ -221,7 +164,7 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
       await execAsync(`screen -S ${sessionName} -X stuff '${escapedCommand}\n'`);
       console.log(`Command sent to session '${sessionName}' successfully.`);
       console.log(`To attach and view the session, run: screen -r ${sessionName}`);
-    } catch {
+    } catch (error) {
       console.error('Failed to send command to existing screen session:', error.message);
       console.error('You may need to terminate the old session and try again.');
       process.exit(1);
@@ -266,7 +209,7 @@ async function createOrEnterScreen(sessionName, command, args, autoTerminate = f
       console.log('Session will remain active after command completes');
     }
     console.log(`To attach to this session, run: screen -r ${sessionName}`);
-  } catch {
+  } catch (error) {
     console.error('Failed to create screen session:', error.message);
     process.exit(1);
   }

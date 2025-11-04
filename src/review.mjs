@@ -102,7 +102,7 @@ const argv = yargs()
   .strict()
   .parse(process.argv.slice(2));
 
-const prUrl = argv._[0];
+const prUrl = argv['pr-url'] || argv._[0];
 
 // Set global verbose mode for log function
 global.verboseMode = argv.verbose;
@@ -166,6 +166,8 @@ if (isResuming) {
   await fs.mkdir(tempDir, { recursive: true });
   await log(`Creating temporary directory: ${tempDir}\n`);
 }
+
+let limitReached = false;
 
 try {
   // Get PR details first
@@ -405,7 +407,7 @@ Review this pull request thoroughly.`;
 } catch (error) {
   reportError(error, {
     context: 'review_execution',
-    prUrl: argv._[0]
+    prUrl: prUrl
   });
   await log('Error executing review:', error.message, { level: 'error' });
   process.exit(1);

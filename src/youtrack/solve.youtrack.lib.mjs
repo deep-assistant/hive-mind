@@ -9,7 +9,6 @@
 const youTrackLib = await import('./youtrack.lib.mjs');
 const {
   parseYouTrackIssueId,
-  getYouTrackIssue,
   updateYouTrackIssueStage,
   addYouTrackComment,
   createYouTrackConfigFromEnv

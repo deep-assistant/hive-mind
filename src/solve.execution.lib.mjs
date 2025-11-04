@@ -256,7 +256,7 @@ export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
 };
 
 // Execute the main solve logic with Claude
-export const executeMainSolveLogic = async (tempDir, repoToClone, _claudePath, _argv, _issueUrl, _sessionId, _owner, _repo, _issueNumber) => {
+export const executeMainSolveLogic = async (tempDir, repoToClone) => {
   // Clone the repository (or fork) using gh tool with authentication
   await log(`\n${formatAligned('📥', 'Cloning repository:', repoToClone)}`);
 

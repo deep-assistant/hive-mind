@@ -46,9 +46,11 @@ if (!shouldDisableSentry()) {
     const { sentry, version } = await import('./config.lib.mjs');
 
     // Dynamically import Sentry packages only when needed
-    const sentryModule = await import('@sentry/node');
+    // eslint-disable-next-line quotes
+    const sentryModule = await import("@sentry/node");
     Sentry = sentryModule;
-    const profilingModule = await import('@sentry/profiling-node');
+    // eslint-disable-next-line quotes
+    const profilingModule = await import("@sentry/profiling-node");
     nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
 
     // Initialize Sentry with configuration
@@ -81,7 +83,7 @@ if (!shouldDisableSentry()) {
       debug: process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development',
 
       // Before send hook to filter out sensitive data
-      beforeSend(event, _hint) {
+      beforeSend(event) {
         // Filter out sensitive environment variables
         if (event.contexts && event.contexts.runtime && event.contexts.runtime.env) {
           const sensitiveKeys = ['API_KEY', 'TOKEN', 'SECRET', 'PASSWORD', 'ANTHROPIC'];
