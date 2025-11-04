@@ -522,14 +522,23 @@ export async function attachLogToGitHub(options) {
 
     // Calculate token usage if sessionId and tempDir are provided
     let totalCostUSD = null;
+    let totalAnthropicCostUSD = null;
     if (sessionId && tempDir && !errorMessage) {
       try {
         const { calculateSessionTokens } = await import('./claude.lib.mjs');
         const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
-        if (tokenUsage && tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
-          totalCostUSD = tokenUsage.totalCostUSD;
-          if (verbose) {
-            await log(`  💰 Calculated total cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
+        if (tokenUsage) {
+          if (tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
+            totalCostUSD = tokenUsage.totalCostUSD;
+            if (verbose) {
+              await log(`  💰 Calculated models.dev cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
+            }
+          }
+          if (tokenUsage.totalAnthropicCostUSD !== null && tokenUsage.totalAnthropicCostUSD !== undefined) {
+            totalAnthropicCostUSD = tokenUsage.totalAnthropicCostUSD;
+            if (verbose) {
+              await log(`  💰 Calculated Anthropic cost: $${totalAnthropicCostUSD.toFixed(6)}`, { verbose: true });
+            }
           }
         }
       } catch (tokenError) {
@@ -571,7 +580,21 @@ ${logContent}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
     } else {
       // Success log format
-      const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
+      let costInfo = '';
+      if (totalCostUSD !== null || totalAnthropicCostUSD !== null) {
+        costInfo = '\n\n💰 **Cost Comparison:**';
+        if (totalCostUSD !== null) {
+          costInfo += `\n- models.dev estimate: $${totalCostUSD.toFixed(6)} USD`;
+        }
+        if (totalAnthropicCostUSD !== null) {
+          costInfo += `\n- Anthropic official: $${totalAnthropicCostUSD.toFixed(6)} USD`;
+        }
+        if (totalCostUSD !== null && totalAnthropicCostUSD !== null) {
+          const difference = totalAnthropicCostUSD - totalCostUSD;
+          const percentDiff = totalCostUSD > 0 ? ((difference / totalCostUSD) * 100) : 0;
+          costInfo += `\n- Difference: $${difference.toFixed(6)} (${percentDiff > 0 ? '+' : ''}${percentDiff.toFixed(2)}%)`;
+        }
+      }
       logComment = `## ${customTitle}
 
 This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
@@ -656,7 +679,21 @@ ${errorMessage}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
           } else {
             // Success log gist format
-            const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
+            let costInfo = '';
+            if (totalCostUSD !== null || totalAnthropicCostUSD !== null) {
+              costInfo = '\n\n💰 **Cost Comparison:**';
+              if (totalCostUSD !== null) {
+                costInfo += `\n- models.dev estimate: $${totalCostUSD.toFixed(6)} USD`;
+              }
+              if (totalAnthropicCostUSD !== null) {
+                costInfo += `\n- Anthropic official: $${totalAnthropicCostUSD.toFixed(6)} USD`;
+              }
+              if (totalCostUSD !== null && totalAnthropicCostUSD !== null) {
+                const difference = totalAnthropicCostUSD - totalCostUSD;
+                const percentDiff = totalCostUSD > 0 ? ((difference / totalCostUSD) * 100) : 0;
+                costInfo += `\n- Difference: $${difference.toFixed(6)} (${percentDiff > 0 ? '+' : ''}${percentDiff.toFixed(2)}%)`;
+              }
+            }
             gistComment = `## ${customTitle}
 
 This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
