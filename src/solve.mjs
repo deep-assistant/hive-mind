@@ -912,6 +912,7 @@ try {
     }
 
     // Attach updated logs to PR after auto-restart completes
+    let logsAttached = false;
     if (shouldAttachLogs && prNumber) {
       await log('📎 Uploading working session logs to Pull Request...');
       try {
@@ -929,6 +930,7 @@ try {
 
         if (logUploadSuccess) {
           await log('✅ Working session logs uploaded successfully');
+          logsAttached = true;
         } else {
           await log('⚠️  Failed to upload working session logs', { level: 'warning' });
         }
@@ -945,7 +947,8 @@ try {
     argv,
     log,
     formatAligned,
-    $
+    $,
+    logsAttached
   });
 } catch (error) {
   reportError(error, {
