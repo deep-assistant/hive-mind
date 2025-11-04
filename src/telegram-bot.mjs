@@ -13,6 +13,7 @@ if (typeof use === 'undefined') {
 const { lino } = await import('./lino.lib.mjs');
 const { buildUserMention } = await import('./buildUserMention.lib.mjs');
 const { reportError, initializeSentry, addBreadcrumb } = await import('./sentry.lib.mjs');
+const { getClaudeUsageMessage } = await import('./claude-usage.lib.mjs');
 const { loadLenvConfig } = await import('./lenv-reader.lib.mjs');
 
 const dotenvxModule = await use('@dotenvx/dotenvx');
@@ -898,6 +899,9 @@ bot.command('solve', async (ctx) => {
   if (solveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${solveOverrides.join(' ')}`;
   }
+  // Add Claude usage indicator
+  const usageMessage = await getClaudeUsageMessage();
+  statusMsg += `\n\n${usageMessage}`;
   await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('solve', args);
@@ -1030,6 +1034,9 @@ bot.command('hive', async (ctx) => {
   if (hiveOverrides.length > 0) {
     statusMsg += `\n🔒 Locked options: ${hiveOverrides.join(' ')}`;
   }
+  // Add Claude usage indicator
+  const usageMessage = await getClaudeUsageMessage();
+  statusMsg += `\n\n${usageMessage}`;
   await ctx.reply(statusMsg, { parse_mode: 'Markdown', reply_to_message_id: ctx.message.message_id });
 
   const result = await executeStartScreen('hive', args);
