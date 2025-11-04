@@ -12,9 +12,9 @@ const fs = (await use('fs')).promises;
 const path = (await use('path')).default;
 
 // Import log from general lib
-import { log, cleanErrorMessage } from './lib.mjs';
+import { log } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
-import { timeouts, retryLimits } from './config.lib.mjs';
+import { timeouts } from './config.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs for OpenCode
 export const mapModelToId = (model) => {
@@ -41,7 +41,6 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
 
   const attemptValidation = async () => {
@@ -73,10 +72,9 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
-        const stdout = testResult.stdout?.toString() || '';
 
         if (stderr.includes('auth') || stderr.includes('login')) {
-          await log(`❌ OpenCode authentication failed`, { level: 'error' });
+          await log('❌ OpenCode authentication failed', { level: 'error' });
           await log('   💡 Please run: opencode auth', { level: 'error' });
           return false;
         }
@@ -101,7 +99,7 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
 };
 
 // Function to handle OpenCode runtime switching (if applicable)
-export const handleOpenCodeRuntimeSwitch = async (argv) => {
+export const handleOpenCodeRuntimeSwitch = async () => {
   // OpenCode is typically run as a CLI tool, runtime switching may not be applicable
   // This function can be used for any runtime-specific configurations if needed
   await log('ℹ️  OpenCode runtime handling not required for this operation');
@@ -125,8 +123,6 @@ export const executeOpenCode = async (params) => {
     repo,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     opencodePath = 'opencode',
@@ -196,8 +192,6 @@ export const executeOpenCode = async (params) => {
     systemPrompt,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -215,8 +209,6 @@ export const executeOpenCodeCommand = async (params) => {
     systemPrompt,
     argv,
     log,
-    setLogFile,
-    getLogFile,
     formatAligned,
     getResourceSnapshot,
     forkedRepo,
@@ -227,7 +219,6 @@ export const executeOpenCodeCommand = async (params) => {
 
   // Retry configuration
   const maxRetries = 3;
-  const baseDelay = timeouts.retryBaseDelay;
   let retryCount = 0;
 
   const executeWithRetry = async () => {
@@ -381,7 +372,7 @@ export const executeOpenCodeCommand = async (params) => {
   return await executeWithRetry();
 };
 
-export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false) => {
+export const checkForUncommittedChanges = async (tempDir, owner, repo, branchName, $, log, autoCommit = false, autoRestartEnabled = true) => {
   // Similar to Claude version, check for uncommitted changes
   await log('\n🔍 Checking for uncommitted changes...');
   try {
@@ -422,7 +413,7 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
             await log(`⚠️ Warning: Could not stage changes: ${addResult.stderr?.toString().trim()}`, { level: 'warning' });
           }
           return false;
-        } else {
+        } else if (autoRestartEnabled) {
           await log('');
           await log('⚠️  IMPORTANT: Uncommitted changes detected!');
           await log('   OpenCode made changes that were not committed.');
@@ -431,6 +422,12 @@ export const checkForUncommittedChanges = async (tempDir, owner, repo, branchNam
           await log('   OpenCode will review the changes and decide what to commit.');
           await log('');
           return true;
+        } else {
+          await log('');
+          await log('⚠️  Uncommitted changes detected but auto-restart is disabled.');
+          await log('   Use --auto-restart-on-uncommitted-changes to enable or commit manually.');
+          await log('');
+          return false;
         }
       } else {
         await log('✅ No uncommitted changes found');

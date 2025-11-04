@@ -367,6 +367,112 @@ export const checkRepositoryWritePermission = async (owner, repo, options = {}) 
 };
 
 /**
+ * Check if maintainer can modify (push to) a pull request from a fork
+ * This checks the 'maintainer_can_modify' field which indicates if the PR author
+ * has enabled "Allow edits by maintainers" checkbox
+ * @param {string} owner - Repository owner (upstream repo)
+ * @param {string} repo - Repository name
+ * @param {number} prNumber - Pull request number
+ * @returns {Promise<{canModify: boolean, forkOwner: string|null, forkRepo: string|null}>}
+ */
+export const checkMaintainerCanModifyPR = async (owner, repo, prNumber) => {
+  try {
+    await log('🔍 Checking if maintainer can modify PR...', { verbose: true });
+
+    // Use GitHub API to check PR details including maintainer_can_modify
+    const prResult = await $`gh api repos/${owner}/${repo}/pulls/${prNumber} --jq '{maintainer_can_modify: .maintainer_can_modify, head: .head}'`;
+
+    if (prResult.code !== 0) {
+      const errorOutput = (prResult.stderr ? prResult.stderr.toString() : '') +
+                         (prResult.stdout ? prResult.stdout.toString() : '');
+      await log(`⚠️  Warning: Could not check maintainer_can_modify: ${cleanErrorMessage(errorOutput)}`, { level: 'warning' });
+      return { canModify: false, forkOwner: null, forkRepo: null };
+    }
+
+    // Parse PR data
+    const prData = JSON.parse(prResult.stdout.toString().trim());
+    const canModify = prData.maintainer_can_modify === true;
+    const forkOwner = prData.head?.user?.login || prData.head?.repo?.owner?.login || null;
+    const forkRepo = prData.head?.repo?.name || null;
+
+    if (canModify) {
+      await log('✅ Maintainer can modify: YES (contributor enabled "Allow edits by maintainers")', { verbose: true });
+      if (forkOwner && forkRepo) {
+        await log(`   Fork: ${forkOwner}/${forkRepo}`, { verbose: true });
+      }
+    } else {
+      await log('ℹ️  Maintainer can modify: NO (contributor has not enabled "Allow edits by maintainers")', { verbose: true });
+    }
+
+    return { canModify, forkOwner, forkRepo };
+
+  } catch (error) {
+    reportError(error, {
+      context: 'check_maintainer_can_modify_pr',
+      owner,
+      repo,
+      prNumber,
+      operation: 'check_maintainer_modify_permission'
+    });
+
+    await log(`⚠️  Warning: Error checking maintainer_can_modify: ${cleanErrorMessage(error)}`, { level: 'warning' });
+    return { canModify: false, forkOwner: null, forkRepo: null };
+  }
+};
+
+/**
+ * Post a comment on a PR asking the contributor to enable "Allow edits by maintainers"
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {number} prNumber - Pull request number
+ * @returns {Promise<boolean>} True if comment was posted successfully
+ */
+export const requestMaintainerAccess = async (owner, repo, prNumber) => {
+  try {
+    await log('📝 Posting comment to request maintainer access...', { verbose: true });
+
+    const commentBody = `Hello! 👋
+
+I'm a maintainer trying to help with this PR, but I need access to push changes directly to your fork.
+
+Could you please enable the **"Allow edits by maintainers"** checkbox? This will let me push updates directly to this PR.
+
+**How to enable it:**
+1. Go to the bottom of this PR page
+2. Find the "Allow edits by maintainers" checkbox in the sidebar (on the right side)
+3. Check the box ✅
+
+Alternatively, you can enable it when creating/editing the PR. See: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork
+
+Thank you! 🙏`;
+
+    const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${commentBody}`;
+
+    if (commentResult.code === 0) {
+      await log('✅ Comment posted successfully', { verbose: true });
+      return true;
+    } else {
+      const errorOutput = (commentResult.stderr ? commentResult.stderr.toString() : '') +
+                         (commentResult.stdout ? commentResult.stdout.toString() : '');
+      await log(`⚠️  Warning: Failed to post comment: ${cleanErrorMessage(errorOutput)}`, { level: 'warning' });
+      return false;
+    }
+
+  } catch (error) {
+    reportError(error, {
+      context: 'request_maintainer_access',
+      owner,
+      repo,
+      prNumber,
+      operation: 'post_comment_request_access'
+    });
+
+    await log(`⚠️  Warning: Error posting comment: ${cleanErrorMessage(error)}`, { level: 'warning' });
+    return false;
+  }
+};
+
+/**
  * Attaches a log file to a GitHub PR or issue as a comment
  * @param {Object} options - Configuration options
  * @param {string} options.logFile - Path to the log file
@@ -395,7 +501,9 @@ export async function attachLogToGitHub(options) {
     sanitizeLogContent,
     verbose = false,
     errorMessage,
-    customTitle = '🤖 Solution Draft Log'
+    customTitle = '🤖 Solution Draft Log',
+    sessionId = null,
+    tempDir = null
   } = options;
 
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
@@ -410,6 +518,26 @@ export async function attachLogToGitHub(options) {
     } else if (logStats.size > githubLimits.fileMaxSize) {
       await log(`  ⚠️  Log file too large (${Math.round(logStats.size / 1024 / 1024)}MB), GitHub limit is ${Math.round(githubLimits.fileMaxSize / 1024 / 1024)}MB`);
       return false;
+    }
+
+    // Calculate token usage if sessionId and tempDir are provided
+    let totalCostUSD = null;
+    if (sessionId && tempDir && !errorMessage) {
+      try {
+        const { calculateSessionTokens } = await import('./claude.lib.mjs');
+        const tokenUsage = await calculateSessionTokens(sessionId, tempDir);
+        if (tokenUsage && tokenUsage.totalCostUSD !== null && tokenUsage.totalCostUSD !== undefined) {
+          totalCostUSD = tokenUsage.totalCostUSD;
+          if (verbose) {
+            await log(`  💰 Calculated total cost: $${totalCostUSD.toFixed(6)}`, { verbose: true });
+          }
+        }
+      } catch (tokenError) {
+        // Don't fail the entire upload if token calculation fails
+        if (verbose) {
+          await log(`  ⚠️  Could not calculate token cost: ${tokenError.message}`, { verbose: true });
+        }
+      }
     }
 
     // Read and sanitize log content
@@ -443,9 +571,10 @@ ${logContent}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
     } else {
       // Success log format
+      const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
       logComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
 
 <details>
 <summary>Click to expand solution draft log (${Math.round(logStats.size / 1024)}KB)</summary>
@@ -527,9 +656,10 @@ ${errorMessage}
 *Now working session is ended, feel free to review and add any feedback on the solution draft.*`;
           } else {
             // Success log gist format
+            const costInfo = totalCostUSD !== null ? `\n\n💰 **Total estimated cost**: $${totalCostUSD.toFixed(6)} USD` : '';
             gistComment = `## ${customTitle}
 
-This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.
+This log file contains the complete execution trace of the AI ${targetType === 'pr' ? 'solution draft' : 'analysis'} process.${costInfo}
 
 📎 **Log file uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
 🔗 [View complete solution draft log](${gistUrl})
