@@ -125,7 +125,7 @@ async function makeYouTrackRequest(endpoint, config, options = {}) {
     }
 
     return await response.json();
-  } catch {
+  } catch (error) {
     if (error.message.includes('fetch')) {
       throw new Error(`Failed to connect to YouTrack at ${config.url}: ${error.message}`);
     }
@@ -152,7 +152,7 @@ export async function testYouTrackConnection(config) {
     await makeYouTrackRequest('/users/me', config);
     await log(`✅ YouTrack connection successful: ${config.url}`);
     return true;
-  } catch {
+  } catch (error) {
     await log(`❌ YouTrack connection failed: ${cleanErrorMessage(error)}`, { level: 'error' });
     await log(`   URL: ${config.url}`);
     await log('   Endpoint tested: /api/users/me');
@@ -208,7 +208,7 @@ export async function fetchYouTrackIssues(config) {
     }
 
     return issues;
-  } catch {
+  } catch (error) {
     await log(`❌ Error fetching YouTrack issues: ${cleanErrorMessage(error)}`, { level: 'error' });
     return [];
   }
@@ -264,7 +264,7 @@ export async function getYouTrackIssue(issueId, config) {
     await log(`✅ Retrieved YouTrack issue: ${transformedIssue.id} - ${transformedIssue.summary}`);
 
     return transformedIssue;
-  } catch {
+  } catch (error) {
     await log(`❌ Error fetching YouTrack issue ${issueId}: ${cleanErrorMessage(error)}`, { level: 'error' });
     return null;
   }
@@ -305,7 +305,7 @@ export async function updateYouTrackIssueStage(issueId, newStage, config) {
 
     await log(`✅ Updated YouTrack issue ${issueId} stage to "${newStage}"`);
     return true;
-  } catch {
+  } catch (error) {
     await log(`❌ Error updating YouTrack issue ${issueId} stage: ${cleanErrorMessage(error)}`, { level: 'error' });
     return false;
   }
@@ -338,7 +338,7 @@ export async function addYouTrackComment(issueId, comment, config) {
 
     await log(`✅ Added comment to YouTrack issue ${issueId}`);
     return true;
-  } catch {
+  } catch (error) {
     await log(`❌ Error adding comment to YouTrack issue ${issueId}: ${cleanErrorMessage(error)}`, { level: 'error' });
     return false;
   }

@@ -151,7 +151,7 @@ ${youTrackIssue.description || 'No description provided.'}
         await log(`   ❌ Failed to create issue for ${youTrackId}`, { level: 'error' });
         return null;
       }
-    } catch {
+    } catch (error) {
       await log(`   ❌ Error creating issue: ${error.message}`, { level: 'error' });
       return null;
     }

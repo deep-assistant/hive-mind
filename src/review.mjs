@@ -167,8 +167,6 @@ if (isResuming) {
   await log(`Creating temporary directory: ${tempDir}\n`);
 }
 
-let limitReached = false;
-
 try {
   // Get PR details first
   await log('📊 Getting pull request details...');
