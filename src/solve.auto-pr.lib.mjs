@@ -466,7 +466,74 @@ Issue: ${issueUrl}`;
         // CRITICAL: Wait for GitHub to process the push before creating PR
         // This prevents "No commits between branches" error
         await log('   Waiting for GitHub to sync...');
-        await new Promise(resolve => setTimeout(resolve, 8000)); // Longer wait for GitHub to process
+
+        // Use exponential backoff to wait for GitHub's compare API to see the commits
+        // This is essential because GitHub has multiple backend systems:
+        // - Git receive: Accepts push immediately
+        // - Branch API: Returns quickly from cache
+        // - Compare/PR API: May take longer to index commits
+        let compareReady = false;
+        let compareAttempts = 0;
+        const maxCompareAttempts = 5;
+        const targetBranchForCompare = argv.baseBranch || defaultBranch;
+
+        while (!compareReady && compareAttempts < maxCompareAttempts) {
+          compareAttempts++;
+          const waitTime = Math.min(2000 * compareAttempts, 10000); // 2s, 4s, 6s, 8s, 10s
+
+          if (compareAttempts > 1) {
+            await log(`   Retry ${compareAttempts}/${maxCompareAttempts}: Waiting ${waitTime}ms for GitHub to index commits...`);
+          }
+
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+
+          // Check if GitHub's compare API can see commits between base and head
+          // This is the SAME API that gh pr create uses internally, so if this works,
+          // PR creation should work too
+          const compareResult = await $({ silent: true })`gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName} --jq '.ahead_by' 2>&1`;
+
+          if (compareResult.code === 0) {
+            const aheadBy = parseInt(compareResult.stdout.toString().trim(), 10);
+            if (argv.verbose) {
+              await log(`   Compare API check: ${aheadBy} commit(s) ahead of ${targetBranchForCompare}`);
+            }
+
+            if (aheadBy > 0) {
+              compareReady = true;
+              await log(`   GitHub compare API ready: ${aheadBy} commit(s) found`);
+            } else {
+              await log(`   ⚠️ GitHub compare API shows 0 commits ahead (attempt ${compareAttempts}/${maxCompareAttempts})`, { level: 'warning' });
+            }
+          } else {
+            if (argv.verbose) {
+              await log(`   Compare API error (attempt ${compareAttempts}/${maxCompareAttempts}): ${compareResult.stdout || compareResult.stderr || 'unknown'}`, { verbose: true });
+            }
+          }
+        }
+
+        if (!compareReady) {
+          await log('');
+          await log(formatAligned('❌', 'GITHUB SYNC TIMEOUT:', 'Compare API not ready after retries'), { level: 'error' });
+          await log('');
+          await log('  🔍 What happened:');
+          await log(`     After ${maxCompareAttempts} attempts, GitHub's compare API still shows no commits`);
+          await log(`     between ${targetBranchForCompare} and ${branchName}.`);
+          await log('');
+          await log('  💡 This usually means:');
+          await log('     • GitHub\'s backend systems haven\'t finished indexing the push');
+          await log('     • There\'s a temporary issue with GitHub\'s API');
+          await log('     • The commits may not have been pushed correctly');
+          await log('');
+          await log('  🔧 How to fix:');
+          await log('     1. Wait a minute and try creating the PR manually:');
+          await log(`        gh pr create --draft --repo ${owner}/${repo} --base ${targetBranchForCompare} --head ${branchName}`);
+          await log('     2. Check if the branch exists on GitHub:');
+          await log(`        https://github.com/${owner}/${repo}/tree/${branchName}`);
+          await log('     3. Check the commit is on GitHub:');
+          await log(`        gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName}`);
+          await log('');
+          throw new Error('GitHub compare API not ready - cannot create PR safely');
+        }
 
         // Verify the push actually worked by checking GitHub API
         const branchCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches/${branchName} --jq .name 2>&1`;
