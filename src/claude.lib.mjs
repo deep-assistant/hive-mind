@@ -390,6 +390,14 @@ export const executeClaude = async (params) => {
   } = params;
   // Import prompt building functions from claude.prompts.lib.mjs
   const { buildUserPrompt, buildSystemPrompt } = await import('./claude.prompts.lib.mjs');
+
+  // Determine language for prompts
+  let language = 'en'; // Default to English
+  if (issueNumber) {
+    const { determineLanguage } = await import('./language-detection.lib.mjs');
+    language = await determineLanguage({ argv, owner, repo, issueNumber });
+  }
+
   // Build the user prompt
   const prompt = buildUserPrompt({
     issueUrl,
@@ -405,7 +413,8 @@ export const executeClaude = async (params) => {
     forkActionsUrl,
     owner,
     repo,
-    argv
+    argv,
+    language
   });
   // Build the system prompt
   const systemPrompt = buildSystemPrompt({
@@ -419,7 +428,8 @@ export const executeClaude = async (params) => {
     tempDir,
     isContinueMode,
     forkedRepo,
-    argv
+    argv,
+    language
   });
   // Log prompt details in verbose mode
   if (argv.verbose) {

@@ -211,6 +211,16 @@ export const createYargsConfig = (yargsInstance) => {
       choices: ['claude', 'opencode', 'codex'],
       default: 'claude'
     })
+    .option('force-language', {
+      type: 'string',
+      description: 'Force specific language for prompts (en or ru)',
+      choices: ['en', 'ru']
+    })
+    .option('automatic-language-detection', {
+      type: 'boolean',
+      description: 'Automatically detect language from issue content (enabled by default, use --no-automatic-language-detection to disable)',
+      default: true
+    })
     .parserConfiguration({
       'boolean-negation': true
     })
