@@ -309,18 +309,54 @@ Issue: ${issueUrl}`;
       // Push the branch
       await log(formatAligned('📤', 'Pushing branch:', 'To remote repository...'));
 
-      if (argv.verbose) {
-        await log(`   Command: git push -u origin ${branchName}`, { verbose: true });
-      }
+      // Check if the branch already exists on remote
+      const remoteBranchCheck = await $({ cwd: tempDir, silent: true })`git ls-remote --heads origin ${branchName} 2>&1`;
+      const branchExistsOnRemote = remoteBranchCheck.code === 0 && remoteBranchCheck.stdout.toString().trim() !== '';
 
-      // Push the branch with the CLAUDE.md commit
-      if (argv.verbose) {
-        await log(`   Push command: git push -f -u origin ${branchName}`);
-      }
+      let pushResult;
 
-      // Always use force push to ensure our commit gets to GitHub
-      // (The branch is new with random name, so force is safe)
-      const pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+      if (branchExistsOnRemote && isContinueMode) {
+        // Branch exists on remote and we're in continue mode - don't force push
+        await log('   Existing branch detected on remote, using regular push to preserve history...', { verbose: true });
+
+        // First, fetch the latest state of the remote branch
+        const fetchResult = await $({ cwd: tempDir })`git fetch origin ${branchName}:refs/remotes/origin/${branchName} 2>&1`;
+        if (fetchResult.code !== 0) {
+          await log(`   Warning: Could not fetch remote branch: ${fetchResult.stderr || fetchResult.stdout}`, { level: 'warning' });
+        }
+
+        // Try to merge or rebase the remote branch
+        const mergeResult = await $({ cwd: tempDir })`git merge origin/${branchName} --no-edit 2>&1`;
+        if (mergeResult.code !== 0) {
+          // Merge failed, try rebase
+          await log('   Merge failed, attempting rebase...', { verbose: true });
+          const rebaseResult = await $({ cwd: tempDir })`git rebase origin/${branchName} 2>&1`;
+          if (rebaseResult.code !== 0) {
+            await log('   Rebase also failed, will attempt force push as last resort', { level: 'warning' });
+            // Fall back to force push
+            pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+          } else {
+            // Rebase succeeded, regular push
+            pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
+          }
+        } else {
+          // Merge succeeded, regular push
+          pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
+        }
+
+        if (argv.verbose) {
+          await log(`   Push command: git push -u origin ${branchName} (preserving existing commits)`);
+        }
+      } else {
+        // New branch or not in continue mode - use force push as before
+        if (argv.verbose) {
+          await log(`   Push command: git push -f -u origin ${branchName}`);
+        }
+
+        // Use force push for new branches
+        // (The branch is new with random name, so force is safe)
+        pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+      }
 
       if (argv.verbose) {
         await log(`   Push exit code: ${pushResult.code}`);
@@ -676,24 +712,53 @@ Issue: ${issueUrl}`;
           }
 
           if (commitCount === 0) {
+            // Check if the branch was already merged
+            const mergedCheckResult = await $({ cwd: tempDir, silent: true })`git branch -r --merged origin/${targetBranch} | grep -q "origin/${branchName}" 2>&1`;
+            const wasAlreadyMerged = mergedCheckResult.code === 0;
+
             // No commits to create PR - branch is up to date with base or behind it
             await log('');
             await log(formatAligned('❌', 'NO COMMITS TO CREATE PR', ''), { level: 'error' });
             await log('');
             await log('  🔍 What happened:');
             await log(`     The branch ${branchName} has no new commits compared to ${targetBranch}.`);
-            await log(`     This means all commits in this branch are already in ${targetBranch}.`);
+
+            if (wasAlreadyMerged) {
+              await log(`     ✅ This branch was already merged into ${targetBranch}.`);
+              await log('');
+              await log('  📋 Branch Status: ALREADY MERGED');
+              await log('');
+              await log('  💡 This means:');
+              await log('     • The work on this branch has been completed and integrated');
+              await log('     • A new branch should be created for any additional work');
+              await log('     • The issue may already be resolved');
+            } else {
+              await log(`     This means all commits in this branch are already in ${targetBranch}.`);
+            }
+
             await log('');
             await log('  💡 Possible causes:');
-            await log('     • The branch was already merged');
+            if (wasAlreadyMerged) {
+              await log('     • ✅ The branch was already merged (confirmed)');
+            } else {
+              await log('     • The branch was already merged');
+            }
             await log('     • The branch is outdated and needs to be rebased');
             await log(`     • Local ${targetBranch} is outdated (though we just fetched it)`);
             await log('');
             await log('  🔧 How to fix:');
             await log('');
-            await log('     Option 1: Check if branch was already merged');
-            await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
-            await log('        If merged, you may want to close the related issue or create a new branch');
+
+            if (wasAlreadyMerged) {
+              await log('     Option 1: Check the merged PR and close the issue');
+              await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
+              await log('        If the issue is resolved, close it. Otherwise, create a new branch.');
+            } else {
+              await log('     Option 1: Check if branch was already merged');
+              await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
+              await log('        If merged, you may want to close the related issue or create a new branch');
+            }
+
             await log('');
             await log('     Option 2: Verify branch state');
             await log(`        cd ${tempDir}`);
@@ -703,7 +768,12 @@ Issue: ${issueUrl}`;
             await log('     Option 3: Create new commits on this branch');
             await log('        The branch exists but has no new work to contribute');
             await log('');
-            throw new Error('No commits between base and head - cannot create PR');
+
+            if (wasAlreadyMerged) {
+              throw new Error('Branch was already merged into base - cannot create PR');
+            } else {
+              throw new Error('No commits between base and head - cannot create PR');
+            }
           } else {
             await log(formatAligned('✅', 'Commits found:', `${commitCount} commit(s) ahead`));
           }
