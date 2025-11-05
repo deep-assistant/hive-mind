@@ -476,13 +476,26 @@ if (argv.projectMode) {
   }
 }
 
-// Validate conflicting options
-if (argv.skipIssuesWithPrs && argv.autoContinue) {
-  await log('❌ Conflicting options: --skip-issues-with-prs and --auto-continue cannot be used together', { level: 'error' });
-  await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
-  await log('   --auto-continue: Continues with existing PRs instead of creating new ones', { level: 'error' });
-  await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
-  await safeExit(1, 'Error occurred');
+// Handle -s (--skip-issues-with-prs) and --auto-continue interaction
+// Detect if user explicitly passed --auto-continue or --no-auto-continue
+const hasExplicitAutoContinue = rawArgs.includes('--auto-continue');
+const hasExplicitNoAutoContinue = rawArgs.includes('--no-auto-continue');
+
+if (argv.skipIssuesWithPrs) {
+  // If user explicitly passed --auto-continue with -s, that's a conflict
+  if (hasExplicitAutoContinue) {
+    await log('❌ Conflicting options: --skip-issues-with-prs and --auto-continue cannot be used together', { level: 'error' });
+    await log('   --skip-issues-with-prs: Skips issues that have any open PRs', { level: 'error' });
+    await log('   --auto-continue: Continues with existing PRs instead of creating new ones', { level: 'error' });
+    await log(`   📁 Full log file: ${absoluteLogPath}`, { level: 'error' });
+    await safeExit(1, 'Error occurred');
+  }
+
+  // If user didn't explicitly set auto-continue, disable it when -s is used
+  // This is because -s means "skip issues with PRs" which conflicts with auto-continue
+  if (!hasExplicitNoAutoContinue) {
+    argv.autoContinue = false;
+  }
 }
 
 // Helper function to check GitHub permissions - moved to github.lib.mjs
@@ -742,7 +755,7 @@ async function worker(workerId) {
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
         const skipToolCheckFlag = (argv.skipToolCheck || !argv.toolCheck) ? ' --skip-tool-check' : '';
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
-        const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
+        const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : ' --no-auto-continue';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
         const noSentryFlag = !argv.sentry ? ' --no-sentry' : '';
         const watchFlag = argv.watch ? ' --watch' : '';
@@ -781,6 +794,8 @@ async function worker(workerId) {
         }
         if (argv.autoContinue) {
           args.push('--auto-continue');
+        } else {
+          args.push('--no-auto-continue');
         }
         if (argv.think) {
           args.push('--think', argv.think);
