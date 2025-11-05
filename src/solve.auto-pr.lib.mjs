@@ -73,6 +73,11 @@ export async function handleAutoPrCreation({
       await log(`   Final issue URL: ${issueUrl}`, { verbose: true });
     }
 
+    // Add timestamp to ensure unique content on each run when appending
+    // This is critical for --auto-continue mode when reusing an existing branch
+    // Without this, appending the same task info produces no git changes,
+    // leading to "No commits between branches" error during PR creation
+    const timestamp = new Date().toISOString();
     const taskInfo = `Issue to solve: ${issueUrl}
 Your prepared branch: ${branchName}
 Your prepared working directory: ${tempDir}${argv.fork && forkedRepo ? `
@@ -81,14 +86,15 @@ Original repository (upstream): ${owner}/${repo}` : ''}
 
 Proceed.`;
 
-    // If CLAUDE.md already exists, append the task info with separator
-    // Otherwise, create new file with just the task info
+    // If CLAUDE.md already exists, append the task info with separator and timestamp
+    // Otherwise, create new file with just the task info (no timestamp needed for new files)
     let finalContent;
     if (fileExisted && existingContent) {
       await log('   CLAUDE.md already exists, appending task info...', { verbose: true });
       // Remove any trailing whitespace and add separator
       const trimmedExisting = existingContent.trimEnd();
-      finalContent = `${trimmedExisting}\n\n---\n\n${taskInfo}`;
+      // Add timestamp to ensure uniqueness when appending
+      finalContent = `${trimmedExisting}\n\n---\n\n${taskInfo}\n\nRun timestamp: ${timestamp}`;
     } else {
       finalContent = taskInfo;
     }
@@ -490,7 +496,15 @@ Issue: ${issueUrl}`;
           // Check if GitHub's compare API can see commits between base and head
           // This is the SAME API that gh pr create uses internally, so if this works,
           // PR creation should work too
-          const compareResult = await $({ silent: true })`gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName} --jq '.ahead_by' 2>&1`;
+          // For fork mode, we need to use forkUser:branchName format for the head
+          let headRef;
+          if (argv.fork && forkedRepo) {
+            const forkUser = forkedRepo.split('/')[0];
+            headRef = `${forkUser}:${branchName}`;
+          } else {
+            headRef = branchName;
+          }
+          const compareResult = await $({ silent: true })`gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${headRef} --jq '.ahead_by' 2>&1`;
 
           if (compareResult.code === 0) {
             const aheadBy = parseInt(compareResult.stdout.toString().trim(), 10);
