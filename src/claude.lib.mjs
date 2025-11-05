@@ -11,6 +11,25 @@ const path = (await use('path')).default;
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts, retryLimits } from './config.lib.mjs';
+/**
+ * Format numbers with spaces as thousands separator (no commas)
+ * Per issue #667: Use spaces for thousands, . for decimals
+ * @param {number|null|undefined} num - Number to format
+ * @returns {string} Formatted number string
+ */
+export const formatNumber = (num) => {
+  if (num === null || num === undefined) return 'N/A';
+  // Convert to string and split on decimal point
+  const parts = num.toString().split('.');
+  const integerPart = parts[0];
+  const decimalPart = parts[1];
+  // Add spaces every 3 digits from the right
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  // Return with decimal part if it exists
+  return decimalPart !== undefined
+    ? `${formattedInteger}.${decimalPart}`
+    : formattedInteger;
+};
 // Available model configurations
 export const availableModels = {
   'sonnet': 'claude-sonnet-4-5-20250929',  // Sonnet 4.5
@@ -564,8 +583,8 @@ const displayModelUsage = async (usage, log) => {
     const fields = [
       { label: 'Model ID', value: info.id },
       { label: 'Provider', value: info.provider || 'Unknown' },
-      { label: 'Context window', value: info.limit?.context ? `${info.limit.context.toLocaleString()} tokens` : null },
-      { label: 'Max output', value: info.limit?.output ? `${info.limit.output.toLocaleString()} tokens` : null },
+      { label: 'Context window', value: info.limit?.context ? `${formatNumber(info.limit.context)} tokens` : null },
+      { label: 'Max output', value: info.limit?.output ? `${formatNumber(info.limit.output)} tokens` : null },
       { label: 'Input modalities', value: info.modalities?.input?.join(', ') || 'N/A' },
       { label: 'Output modalities', value: info.modalities?.output?.join(', ') || 'N/A' },
       { label: 'Knowledge cutoff', value: info.knowledge },
@@ -582,14 +601,14 @@ const displayModelUsage = async (usage, log) => {
   }
   // Show usage data
   await log('      Usage:');
-  await log(`        Input tokens: ${usage.inputTokens.toLocaleString()}`);
+  await log(`        Input tokens: ${formatNumber(usage.inputTokens)}`);
   if (usage.cacheCreationTokens > 0) {
-    await log(`        Cache creation tokens: ${usage.cacheCreationTokens.toLocaleString()}`);
+    await log(`        Cache creation tokens: ${formatNumber(usage.cacheCreationTokens)}`);
   }
   if (usage.cacheReadTokens > 0) {
-    await log(`        Cache read tokens: ${usage.cacheReadTokens.toLocaleString()}`);
+    await log(`        Cache read tokens: ${formatNumber(usage.cacheReadTokens)}`);
   }
-  await log(`        Output tokens: ${usage.outputTokens.toLocaleString()}`);
+  await log(`        Output tokens: ${formatNumber(usage.outputTokens)}`);
   if (usage.webSearchRequests > 0) {
     await log(`        Web search requests: ${usage.webSearchRequests}`);
   }
@@ -606,7 +625,7 @@ const displayModelUsage = async (usage, log) => {
     ];
     for (const { key, label } of types) {
       if (breakdown[key].tokens > 0) {
-        await log(`        ${label}: ${breakdown[key].tokens.toLocaleString()} tokens × $${breakdown[key].costPerMillion}/M = $${breakdown[key].cost.toFixed(6)}`);
+        await log(`        ${label}: ${formatNumber(breakdown[key].tokens)} tokens × $${breakdown[key].costPerMillion}/M = $${breakdown[key].cost.toFixed(6)}`);
       }
     }
     await log('        ─────────────────────────────────');
@@ -1215,19 +1234,19 @@ export const executeClaudeCommand = async (params) => {
                 await log('      Calculated by Anthropic: unknown');
                 await log('      Difference:              unknown');
               }
-              await log(`      Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+              await log(`      Total tokens: ${formatNumber(tokenUsage.totalTokens)}`);
             }
           } else {
             // Fallback to old format if modelUsage is not available
-            await log(`   Input tokens: ${tokenUsage.inputTokens.toLocaleString()}`);
+            await log(`   Input tokens: ${formatNumber(tokenUsage.inputTokens)}`);
             if (tokenUsage.cacheCreationTokens > 0) {
-              await log(`   Cache creation tokens: ${tokenUsage.cacheCreationTokens.toLocaleString()}`);
+              await log(`   Cache creation tokens: ${formatNumber(tokenUsage.cacheCreationTokens)}`);
             }
             if (tokenUsage.cacheReadTokens > 0) {
-              await log(`   Cache read tokens: ${tokenUsage.cacheReadTokens.toLocaleString()}`);
+              await log(`   Cache read tokens: ${formatNumber(tokenUsage.cacheReadTokens)}`);
             }
-            await log(`   Output tokens: ${tokenUsage.outputTokens.toLocaleString()}`);
-            await log(`   Total tokens: ${tokenUsage.totalTokens.toLocaleString()}`);
+            await log(`   Output tokens: ${formatNumber(tokenUsage.outputTokens)}`);
+            await log(`   Total tokens: ${formatNumber(tokenUsage.totalTokens)}`);
           }
         }
       } catch (tokenError) {
