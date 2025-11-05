@@ -612,7 +612,7 @@ Issue: ${issueUrl}`;
             await log('');
             await log('     Option 1: Check if branch was already merged');
             await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
-            await log(`        If merged, you may want to close the related issue or create a new branch`);
+            await log('        If merged, you may want to close the related issue or create a new branch');
             await log('');
             await log('     Option 2: Verify branch state');
             await log(`        cd ${tempDir}`);
@@ -620,7 +620,7 @@ Issue: ${issueUrl}`;
             await log(`        git log origin/${targetBranch}..${branchName} --oneline`);
             await log('');
             await log('     Option 3: Create new commits on this branch');
-            await log(`        The branch exists but has no new work to contribute`);
+            await log('        The branch exists but has no new work to contribute');
             await log('');
             throw new Error('No commits between base and head - cannot create PR');
           } else {
