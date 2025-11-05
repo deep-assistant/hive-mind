@@ -92,6 +92,10 @@ export const watchForFeedback = async (params) => {
   const isTemporaryWatch = argv.temporaryWatch || false;
   const maxAutoRestartIterations = argv.autoRestartMaxIterations || 3;
 
+  // Track latest session data across all iterations for accurate pricing
+  let latestSessionId = null;
+  let latestAnthropicCost = null;
+
   await log('');
   if (isTemporaryWatch) {
     await log(formatAligned('🔄', 'AUTO-RESTART MODE ACTIVE', ''));
@@ -382,6 +386,18 @@ export const watchForFeedback = async (params) => {
         if (!toolResult.success) {
           await log(formatAligned('⚠️', `${argv.tool.toUpperCase()} execution failed`, 'Will retry in next check', 2));
         } else {
+          // Capture latest session data from successful execution for accurate pricing
+          if (toolResult.sessionId) {
+            latestSessionId = toolResult.sessionId;
+            latestAnthropicCost = toolResult.anthropicTotalCostUSD;
+            if (argv.verbose) {
+              await log(`   📊 Session data captured: ${latestSessionId}`, { verbose: true });
+              if (latestAnthropicCost !== null && latestAnthropicCost !== undefined) {
+                await log(`   💰 Anthropic cost: $${latestAnthropicCost.toFixed(6)}`, { verbose: true });
+              }
+            }
+          }
+
           await log('');
           if (isTemporaryWatch) {
             await log(formatAligned('✅', `${argv.tool.toUpperCase()} execution completed:`, 'Checking for remaining changes...'));
@@ -425,6 +441,12 @@ export const watchForFeedback = async (params) => {
       await log(''); // Blank line for readability
     }
   }
+
+  // Return latest session data for accurate pricing in log uploads
+  return {
+    latestSessionId,
+    latestAnthropicCost
+  };
 };
 
 /**
@@ -444,7 +466,7 @@ export const startWatchMode = async (params) => {
     if (argv.verbose) {
       await log('   Watch mode not enabled - exiting startWatchMode', { verbose: true });
     }
-    return; // Watch mode not enabled
+    return null; // Watch mode not enabled
   }
 
   if (!params.prNumber) {
@@ -454,9 +476,9 @@ export const startWatchMode = async (params) => {
     if (argv.verbose) {
       await log('   prNumber is missing - cannot start watch mode', { verbose: true });
     }
-    return;
+    return null;
   }
 
-  // Start the watch loop
-  await watchForFeedback(params);
+  // Start the watch loop and return session data
+  return await watchForFeedback(params);
 };

@@ -794,7 +794,9 @@ try {
     toolResult = claudeResult;
   }
 
-  const { success, sessionId, anthropicTotalCostUSD } = toolResult;
+  const { success } = toolResult;
+  let sessionId = toolResult.sessionId;
+  let anthropicTotalCostUSD = toolResult.anthropicTotalCostUSD;
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
@@ -868,7 +870,7 @@ try {
     await log('');
   }
 
-  await startWatchMode({
+  const watchResult = await startWatchMode({
     issueUrl,
     owner,
     repo,
@@ -883,6 +885,20 @@ try {
       temporaryWatch: temporaryWatchMode  // Flag to indicate temporary watch mode
     }
   });
+
+  // Update session data with latest from watch mode for accurate pricing
+  if (watchResult && watchResult.latestSessionId) {
+    sessionId = watchResult.latestSessionId;
+    anthropicTotalCostUSD = watchResult.latestAnthropicCost;
+    if (argv.verbose) {
+      await log('');
+      await log('📊 Updated session data from watch mode:', { verbose: true });
+      await log(`   Session ID: ${sessionId}`, { verbose: true });
+      if (anthropicTotalCostUSD !== null && anthropicTotalCostUSD !== undefined) {
+        await log(`   Anthropic cost: $${anthropicTotalCostUSD.toFixed(6)}`, { verbose: true });
+      }
+    }
+  }
 
   // Track whether logs were successfully attached (used by endWorkSession)
   let logsAttached = false;
