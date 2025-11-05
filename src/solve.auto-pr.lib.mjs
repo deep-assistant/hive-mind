@@ -627,7 +627,7 @@ Issue: ${issueUrl}`;
             await log(formatAligned('✅', 'Commits found:', `${commitCount} commit(s) ahead`));
           }
         } else {
-          await log(`⚠️ Warning: Could not verify commit count`, { level: 'warning' });
+          await log('⚠️ Warning: Could not verify commit count', { level: 'warning' });
           if (argv.verbose) {
             await log(`   Check output: ${commitCheckResult.stdout || commitCheckResult.stderr || 'none'}`, { verbose: true });
           }
