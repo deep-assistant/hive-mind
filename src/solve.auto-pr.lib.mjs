@@ -496,7 +496,15 @@ Issue: ${issueUrl}`;
           // Check if GitHub's compare API can see commits between base and head
           // This is the SAME API that gh pr create uses internally, so if this works,
           // PR creation should work too
-          const compareResult = await $({ silent: true })`gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName} --jq '.ahead_by' 2>&1`;
+          // For fork mode, we need to use forkUser:branchName format for the head
+          let headRef;
+          if (argv.fork && forkedRepo) {
+            const forkUser = forkedRepo.split('/')[0];
+            headRef = `${forkUser}:${branchName}`;
+          } else {
+            headRef = branchName;
+          }
+          const compareResult = await $({ silent: true })`gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${headRef} --jq '.ahead_by' 2>&1`;
 
           if (compareResult.code === 0) {
             const aheadBy = parseInt(compareResult.stdout.toString().trim(), 10);
