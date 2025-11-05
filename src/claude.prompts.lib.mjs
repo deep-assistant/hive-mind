@@ -3,12 +3,20 @@
  * Handles building prompts for Claude commands
  */
 
+import { buildI18nUserPrompt, buildI18nSystemPrompt } from './i18n.lib.mjs';
+
 /**
  * Build the user prompt for Claude
  * @param {Object} params - Parameters for building the user prompt
  * @returns {string} The formatted user prompt
  */
 export const buildUserPrompt = (params) => {
+  // If language is specified, use i18n version
+  if (params.language) {
+    return buildI18nUserPrompt(params);
+  }
+
+  // Otherwise use the original English-only version for backward compatibility
   const {
     issueUrl,
     issueNumber,
@@ -94,6 +102,12 @@ export const buildUserPrompt = (params) => {
  * @returns {string} The formatted system prompt
  */
 export const buildSystemPrompt = (params) => {
+  // If language is specified, use i18n version
+  if (params.language) {
+    return buildI18nSystemPrompt(params);
+  }
+
+  // Otherwise use the original English-only version for backward compatibility
   const { owner, repo, issueNumber, prNumber, branchName, argv } = params;
 
   // Build thinking instruction based on --think level
