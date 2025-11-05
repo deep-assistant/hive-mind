@@ -570,8 +570,70 @@ Issue: ${issueUrl}`;
           await log('   Warning: Could not get current user', { verbose: true });
         }
 
-        // Create draft pull request
+        // Fetch latest state of target branch to ensure accurate comparison
         const targetBranch = argv.baseBranch || defaultBranch;
+        await log(formatAligned('🔄', 'Fetching:', `Latest ${targetBranch} branch...`));
+        const fetchBaseResult = await $({ cwd: tempDir, silent: true })`git fetch origin ${targetBranch}:refs/remotes/origin/${targetBranch} 2>&1`;
+
+        if (fetchBaseResult.code !== 0) {
+          await log(`⚠️ Warning: Could not fetch latest ${targetBranch}`, { level: 'warning' });
+          if (argv.verbose) {
+            await log(`   Fetch output: ${fetchBaseResult.stdout || fetchBaseResult.stderr || 'none'}`, { verbose: true });
+          }
+        } else {
+          await log(formatAligned('✅', 'Base updated:', `Fetched latest ${targetBranch}`));
+        }
+
+        // Verify there are commits between base and head before attempting PR creation
+        await log(formatAligned('🔍', 'Checking:', 'Commits between branches...'));
+        const commitCheckResult = await $({ cwd: tempDir, silent: true })`git rev-list --count origin/${targetBranch}..HEAD 2>&1`;
+
+        if (commitCheckResult.code === 0) {
+          const commitCount = parseInt(commitCheckResult.stdout.toString().trim(), 10);
+          if (argv.verbose) {
+            await log(`   Commits ahead of origin/${targetBranch}: ${commitCount}`, { verbose: true });
+          }
+
+          if (commitCount === 0) {
+            // No commits to create PR - branch is up to date with base or behind it
+            await log('');
+            await log(formatAligned('❌', 'NO COMMITS TO CREATE PR', ''), { level: 'error' });
+            await log('');
+            await log('  🔍 What happened:');
+            await log(`     The branch ${branchName} has no new commits compared to ${targetBranch}.`);
+            await log(`     This means all commits in this branch are already in ${targetBranch}.`);
+            await log('');
+            await log('  💡 Possible causes:');
+            await log('     • The branch was already merged');
+            await log('     • The branch is outdated and needs to be rebased');
+            await log(`     • Local ${targetBranch} is outdated (though we just fetched it)`);
+            await log('');
+            await log('  🔧 How to fix:');
+            await log('');
+            await log('     Option 1: Check if branch was already merged');
+            await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
+            await log(`        If merged, you may want to close the related issue or create a new branch`);
+            await log('');
+            await log('     Option 2: Verify branch state');
+            await log(`        cd ${tempDir}`);
+            await log(`        git log ${targetBranch}..${branchName} --oneline`);
+            await log(`        git log origin/${targetBranch}..${branchName} --oneline`);
+            await log('');
+            await log('     Option 3: Create new commits on this branch');
+            await log(`        The branch exists but has no new work to contribute`);
+            await log('');
+            throw new Error('No commits between base and head - cannot create PR');
+          } else {
+            await log(formatAligned('✅', 'Commits found:', `${commitCount} commit(s) ahead`));
+          }
+        } else {
+          await log(`⚠️ Warning: Could not verify commit count`, { level: 'warning' });
+          if (argv.verbose) {
+            await log(`   Check output: ${commitCheckResult.stdout || commitCheckResult.stderr || 'none'}`, { verbose: true });
+          }
+        }
+
+        // Create draft pull request
         await log(formatAligned('🔀', 'Creating PR:', 'Draft pull request...'));
         if (argv.baseBranch) {
           await log(formatAligned('🎯', 'Target branch:', `${targetBranch} (custom)`));
