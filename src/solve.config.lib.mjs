@@ -27,7 +27,7 @@ export const createYargsConfig = (yargsInstance) => {
         description: 'The GitHub issue URL to solve'
       });
     })
-    .fail((msg, err, _yargs) => {
+    .fail((msg, err) => {
       // Custom fail handler to suppress yargs error output
       // Errors will be handled in the parseArguments catch block
       if (err) throw err; // Rethrow actual errors
@@ -63,11 +63,16 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet; for opencode: grok, gpt4o, etc.)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
-        return currentParsedArgs?.tool === 'opencode' ? 'grok-code-fast-1' : 'sonnet';
+        if (currentParsedArgs?.tool === 'opencode') {
+          return 'grok-code-fast-1';
+        } else if (currentParsedArgs?.tool === 'codex') {
+          return 'gpt-5';
+        }
+        return 'sonnet';
       }
     })
     .option('auto-pull-request-creation', {
@@ -128,6 +133,16 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Automatically commit and push uncommitted changes made by Claude (disabled by default)',
       default: false
     })
+    .option('auto-restart-on-uncommitted-changes', {
+      type: 'boolean',
+      description: 'Automatically restart when uncommitted changes are detected to allow the tool to handle them (default: true, use --no-auto-restart-on-uncommitted-changes to disable)',
+      default: true
+    })
+    .option('auto-restart-max-iterations', {
+      type: 'number',
+      description: 'Maximum number of auto-restart iterations when uncommitted changes are detected (default: 3)',
+      default: 3
+    })
     .option('continue-only-on-feedback', {
       type: 'boolean',
       description: 'Only continue if feedback is detected (works only with pull request link or issue link with --auto-continue)',
@@ -185,10 +200,15 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Allow automatic force-push (--force-with-lease) when fork diverges from upstream (DANGEROUS: can overwrite fork history)',
       default: false
     })
+    .option('allow-to-push-to-contributors-pull-requests-as-maintainer', {
+      type: 'boolean',
+      description: 'When continuing a fork PR as a maintainer, attempt to push directly to the contributor\'s fork if "Allow edits by maintainers" is enabled. Requires --auto-fork to be enabled.',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode'],
+      choices: ['claude', 'opencode', 'codex'],
       default: 'claude'
     })
     .parserConfiguration({
@@ -210,25 +230,53 @@ export const parseArguments = async (yargs, hideBin) => {
 
   let argv;
   try {
-    argv = await createYargsConfig(yargs()).parse(rawArgs);
+    // Suppress stderr output from yargs during parsing to prevent validation errors from appearing
+    // This prevents "YError: Not enough arguments" from polluting stderr (issue #583)
+    // Save the original stderr.write
+    const originalStderrWrite = process.stderr.write;
+    const stderrBuffer = [];
+
+    // Temporarily override stderr.write to capture output
+    process.stderr.write = function(chunk, encoding, callback) {
+      stderrBuffer.push(chunk.toString());
+      // Call the callback if provided (for compatibility)
+      if (typeof encoding === 'function') {
+        encoding();
+      } else if (typeof callback === 'function') {
+        callback();
+      }
+      return true;
+    };
+
+    try {
+      argv = await createYargsConfig(yargs()).parse(rawArgs);
+    } finally {
+      // Always restore stderr.write
+      process.stderr.write = originalStderrWrite;
+
+      // In verbose mode, show what was captured from stderr (for debugging)
+      if (global.verboseMode && stderrBuffer.length > 0) {
+        const captured = stderrBuffer.join('');
+        if (captured.trim()) {
+          console.error('[Suppressed yargs stderr]:', captured);
+        }
+      }
+    }
   } catch (error) {
-    // Yargs throws errors for validation issues, but we might still get a parsed object
+    // Yargs throws errors for validation issues
     // If the error is about unknown arguments (strict mode), re-throw it
     if (error.message && error.message.includes('Unknown arguments')) {
       throw error;
     }
-    // Yargs sometimes throws "Not enough arguments" errors even when arguments are present
-    // This appears to be a yargs quirk with command definitions
-    // The error.argv object still contains the parsed arguments, so we can safely continue
-    // Only show warning in verbose mode to avoid confusing output
-    if (error.message && !error.message.includes('Not enough arguments')) {
+    // For other validation errors, show a warning in verbose mode
+    if (error.message && global.verboseMode) {
       console.error('Yargs parsing warning:', error.message);
     }
     // Try to get the argv even with the error
     argv = error.argv || {};
   }
 
-  // Post-processing: Fix model default for opencode tool
+  // Post-processing: Fix model default for opencode and codex tools
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
   // so we need to handle this manually after parsing
   const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
@@ -236,6 +284,9 @@ export const parseArguments = async (yargs, hideBin) => {
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode
     argv.model = 'grok-code-fast-1';
+  } else if (argv.tool === 'codex' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for codex
+    argv.model = 'gpt-5';
   }
 
   return argv;

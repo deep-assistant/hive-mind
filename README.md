@@ -98,10 +98,52 @@ npm install -g @deep-assistant/hive-mind
    Note: opencode at the moment comes with free Grok Code Fast 1 model by default - so no authorization here is required.
 
 6. Launch the Hive Mind telegram bot:
+
+   **Using Links Notation (recommended):**
    ```
    screen -S bot # Enter new screen for bot
-  
-   hive-telegram-bot --token 84905...xTjw --allowed-chats "(-1002975819706 -1002861722681)" --no-hive --solve-overrides "( 
+
+   hive-telegram-bot --configuration "
+     TELEGRAM_BOT_TOKEN: '849...355:AAG...rgk_YZk...aPU'
+     TELEGRAM_ALLOWED_CHATS:
+       -1002975819706
+       -1002861722681
+     TELEGRAM_HIVE_OVERRIDES:
+       --all-issues
+       --once
+       --auto-fork
+       --skip-issues-with-prs
+       --attach-logs
+       --verbose
+       --no-tool-check
+     TELEGRAM_SOLVE_OVERRIDES:
+       --auto-fork
+       --auto-continue
+       --attach-logs
+       --verbose
+       --no-tool-check
+     TELEGRAM_BOT_VERBOSE: true
+   "
+
+   # Press CTRL + A + D for detach from screen
+   ```
+
+   **Using individual command-line options:**
+   ```
+   screen -S bot # Enter new screen for bot
+
+   hive-telegram-bot --token 849...355:AAG...rgk_YZk...aPU --allowed-chats "(
+     -1002975819706
+     -1002861722681
+   )" --hive-overrides "(
+     --all-issues
+     --once
+     --auto-fork
+     --skip-issues-with-prs
+     --attach-logs
+     --verbose
+     --no-tool-check
+   )" --solve-overrides "(
      --auto-fork
      --auto-continue
      --attach-logs
@@ -111,7 +153,25 @@ npm install -g @deep-assistant/hive-mind
 
    # Press CTRL + A + D for detach from screen
    ```
+
    Note: You may need to register you own bot with https://t.me/BotFather to get the bot token.
+
+
+#### Codex sign-in
+
+1. Connect to your instance of VPS with Hive Mind installed, using SSH with tunnel opened
+```bash
+ssh -L 1455:localhost:1455 root@123.123.123.123
+```
+
+2. Start codex login oAuth server:
+
+```bash
+codex login
+```
+The oAuth callback server on 1455 port will be started, and the link to oAuth will be printed, copy the link.
+
+3. Use your browser on machine where you started the tunnel from, paste there the link from `codex login` command, and go there using your browser. Once redirected to localhost:1455 you will see successful login page, and in `codex login` you will see `Successfully logged in`. After that `codex login` command will complete, and you can use `codex` command as usual to verify. It should also be working with `--tool codex` in `solve` and `hive` commands.
 
 ### Core Operations
 ```bash
@@ -157,9 +217,9 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode]
-  --tool                AI tool (claude, opencode)           [default: claude]
+  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
+  --tool                AI tool (claude, opencode, codex)    [default: claude]
   --fork, -f            Fork repo if no write access         [default: false]
   --auto-fork           Automatically fork public repos without write access (fails for private)
                         [default: false]
@@ -210,9 +270,9 @@ hive <github-url> [options]
   --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
   --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
-  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode]
-  --tool                AI tool (claude, opencode)           [default: claude]
+  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
+  --tool                AI tool (claude, opencode, codex)    [default: claude]
   --interval, -i        Poll interval (seconds)              [default: 300]
   --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
@@ -476,11 +536,130 @@ Authentication is handled through:
 
 No environment variable configuration is currently supported.
 
+## 🐛 Reporting Issues
+
+### Hive Mind Issues
+If you encounter issues with **Hive Mind** (this project), please report them on our GitHub Issues page:
+- **Repository**: https://github.com/deep-assistant/hive-mind
+- **Issues**: https://github.com/deep-assistant/hive-mind/issues
+
+### Claude Code CLI Issues
+If you encounter issues with the **Claude Code CLI** itself (e.g., `claude` command errors, installation problems, or CLI bugs), please report them to the official Claude Code repository:
+- **Repository**: https://github.com/anthropics/claude-code
+- **Issues**: https://github.com/anthropics/claude-code/issues
+
 ## 🛡️ File Size Enforcement
 
 All documentation files are automatically checked:
 ```bash
 find docs/ -name "*.md" -exec wc -l {} + | awk '$1 > 1000 {print "ERROR: " $2 " has " $1 " lines (max 1000)"}'
+```
+
+## Server diagnostics
+
+Identify screens that are parents of processes that eating the resources
+
+```bash
+TARGETS="62220 65988 63094 66606 1028071 4127023"
+
+# build screen PID -> session name map
+declare -A NAME
+while read -r id; do spid=${id%%.*}; NAME[$spid]="$id"; done \
+  < <(screen -ls | awk '/(Detached|Attached)/{print $1}')
+
+# check each PID's environment for STY and map back to session
+for p in $TARGETS; do
+  sty=$(tr '\0' '\n' < /proc/$p/environ 2>/dev/null | awk -F= '$1=="STY"{print $2}')
+  if [ -n "$sty" ]; then
+    spid=${sty%%.*}
+    echo "$p  ->  ${NAME[$spid]:-$sty}"
+  else
+    echo "$p  ->  (no STY; not from screen or env cleared / double-forked)"
+  fi
+done
+```
+
+Show details about the proccess
+
+```bash
+procinfo() {
+  local pid=$1
+  if [ -z "$pid" ]; then
+    echo "Usage: procinfo <pid>"
+    return 1
+  fi
+  if [ ! -d "/proc/$pid" ]; then
+    echo "Process $pid not found."
+    return 1
+  fi
+
+  echo "=== Process $pid ==="
+  # Basic process info
+  ps -p "$pid" -o user=,uid=,pid=,ppid=,c=,stime=,etime=,tty=,time=,cmd=
+
+  echo
+  # Working directory
+  echo "CWD: $(readlink -f /proc/$pid/cwd 2>/dev/null)"
+
+  # Executable path
+  echo "EXE: $(readlink -f /proc/$pid/exe 2>/dev/null)"
+
+  # Root directory of the process
+  echo "ROOT: $(readlink -f /proc/$pid/root 2>/dev/null)"
+
+  # Command line (full, raw)
+  echo "CMDLINE:"
+  tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null
+  echo
+
+  # Environment variables
+  echo
+  echo "ENVIRONMENT (key=value):"
+  tr '\0' '\n' < /proc/$pid/environ 2>/dev/null | head -n 20
+
+  # Open files (first few)
+  echo
+  echo "OPEN FILES:"
+  ls -l /proc/$pid/fd 2>/dev/null | head -n 10
+
+  # Child processes
+  echo
+  echo "CHILDREN:"
+  ps --ppid "$pid" -o pid=,cmd= 2>/dev/null
+}
+procinfo 62220
+```
+
+## Maintenance
+
+Close all screens to free up RAM.
+
+```bash
+# close all (Attached or Detached) sessions
+screen -ls | awk '/(Detached|Attached)/{print $1}' \
+| while read s; do screen -S "$s" -X quit; done
+
+# remove any zombie sockets
+screen -wipe
+
+# verify
+screen -ls
+```
+
+Cleanup disk space.
+
+```
+df -h
+
+rm -rf /tmp
+
+df -h
+```
+
+Reboot server.
+
+```
+sudo reboot
 ```
 
 ## 📄 License

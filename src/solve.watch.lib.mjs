@@ -90,15 +90,25 @@ export const watchForFeedback = async (params) => {
   const watchInterval = argv.watchInterval || 60; // seconds
   const intervalMs = watchInterval * 1000;
   const isTemporaryWatch = argv.temporaryWatch || false;
+  const maxAutoRestartIterations = argv.autoRestartMaxIterations || 3;
+
+  // Track latest session data across all iterations for accurate pricing
+  let latestSessionId = null;
+  let latestAnthropicCost = null;
 
   await log('');
-  await log(formatAligned('👁️', 'WATCH MODE ACTIVATED', ''));
-  await log(formatAligned('', 'Checking interval:', `${watchInterval} seconds`, 2));
-  await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
   if (isTemporaryWatch) {
-    await log(formatAligned('', 'Mode:', 'Temporary (will exit when changes are committed)', 2));
-    await log(formatAligned('', 'Stop conditions:', 'All changes committed OR PR merged', 2));
+    await log(formatAligned('🔄', 'AUTO-RESTART MODE ACTIVE', ''));
+    await log(formatAligned('', 'Purpose:', 'Complete unfinished work from previous run', 2));
+    await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
+    await log(formatAligned('', 'Mode:', 'Auto-restart (NOT --watch mode)', 2));
+    await log(formatAligned('', 'Stop conditions:', 'All changes committed OR PR merged OR max iterations reached', 2));
+    await log(formatAligned('', 'Max iterations:', `${maxAutoRestartIterations}`, 2));
+    await log(formatAligned('', 'Note:', 'No wait time between iterations in auto-restart mode', 2));
   } else {
+    await log(formatAligned('👁️', 'WATCH MODE ACTIVATED', ''));
+    await log(formatAligned('', 'Checking interval:', `${watchInterval} seconds`, 2));
+    await log(formatAligned('', 'Monitoring PR:', `#${prNumber}`, 2));
     await log(formatAligned('', 'Stop condition:', 'PR merged by maintainer', 2));
   }
   await log('');
@@ -107,6 +117,7 @@ export const watchForFeedback = async (params) => {
 
   // let lastCheckTime = new Date(); // Not currently used
   let iteration = 0;
+  let autoRestartCount = 0;
   let firstIterationInTemporaryMode = isTemporaryWatch;
 
   while (true) {
@@ -128,8 +139,18 @@ export const watchForFeedback = async (params) => {
       const hasUncommitted = await checkForUncommittedChanges(tempDir, $);
       if (!hasUncommitted) {
         await log('');
-        await log(formatAligned('✅', 'CHANGES COMMITTED!', 'Exiting temporary watch mode'));
+        await log(formatAligned('✅', 'CHANGES COMMITTED!', 'Exiting auto-restart mode'));
         await log(formatAligned('', 'All uncommitted changes have been resolved', '', 2));
+        await log('');
+        break;
+      }
+
+      // Check if we've reached max iterations
+      if (autoRestartCount >= maxAutoRestartIterations) {
+        await log('');
+        await log(formatAligned('⚠️', 'MAX ITERATIONS REACHED', `Exiting auto-restart mode after ${autoRestartCount} attempts`));
+        await log(formatAligned('', 'Some uncommitted changes may remain', '', 2));
+        await log(formatAligned('', 'Please review and commit manually if needed', '', 2));
         await log('');
         break;
       }
@@ -191,7 +212,43 @@ export const watchForFeedback = async (params) => {
             // Ignore errors
           }
           await log('');
-          await log(formatAligned('🔄', 'Initial restart:', 'Running Claude to handle uncommitted changes...'));
+          await log(formatAligned('🔄', 'Initial restart:', `Running ${argv.tool.toUpperCase()} to handle uncommitted changes...`));
+
+          // Post a comment to PR about auto-restart
+          if (prNumber) {
+            try {
+              autoRestartCount++;
+              const remainingIterations = maxAutoRestartIterations - autoRestartCount;
+
+              // Get uncommitted files list for the comment
+              let uncommittedFilesList = '';
+              try {
+                const gitStatusResult = await $({ cwd: tempDir })`git status --porcelain 2>&1`;
+                if (gitStatusResult.code === 0) {
+                  const statusOutput = gitStatusResult.stdout.toString().trim();
+                  if (statusOutput) {
+                    uncommittedFilesList = '\n\n**Uncommitted files:**\n```\n' + statusOutput + '\n```';
+                  }
+                }
+              } catch {
+                // If we can't get the file list, continue without it
+              }
+
+              const commentBody = `## 🔄 Auto-restart ${autoRestartCount}/${maxAutoRestartIterations}\n\nDetected uncommitted changes from previous run. Starting new session to review and commit them.${uncommittedFilesList}\n\n---\n*Auto-restart will stop after changes are committed or after ${remainingIterations} more iteration${remainingIterations !== 1 ? 's' : ''}. Please wait until working session will end and give your feedback.*`;
+              await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${commentBody}`;
+              await log(formatAligned('', '💬 Posted auto-restart notification to PR', '', 2));
+            } catch (commentError) {
+              reportError(commentError, {
+                context: 'post_auto_restart_comment',
+                owner,
+                repo,
+                prNumber,
+                operation: 'comment_on_pr'
+              });
+              // Don't fail if comment posting fails
+              await log(formatAligned('', '⚠️  Could not post comment to PR', '', 2));
+            }
+          }
 
           // Add uncommitted changes info to feedbackLines for the first run
           if (!feedbackLines) {
@@ -229,7 +286,7 @@ export const watchForFeedback = async (params) => {
             await log(formatAligned('', `• ${line}`, '', 4));
           });
           await log('');
-          await log(formatAligned('🔄', 'Restarting:', 'Re-running Claude to handle feedback...'));
+          await log(formatAligned('🔄', 'Restarting:', `Re-running ${argv.tool.toUpperCase()} to handle feedback...`));
         }
 
         // Import necessary modules for tool execution
@@ -265,6 +322,37 @@ export const watchForFeedback = async (params) => {
             opencodePath,
             $
           });
+        } else if (argv.tool === 'codex') {
+          // Use Codex
+          const codexExecLib = await import('./codex.lib.mjs');
+          const { executeCodex } = codexExecLib;
+
+          // Get codex path
+          const codexPath = argv.codexPath || 'codex';
+
+          toolResult = await executeCodex({
+            issueUrl,
+            issueNumber,
+            prNumber,
+            prUrl: `https://github.com/${owner}/${repo}/pull/${prNumber}`,
+            branchName,
+            tempDir,
+            isContinueMode: true,
+            mergeStateStatus,
+            forkedRepo: argv.fork,
+            feedbackLines,
+            forkActionsUrl: null,
+            owner,
+            repo,
+            argv,
+            log,
+            setLogFile: () => {},
+            getLogFile: () => '',
+            formatAligned,
+            getResourceSnapshot,
+            codexPath,
+            $
+          });
         } else {
           // Use Claude (default)
           const claudeExecLib = await import('./claude.lib.mjs');
@@ -298,8 +386,24 @@ export const watchForFeedback = async (params) => {
         if (!toolResult.success) {
           await log(formatAligned('⚠️', `${argv.tool.toUpperCase()} execution failed`, 'Will retry in next check', 2));
         } else {
+          // Capture latest session data from successful execution for accurate pricing
+          if (toolResult.sessionId) {
+            latestSessionId = toolResult.sessionId;
+            latestAnthropicCost = toolResult.anthropicTotalCostUSD;
+            if (argv.verbose) {
+              await log(`   📊 Session data captured: ${latestSessionId}`, { verbose: true });
+              if (latestAnthropicCost !== null && latestAnthropicCost !== undefined) {
+                await log(`   💰 Anthropic cost: $${latestAnthropicCost.toFixed(6)}`, { verbose: true });
+              }
+            }
+          }
+
           await log('');
-          await log(formatAligned('✅', `${argv.tool.toUpperCase()} execution completed:`, 'Resuming watch mode...'));
+          if (isTemporaryWatch) {
+            await log(formatAligned('✅', `${argv.tool.toUpperCase()} execution completed:`, 'Checking for remaining changes...'));
+          } else {
+            await log(formatAligned('✅', `${argv.tool.toUpperCase()} execution completed:`, 'Resuming watch mode...'));
+          }
         }
 
         // Note: lastCheckTime tracking removed as it was not being used
@@ -321,16 +425,28 @@ export const watchForFeedback = async (params) => {
         operation: 'watch_pull_request'
       });
       await log(formatAligned('⚠️', 'Check failed:', cleanErrorMessage(error), 2));
-      await log(formatAligned('', 'Will retry in:', `${watchInterval} seconds`, 2));
+      if (!isTemporaryWatch) {
+        await log(formatAligned('', 'Will retry in:', `${watchInterval} seconds`, 2));
+      }
     }
 
-    // Wait for next interval (skip wait on first iteration if handling uncommitted changes)
-    if (!firstIterationInTemporaryMode) {
+    // Wait for next interval (skip wait entirely in temporary watch mode / auto-restart)
+    if (!isTemporaryWatch && !firstIterationInTemporaryMode) {
       await log(formatAligned('⏱️', 'Next check in:', `${watchInterval} seconds...`, 2));
       await log(''); // Blank line for readability
       await new Promise(resolve => setTimeout(resolve, intervalMs));
+    } else if (isTemporaryWatch && !firstIterationInTemporaryMode) {
+      // In auto-restart mode, check immediately without waiting
+      await log(formatAligned('', 'Checking immediately for uncommitted changes...', '', 2));
+      await log(''); // Blank line for readability
     }
   }
+
+  // Return latest session data for accurate pricing in log uploads
+  return {
+    latestSessionId,
+    latestAnthropicCost
+  };
 };
 
 /**
@@ -350,7 +466,7 @@ export const startWatchMode = async (params) => {
     if (argv.verbose) {
       await log('   Watch mode not enabled - exiting startWatchMode', { verbose: true });
     }
-    return; // Watch mode not enabled
+    return null; // Watch mode not enabled
   }
 
   if (!params.prNumber) {
@@ -360,9 +476,9 @@ export const startWatchMode = async (params) => {
     if (argv.verbose) {
       await log('   prNumber is missing - cannot start watch mode', { verbose: true });
     }
-    return;
+    return null;
   }
 
-  // Start the watch loop
-  await watchForFeedback(params);
+  // Start the watch loop and return session data
+  return await watchForFeedback(params);
 };

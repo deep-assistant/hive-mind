@@ -24,6 +24,13 @@ const {
 // Import exit handler
 import { safeExit } from './exit-handler.lib.mjs';
 
+// Import branch name validation functions
+const branchLib = await import('./solve.branch.lib.mjs');
+const {
+  getIssueBranchPrefix,
+  matchesIssuePattern
+} = branchLib;
+
 // Import GitHub-related functions
 const githubLib = await import('./github.lib.mjs');
 const {
@@ -36,6 +43,10 @@ const validation = await import('./solve.validation.lib.mjs');
 // Import Sentry integration
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
+
+// Import GitHub linking detection library
+const githubLinking = await import('./github-linking.lib.mjs');
+const { extractLinkedIssueNumber } = githubLinking;
 
 // Import configuration
 import { autoContinue } from './config.lib.mjs';
@@ -151,9 +162,9 @@ export const checkExistingPRsForAutoContinue = async (argv, isIssueUrl, owner, r
             // Check if PR is open (not closed)
             if (pr.state === 'OPEN') {
               // CRITICAL: Validate that branch name matches the expected pattern for this issue
-              // Branch naming convention: issue-{issueNumber}-{randomHash}
-              const expectedBranchPrefix = `issue-${issueNumber}-`;
-              if (!pr.headRefName.startsWith(expectedBranchPrefix)) {
+              // Branch naming convention: issue-{issueNumber}-{randomHash} (supports both 8-char legacy and 12-char new formats)
+              if (!matchesIssuePattern(pr.headRefName, issueNumber)) {
+                const expectedBranchPrefix = getIssueBranchPrefix(issueNumber);
                 await log(`  PR #${pr.number}: Branch '${pr.headRefName}' doesn't match expected pattern '${expectedBranchPrefix}*' - skipping`);
                 continue;
               }
@@ -267,12 +278,13 @@ export const processPRMode = async (isPrUrl, urlNumber, owner, repo, argv) => {
 
       await log(`📝 PR branch: ${prBranch}`);
 
-      // Extract issue number from PR body (look for "fixes #123", "closes #123", etc.)
+      // Extract issue number from PR body using GitHub linking detection library
+      // This ensures we only detect actual GitHub-recognized linking keywords
       const prBody = prData.body || '';
-      const issueMatch = prBody.match(/(?:fixes|closes|resolves)\s+(?:.*?[/#])?(\d+)/i);
+      const extractedIssueNumber = extractLinkedIssueNumber(prBody);
 
-      if (issueMatch) {
-        issueNumber = issueMatch[1];
+      if (extractedIssueNumber) {
+        issueNumber = extractedIssueNumber;
         await log(`🔗 Found linked issue #${issueNumber}`);
       } else {
         // If no linked issue found, we can still continue but warn
@@ -321,13 +333,13 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
         if (forkCheckResult.code === 0) {
           await log(`🔍 Fork mode: Checking for existing branches in ${forkRepo}...`);
 
-          // List all branches in the fork that match the pattern issue-{issueNumber}-*
-          const branchPattern = `issue-${issueNumber}-`;
+          // List all branches in the fork that match the pattern issue-{issueNumber}-* (supports both 8-char and 12-char formats)
+          const branchPattern = getIssueBranchPrefix(issueNumber);
           const branchListResult = await $`gh api --paginate repos/${forkRepo}/branches --jq '.[].name'`;
 
           if (branchListResult.code === 0) {
             const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
-            existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+            existingBranches = allBranches.filter(branch => matchesIssuePattern(branch, issueNumber));
 
             if (existingBranches.length > 0) {
               await log(`📋 Found ${existingBranches.length} existing branch(es) in fork matching pattern '${branchPattern}*':`);
@@ -353,13 +365,13 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
     try {
       await log(`🔍 Checking for existing branches in ${owner}/${repo}...`);
 
-      // List all branches in the main repo that match the pattern issue-{issueNumber}-*
-      const branchPattern = `issue-${issueNumber}-`;
+      // List all branches in the main repo that match the pattern issue-{issueNumber}-* (supports both 8-char and 12-char formats)
+      const branchPattern = getIssueBranchPrefix(issueNumber);
       const branchListResult = await $`gh api --paginate repos/${owner}/${repo}/branches --jq '.[].name'`;
 
       if (branchListResult.code === 0) {
         const allBranches = branchListResult.stdout.toString().trim().split('\n').filter(b => b);
-        existingBranches = allBranches.filter(branch => branch.startsWith(branchPattern));
+        existingBranches = allBranches.filter(branch => matchesIssuePattern(branch, issueNumber));
 
         if (existingBranches.length > 0) {
           await log(`📋 Found ${existingBranches.length} existing branch(es) in main repo matching pattern '${branchPattern}*':`);
@@ -403,9 +415,9 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
           // Check if PR is open (not closed)
           if (pr.state === 'OPEN') {
             // CRITICAL: Validate that branch name matches the expected pattern for this issue
-            // Branch naming convention: issue-{issueNumber}-{randomHash}
-            const expectedBranchPrefix = `issue-${issueNumber}-`;
-            if (!pr.headRefName.startsWith(expectedBranchPrefix)) {
+            // Branch naming convention: issue-{issueNumber}-{randomHash} (supports both 8-char legacy and 12-char new formats)
+            if (!matchesIssuePattern(pr.headRefName, issueNumber)) {
+              const expectedBranchPrefix = getIssueBranchPrefix(issueNumber);
               await log(`  PR #${pr.number}: Branch '${pr.headRefName}' doesn't match expected pattern '${expectedBranchPrefix}*' - skipping`);
               continue;
             }
