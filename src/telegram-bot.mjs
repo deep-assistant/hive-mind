@@ -750,7 +750,7 @@ bot.command('help', async (ctx) => {
   await ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-bot.command('solve', async (ctx) => {
+bot.command(/^solve$/i, async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /solve command received');
   }
@@ -923,7 +923,7 @@ bot.command('solve', async (ctx) => {
   }
 });
 
-bot.command('hive', async (ctx) => {
+bot.command(/^hive$/i, async (ctx) => {
   if (VERBOSE) {
     console.log('[VERBOSE] /hive command received');
   }
