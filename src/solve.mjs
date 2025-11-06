@@ -945,7 +945,7 @@ try {
           sanitizeLogContent,
           verbose: argv.verbose,
           sessionId,
-          tempDir: argv.tempDir || process.cwd(),
+          tempDir,
           anthropicTotalCostUSD
         });
 
