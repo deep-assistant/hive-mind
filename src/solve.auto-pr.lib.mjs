@@ -339,7 +339,7 @@ Issue: ${issueUrl}`;
             await log(`     1. Clone the repository and checkout branch ${branchName}`, { level: 'error' });
             await log('     2. Manually merge or rebase the changes', { level: 'error' });
             await log('     3. Push the resolved changes', { level: 'error' });
-            await safeExit(1, 'Cannot push to remote - merge/rebase failed and force push is not allowed');
+            throw new Error('Cannot push to remote - merge/rebase failed and force push is not allowed');
           } else {
             // Rebase succeeded, regular push
             pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;

@@ -19,7 +19,7 @@ export async function setupRepositoryAndClone({
   // Clone repository and set up remotes
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
   // Set up upstream remote and sync fork if needed
-  await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo, argv);
+  await setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo);
   // Set up pr-fork remote if we're continuing someone else's fork PR with --fork flag
   const prForkRemote = await setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode);
 
@@ -44,10 +44,10 @@ async function cloneRepository(repoToClone, tempDir, argv, owner, repo) {
   return await cloneRepoFn(repoToClone, tempDir, argv, owner, repo);
 }
 
-async function setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo, argv) {
+async function setupUpstreamAndSync(tempDir, forkedRepo, upstreamRemote, owner, repo) {
   const repository = await import('./solve.repository.lib.mjs');
   const { setupUpstreamAndSync: setupUpstreamFn } = repository;
-  return await setupUpstreamFn(tempDir, forkedRepo, upstreamRemote, owner, repo, argv);
+  return await setupUpstreamFn(tempDir, forkedRepo, upstreamRemote, owner, repo);
 }
 
 async function setupPrForkRemote(tempDir, argv, prForkOwner, repo, isContinueMode) {

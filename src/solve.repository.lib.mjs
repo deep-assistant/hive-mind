@@ -517,7 +517,7 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
 };
 
 // Set up upstream remote and sync fork
-export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo, argv) => {
+export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo) => {
   if (!forkedRepo || !upstreamRemote) return;
 
   await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
@@ -630,7 +630,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                   await log('     This tool will NOT use force push under any circumstances');
                   await log('     to preserve repository history integrity');
                   await log('');
-                  await safeExit(1, 'Repository setup halted - fork divergence requires manual resolution (force push not allowed)')
+                  await safeExit(1, 'Repository setup halted - fork divergence requires manual resolution (force push not allowed)');
                 } else {
                   // Some other push error (not divergence-related)
                   await log(`${formatAligned('❌', 'FATAL ERROR:', 'Failed to push updated default branch to fork')}`);
