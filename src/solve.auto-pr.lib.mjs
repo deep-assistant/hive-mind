@@ -332,9 +332,14 @@ Issue: ${issueUrl}`;
           await log('   Merge failed, attempting rebase...', { verbose: true });
           const rebaseResult = await $({ cwd: tempDir })`git rebase origin/${branchName} 2>&1`;
           if (rebaseResult.code !== 0) {
-            await log('   Rebase also failed, will attempt force push as last resort', { level: 'warning' });
-            // Fall back to force push
-            pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+            await log('   ERROR: Both merge and rebase failed', { level: 'error' });
+            await log('   Cannot proceed without force push, which is not allowed', { level: 'error' });
+            await log('   This likely means there are conflicting changes in the branch', { level: 'error' });
+            await log('   Please resolve conflicts manually:', { level: 'error' });
+            await log(`     1. Clone the repository and checkout branch ${branchName}`, { level: 'error' });
+            await log('     2. Manually merge or rebase the changes', { level: 'error' });
+            await log('     3. Push the resolved changes', { level: 'error' });
+            await safeExit(1, 'Cannot push to remote - merge/rebase failed and force push is not allowed');
           } else {
             // Rebase succeeded, regular push
             pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
@@ -348,14 +353,13 @@ Issue: ${issueUrl}`;
           await log(`   Push command: git push -u origin ${branchName} (preserving existing commits)`);
         }
       } else {
-        // New branch or not in continue mode - use force push as before
+        // New branch or not in continue mode - use regular push
         if (argv.verbose) {
-          await log(`   Push command: git push -f -u origin ${branchName}`);
+          await log(`   Push command: git push -u origin ${branchName}`);
         }
 
-        // Use force push for new branches
-        // (The branch is new with random name, so force is safe)
-        pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+        // Use regular push - never force push to preserve history
+        pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
       }
 
       if (argv.verbose) {
@@ -610,9 +614,9 @@ Issue: ${issueUrl}`;
             }
           }
 
-          // Try one more force push with explicit ref
+          // Try one more push with explicit ref (without force)
           await log('   Attempting explicit push...');
-          const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName} -f`;
+          const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName}`;
           if (argv.verbose) {
             await log(`   Command: ${explicitPushCmd}`);
           }
@@ -627,6 +631,7 @@ Issue: ${issueUrl}`;
           } else {
             await log('   ERROR: Cannot push to GitHub!');
             await log(`   Error: ${explicitPushResult.stderr || explicitPushResult.stdout || 'Unknown'}`);
+            await log('   Force push is not allowed to preserve history');
           }
         }
 

@@ -285,3 +285,49 @@ if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'
   throw new Error('PR creation failed - no commits between branches');
 }
 ```
+
+## Policy Update: No Force Push Under Any Circumstances
+
+### Updated Requirements (2025-11-06)
+
+After the initial fix was implemented, it was discovered that the solution still contained force push (`git push -f` or `git push --force`) operations in several places. This violated a strict requirement:
+
+**POLICY: Git history must NEVER be altered. Force push is STRICTLY PROHIBITED under ALL conditions.**
+
+### Locations Where Force Push Was Still Being Used
+
+1. **solve.auto-pr.lib.mjs (Line 337)**: Fallback to force push when both merge and rebase failed
+2. **solve.auto-pr.lib.mjs (Line 358)**: Force push for "new" branches
+3. **solve.auto-pr.lib.mjs (Line 615)**: Explicit force push as retry mechanism
+4. **solve.repository.lib.mjs (Line 624)**: Force push with `--force-with-lease` for fork divergence resolution
+5. **solve.config.lib.mjs (Line 198-202)**: Configuration option `--allow-fork-divergence-resolution-using-force-push-with-lease`
+
+### Final Implementation
+
+All force push operations have been completely removed:
+
+1. **Existing branch conflicts**: When merge and rebase both fail, the tool now exits with a clear error message directing users to resolve conflicts manually, rather than falling back to force push.
+
+2. **New branches**: Changed from `git push -f` to regular `git push`. Since these are truly new branches, force push was unnecessary anyway.
+
+3. **Retry mechanism**: The explicit push retry now uses regular push without the `-f` flag.
+
+4. **Fork divergence**: The entire force-push-with-lease feature has been removed. When a fork diverges from upstream, the tool now exits with instructions for manual resolution through GitHub's "Sync fork" feature or manual merging.
+
+5. **Configuration option**: The `--allow-fork-divergence-resolution-using-force-push-with-lease` flag has been completely removed from the configuration.
+
+### Benefits of This Approach
+
+1. **History Integrity**: Complete preservation of git history under all circumstances
+2. **Transparency**: All changes are visible in the commit history
+3. **Reversibility**: Changes can be reverted using standard git operations
+4. **Collaboration Safety**: No risk of overwriting other developers' work
+5. **Audit Trail**: Complete record of all changes for compliance and debugging
+
+### Trade-offs
+
+1. **Manual Intervention Required**: Some scenarios that were previously handled automatically now require manual resolution
+2. **Fork Divergence**: Users must manually sync forks when they diverge from upstream
+3. **Conflict Resolution**: Users must manually resolve conflicts that can't be auto-merged or rebased
+
+These trade-offs are acceptable because they prioritize repository integrity and history preservation over automation convenience.
