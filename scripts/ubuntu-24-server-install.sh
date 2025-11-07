@@ -635,11 +635,12 @@ if command -v claude &>/dev/null; then
   if claude mcp list 2>/dev/null | grep -q "playwright"; then
     log_info "Playwright MCP already configured in Claude CLI"
   else
-    # Add the playwright MCP server to Claude CLI configuration
-    log_info "Adding Playwright MCP to Claude CLI configuration..."
-    claude mcp add playwright "npx" "@playwright/mcp@latest" 2>/dev/null || {
+    # Add the playwright MCP server to Claude CLI configuration with user scope
+    # Using -s user ensures it's available for all tasks in all folders
+    log_info "Adding Playwright MCP to Claude CLI configuration (user scope)..."
+    claude mcp add playwright -s user -- npx -y @playwright/mcp@latest 2>/dev/null || {
       log_warning "Could not add Playwright MCP to Claude CLI."
-      log_note "You may need to run manually: claude mcp add playwright npx @playwright/mcp@latest"
+      log_note "You may need to run manually: claude mcp add playwright -s user -- npx -y @playwright/mcp@latest"
     }
   fi
 
@@ -651,7 +652,7 @@ if command -v claude &>/dev/null; then
   fi
 else
   log_warning "Claude CLI is not available. Skipping MCP configuration."
-  log_note "After Claude CLI is installed, run: claude mcp add playwright npx @playwright/mcp@latest"
+  log_note "After Claude CLI is installed, run: claude mcp add playwright -s user -- npx -y @playwright/mcp@latest"
 fi
 
 # --- Git setup with GitHub identity ---
