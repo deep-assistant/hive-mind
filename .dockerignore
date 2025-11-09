@@ -4,6 +4,7 @@
 
 # Docker files themselves (to avoid recursive copies)
 Dockerfile
+Dockerfile.production
 docker-compose.yml
 .dockerignore
 
