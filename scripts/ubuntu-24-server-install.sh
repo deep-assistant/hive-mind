@@ -339,12 +339,12 @@ else
   log_info "GitHub CLI already installed."
 fi
 
-# --- Run interactive GitHub login ---
+# --- Check GitHub authentication status (non-interactive) ---
 if ! gh auth status &>/dev/null; then
-  log_info "Launching GitHub auth login..."
-  log_note "Follow the prompts to authenticate with GitHub"
-  gh auth login -h github.com -s repo,workflow,user,read:org,gist
-  log_success "GitHub authentication completed"
+  log_warning "GitHub CLI is not authenticated"
+  log_note "After installation, run: gh auth login -h github.com -s repo,workflow,user,read:org,gist"
+else
+  log_success "GitHub CLI is already authenticated"
 fi
 
 # --- Bun ---

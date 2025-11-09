@@ -75,6 +75,36 @@ bun install -g @deep-assistant/hive-mind
 npm install -g @deep-assistant/hive-mind
 ```
 
+### Docker Installation (Recommended)
+
+Run the Hive Mind using Docker - no manual setup required:
+
+```bash
+# Pull the latest image from Docker Hub
+docker pull deepassistant/hive-mind:latest
+
+# Run an interactive session
+docker run -it deepassistant/hive-mind:latest
+
+# Inside the container, authenticate with GitHub
+gh auth login -h github.com -s repo,workflow,user,read:org,gist
+
+# Authenticate with Claude
+claude
+
+# Now you can use hive and solve commands
+solve https://github.com/owner/repo/issues/123
+```
+
+**Benefits of Docker:**
+- ✅ Pre-configured Ubuntu 24.04 environment
+- ✅ All dependencies pre-installed
+- ✅ Isolated from your host system
+- ✅ Easy to run multiple instances with different GitHub accounts
+- ✅ Consistent environment across different machines
+
+See [docs/DOCKER.md](./docs/DOCKER.md) for advanced Docker usage.
+
 ### Installation on Ubuntu 24.04 server
 
 1. Reset/install VPS/VDS server with fresh Ubuntu 24.04
@@ -83,21 +113,26 @@ npm install -g @deep-assistant/hive-mind
    ```bash
    curl -fsSL -o- https://github.com/deep-assistant/hive-mind/raw/refs/heads/main/scripts/ubuntu-24-server-install.sh | bash
    ```
-   Note: in the process of installation you will be asked to authorize using GitHub account, it is required for gh tool to be working, the system will do all actions using that GitHub account.
 
 4. Login to `hive` user
    ```bash
    su - hive
    ```
 
-5. Claude Code CLI and OpenCode AI CLI are preinstalled with the previous script, now you need to make sure claude is authorized also. Execute claude command, and follow all steps to authorize the local claude
+5. Authenticate with GitHub CLI
+   ```bash
+   gh auth login -h github.com -s repo,workflow,user,read:org,gist
+   ```
+   Note: Follow the prompts to authenticate with your GitHub account. This is required for the gh tool to work, and the system will perform all actions using this GitHub account.
+
+6. Claude Code CLI and OpenCode AI CLI are preinstalled with the previous script, now you need to make sure claude is authorized also. Execute claude command, and follow all steps to authorize the local claude
    ```bash
    claude
    ```
 
    Note: opencode at the moment comes with free Grok Code Fast 1 model by default - so no authorization here is required.
 
-6. Launch the Hive Mind telegram bot:
+7. Launch the Hive Mind telegram bot:
 
    **Using Links Notation (recommended):**
    ```

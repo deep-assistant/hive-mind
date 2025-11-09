@@ -1,27 +1,45 @@
-# Docker Support for Hive Mind Issue Solver
+# Docker Support for Hive Mind
 
-This document explains how to run `solve.mjs` in a Docker container with proper credential transfer from the host machine.
+This document explains how to run Hive Mind in Docker containers.
 
 ## Quick Start
 
-### Option 1: Using the Helper Script (Recommended)
+### Option 1: Using Pre-built Image from Docker Hub (Recommended)
 
 ```bash
-# Build and run with automatic credential transfer
-./docker-solve.sh https://github.com/owner/repo/issues/123
+# Pull the latest image
+docker pull deepassistant/hive-mind:latest
 
-# Force rebuild the image
-./docker-solve.sh --build https://github.com/owner/repo/issues/123
+# Run an interactive session
+docker run -it deepassistant/hive-mind:latest
 
-# Pass additional arguments
-./docker-solve.sh --verbose --timeout 300 https://github.com/owner/repo/issues/123
+# Inside the container, authenticate with GitHub
+gh auth login -h github.com -s repo,workflow,user,read:org,gist
+
+# Authenticate with Claude
+claude
+
+# Now you can use hive and solve commands
+solve https://github.com/owner/repo/issues/123
 ```
 
-### Option 2: Using Docker Directly
+### Option 2: Building Locally
 
 ```bash
-# Build the image
-docker build -t hive-mind-solver .
+# Build the production image
+docker build -f Dockerfile.production -t hive-mind:local .
+
+# Run the image
+docker run -it hive-mind:local
+```
+
+### Option 3: Development Mode (Gitpod-style)
+
+For development purposes, the legacy `Dockerfile` provides a Gitpod-compatible environment:
+
+```bash
+# Build the development image
+docker build -t hive-mind-dev .
 
 # Run with credential mounts
 docker run --rm -it \
@@ -29,106 +47,142 @@ docker run --rm -it \
     -v ~/.local/share/claude-profiles:/workspace/.persisted-configs/claude:ro \
     -v ~/.config/claude-code:/workspace/.persisted-configs/claude-code:ro \
     -v "$(pwd)/output:/workspace/output" \
-    -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
-    -e CLAUDE_API_KEY="${CLAUDE_API_KEY}" \
-    hive-mind-solver \
-    bash -c "./docker-restore-auth.sh && ./solve.mjs https://github.com/owner/repo/issues/123"
+    hive-mind-dev
 ```
 
-### Option 3: Using Docker Compose
+## Authentication
 
+The production Docker image (`Dockerfile.production`) uses Ubuntu 24.04 and the official installation script. Authentication is performed **inside the container** after starting it:
+
+### GitHub Authentication
 ```bash
-# Start with docker-compose
-docker-compose run --rm hive-mind-solver ./solve.mjs https://github.com/owner/repo/issues/123
+# Inside the container
+gh auth login -h github.com -s repo,workflow,user,read:org,gist
 ```
 
-## Credential Transfer
+### Claude Authentication
+```bash
+# Inside the container
+claude
+```
 
-The Docker setup automatically transfers credentials from your host machine to the container:
-
-### GitHub Credentials
-- **Host Path:** `~/.config/gh`
-- **Container Path:** `/workspace/.persisted-configs/gh`
-- **Purpose:** Enables GitHub API access and repository operations
-
-### Claude Profiles
-- **Host Path:** `~/.local/share/claude-profiles`
-- **Container Path:** `/workspace/.persisted-configs/claude`
-- **Purpose:** Transfers Claude profile configurations
-
-### Claude Code Credentials
-- **Host Path:** `~/.config/claude-code`
-- **Container Path:** `/workspace/.persisted-configs/claude-code`
-- **Purpose:** Enables Claude Code API access
+This approach allows:
+- ✅ Multiple Docker instances with different GitHub accounts
+- ✅ Multiple Docker instances with different Claude subscriptions
+- ✅ No credential leakage between containers
+- ✅ Each container has its own isolated authentication
 
 ## Prerequisites
 
-1. **Docker:** Install Docker Desktop or Docker Engine
-2. **GitHub CLI:** Authenticate with `gh auth login` on host
-3. **Claude Credentials:** Set up Claude profiles or Claude Code on host
+1. **Docker:** Install Docker Desktop or Docker Engine (version 20.10 or higher)
+2. **Internet Connection:** Required for pulling images and authentication
 
 ## Directory Structure
 
 ```
 .
-├── Dockerfile                 # Main Docker image definition
-├── docker-compose.yml        # Docker Compose configuration
-├── docker-solve.sh          # Convenient wrapper script
-├── docker-restore-auth.sh    # Credential restoration script
-└── solve.mjs                 # Main application
+├── Dockerfile                    # Development/Gitpod image (legacy)
+├── Dockerfile.production         # Production image using Ubuntu 24.04
+├── scripts/
+│   └── ubuntu-24-server-install.sh  # Installation script used by Dockerfile.production
+└── docs/
+    └── DOCKER.md                 # This file
 ```
 
-## Environment Variables
+## Advanced Usage
 
-You can pass environment variables to control behavior:
+### Running with Persistent Storage
+
+To persist authentication and work between container restarts:
 
 ```bash
-# Set GitHub token explicitly
-export GITHUB_TOKEN="your_token_here"
+# Create a volume for the hive user's home directory
+docker volume create hive-home
 
-# Set Claude API key
-export CLAUDE_API_KEY="your_key_here"
-
-# Run with variables
-./docker-solve.sh https://github.com/owner/repo/issues/123
+# Run with the volume mounted
+docker run -it -v hive-home:/home/hive deepassistant/hive-mind:latest
 ```
 
-## Output Files
+### Running in Detached Mode
 
-Any files created by `solve.mjs` will be available in the `./output/` directory on your host machine.
+```bash
+# Start a detached container
+docker run -d --name hive-worker -v hive-home:/home/hive deepassistant/hive-mind:latest sleep infinity
+
+# Execute commands in the running container
+docker exec -it hive-worker bash
+
+# Inside the container, run your commands
+solve https://github.com/owner/repo/issues/123
+```
+
+### Using with Docker Compose
+
+Create a `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+services:
+  hive-mind:
+    image: deepassistant/hive-mind:latest
+    volumes:
+      - hive-home:/home/hive
+    stdin_open: true
+    tty: true
+
+volumes:
+  hive-home:
+```
+
+Then run:
+```bash
+docker-compose run --rm hive-mind
+```
 
 ## Troubleshooting
 
 ### GitHub Authentication Issues
 ```bash
-# Check if GitHub CLI is authenticated on host
+# Inside the container, check authentication status
 gh auth status
 
 # Re-authenticate if needed
-gh auth login
+gh auth login -h github.com -s repo,workflow,user,read:org,gist
 ```
 
-### Claude Credential Issues
+### Claude Authentication Issues
 ```bash
-# Check if Claude profiles exist
-ls -la ~/.local/share/claude-profiles
-
-# Check Claude Code config
-ls -la ~/.config/claude-code
+# Inside the container, re-run Claude to authenticate
+claude
 ```
 
 ### Docker Issues
 ```bash
-# Check Docker status
+# Check Docker status on host
 docker info
 
-# Rebuild image from scratch
-./docker-solve.sh --build
+# Pull the latest image
+docker pull deepassistant/hive-mind:latest
+
+# Rebuild from source
+docker build -f Dockerfile.production -t hive-mind:local .
 ```
+
+### Build Issues
+
+If you encounter issues building the image locally:
+
+1. Ensure you have enough disk space (at least 20GB free)
+2. Check your internet connection
+3. Try building with more verbose output:
+   ```bash
+   docker build -f Dockerfile.production -t hive-mind:local --progress=plain .
+   ```
 
 ## Security Notes
 
-- Credentials are mounted read-only into the container
-- Container runs with minimal privileges
-- No credentials are stored in the Docker image
-- All credential transfer happens at runtime
+- Each container maintains its own isolated authentication
+- No credentials are shared between containers
+- No credentials are stored in the Docker image itself
+- Authentication happens inside the container after it starts
+- Each GitHub/Claude account can have its own container instance
