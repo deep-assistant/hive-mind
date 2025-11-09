@@ -656,6 +656,14 @@ rm -rf /tmp
 df -h
 ```
 
+If you accedently remove the /tmp folder itself under root user, you will need to restore it like this:
+
+```bash
+sudo mkdir -p /tmp
+sudo chown root:root /tmp
+sudo chmod 1777 /tmp
+```
+
 Reboot server.
 
 ```
