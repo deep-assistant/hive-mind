@@ -26,7 +26,7 @@ End of log.`;
 
 // The escaping function
 const escapeCodeBlocksInLog = (logContent) => {
-  return logContent.replace(/```/g, '`\u200B`\u200B`');
+  return logContent.replace(/```/g, '\\`\\`\\`');
 };
 
 console.log('=== ORIGINAL LOG CONTENT ===');
