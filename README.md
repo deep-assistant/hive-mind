@@ -536,6 +536,12 @@ Authentication is handled through:
 
 No environment variable configuration is currently supported.
 
+### Multi-Provider Management with CC Switch
+
+For users managing multiple API providers, consider using [CC Switch](https://github.com/farion1231/cc-switch) - a desktop application that simplifies switching between different Claude Code provider configurations with one-click provider management, MCP server integration, and automatic configuration backups.
+
+📖 **See [docs/CC_SWITCH.md](./docs/CC_SWITCH.md) for complete integration guide**
+
 ## 🐛 Reporting Issues
 
 ### Hive Mind Issues
