@@ -46,10 +46,6 @@ const {
 const sentryLib = await import('./sentry.lib.mjs');
 const { reportError } = sentryLib;
 
-// Import GitHub linking detection library
-const githubLinking = await import('./github-linking.lib.mjs');
-const { hasGitHubLinkingKeyword } = githubLinking;
-
 // Import PR-issue linking utilities
 const prIssueLinking = await import('./pr-issue-linking.lib.mjs');
 const { ensurePRIssueLinking } = prIssueLinking;

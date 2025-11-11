@@ -61,12 +61,12 @@ export async function startPRIssueLinkMonitoring({
   correctionCount = 0;
 
   if (verbose) {
-    await log(`\n🔍 [Experimental] Starting PR issue link monitoring...`);
+    await log('\n🔍 [Experimental] Starting PR issue link monitoring...');
     await log(`   PR: #${prNumber} in ${owner}/${repo}`);
     await log(`   Issue: #${issueNumber}`);
     await log(`   Check interval: ${checkIntervalMs}ms`);
-    await log(`   This is an experimental feature that monitors PR description changes`);
-    await log(`   and automatically re-adds issue linking keywords if they are removed.`);
+    await log('   This is an experimental feature that monitors PR description changes');
+    await log('   and automatically re-adds issue linking keywords if they are removed.');
   }
 
   // Initial check
@@ -111,7 +111,7 @@ export async function startPRIssueLinkMonitoring({
       // Check if body changed
       if (currentBody !== lastKnownBody) {
         if (verbose) {
-          await log(`  📝 [Auto-correction] PR body changed, checking linking...`, { verbose: true });
+          await log('  📝 [Auto-correction] PR body changed, checking linking...', { verbose: true });
         }
 
         // Check and repair if needed
@@ -130,7 +130,7 @@ export async function startPRIssueLinkMonitoring({
         if (result.wasUpdated) {
           correctionCount++;
           await log(`  🔧 [Auto-correction] PR description corrected to re-add issue link (correction #${correctionCount})`);
-          await log(`     This prevents the linking failure documented in issue #713`);
+          await log('     This prevents the linking failure documented in issue #713');
         }
 
         // Update last known body
@@ -161,7 +161,7 @@ export async function stopPRIssueLinkMonitoring(log = null) {
     monitoringInterval = null;
 
     if (log && correctionCount > 0) {
-      await log(`\n✅ [Auto-correction] Monitoring stopped`);
+      await log('\n✅ [Auto-correction] Monitoring stopped');
       await log(`   Total corrections applied: ${correctionCount}`);
     }
   }
