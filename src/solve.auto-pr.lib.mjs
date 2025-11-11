@@ -727,7 +727,7 @@ Issue: ${issueUrl}`;
 
         const prBody = `## 🤖 AI-Powered Solution Draft
 
-This pull request is being automatically generated to solve issue ${issueRef}.
+This pull request is being automatically generated to solve the reported issue.
 
 ### 📋 Issue Reference
 Fixes ${issueRef}
