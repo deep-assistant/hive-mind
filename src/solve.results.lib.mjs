@@ -50,6 +50,10 @@ const { reportError } = sentryLib;
 const githubLinking = await import('./github-linking.lib.mjs');
 const { hasGitHubLinkingKeyword } = githubLinking;
 
+// Import PR-issue linking utilities
+const prIssueLinking = await import('./pr-issue-linking.lib.mjs');
+const { ensurePRIssueLinking } = prIssueLinking;
+
 // Revert the CLAUDE.md commit to restore original state
 export const cleanupClaudeFile = async (tempDir, branchName, claudeCommitHash = null) => {
   try {
@@ -294,56 +298,18 @@ export const verifyResults = async (owner, repo, branchName, issueNumber, prNumb
       if (isPrFromSession) {
         await log(`  ✅ Found pull request #${pr.number}: "${pr.title}"`);
 
-        // Check if PR body has proper issue linking keywords
-        const prBodyResult = await $`gh pr view ${pr.number} --repo ${owner}/${repo} --json body --jq .body`;
-        if (prBodyResult.code === 0) {
-          const prBody = prBodyResult.stdout.toString();
-          const issueRef = argv.fork ? `${owner}/${repo}#${issueNumber}` : `#${issueNumber}`;
-
-          // Use the new GitHub linking detection library to check for valid keywords
-          // This ensures we only detect actual GitHub-recognized linking keywords
-          // (fixes, closes, resolves and their variants) in proper format
-          // See: https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue
-          const hasLinkingKeyword = hasGitHubLinkingKeyword(
-            prBody,
-            issueNumber,
-            argv.fork ? owner : null,
-            argv.fork ? repo : null
-          );
-
-          if (!hasLinkingKeyword) {
-            await log(`  📝 Updating PR body to link issue #${issueNumber}...`);
-
-            // Add proper issue reference to the PR body
-            const linkingText = `\n\nFixes ${issueRef}`;
-            const updatedBody = prBody + linkingText;
-
-            // Use --body-file instead of --body to avoid command-line length limits
-            // and special character escaping issues that can cause hangs/timeouts
-            const fs = (await use('fs')).promises;
-            const tempBodyFile = `/tmp/pr-body-update-${pr.number}-${Date.now()}.md`;
-            await fs.writeFile(tempBodyFile, updatedBody);
-
-            try {
-              const updateResult = await $`gh pr edit ${pr.number} --repo ${owner}/${repo} --body-file "${tempBodyFile}"`;
-
-              // Clean up temp file
-              await fs.unlink(tempBodyFile).catch(() => {});
-
-              if (updateResult.code === 0) {
-                await log(`  ✅ Updated PR body to include "Fixes ${issueRef}"`);
-              } else {
-                await log(`  ⚠️  Could not update PR body: ${updateResult.stderr ? updateResult.stderr.toString().trim() : 'Unknown error'}`);
-              }
-            } catch (updateError) {
-              // Clean up temp file on error
-              await fs.unlink(tempBodyFile).catch(() => {});
-              throw updateError;
-            }
-          } else {
-            await log('  ✅ PR body already contains issue reference');
-          }
-        }
+        // Use shared library to ensure PR is properly linked to issue
+        await ensurePRIssueLinking({
+          prNumber: pr.number,
+          owner,
+          repo,
+          issueNumber,
+          isFork: argv.fork || false,
+          $,
+          log,
+          use,
+          verbose: argv.verbose
+        });
 
         // Check if PR is ready for review (convert from draft if necessary)
         if (pr.isDraft) {
