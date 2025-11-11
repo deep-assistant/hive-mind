@@ -205,6 +205,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'When continuing a fork PR as a maintainer, attempt to push directly to the contributor\'s fork if "Allow edits by maintainers" is enabled. Requires --auto-fork to be enabled.',
       default: false
     })
+    .option('pull-request-issue-link-auto-correction', {
+      type: 'boolean',
+      description: '⚠️ EXPERIMENTAL: Monitor PR description changes and auto-correct when issue linking keywords are removed (default: false)',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',

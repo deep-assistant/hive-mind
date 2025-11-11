@@ -85,6 +85,8 @@ const sessionLib = await import('./solve.session.lib.mjs');
 const { startWorkSession, endWorkSession } = sessionLib;
 const preparationLib = await import('./solve.preparation.lib.mjs');
 const { prepareFeedbackAndTimestamps, checkUncommittedChanges, checkForkActions } = preparationLib;
+const prLinkAutoCorrectionLib = await import('./pr-issue-link-auto-correction.lib.mjs');
+const { startPRIssueLinkMonitoring, stopPRIssueLinkMonitoring } = prLinkAutoCorrectionLib;
 
 // Initialize log file EARLY to capture all output including version and command
 // Use default directory (cwd) initially, will be set from argv.logDir after parsing
@@ -708,6 +710,22 @@ try {
     $
   });
 
+  // Start PR issue link monitoring if experimental flag is enabled
+  if (argv.pullRequestIssueLinkAutoCorrection && prNumber) {
+    await startPRIssueLinkMonitoring({
+      prNumber,
+      owner,
+      repo,
+      issueNumber,
+      isFork: argv.fork || false,
+      checkIntervalMs: 5000, // Check every 5 seconds
+      $,
+      log,
+      use,
+      verbose: argv.verbose
+    });
+  }
+
   // Execute tool command with all prompts and settings
   let toolResult;
   if (argv.tool === 'opencode') {
@@ -828,6 +846,11 @@ try {
     }
 
     await safeExit(1, `${argv.tool.toUpperCase()} execution failed`);
+  }
+
+  // Stop PR issue link monitoring if it was started
+  if (argv.pullRequestIssueLinkAutoCorrection && prNumber) {
+    await stopPRIssueLinkMonitoring(log);
   }
 
   // Check for uncommitted changes
