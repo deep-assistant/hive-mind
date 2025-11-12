@@ -1336,6 +1336,55 @@ async function monitor() {
         Object.assign(stats, currentStats);
       }
 
+      // List all completed issues with their solution drafts (PRs)
+      if (stats.completed > 0) {
+        await log('\n📋 Issues with solution drafts:');
+
+        // Group completed issues by repository
+        const issuesByRepo = {};
+        for (const issueUrl of issueQueue.completed) {
+          const urlMatch = issueUrl.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+          if (urlMatch) {
+            const [, issueOwner, issueRepo, issueNumber] = urlMatch;
+            const repoKey = `${issueOwner}/${issueRepo}`;
+
+            if (!issuesByRepo[repoKey]) {
+              issuesByRepo[repoKey] = {
+                owner: issueOwner,
+                repo: issueRepo,
+                issues: []
+              };
+            }
+
+            issuesByRepo[repoKey].issues.push({
+              number: parseInt(issueNumber),
+              url: issueUrl
+            });
+          }
+        }
+
+        // Fetch PR information for each repository
+        for (const repoData of Object.values(issuesByRepo)) {
+          const issueNumbers = repoData.issues.map(i => i.number);
+          const prResults = await batchCheckPullRequestsForIssues(repoData.owner, repoData.repo, issueNumbers);
+
+          // Display issues with their PRs
+          for (const issueData of repoData.issues) {
+            const prInfo = prResults[issueData.number];
+            if (prInfo && prInfo.linkedPRs && prInfo.linkedPRs.length > 0) {
+              // Show issue with its linked PRs
+              await log(`   - ${issueData.url}`);
+              for (const pr of prInfo.linkedPRs) {
+                await log(`     → PR #${pr.number}: ${pr.url}`);
+              }
+            } else {
+              // Issue completed but no PR found
+              await log(`   - ${issueData.url} (no PR found)`);
+            }
+          }
+        }
+      }
+
       await log('\n✅ All issues processed!');
       await log(`   Completed: ${stats.completed}`);
       await log(`   Failed: ${stats.failed}`);
