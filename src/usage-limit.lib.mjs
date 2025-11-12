@@ -22,12 +22,12 @@ export function isUsageLimitError(message) {
 
   // Check for specific usage limit patterns
   const patterns = [
-    "you've hit your usage limit",
-    "hit your usage limit",
-    "you have exceeded your rate limit",
-    "usage limit reached",
-    "usage limit exceeded",
-    "rate_limit_exceeded"
+    'you\'ve hit your usage limit',
+    'hit your usage limit',
+    'you have exceeded your rate limit',
+    'usage limit reached',
+    'usage limit exceeded',
+    'rate_limit_exceeded'
   ];
 
   return patterns.some(pattern => lowerMessage.includes(pattern));
