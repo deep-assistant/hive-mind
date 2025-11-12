@@ -437,6 +437,10 @@ Thank you! 🙏`;
  * @param {boolean} [options.verbose=false] - Enable verbose logging
  * @param {string} [options.errorMessage] - Error message to include in comment (for failure logs)
  * @param {string} [options.customTitle] - Custom title for the comment (defaults to "🤖 Solution Draft Log")
+ * @param {boolean} [options.isUsageLimit] - Whether this is a usage limit error
+ * @param {string} [options.limitResetTime] - Time when usage limit resets
+ * @param {string} [options.toolName] - Name of the tool (claude, codex, opencode)
+ * @param {string} [options.resumeCommand] - Command to resume the session
  * @returns {Promise<boolean>} - True if upload succeeded
  */
 export async function attachLogToGitHub(options) {
@@ -455,7 +459,11 @@ export async function attachLogToGitHub(options) {
     customTitle = '🤖 Solution Draft Log',
     sessionId = null,
     tempDir = null,
-    anthropicTotalCostUSD = null
+    anthropicTotalCostUSD = null,
+    isUsageLimit = false,
+    limitResetTime = null,
+    toolName = 'AI tool',
+    resumeCommand = null
   } = options;
   const targetName = targetType === 'pr' ? 'Pull Request' : 'Issue';
   const ghCommand = targetType === 'pr' ? 'pr' : 'issue';
@@ -504,8 +512,57 @@ export async function attachLogToGitHub(options) {
     logContent = escapeCodeBlocksInLog(logContent);
     // Create formatted comment
     let logComment;
-    if (errorMessage) {
-      // Failure log format
+    if (isUsageLimit && errorMessage) {
+      // Usage limit error format - separate from general failures
+      logComment = `## ⏳ Usage Limit Reached
+
+The automated solution draft was interrupted because the ${toolName} usage limit was reached.
+
+### 📊 Limit Information
+- **Tool**: ${toolName}
+- **Limit Type**: Usage limit exceeded`;
+
+      if (limitResetTime) {
+        logComment += `\n- **Reset Time**: ${limitResetTime}`;
+      }
+
+      if (sessionId) {
+        logComment += `\n- **Session ID**: ${sessionId}`;
+      }
+
+      logComment += '\n\n### 🔄 How to Continue\n';
+
+      if (limitResetTime) {
+        logComment += `Once the limit resets at **${limitResetTime}**, `;
+      } else {
+        logComment += 'Once the limit resets, ';
+      }
+
+      if (resumeCommand) {
+        logComment += `you can resume this session by running:
+\`\`\`bash
+${resumeCommand}
+\`\`\``;
+      } else if (sessionId) {
+        logComment += `you can resume this session using session ID: \`${sessionId}\``;
+      } else {
+        logComment += 'you can retry the operation.';
+      }
+
+      logComment += `
+
+<details>
+<summary>Click to expand execution log (${Math.round(logStats.size / 1024)}KB)</summary>
+
+\`\`\`
+${logContent}
+\`\`\`
+</details>
+
+---
+*This session was interrupted due to usage limits. You can resume once the limit resets.*`;
+    } else if (errorMessage) {
+      // Failure log format (non-usage-limit errors)
       logComment = `## 🚨 Solution Draft Failed
 The automated solution draft encountered an error:
 \`\`\`
@@ -595,8 +652,52 @@ ${logContent}
           const gistUrl = gistResult.stdout.toString().trim();
           // Create comment with gist link
           let gistComment;
-          if (errorMessage) {
-            // Failure log gist format
+          if (isUsageLimit && errorMessage) {
+            // Usage limit error gist format
+            gistComment = `## ⏳ Usage Limit Reached
+
+The automated solution draft was interrupted because the ${toolName} usage limit was reached.
+
+### 📊 Limit Information
+- **Tool**: ${toolName}
+- **Limit Type**: Usage limit exceeded`;
+
+            if (limitResetTime) {
+              gistComment += `\n- **Reset Time**: ${limitResetTime}`;
+            }
+
+            if (sessionId) {
+              gistComment += `\n- **Session ID**: ${sessionId}`;
+            }
+
+            gistComment += '\n\n### 🔄 How to Continue\n';
+
+            if (limitResetTime) {
+              gistComment += `Once the limit resets at **${limitResetTime}**, `;
+            } else {
+              gistComment += 'Once the limit resets, ';
+            }
+
+            if (resumeCommand) {
+              gistComment += `you can resume this session by running:
+\`\`\`bash
+${resumeCommand}
+\`\`\``;
+            } else if (sessionId) {
+              gistComment += `you can resume this session using session ID: \`${sessionId}\``;
+            } else {
+              gistComment += 'you can retry the operation.';
+            }
+
+            gistComment += `
+
+📎 **Execution log uploaded as GitHub Gist** (${Math.round(logStats.size / 1024)}KB)
+🔗 [View complete execution log](${gistUrl})
+
+---
+*This session was interrupted due to usage limits. You can resume once the limit resets.*`;
+          } else if (errorMessage) {
+            // Failure log gist format (non-usage-limit errors)
             gistComment = `## 🚨 Solution Draft Failed
 The automated solution draft encountered an error:
 \`\`\`

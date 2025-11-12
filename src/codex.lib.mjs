@@ -16,6 +16,7 @@ const os = (await use('os')).default;
 import { log } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts } from './config.lib.mjs';
+import { detectUsageLimit, formatUsageLimitMessage } from './usage-limit.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs for Codex
 export const mapModelToId = (model) => {
@@ -317,6 +318,7 @@ export const executeCodexCommand = async (params) => {
       let exitCode = 0;
       let sessionId = null;
       let limitReached = false;
+      let limitResetTime = null;
       let lastMessage = '';
       let authError = false;
 
@@ -391,9 +393,23 @@ export const executeCodexCommand = async (params) => {
       }
 
       if (exitCode !== 0) {
-        if (lastMessage.includes('rate_limit') || lastMessage.includes('limit')) {
+        // Check for usage limit errors first (more specific)
+        const limitInfo = detectUsageLimit(lastMessage);
+        if (limitInfo.isUsageLimit) {
           limitReached = true;
-          await log('\n\n⏳ Rate limit reached.', { level: 'warning' });
+          limitResetTime = limitInfo.resetTime;
+
+          // Format and display user-friendly message
+          const messageLines = formatUsageLimitMessage({
+            tool: 'Codex',
+            resetTime: limitInfo.resetTime,
+            sessionId,
+            resumeCommand: sessionId ? `${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}` : null
+          });
+
+          for (const line of messageLines) {
+            await log(line, { level: 'warning' });
+          }
         } else {
           await log(`\n\n❌ Codex command failed with exit code ${exitCode}`, { level: 'error' });
         }
@@ -406,7 +422,8 @@ export const executeCodexCommand = async (params) => {
         return {
           success: false,
           sessionId,
-          limitReached
+          limitReached,
+          limitResetTime
         };
       }
 
@@ -415,7 +432,8 @@ export const executeCodexCommand = async (params) => {
       return {
         success: true,
         sessionId,
-        limitReached
+        limitReached,
+        limitResetTime
       };
     } catch (error) {
       // Don't report auth errors to Sentry as they are user configuration issues
@@ -438,7 +456,8 @@ export const executeCodexCommand = async (params) => {
       return {
         success: false,
         sessionId: null,
-        limitReached: false
+        limitReached: false,
+        limitResetTime: null
       };
     }
   };
