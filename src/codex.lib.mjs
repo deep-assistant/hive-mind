@@ -68,7 +68,7 @@ export const validateCodexConnection = async (model = 'gpt-5') => {
 
       // Test basic Codex functionality with a simple "echo hi" command
       // Using exec mode with JSON output for validation
-      const testResult = await $`printf "echo hi" | timeout ${Math.floor(timeouts.codexCli / 1000)} codex exec --model ${mappedModel} --json --dangerously-bypass-approvals-and-sandbox`;
+      const testResult = await $`printf "echo hi" | timeout ${Math.floor(timeouts.codexCli / 1000)} codex exec --model ${mappedModel} --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
@@ -265,12 +265,12 @@ export const executeCodexCommand = async (params) => {
     // Codex uses exec mode for non-interactive execution
     // --json provides structured output
     // --full-auto enables automatic execution with workspace-write sandbox
-    let codexArgs = `exec --model ${mappedModel} --json --dangerously-bypass-approvals-and-sandbox`;
+    let codexArgs = `exec --model ${mappedModel} --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox`;
 
     if (argv.resume) {
       // Codex supports resuming sessions
       await log(`🔄 Resuming from session: ${argv.resume}`);
-      codexArgs = `exec resume ${argv.resume} --json --dangerously-bypass-approvals-and-sandbox`;
+      codexArgs = `exec resume ${argv.resume} --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox`;
     }
 
     // For Codex, we combine system and user prompts into a single message
@@ -294,12 +294,12 @@ export const executeCodexCommand = async (params) => {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`cat ${promptFile} | ${codexPath} exec resume ${argv.resume} --json --dangerously-bypass-approvals-and-sandbox`;
+        })`cat ${promptFile} | ${codexPath} exec resume ${argv.resume} --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox`;
       } else {
         execCommand = $({
           cwd: tempDir,
           mirror: false
-        })`cat ${promptFile} | ${codexPath} exec --model ${mappedModel} --json --dangerously-bypass-approvals-and-sandbox`;
+        })`cat ${promptFile} | ${codexPath} exec --model ${mappedModel} --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox`;
       }
 
       await log(`${formatAligned('📋', 'Command details:', '')}`);
