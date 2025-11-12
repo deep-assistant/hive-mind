@@ -10,6 +10,7 @@ if (typeof globalThis.use === 'undefined') {
 const { $ } = await use('command-stream');
 const fs = (await use('fs')).promises;
 const path = (await use('path')).default;
+const os = (await use('os')).default;
 
 // Import log from general lib
 import { log } from './lib.mjs';
@@ -268,7 +269,8 @@ export const executeOpenCodeCommand = async (params) => {
     const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
 
     // Write the combined prompt to a file for piping
-    const promptFile = path.join(tempDir, 'opencode_prompt.txt');
+    // Use OS temporary directory instead of repository workspace to avoid polluting the repo
+    const promptFile = path.join(os.tmpdir(), `opencode_prompt_${Date.now()}_${process.pid}.txt`);
     await fs.writeFile(promptFile, combinedPrompt);
 
     // Build the full command - pipe the prompt file to opencode
