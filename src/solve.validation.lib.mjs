@@ -273,8 +273,10 @@ export const parseUrlComponents = (issueUrl) => {
 
 // Helper function to parse time string and calculate wait time
 export const parseResetTime = (timeStr) => {
-  // Parse time format like "5:30am" or "11:45pm"
-  const match = timeStr.match(/(\d{1,2}):(\d{2})([ap]m)/i);
+  // Normalize and parse time formats like:
+  // "5:30am", "11:45pm", "12:16 PM", "07:05 Am"
+  const normalized = (timeStr || '').toString().trim();
+  const match = normalized.match(/(\d{1,2}):(\d{2})\s*([ap]m)/i);
   if (!match) {
     throw new Error(`Invalid time format: ${timeStr}`);
   }
