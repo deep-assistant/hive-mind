@@ -44,7 +44,7 @@ const {
 } = claudeLib;
 
 // Wrapper function for disk space check using imported module
-const checkDiskSpace = async (minSpaceMB = 500) => {
+const checkDiskSpace = async (minSpaceMB = 2048) => {
   const result = await memoryCheck.checkDiskSpace(minSpaceMB, { log });
   return result.success;
 };
@@ -205,7 +205,7 @@ export const validateContinueOnlyOnFeedback = async (argv, isPrUrl, isIssueUrl) 
 };
 
 // Perform all system checks (disk space, memory, tool connection, GitHub permissions)
-export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, model = 'sonnet', argv = {}) => {
+export const performSystemChecks = async (minDiskSpace = 2048, skipTool = false, model = 'sonnet', argv = {}) => {
   // Check disk space before proceeding
   const hasEnoughSpace = await checkDiskSpace(minDiskSpace);
   if (!hasEnoughSpace) {

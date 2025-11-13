@@ -197,7 +197,7 @@ if (!(await validateContinueOnlyOnFeedback(argv, isPrUrl, isIssueUrl))) {
 // Perform all system checks using validation module
 // Skip tool validation in dry-run mode or when --skip-tool-check or --no-tool-check is enabled
 const skipToolCheck = argv.dryRun || argv.skipToolCheck || !argv.toolCheck;
-if (!(await performSystemChecks(argv.minDiskSpace || 500, skipToolCheck, argv.model, argv))) {
+if (!(await performSystemChecks(argv.minDiskSpace || 2048, skipToolCheck, argv.model, argv))) {
   await safeExit(1, 'System checks failed');
 }
 // URL validation debug logging

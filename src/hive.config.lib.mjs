@@ -110,8 +110,8 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('min-disk-space', {
       type: 'number',
-      description: 'Minimum required disk space in MB (default: 500)',
-      default: 500
+      description: 'Minimum required disk space in MB (default: 2048)',
+      default: 2048
     })
     .option('auto-cleanup', {
       type: 'boolean',
