@@ -654,7 +654,8 @@ ${logContent}
           const gistUrl = gistResult.stdout.toString().trim();
           // Create comment with gist link
           let gistComment;
-          if (isUsageLimit && errorMessage) {
+          // For usage limit cases, always use the dedicated format regardless of errorMessage
+          if (isUsageLimit) {
             // Usage limit error gist format
             gistComment = `## ⏳ Usage Limit Reached
 
