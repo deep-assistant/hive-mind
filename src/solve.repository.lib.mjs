@@ -253,15 +253,20 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
     // Check if fork already exists
     // GitHub may create forks with different names to avoid conflicts
     // Try standard name first: currentUser/repo
+    // If --prefix-fork-name-with-owner-name is enabled, prefer owner-repo format
     let existingForkName = null;
     const standardForkName = `${currentUser}/${repo}`;
-    const alternateForkName = `${currentUser}/${owner}-${repo}`;
+    const prefixedForkName = `${currentUser}/${owner}-${repo}`;
 
-    let forkCheckResult = await $`gh repo view ${standardForkName} --json name 2>/dev/null`;
+    // Determine expected fork name based on --prefix-fork-name-with-owner-name option
+    const expectedForkName = argv.prefixForkNameWithOwnerName ? prefixedForkName : standardForkName;
+    const alternateForkName = argv.prefixForkNameWithOwnerName ? standardForkName : prefixedForkName;
+
+    let forkCheckResult = await $`gh repo view ${expectedForkName} --json name 2>/dev/null`;
     if (forkCheckResult.code === 0) {
-      existingForkName = standardForkName;
+      existingForkName = expectedForkName;
     } else {
-      // Try alternate name: currentUser/owner-repo
+      // Try alternate name
       forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
       if (forkCheckResult.code === 0) {
         existingForkName = alternateForkName;
@@ -282,11 +287,21 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
       const baseDelay = 2000; // Start with 2 seconds
       let forkCreated = false;
       let forkExists = false;
-      let actualForkName = `${currentUser}/${repo}`; // Default expected fork name
+
+      // Determine the expected fork name based on --prefix-fork-name-with-owner-name option
+      const defaultForkName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
+      let actualForkName = `${currentUser}/${defaultForkName}`;
 
       for (let attempt = 1; attempt <= maxForkRetries; attempt++) {
-        // Try to create fork
-        const forkResult = await $`gh repo fork ${owner}/${repo} --clone=false 2>&1`;
+        // Try to create fork with optional custom name
+        let forkResult;
+        if (argv.prefixForkNameWithOwnerName) {
+          // Use --fork-name flag to create fork with owner prefix
+          forkResult = await $`gh repo fork ${owner}/${repo} --fork-name ${owner}-${repo} --clone=false 2>&1`;
+        } else {
+          // Standard fork creation (no custom name)
+          forkResult = await $`gh repo fork ${owner}/${repo} --clone=false 2>&1`;
+        }
 
         // Always capture output to parse actual fork name
         const forkOutput = (forkResult.stderr ? forkResult.stderr.toString() : '') +
