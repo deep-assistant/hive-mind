@@ -32,6 +32,10 @@ const {
 // Import exit handler
 import { safeExit } from './exit-handler.lib.mjs';
 
+// Import GitHub utilities for permission checks
+const githubLib = await import('./github.lib.mjs');
+const { checkRepositoryWritePermission } = githubLib;
+
 // Get the root repository of any repository
 // Returns the source (root) repository if the repo is a fork, otherwise returns the repo itself
 export const getRootRepository = async (owner, repo) => {
@@ -136,6 +140,17 @@ export const setupTempDirectory = async (argv) => {
 const tryInitializeEmptyRepository = async (owner, repo) => {
   try {
     await log(`${formatAligned('🔧', 'Auto-fix:', 'Attempting to initialize empty repository...')}`);
+
+    // Check write access before attempting to create files
+    await log(`${formatAligned('', '', 'Checking repository write access...')}`);
+    const hasWriteAccess = await checkRepositoryWritePermission(owner, repo, { useFork: false });
+
+    if (!hasWriteAccess) {
+      await log(`${formatAligned('❌', 'No access:', 'You do not have write access to this repository')}`);
+      await log(`${formatAligned('', '', 'Cannot initialize empty repository without write access')}`);
+      return false;
+    }
+
     await log(`${formatAligned('', '', 'Creating a simple README.md to make repository forkable')}`);
 
     // Create simple README content with just the repository name
@@ -374,7 +389,7 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
               await log('              Even a simple README.md file would make the repository forkable');
               await log('');
               await log('     Option 2: Work directly on the original repository (if you get write access)');
-              await log(`              Run: solve ${argv.url} --no-fork`);
+              await log(`              Run: solve ${argv.url || argv['issue-url'] || argv._[0]} --no-fork`);
               await log('');
               await log('     Option 3: Create your own repository with initial content');
               await log('              1. Create a new repository with the same name');
