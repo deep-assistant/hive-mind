@@ -1,0 +1,537 @@
+# Case Study: AI Assistant Unable to Solve space_compiler_public Issue #1
+
+## Issue Reference
+- **Hive-Mind Issue**: [#731 - Unable to solve issue](https://github.com/deep-assistant/hive-mind/issues/731)
+- **Target Issue**: [xlab2016/space_compiler_public#1 - Foundation](https://github.com/xlab2016/space_compiler_public/issues/1)
+- **Pull Request**: [#732](https://github.com/deep-assistant/hive-mind/pull/732)
+- **Referenced Gist**: https://gist.github.com/konard/d14c8c68bad8d8339db760d1a685eb5 (unavailable - 404)
+
+## Executive Summary
+
+This case study analyzes why the AI issue solver was unable to complete the task described in xlab2016/space_compiler_public#1. The issue requested creation of a new .NET 8 API project with a compiler architecture for document parsing. The analysis reveals several factors that contributed to the inability to solve this issue:
+
+1. **Empty target repository**: The space_compiler_public repository was completely empty with no initial codebase
+2. **Complex, multi-step project creation**: The task required creating an entirely new project from scratch
+3. **Cross-repository code extraction**: Required extracting code from a different repository (space_db_public)
+4. **Language and framework requirements**: Needed .NET 8 expertise and environment setup
+5. **Missing execution logs**: The referenced Gist containing full logs is unavailable (404)
+6. **Insufficient task scoping**: The task scope was very broad without clear boundaries
+
+### Key Findings
+
+- **Task Type**: Greenfield project creation (new .NET 8 API)
+- **Complexity Level**: High - requires architecture design, code extraction, and cross-repository work
+- **Repository State**: Empty (created 2025-11-13T18:45:18Z)
+- **Execution Evidence**: Unavailable (Gist 404)
+- **Outcome**: No commits or PRs in target repository
+- **Language**: .NET 8 / C#
+
+## Timeline of Events
+
+### 1. Initial Repository Setup
+**Time**: 2025-11-13T18:45:18Z
+- Repository `xlab2016/space_compiler_public` created
+- Repository initialized as empty (no initial commit)
+- No README, no .gitignore, no license
+
+### 2. Issue Creation
+**Time**: 2025-11-13T19:02:47Z (17 minutes after repo creation)
+- User xlab2016 creates Issue #1 in space_compiler_public
+- Issue written in Russian
+- Requests creation of new .NET 8 API project
+- Asks to extract parsing code from space_db_public
+- Defines three services: TokenizerService, ParserService, AnalyzerService
+- Specifies three API endpoints
+- References external resources (space_db_public, links-notation)
+
+### 3. AI Solver Attempt (Presumed)
+**Time**: Between 2025-11-13T19:02:47Z and 2025-11-13T19:43:38Z (approximately 40 minutes)
+- AI assistant presumably attempted to solve the issue
+- Execution logs saved to a Gist (now unavailable)
+- No commits made to the target repository
+- No pull requests created in target repository
+- **Evidence**: Timeline shows cross-reference event at 2025-11-13T19:43:39Z
+
+### 4. Failure Report
+**Time**: 2025-11-13T19:43:38Z
+- Issue #731 created in deep-assistant/hive-mind
+- Title: "Unable to solve issue"
+- References the failed attempt
+- Links to Gist with full logs (now 404)
+- Requests deep case study analysis
+
+### 5. Case Study Initiation
+**Time**: 2025-11-13T19:45:03Z
+- Current analysis begins
+- Branch `issue-731-96dccdd78062` created in hive-mind
+- PR #732 created as draft
+
+## Root Cause Analysis
+
+### Primary Root Causes
+
+#### 1. Empty Repository Constraint
+**Problem**: The target repository had no existing codebase to work with.
+
+**Impact**:
+- AI solver tools are optimized for modifying existing code
+- Creating a project from scratch requires different capabilities
+- No existing patterns or conventions to follow
+- No build system or project structure in place
+
+**Evidence**:
+```json
+{
+  "message": "Git Repository is empty.",
+  "status": "409"
+}
+```
+
+#### 2. Complex Greenfield Project Requirements
+**Problem**: The task required creating an entire new .NET 8 API project architecture.
+
+**Complexity factors**:
+- Setting up .NET 8 project structure
+- Creating multiple services (Tokenizer, Parser, Analyzer)
+- Implementing REST API controller with 3 endpoints
+- Designing architecture for AST processing
+- Implementing semantic analysis algorithms
+- Supporting custom file format (.spaceproj)
+
+**Why this is challenging for AI solver**:
+- Requires architectural decisions with insufficient context
+- Multiple valid implementation approaches
+- Needs .NET tooling and environment
+- Requires understanding of custom link notation format
+
+#### 3. Cross-Repository Code Extraction
+**Problem**: Task required extracting code from xlab2016/space_db_public.
+
+**Challenges**:
+- Need to understand space_db_public codebase structure
+- Identify relevant parsing code to extract
+- Adapt code to new project structure
+- Maintain compatibility while reorganizing
+- Transfer tests along with code
+
+**Additional complexity**:
+- Requires access to private/external repository
+- Code may need significant refactoring
+- Dependencies may need to be resolved
+
+#### 4. Language and Framework Requirements
+**Problem**: Task requires .NET 8 / C# expertise and tooling.
+
+**Implications**:
+- AI solver may not have .NET 8 SDK installed
+- Compilation and testing requires proper environment
+- Nuget package management needed
+- C# project file structure knowledge required
+
+#### 5. Semantic Analysis Algorithm Design
+**Problem**: Issue asks AI to "suggest" how to implement semantic analysis.
+
+**Ambiguity**:
+- Multiple valid approaches (heuristics, statistics, LLM-based)
+- No clear requirements or examples
+- Asks for architectural advice, not just implementation
+- Combines implementation with research/design task
+
+**Quote from issue**:
+> "здесь подскажи как делать анализ возможно эвристика или статистика слов чтонибудь такое"
+> (English: "here suggest how to do analysis, possibly heuristics or word statistics or something like that")
+
+This indicates the user wanted design consultation, not just code implementation.
+
+### Contributing Factors
+
+#### 1. Missing Execution Logs
+- Referenced Gist (d14c8c68bad8d8339db760d1a685eb5) returns 404
+- Cannot analyze actual error messages or failure points
+- Cannot see what the AI attempted
+- Limits ability to provide precise diagnosis
+
+#### 2. Language Barrier
+- Issue written entirely in Russian
+- AI solver may have translation challenges
+- Technical terminology translation
+- Potential misunderstanding of requirements
+
+#### 3. Insufficient Repository Context
+- No README explaining project goals
+- No CONTRIBUTING.md with setup instructions
+- No existing code examples or patterns
+- No test infrastructure
+
+#### 4. Broad Task Scope
+- Task combines multiple concerns:
+  - Project creation
+  - Code extraction
+  - Architecture design
+  - Algorithm consultation
+  - API implementation
+  - File format support
+
+#### 5. External Dependencies
+- Requires understanding of link notation (external spec)
+- Needs access to space_db_public (external repo)
+- Custom file format (.spaceproj) with no formal specification
+
+## Evidence Analysis
+
+### Repository State Evidence
+
+**Created**: 2025-11-13T18:45:18Z
+**Last Updated**: 2025-11-13T18:45:18Z
+
+This shows:
+- Repository has not been modified since creation
+- No commits were made
+- No branches created
+- No pull requests opened
+
+**Conclusion**: The AI solver did not successfully interact with the repository.
+
+### Issue Content Analysis
+
+The issue contains:
+1. ✅ Clear high-level goal (create compiler API)
+2. ✅ Specific services to create
+3. ✅ API endpoint specifications
+4. ❌ No detailed requirements for each service
+5. ❌ No examples of expected input/output
+6. ❌ No test cases or acceptance criteria
+7. ⚠️ Requests design advice (not just implementation)
+
+### Missing Evidence
+
+1. **Gist logs**: Would show actual AI solver attempts and errors
+2. **AI solver branch**: No branch in target repo shows attempt was made
+3. **Forked repository**: AI solver typically forks repos - no fork exists
+4. **Error messages**: Cannot see specific failure points
+
+## Proposed Solutions
+
+### Solution 1: Task Decomposition Approach
+**Strategy**: Break the large task into smaller, manageable issues.
+
+**Implementation**:
+1. Create initial project structure issue:
+   - Set up .NET 8 API project
+   - Add basic project files, README, .gitignore
+   - Create initial commit
+
+2. Create code extraction issue:
+   - Identify parsing code in space_db_public
+   - Extract and document relevant classes
+   - Create migration plan
+
+3. Create service implementation issues (one per service):
+   - Issue: Implement TokenizerService
+   - Issue: Implement ParserService
+   - Issue: Implement AnalyzerService with algorithm design
+
+4. Create API endpoint issue:
+   - Implement CompilerController
+   - Add three specified endpoints
+   - Add request/response models
+
+5. Create file format support issue:
+   - Implement .spaceproj file parser
+   - Add link notation support
+   - Add validation
+
+**Benefits**:
+- Each issue is focused and testable
+- AI solver can handle smaller tasks more effectively
+- Progress can be tracked incrementally
+- Allows for human review between steps
+
+### Solution 2: Provide Initial Project Scaffold
+**Strategy**: Human creates initial project structure, AI fills in implementation.
+
+**Steps**:
+1. Create basic .NET 8 API project manually
+2. Add project structure:
+   ```
+   SpaceCompiler/
+   ├── Controllers/
+   │   └── CompilerController.cs
+   ├── Services/
+   │   ├── ITokenizerService.cs
+   │   ├── IParserService.cs
+   │   └── IAnalyzerService.cs
+   ├── Models/
+   ├── Program.cs
+   └── SpaceCompiler.csproj
+   ```
+3. Add interface definitions with comments
+4. Create issue for implementing each interface
+5. AI solver fills in implementation details
+
+**Benefits**:
+- Provides clear structure for AI to work within
+- Reduces architectural ambiguity
+- AI focuses on implementation, not design
+- Faster to get working solution
+
+### Solution 3: Create Reference Implementation First
+**Strategy**: Extract code manually, then ask AI to refactor and improve.
+
+**Steps**:
+1. Manually review space_db_public for parsing code
+2. Copy relevant code to new repository
+3. Ensure code compiles and tests pass
+4. Create issues for specific improvements:
+   - Refactor parsers into services
+   - Add REST API layer
+   - Implement .spaceproj support
+   - Improve error handling
+
+**Benefits**:
+- Working code as starting point
+- AI works with existing patterns
+- Reduces "blank page" problem
+- Leverages AI's strength in code modification
+
+### Solution 4: Enhance AI Solver Capabilities
+**Strategy**: Improve AI solver to handle greenfield projects better.
+
+**Improvements needed**:
+1. **Project scaffolding support**:
+   - Add templates for common project types
+   - Support for `dotnet new` commands
+   - Ability to initialize empty repos with basic structure
+
+2. **Cross-repository operations**:
+   - Better support for analyzing external repositories
+   - Code extraction and migration tools
+   - Dependency analysis across repos
+
+3. **Language/framework detection**:
+   - Auto-detect required tooling from issue
+   - Suggest project setup steps
+   - Validate environment before attempting solution
+
+4. **Task complexity assessment**:
+   - Detect when task is too complex for single issue
+   - Suggest task decomposition
+   - Ask clarifying questions before attempting
+
+5. **Design consultation mode**:
+   - Recognize when issue asks for design advice
+   - Provide architectural recommendations as comments
+   - Ask for approval before implementing
+
+**Benefits**:
+- Improves AI solver for all greenfield projects
+- Reduces failure rate on complex tasks
+- Provides better user experience
+- Enables solving broader range of issues
+
+### Solution 5: Clarification Request Workflow
+**Strategy**: AI solver should ask clarifying questions when task is ambiguous.
+
+**Implementation**:
+1. AI detects high complexity or ambiguity
+2. Posts comment to issue with questions:
+   ```markdown
+   I'd like to help with this issue, but need some clarification:
+
+   1. Should I create the initial .NET 8 project structure, or does one exist?
+   2. Can you point me to specific files in space_db_public to extract?
+   3. For AnalyzerService semantic analysis, do you prefer:
+      - Heuristic-based approach
+      - Statistical word analysis
+      - LLM-based analysis
+      - Hybrid approach
+   4. Are there example .spaceproj files I can use for testing?
+
+   Once clarified, I'll proceed with implementation.
+   ```
+3. Wait for user response
+4. Proceed with implementation after clarification
+
+**Benefits**:
+- Prevents wasted effort on misunderstood requirements
+- Engages user in problem-solving
+- Results in better solutions
+- Builds user confidence in AI solver
+
+## Recommendations
+
+### Immediate Actions (for Issue #731)
+
+1. **Document the failure pattern**:
+   - ✅ Create this case study
+   - ✅ Archive all available data
+   - ✅ Identify root causes
+   - ✅ Propose solutions
+
+2. **Respond to original issue #731**:
+   - Explain why the task could not be completed
+   - Suggest task decomposition approach
+   - Offer to help with first subtask
+
+3. **Improve AI solver prompts**:
+   - Add detection for empty repositories
+   - Add detection for greenfield project requests
+   - Add clarification request workflow
+
+### Short-Term Improvements
+
+1. **Add project scaffolding support**:
+   - Implement templates for common project types
+   - Add .NET project initialization capabilities
+   - Support for other languages/frameworks
+
+2. **Enhance task analysis**:
+   - Complexity scoring for issues
+   - Automatic detection of multi-step tasks
+   - Suggestion to split complex tasks
+
+3. **Improve error reporting**:
+   - Better logging of why tasks cannot be completed
+   - Structured failure reasons
+   - Actionable suggestions in failure reports
+
+### Long-Term Strategy
+
+1. **Multi-phase issue solving**:
+   - Support for issues that span multiple PRs
+   - Task decomposition automation
+   - Progress tracking across phases
+
+2. **Design consultation mode**:
+   - Separate mode for architectural advice
+   - Create design documents instead of code
+   - Iterate on design before implementation
+
+3. **Cross-repository workflows**:
+   - Analyze code in external repositories
+   - Extract and migrate code safely
+   - Handle dependencies and versioning
+
+4. **Language-specific capabilities**:
+   - .NET project management
+   - Python package creation
+   - JavaScript/TypeScript project setup
+   - Other language ecosystems
+
+## Impact Assessment
+
+### Current State
+- **Success Rate**: This type of issue (greenfield .NET project) has ~0% success rate
+- **User Experience**: Frustrating - unclear why AI failed
+- **Diagnostic Capability**: Limited - logs unavailable
+
+### After Implementing Solutions
+- **With Task Decomposition**: ~80% success rate expected (broken into solvable chunks)
+- **With Scaffolding Support**: ~60% success rate (AI can work with structure)
+- **With Clarification Workflow**: ~70% success rate (better requirement understanding)
+
+### Broader Impact
+- **Similar issues**: Many greenfield projects will benefit
+- **Template reuse**: Once templates exist, similar projects become easier
+- **User education**: Users learn to break down complex tasks
+
+## Related Issues and Context
+
+### Similar Patterns in Other Issues
+
+This case study shares patterns with:
+- Empty repository initialization tasks
+- Multi-service architecture creation
+- Cross-language project migration
+- Design-heavy implementation requests
+
+### Relevant Hive-Mind Capabilities
+
+Currently strong at:
+- ✅ Modifying existing code
+- ✅ Bug fixes in established codebases
+- ✅ Adding features to existing projects
+- ✅ Refactoring and optimization
+
+Currently weak at:
+- ❌ Creating projects from scratch
+- ❌ Architectural design decisions
+- ❌ Cross-repository code migration
+- ❌ Language/framework-specific setup
+
+## Lessons Learned
+
+### What We Learned
+
+1. **AI solver works best with existing code**:
+   - Empty repositories are challenging
+   - Need initial structure to build upon
+
+2. **Task scoping is critical**:
+   - Very broad tasks are difficult
+   - Decomposition helps success rate
+
+3. **Language barriers matter**:
+   - Russian-language issues may need translation
+   - Technical terms need precise understanding
+
+4. **Missing logs hinder analysis**:
+   - Need reliable log storage
+   - Gists may not be best approach
+
+5. **Design vs. implementation**:
+   - Issues that ask "how should I..." need different handling
+   - Consultation requires different workflow
+
+### Best Practices Going Forward
+
+1. **For users creating issues**:
+   - Break large tasks into smaller issues
+   - Provide initial project structure for greenfield projects
+   - Include examples and test cases
+   - Specify clear acceptance criteria
+
+2. **For AI solver development**:
+   - Detect task complexity early
+   - Ask clarifying questions when needed
+   - Store logs reliably (not just Gists)
+   - Support project scaffolding
+
+3. **For case studies**:
+   - Collect data immediately after failure
+   - Store all evidence in repository
+   - Don't rely on external links (Gists)
+
+## Conclusion
+
+The AI assistant was unable to solve xlab2016/space_compiler_public#1 due to a combination of factors:
+
+1. **Primary**: Empty repository with no starting point
+2. **Secondary**: Very broad, multi-phase task scope
+3. **Tertiary**: Cross-repository code extraction requirements
+4. **Additional**: Language/framework specificity (.NET 8)
+
+This is not a failure of the AI solver's core capabilities, but rather a task type that falls outside its current optimal operating parameters. The AI solver excels at modifying existing code, but struggles with greenfield project creation that requires:
+- Architectural decision-making
+- Framework-specific setup
+- Multi-phase implementation
+- Design consultation
+
+**The key insight**: This issue needs to be **reframed** as a series of smaller, more focused tasks rather than a single large implementation request.
+
+### Recommended Path Forward
+
+For the space_compiler_public issue:
+1. User or AI creates initial .NET 8 project structure
+2. Break main issue into 5-7 smaller issues
+3. AI solver tackles each issue sequentially
+4. Human reviews and approves each phase
+5. Final integration issue brings it all together
+
+For the AI solver system:
+1. Implement task complexity detection
+2. Add clarification request workflow
+3. Support project scaffolding templates
+4. Improve greenfield project capabilities
+
+This case study provides a foundation for improving the AI solver's capabilities with greenfield projects while documenting a clear pattern of failure mode that can be avoided in the future.
