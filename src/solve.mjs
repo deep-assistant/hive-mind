@@ -972,10 +972,13 @@ try {
     logsAttached
   });
 } catch (error) {
-  reportError(error, {
-    context: 'solve_main',
-    operation: 'main_execution'
-  });
+  // Don't report authentication errors to Sentry as they are user configuration issues
+  if (!error.isAuthError) {
+    reportError(error, {
+      context: 'solve_main',
+      operation: 'main_execution'
+    });
+  }
   await handleMainExecutionError({
     error,
     log,
