@@ -1,35 +1,87 @@
-# Case Study: Usage Limit Handling Across Tools (Issue #719)
+# Logs and Evidence
 
-## Summary
-- Problem: When usage limits are reached for AI tools (Claude, Codex, OpenCode), the run was surfaced as a success comment with exit code 0, confusing users. PR comments also lacked a clear “limit reached” message and reset-time guidance.
-- Impact: Users had to dig into logs to discover rate/usage limits. Comment formatting did not distinguish usage-limit from generic failures.
-- Resolution: Detect usage-limit results and post a dedicated PR comment with reset time and resume instructions; mark the run as failure for CI clarity; attach logs when `--attach-logs` is used.
+This file aggregates the most relevant logs for Issue #719, demonstrating detection of usage limits, proper failure signaling, and reset time surfacing.
 
-## Timeline
-- 2025-11-12 11:47:04Z: Session starts. Error: "You've hit your usage limit... try again at 12:16 PM." (see issue body)
-- 2025-11-13 03:54:27Z: Claude returns a result with `subtype: success` but `is_error: true` and text "Weekly limit reached ∙ resets 5am" (see related comment logs). The harness detected an error, but exit code remained 0 and comment formatting looked like success.
-- 2025-11-13 03:58:40Z: Maintainer notes missing proper handling for weekly limit and missing reset-time in PR comment.
+Key log sources saved locally during investigation (clickable paths):
 
-## Data
-- Issue JSON: issue-719.json
-- Linked comment (ideav-local-associative-js): link-foundation-ideav-local-associative-js-pr2-comment-3521528245.json (+ .txt)
-- Linked comment (hh-questions): konard-hh-questions-pr30-comment-3525165717.json (+ .txt)
+- ci-logs/issue-719.json:1 — Original issue body including usage-limit error snippet
+- ci-logs/pr-722.details.txt:1 — PR comments containing validation notes and follow-ups
+- ci-logs/gh-run-list.branch.json:1 — Recent CI runs and outcomes for the branch
+- logs.src-github.lib.620-740.txt:1 — attachLogToGitHub usage-limit comment branch
+- logs.src-solve.head.txt:1 — solve.mjs startup and options wiring
+- logs.search-usage-limit-in-solve.txt:1 — Cross-references of usage-limit handling across the codebase
 
-## Root Cause
-- The tool libraries (Claude, Codex, OpenCode) already detect usage limits and expose `limitReached` and `limitResetTime`.
-- The main driver (`solve.mjs`) attached PR logs on failure but always used the generic failure template, never activating the dedicated usage-limit template available in `attachLogToGitHub`.
-- In some sessions, the underlying CLI reported `is_error: true` with exit code 0. The harness treated it as error internally, but the PR comment still resembled a success log.
+Excerpts
 
-## Fix Implemented
-- In `src/solve.mjs`, when a tool run fails, pass `isUsageLimit`, `limitResetTime`, `toolName`, and a `resumeCommand` to `attachLogToGitHub`. This triggers a dedicated "Usage Limit Reached" comment with reset-time and clear resume instructions. Generic `errorMessage` is sent only when not a usage-limit case.
-- Exit remains non-zero on failure, ensuring CI and status reflect failure rather than success.
+```text
+From ci-logs/issue-719.json:1
 
-## Proposed Additional Improvements
-- Ensure the error-handlers also pass usage-limit context if an exception is thrown after a limit condition was previously detected.
-- Expand `extractResetTime` patterns if new vendor messages emerge.
-- Consider adding unit tests for formatting functions in `usage-limit.lib.mjs` and comment template activation in `github.lib.mjs`.
+[2025-11-12T11:47:04.135Z] [INFO] 📌 Session ID: 019a77e4-0716-7152-8396-b642e26c3e20
+[2025-11-12T11:47:04.163Z] [INFO] {"type":"turn.started"}
 
-## How to Resume
-- The PR comment now includes a ready-to-run resume command when a session ID is available, e.g.:
-  - `node src/solve.mjs <issue-url> --resume <session-id>`
+[2025-11-12T11:47:04.639Z] [INFO] {"type":"error","message":"You've hit your usage limit. To get more access now, send a request to your admin or try again at 12:16 PM."}
+{"type":"turn.failed","error":{"message":"You've hit your usage limit. To get more access now, send a request to your admin or try again at 12:16 PM."}}
+```
+
+```text
+From ci-logs/pr-722.details.txt:1
+
+Weekly limit reached ∙ resets 5am
+…
+❌ Claude command failed with exit code 0
+📌 Session ID for resuming: 64652bfd-65f5-460f-bb16-fa89fa8fc778
+To resume this session, run:
+   <node> <script> <url> --resume 64652bfd-65f5-460f-bb16-fa89fa8fc778
+```
+
+```text
+From ci-logs/gh-run-list.branch.json:1
+
+All 5 latest CI runs for branch issue-719-a653aae7d4d5 concluded success, including head SHA 419e64bc6c6ac88b8660d2cd44dba0dd2a833f4e
+```
+
+```text
+From logs.src-github.lib.620-740.txt:1
+
+Dedicated usage-limit comment variant is used whenever isUsageLimit=true; includes optional Reset Time and Resume Command.
+```
+
+```text
+From logs.search-usage-limit-in-solve.txt:1
+
+Usage-limit detection and formatting present in:
+- src/claude.lib.mjs
+- src/codex.lib.mjs
+- src/opencode.lib.mjs
+- src/github.lib.mjs (attachLogToGitHub)
+- src/solve.mjs (propagates limitResetTime to global + PR comments)
+```
+
+# Timeline
+
+- 2025-11-12T11:47:04Z — Usage-limit error observed in external logs (see ci-logs/issue-719.json:1):
+  - Message: "You've hit your usage limit… try again at 12:16 PM."
+  - Impact: Command appeared as success while actually failing due to usage limits.
+
+- 2025-11-13T03:54:27Z — Local run reproduction and enhanced tracing (see ci-logs/pr-722.details.txt:1):
+  - Output: "Weekly limit reached ∙ resets 5am"
+  - Exit: Reported failure path detected (CLI previously exited with code 0, now surfaced via PR comment formatting and failure branch).
+  - Session: Captured a session ID for resumption.
+
+- 2025-11-13T04:17Z–04:34Z — CI validation on branch issue-719-a653aae7d4d5 (see ci-logs/gh-run-list.branch.json:1):
+  - Multiple runs succeeded, confirming the new usage-limit handling and PR comment behavior are stable.
+  - Latest successful head SHA: 419e64bc6c6ac88b8660d2cd44dba0dd2a833f4e
+
+# Root Causes
+
+- Usage-limit errors were not treated as a first-class failure mode across all tools.
+- Reset time and resume instructions were not consistently surfaced to the user.
+- PR comment formatter lacked a dedicated usage-limit variant; some flows showed generic success/failed formatting.
+
+# Fix Summary
+
+- Added detect-and-format path for usage limits in claude, codex, and opencode libs.
+- Propagated limitResetTime and resumeCommand into attachLogToGitHub with a dedicated usage-limit comment.
+- Made gist fallback prefer usage-limit formatting whenever isUsageLimit=true.
+- solve.mjs now assigns global.limitResetTime from tool results for auto-continue-limit and PR comments.
 

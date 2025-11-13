@@ -8,6 +8,7 @@ const samples = [
   '11:45pm',
   '12:16 PM',
   '07:05 Am',
+  '5am',
   '9:00PM',
   '09:00 pm',
   'bad-format'
@@ -22,4 +23,3 @@ for (const s of samples) {
     console.log(`${s} -> ERROR: ${e.message}`);
   }
 }
-
