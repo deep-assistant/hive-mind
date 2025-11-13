@@ -71,7 +71,7 @@ if (limitInfo.isUsageLimit) {
 **What's Missing**:
 - ❌ No tracking of consecutive limit hits
 - ❌ No automatic exit when limit is persistent
-- ❌ No enforcement of `--auto-continue-limit` requirement
+- ❌ No enforcement of `--auto-continue-on-limit-reset` requirement
 
 ### 3. Auto-Restart Decision
 

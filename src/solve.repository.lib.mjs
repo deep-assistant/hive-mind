@@ -846,8 +846,7 @@ export const checkoutPrBranch = async (tempDir, branchName, prForkRemote, prFork
 // Cleanup temporary directory
 export const cleanupTempDirectory = async (tempDir, argv, limitReached) => {
   // Determine if we should skip cleanup
-  const shouldAutoContinueOnReset = argv.autoContinueOnLimitReset || argv.autoContinueLimit;
-  const shouldKeepDirectory = !argv.autoCleanup || argv.resume || limitReached || (shouldAutoContinueOnReset && global.limitResetTime);
+  const shouldKeepDirectory = !argv.autoCleanup || argv.resume || limitReached || (argv.autoContinueOnLimitReset && global.limitResetTime);
 
   if (!shouldKeepDirectory) {
     try {

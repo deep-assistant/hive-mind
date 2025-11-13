@@ -112,11 +112,9 @@ export const autoContinueWhenLimitResets = async (issueUrl, sessionId, argv, sho
       '--resume', sessionId
     ];
 
-    // Preserve auto-continue flags (support both new and deprecated)
+    // Preserve auto-continue flag
     if (argv.autoContinueOnLimitReset) {
       resumeArgs.push('--auto-continue-on-limit-reset');
-    } else if (argv.autoContinueLimit) {
-      resumeArgs.push('--auto-continue-limit'); // Keep deprecated flag for backward compatibility
     }
 
     // Preserve other flags from original invocation

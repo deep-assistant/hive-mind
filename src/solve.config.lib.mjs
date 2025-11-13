@@ -112,13 +112,6 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Continue with existing PR when issue URL is provided (instead of creating new PR)',
       default: false
     })
-    .option('auto-continue-limit', {
-      type: 'boolean',
-      description: 'Automatically continue when Claude limit resets (waits until reset time) - DEPRECATED: use --auto-continue-on-limit-reset instead',
-      default: false,
-      alias: 'c',
-      hidden: true
-    })
     .option('auto-continue-on-limit-reset', {
       type: 'boolean',
       description: 'Automatically continue when AI tool limit resets (calculates reset time and waits)',

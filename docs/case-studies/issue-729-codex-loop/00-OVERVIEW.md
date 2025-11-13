@@ -226,18 +226,18 @@ if (shouldRestart) {
 ### 5. Auto-Continue Limit Awareness
 
 **Priority**: HIGH
-**Implementation**: Respect `--auto-continue-limit` flag for usage limits
+**Implementation**: Respect `--auto-continue-on-limit-reset` flag for usage limits
 
 The code already has partial support for this (src/solve.auto-continue.lib.mjs), but it needs to:
-- Stop auto-restart when usage limit is hit without `--auto-continue-limit`
+- Stop auto-restart when usage limit is hit without `--auto-continue-on-limit-reset`
 - Use the limit reset time for smarter wait logic
 - Exit cleanly instead of infinite retries
 
 ```javascript
 // In auto-restart logic
-if (limitReached && !argv.autoContinueLimit) {
+if (limitReached && !argv.autoContinueOnLimitReset) {
   await log('\n⏳ Usage limit reached');
-  await log('   Auto-restart disabled for usage limits unless --auto-continue-limit is set');
+  await log('   Auto-restart disabled for usage limits unless --auto-continue-on-limit-reset is set');
   await log(`   Limit resets at: ${global.limitResetTime}`);
   process.exit(1);
 }
@@ -257,8 +257,8 @@ if (limitReached && !argv.autoContinueLimit) {
 **Setup**: Force 50 restarts with mock conditions
 **Expected**: Should exit with error after 50 restarts
 
-### Test Case 4: Auto-Continue-Limit Flag
-**Setup**: Run with `--auto-continue-limit` and usage limit hit
+### Test Case 4: Auto-Continue-On-Limit-Reset Flag
+**Setup**: Run with `--auto-continue-on-limit-reset` and usage limit hit
 **Expected**: Should wait until limit reset time, then resume
 
 ## Prevention Checklist
