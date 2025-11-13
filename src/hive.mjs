@@ -1433,7 +1433,7 @@ if (argv.dryRun || argv.skipToolCheck || !argv.toolCheck) {
 } else {
   const systemCheck = await checkSystem(
     {
-      minDiskSpaceMB: argv.minDiskSpace || 500,
+      minDiskSpaceMB: argv.minDiskSpace || 2048,
       minMemoryMB: 256,
       exitOnFailure: true
     },
