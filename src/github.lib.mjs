@@ -512,7 +512,9 @@ export async function attachLogToGitHub(options) {
     logContent = escapeCodeBlocksInLog(logContent);
     // Create formatted comment
     let logComment;
-    if (isUsageLimit && errorMessage) {
+    // Usage limit comments should be shown whenever isUsageLimit is true,
+    // regardless of whether a generic errorMessage is provided.
+    if (isUsageLimit) {
       // Usage limit error format - separate from general failures
       logComment = `## ⏳ Usage Limit Reached
 

@@ -828,6 +828,8 @@ try {
                     (argv.tool || 'AI tool').toString().toLowerCase() === 'codex' ? 'Codex' :
                     (argv.tool || 'AI tool').toString().toLowerCase() === 'opencode' ? 'OpenCode' : 'AI tool',
           resumeCommand,
+          // Include sessionId so the PR comment can present it
+          sessionId,
           // If not a usage limit case, fall back to generic failure format
           errorMessage: limitReached ? undefined : `${argv.tool.toUpperCase()} execution failed`
         });
