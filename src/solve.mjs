@@ -800,6 +800,11 @@ try {
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
+  // Capture limit reset time globally for downstream handlers (auto-continue, cleanup decisions)
+  if (toolResult && toolResult.limitResetTime) {
+    global.limitResetTime = toolResult.limitResetTime;
+  }
+
   if (!success) {
     // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
     if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
