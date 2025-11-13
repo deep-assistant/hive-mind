@@ -114,9 +114,15 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('auto-continue-limit', {
       type: 'boolean',
-      description: 'Automatically continue when Claude limit resets (waits until reset time)',
+      description: 'Automatically continue when Claude limit resets (waits until reset time) - DEPRECATED: use --auto-continue-on-limit-reset instead',
       default: false,
-      alias: 'c'
+      alias: 'c',
+      hidden: true
+    })
+    .option('auto-continue-on-limit-reset', {
+      type: 'boolean',
+      description: 'Automatically continue when AI tool limit resets (calculates reset time and waits)',
+      default: false
     })
     .option('auto-resume-on-errors', {
       type: 'boolean',

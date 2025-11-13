@@ -208,8 +208,11 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
     if (limitReached) {
       await log('\n⏰ LIMIT REACHED DETECTED!');
 
-      if (argv.autoContinueLimit && global.limitResetTime) {
-        await log(`\n🔄 AUTO-CONTINUE ENABLED - Will resume at ${global.limitResetTime}`);
+      // Support both new and deprecated flags
+      const shouldAutoContinueOnReset = argv.autoContinueOnLimitReset || argv.autoContinueLimit;
+
+      if (shouldAutoContinueOnReset && global.limitResetTime) {
+        await log(`\n🔄 AUTO-CONTINUE ON LIMIT RESET ENABLED - Will resume at ${global.limitResetTime}`);
         await autoContinueWhenLimitResets(issueUrl, sessionId, argv, shouldAttachLogs);
       } else {
         // Only show resume recommendation if --no-auto-cleanup was passed
@@ -218,8 +221,8 @@ export const showSessionSummary = async (sessionId, limitReached, argv, issueUrl
           await log(`./solve.mjs "${issueUrl}" --resume ${sessionId}`);
 
           if (global.limitResetTime) {
-            await log(`\n💡 Or enable auto-continue-limit to wait until ${global.limitResetTime}:\n`);
-            await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-limit`);
+            await log(`\n💡 Or enable auto-continue-on-limit-reset to wait until ${global.limitResetTime}:\n`);
+            await log(`./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-on-limit-reset`);
           }
 
           await log('\n   This will continue from where it left off with full context.\n');
