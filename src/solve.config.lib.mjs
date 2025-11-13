@@ -63,7 +63,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3; for kimi: moonshot-v1)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
@@ -71,6 +71,8 @@ export const createYargsConfig = (yargsInstance) => {
           return 'grok-code-fast-1';
         } else if (currentParsedArgs?.tool === 'codex') {
           return 'gpt-5';
+        } else if (currentParsedArgs?.tool === 'kimi') {
+          return 'moonshot-v1';
         }
         return 'sonnet';
       }
@@ -208,7 +210,7 @@ export const createYargsConfig = (yargsInstance) => {
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
-      choices: ['claude', 'opencode', 'codex'],
+      choices: ['claude', 'opencode', 'codex', 'kimi'],
       default: 'claude'
     })
     .parserConfiguration({
@@ -287,6 +289,9 @@ export const parseArguments = async (yargs, hideBin) => {
   } else if (argv.tool === 'codex' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for codex
     argv.model = 'gpt-5';
+  } else if (argv.tool === 'kimi' && !modelExplicitlyProvided) {
+    // User did not explicitly provide --model, so use the correct default for kimi
+    argv.model = 'moonshot-v1';
   }
 
   return argv;

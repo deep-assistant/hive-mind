@@ -173,6 +173,34 @@ The oAuth callback server on 1455 port will be started, and the link to oAuth wi
 
 3. Use your browser on machine where you started the tunnel from, paste there the link from `codex login` command, and go there using your browser. Once redirected to localhost:1455 you will see successful login page, and in `codex login` you will see `Successfully logged in`. After that `codex login` command will complete, and you can use `codex` command as usual to verify. It should also be working with `--tool codex` in `solve` and `hive` commands.
 
+#### Kimi CLI setup
+
+Kimi CLI is a new CLI agent by Moonshot AI that provides development task assistance with shell integration.
+
+1. Install Kimi CLI using uv (requires Python 3.13):
+```bash
+uv tool install --python 3.13 kimi-cli
+```
+
+2. Verify installation:
+```bash
+kimi --help
+```
+
+3. Initialize configuration:
+```bash
+kimi
+# In the Kimi interface, send:
+/setup
+```
+
+4. Once configured, Kimi CLI can be used with `--tool kimi` in `solve` and `hive` commands:
+```bash
+solve https://github.com/owner/repo/issues/123 --tool kimi --model moonshot-v1
+```
+
+**Note:** Kimi CLI is in technical preview. See [github.com/MoonshotAI/kimi-cli](https://github.com/MoonshotAI/kimi-cli) for more information.
+
 ### Core Operations
 ```bash
 # Solve using maximum power
@@ -217,9 +245,9 @@ review --repo owner/repo --pr 456
 ```bash
 solve <issue-url> [options]
 
-  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
-  --tool                AI tool (claude, opencode, codex)    [default: claude]
+  --model, -m           Model (sonnet, opus for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex; moonshot-v1 for kimi)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex, moonshot-v1 for kimi]
+  --tool                AI tool (claude, opencode, codex, kimi)    [default: claude]
   --fork, -f            Fork repo if no write access         [default: false]
   --auto-fork           Automatically fork public repos without write access (fails for private)
                         [default: false]
@@ -270,9 +298,9 @@ hive <github-url> [options]
   --skip-issues-with-prs, -s  Skip issues with existing PRs [default: false]
   --concurrency, -c     Parallel workers                     [default: 2]
   --pull-requests-per-issue, -p  Number of PRs per issue    [default: 1]
-  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex)
-                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex]
-  --tool                AI tool (claude, opencode, codex)    [default: claude]
+  --model, -m           Model (opus, sonnet for claude; grok-code-fast-1, gpt4o for opencode; gpt5, gpt5-codex, o3 for codex; moonshot-v1 for kimi)
+                        [default: sonnet for claude, grok-code-fast-1 for opencode, gpt-5 for codex, moonshot-v1 for kimi]
+  --tool                AI tool (claude, opencode, codex, kimi)    [default: claude]
   --interval, -i        Poll interval (seconds)              [default: 300]
   --max-issues          Limit processed issues               [default: 0 (unlimited)]
   --once                Single run (don't monitor)           [default: false]
