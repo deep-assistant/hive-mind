@@ -289,11 +289,11 @@ process.stderr.write = function(chunk, encoding, callback) {
   return true;
 };
 
-try {
-  argv = await createYargsConfig(yargs()).parse(rawArgs);
-  // Restore stderr if parsing succeeded
-  process.stderr.write = originalStderrWrite;
-} catch (error) {
+  try {
+    argv = await createYargsConfig(yargs()).parse(rawArgs);
+    // Restore stderr if parsing succeeded
+    process.stderr.write = originalStderrWrite;
+  } catch (error) {
   // Restore stderr before handling the error
   process.stderr.write = originalStderrWrite;
 
@@ -315,6 +315,11 @@ try {
       process.stderr.write(stderrBuffer);
     }
     throw error;
+  }
+
+  // Normalize alias flags: --skip-claude-check behaves like --skip-tool-check
+  if (argv && argv.skipClaudeCheck) {
+    argv.skipToolCheck = true;
   }
 }
 
@@ -741,6 +746,7 @@ async function worker(workerId) {
         const logDirFlag = argv.logDir ? ` --log-dir "${argv.logDir}"` : '';
         const dryRunFlag = argv.dryRun ? ' --dry-run' : '';
         const skipToolCheckFlag = (argv.skipToolCheck || !argv.toolCheck) ? ' --skip-tool-check' : '';
+        const skipClaudeCheckFlag = argv.skipClaudeCheck ? ' --skip-claude-check' : '';
         const toolFlag = argv.tool ? ` --tool ${argv.tool}` : '';
         const autoContinueFlag = argv.autoContinue ? ' --auto-continue' : '';
         const thinkFlag = argv.think ? ` --think ${argv.think}` : '';
@@ -779,6 +785,9 @@ async function worker(workerId) {
         if (argv.skipToolCheck || !argv.toolCheck) {
           args.push('--skip-tool-check');
         }
+        if (argv.skipClaudeCheck) {
+          args.push('--skip-claude-check');
+        }
         if (argv.autoContinue) {
           args.push('--auto-continue');
         }
@@ -793,7 +802,7 @@ async function worker(workerId) {
         }
 
         // Log the actual command being executed so users can investigate/reproduce
-        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${autoForkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
+        const command = `${solveCommand} "${issueUrl}" --model ${argv.model}${toolFlag}${forkFlag}${autoForkFlag}${verboseFlag}${attachLogsFlag}${targetBranchFlag}${logDirFlag}${dryRunFlag}${skipToolCheckFlag}${skipClaudeCheckFlag}${autoContinueFlag}${thinkFlag}${noSentryFlag}${watchFlag}`;
         await log(`   📋 Command: ${command}`);
 
         let exitCode = 0;

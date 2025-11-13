@@ -1,3 +1,2 @@
-## issue-719-a653aae7d4d5...origin/issue-719-a653aae7d4d5
-?? logs.branch.txt
-?? logs.status.txt
+ M logs.status.txt
+?? logs.git-push.txt
