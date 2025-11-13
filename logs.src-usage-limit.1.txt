@@ -162,3 +162,58 @@ export function parseUsageLimitJson(line) {
     return null;
   }
 }
+4: * This module provides utilities for detecting and handling usage limit errors
+11: * Detect if an error message indicates a usage limit has been reached
+13: * @param {string} message - Error message to analyze
+14: * @returns {boolean} - True if message indicates usage limit
+16:export function isUsageLimitError(message) {
+17:  if (!message || typeof message !== 'string') {
+21:  const lowerMessage = message.toLowerCase();
+23:  // Check for specific usage limit patterns
+25:    'you\'ve hit your usage limit',
+26:    'hit your usage limit',
+27:    'you have exceeded your rate limit',
+28:    'usage limit reached',
+29:    'usage limit exceeded',
+30:    'rate_limit_exceeded'
+37: * Extract reset time from usage limit error message
+39: * @param {string} message - Error message to analyze
+42:export function extractResetTime(message) {
+43:  if (!message || typeof message !== 'string') {
+48:  const tryAgainMatch = message.match(/try again at ([0-9]{1,2}:[0-9]{2}\s*[AP]M)/i);
+54:  const availableMatch = message.match(/available at ([0-9]{1,2}:[0-9]{2}\s*[AP]M)/i);
+59:  // Pattern 3: "reset at 12:16 PM"
+60:  const resetMatch = message.match(/reset at ([0-9]{1,2}:[0-9]{2}\s*[AP]M)/i);
+61:  if (resetMatch) {
+62:    return resetMatch[1];
+66:  const timeMatch = message.match(/\b([0-9]{1,2}:[0-9]{2}\s*[AP]M)\b/i);
+75: * Detect usage limit error and extract all relevant information
+77: * @param {string} message - Error message to analyze
+78: * @returns {Object} - { isUsageLimit: boolean, resetTime: string|null }
+80:export function detectUsageLimit(message) {
+81:  const isUsageLimit = isUsageLimitError(message);
+82:  const resetTime = isUsageLimit ? extractResetTime(message) : null;
+86:    resetTime
+91: * Format usage limit error message for console output
+95: * @param {string|null} options.resetTime - Time when limit resets
+98: * @returns {string[]} - Array of formatted message lines
+100:export function formatUsageLimitMessage({ tool, resetTime, sessionId, resumeCommand }) {
+105:    `Your ${tool || 'AI tool'} usage limit has been reached.`
+108:  if (resetTime) {
+109:    lines.push(`The limit will reset at: ${resetTime}`);
+111:    lines.push('Please wait for the limit to reset.');
+118:    lines.push('To resume this session after the limit resets, run:');
+128: * Check if a message contains both usage limit error and is in JSON format
+129: * Useful for parsing structured error responses
+134:export function parseUsageLimitJson(line) {
+138:    // Check for error in JSON
+139:    if (data.type === 'error' && data.message) {
+140:      if (isUsageLimitError(data.message)) {
+142:          type: 'error',
+143:          message: data.message,
+144:          limitInfo: detectUsageLimit(data.message)
+149:    // Check for turn.failed with error
+150:    if (data.type === 'turn.failed' && data.error && data.error.message) {
+151:      if (isUsageLimitError(data.error.message)) {
+154:          message: data.error.message,
+155:          limitInfo: detectUsageLimit(data.error.message)

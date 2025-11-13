@@ -46,3 +46,17 @@ status:	none
 --
 Also fixed capturing of the usage limit reset time by assigning `global.limitResetTime` from the tool result in `src/solve.mjs`. This enables auto-continue messaging and PR comments to include the reset time as intended.
 --
+author:	konard
+association:	member
+edited:	false
+status:	none
+--
+Implemented CLI flag alias support for --skip-claude-check (mapped to --skip-tool-check) in both solve and hive. Hive now also forwards and logs the flag when invoking solve. This addresses the earlier CI failure complaining about unknown arguments.\n\nPushed commit f0f83ec. Monitoring the new CI run; will download and analyze logs if any job fails.
+--
+author:	konard
+association:	member
+edited:	false
+status:	none
+--
+Fixed usage-limit PR comment formatting and added sessionId to failure log uploads.\n\nChanges:\n- Treat isUsageLimit as primary condition in attachLogToGitHub (so usage-limit comments render even without a generic error message).\n- Include sessionId in failure attach to show it in the comment and resume instructions.\n\nPushed commit 7c17442. A new CI run is queued; I’ll monitor and review logs if anything fails.
+--
