@@ -32,6 +32,10 @@ const {
 // Import exit handler
 import { safeExit } from './exit-handler.lib.mjs';
 
+// Import GitHub utilities for permission checks
+const githubLib = await import('./github.lib.mjs');
+const { checkRepositoryWritePermission } = githubLib;
+
 // Get the root repository of any repository
 // Returns the source (root) repository if the repo is a fork, otherwise returns the repo itself
 export const getRootRepository = async (owner, repo) => {
@@ -136,6 +140,17 @@ export const setupTempDirectory = async (argv) => {
 const tryInitializeEmptyRepository = async (owner, repo) => {
   try {
     await log(`${formatAligned('🔧', 'Auto-fix:', 'Attempting to initialize empty repository...')}`);
+
+    // Check write access before attempting to create files
+    await log(`${formatAligned('', '', 'Checking repository write access...')}`);
+    const hasWriteAccess = await checkRepositoryWritePermission(owner, repo, { useFork: false });
+
+    if (!hasWriteAccess) {
+      await log(`${formatAligned('❌', 'No access:', 'You do not have write access to this repository')}`);
+      await log(`${formatAligned('', '', 'Cannot initialize empty repository without write access')}`);
+      return false;
+    }
+
     await log(`${formatAligned('', '', 'Creating a simple README.md to make repository forkable')}`);
 
     // Create simple README content with just the repository name
@@ -177,7 +192,7 @@ const tryInitializeEmptyRepository = async (owner, repo) => {
 };
 
 // Handle fork creation and repository setup
-export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
+export const setupRepository = async (argv, owner, repo, forkOwner = null, issueUrl = null) => {
   let repoToClone = `${owner}/${repo}`;
   let forkedRepo = null;
   let upstreamRemote = null;
@@ -374,13 +389,50 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
               await log('              Even a simple README.md file would make the repository forkable');
               await log('');
               await log('     Option 2: Work directly on the original repository (if you get write access)');
-              await log(`              Run: solve ${argv.url} --no-fork`);
+              await log(`              Run: solve ${issueUrl || '<issue-url>'} --no-fork`);
               await log('');
-              await log('     Option 3: Create your own repository with initial content');
-              await log('              1. Create a new repository with the same name');
-              await log('              2. Add initial content (README.md or any file)');
-              await log('              3. Open an issue/PR there for development');
-              await log('');
+
+              // Try to create a comment on the issue asking the maintainer to initialize the repository
+              if (issueUrl) {
+                try {
+                  // Extract issue number from URL (e.g., https://github.com/owner/repo/issues/123)
+                  const issueMatch = issueUrl.match(/\/issues\/(\d+)/);
+                  if (issueMatch) {
+                    const issueNumber = issueMatch[1];
+                    await log(`${formatAligned('💬', 'Creating comment:', 'Requesting maintainer to initialize repository...')}`);
+
+                    const commentBody = `## ⚠️ Repository Initialization Required
+
+Hello! I attempted to work on this issue, but encountered a problem:
+
+**Issue**: The repository is empty and cannot be forked.
+**Reason**: GitHub doesn't allow forking repositories with no content.
+
+### 🔧 How to resolve:
+
+**Option 1: Grant write access for me to initialize the repository**
+You could grant write access to allow me to initialize the repository directly.
+
+**Option 2: Initialize the repository yourself**
+Please add initial content to the repository. Even a simple README.md (even if it is empty or contains just the title) file would make it possible to fork and work on this issue.
+
+Once the repository contains at least one commit with any file, I'll be able to fork it and proceed with solving this issue.
+
+Thank you!`;
+
+                    const commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body ${commentBody}`;
+                    if (commentResult.code === 0) {
+                      await log(`${formatAligned('✅', 'Comment created:', `Posted to issue #${issueNumber}`)}`);
+                    } else {
+                      await log(`${formatAligned('⚠️', 'Note:', 'Could not post comment to issue (this is not critical)')}`);
+                    }
+                  }
+                } catch {
+                  // Silently ignore comment creation errors - not critical to the process
+                  await log(`${formatAligned('⚠️', 'Note:', 'Could not post comment to issue (this is not critical)')}`);
+                }
+              }
+
               await safeExit(1, 'Repository setup failed - empty repository');
             }
           }
@@ -713,7 +765,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('              May cause merge conflicts in pull requests');
                     await log('');
                     await log('  🔧 To proceed with auto-resolution, restart with:');
-                    await log(`     solve ${argv.url || argv['issue-url'] || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
+                    await log(`     solve ${argv.url || argv['issue-url'] || argv._[0] || '<issue-url>'} --allow-fork-divergence-resolution-using-force-push-with-lease`);
                     await log('');
                     await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
                   }

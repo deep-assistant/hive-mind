@@ -10,11 +10,12 @@ export async function setupRepositoryAndClone({
   forkOwner,
   tempDir,
   isContinueMode,
+  issueUrl,
   log,
   $
 }) {
   // Set up repository and handle forking
-  const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner);
+  const { repoToClone, forkedRepo, upstreamRemote, prForkOwner } = await setupRepository(argv, owner, repo, forkOwner, issueUrl);
 
   // Clone repository and set up remotes
   await cloneRepository(repoToClone, tempDir, argv, owner, repo);
@@ -32,10 +33,10 @@ export async function setupRepositoryAndClone({
   return { repoToClone, forkedRepo, upstreamRemote, prForkRemote, prForkOwner };
 }
 
-async function setupRepository(argv, owner, repo, forkOwner) {
+async function setupRepository(argv, owner, repo, forkOwner, issueUrl) {
   const repository = await import('./solve.repository.lib.mjs');
   const { setupRepository: setupRepoFn } = repository;
-  return await setupRepoFn(argv, owner, repo, forkOwner);
+  return await setupRepoFn(argv, owner, repo, forkOwner, issueUrl);
 }
 
 async function cloneRepository(repoToClone, tempDir, argv, owner, repo) {
