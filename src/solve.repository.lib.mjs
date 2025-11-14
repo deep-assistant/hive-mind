@@ -391,11 +391,6 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
               await log('     Option 2: Work directly on the original repository (if you get write access)');
               await log(`              Run: solve ${argv.url || argv['issue-url'] || argv._[0]} --no-fork`);
               await log('');
-              await log('     Option 3: Create your own repository with initial content');
-              await log('              1. Create a new repository with the same name');
-              await log('              2. Add initial content (README.md or any file)');
-              await log('              3. Open an issue/PR there for development');
-              await log('');
               await safeExit(1, 'Repository setup failed - empty repository');
             }
           }
