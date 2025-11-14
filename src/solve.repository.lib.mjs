@@ -192,7 +192,7 @@ const tryInitializeEmptyRepository = async (owner, repo) => {
 };
 
 // Handle fork creation and repository setup
-export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
+export const setupRepository = async (argv, owner, repo, forkOwner = null, issueUrl = null) => {
   let repoToClone = `${owner}/${repo}`;
   let forkedRepo = null;
   let upstreamRemote = null;
@@ -389,7 +389,7 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null) => {
               await log('              Even a simple README.md file would make the repository forkable');
               await log('');
               await log('     Option 2: Work directly on the original repository (if you get write access)');
-              await log(`              Run: solve ${argv.url || argv['issue-url'] || argv._[0]} --no-fork`);
+              await log(`              Run: solve ${issueUrl || '<issue-url>'} --no-fork`);
               await log('');
               await safeExit(1, 'Repository setup failed - empty repository');
             }
@@ -707,7 +707,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('              May cause merge conflicts in pull requests');
                     await log('');
                     await log('  🔧 To proceed with auto-resolution, restart with:');
-                    await log(`     solve ${argv.url || argv['issue-url'] || argv._[0]} --allow-fork-divergence-resolution-using-force-push-with-lease`);
+                    await log(`     solve ${issueUrl || '<issue-url>'} --allow-fork-divergence-resolution-using-force-push-with-lease`);
                     await log('');
                     await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
                   }

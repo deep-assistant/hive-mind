@@ -11,7 +11,7 @@
 
 ### Description
 ```
-Full log: https://gist.github.com/konard/d14c8c68bad8d8339db760d1a685eb5
+Full log: https://gist.github.com/konard/d14c8c68bad8d8339db760d1a685eb54
 Issue: https://github.com/xlab2016/space_compiler_public/issues/1
 
 Please download all logs and data related about the issue to this repository, make sure we compile that data to `./docs/case-studies` folder, and use it to do deep case study analysis, in which we will reconstruct timeline/sequence of events, find root causes of the problem, and propose possible solutions.

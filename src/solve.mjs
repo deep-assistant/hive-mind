@@ -485,6 +485,7 @@ try {
     forkOwner,
     tempDir,
     isContinueMode,
+    issueUrl,
     log,
     formatAligned,
     $
