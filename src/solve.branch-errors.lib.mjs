@@ -32,7 +32,7 @@ export async function handleBranchCheckoutError({
 
   if (prNumber) {
     try {
-      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,headRefName 2>/dev/null`;
+      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,headRefName,headRepository 2>/dev/null`;
       if (prCheckResult.code === 0) {
         const prData = JSON.parse(prCheckResult.stdout.toString());
         if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
@@ -40,9 +40,16 @@ export async function handleBranchCheckoutError({
           forkOwner = prData.headRepositoryOwner.login;
           suggestForkOption = true;
 
+          // Get the actual fork repository name (might be prefixed)
+          let forkRepoFullName = `${forkOwner}/${repo}`;
+          if (prData.headRepository && prData.headRepository.name) {
+            forkRepoFullName = `${forkOwner}/${prData.headRepository.name}`;
+            forkRepoName = prData.headRepository.name;
+          }
+
           // Check if the branch exists in the fork
           try {
-            const branchCheckResult = await $`gh api repos/${forkOwner}/${repo}/git/ref/heads/${branchName} 2>/dev/null`;
+            const branchCheckResult = await $`gh api repos/${forkRepoFullName}/git/ref/heads/${branchName} 2>/dev/null`;
             if (branchCheckResult.code === 0) {
               branchExistsInFork = true;
             }
@@ -51,6 +58,7 @@ export async function handleBranchCheckoutError({
               context: 'check_fork_for_branch',
               prNumber,
               forkOwner,
+              forkRepoFullName,
               branchName,
               operation: 'verify_fork_branch'
             });

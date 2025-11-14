@@ -385,7 +385,10 @@ Issue: ${issueUrl}`;
             const userResult = await $`gh api user --jq .login`;
             if (userResult.code === 0) {
               currentUser = userResult.stdout.toString().trim();
-              const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json parent 2>/dev/null`;
+              // Determine fork name based on --prefix-fork-name-with-owner-name option
+              const forkRepoName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
+              const userForkName = `${currentUser}/${forkRepoName}`;
+              const forkCheckResult = await $`gh repo view ${userForkName} --json parent 2>/dev/null`;
               if (forkCheckResult.code === 0) {
                 const forkData = JSON.parse(forkCheckResult.stdout.toString());
                 if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
