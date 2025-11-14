@@ -109,8 +109,9 @@ No commits (empty repository).
 
 ## Referenced Gist
 
-**URL:** https://gist.github.com/konard/d14c8c68bad8d8339db760d1a685eb5
-**Status:** Not Found (HTTP 404) - Private or deleted
+**URL:** https://gist.github.com/konard/d14c8c68bad8d8339db760d1a685eb54
+**Status:** Available (archived in `solve-log-2025-11-13.txt`)
+**Note:** Initial reference had typo in URL (missing '4' at end)
 
 ---
 
