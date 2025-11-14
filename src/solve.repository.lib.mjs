@@ -403,20 +403,20 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null, issue
 
                     const commentBody = `## ⚠️ Repository Initialization Required
 
-Hello! I attempted to work on this issue using an automated solver, but encountered a problem:
+Hello! I attempted to work on this issue, but encountered a problem:
 
 **Issue**: The repository is empty and cannot be forked.
 **Reason**: GitHub doesn't allow forking repositories with no content.
 
 ### 🔧 How to resolve:
 
-**Option 1: Initialize the repository** (Recommended)
-Please add initial content to the repository. Even a simple README.md file would make it possible to fork and work on this issue.
+**Option 1: Grant write access for me to initialize the repository**
+You could grant write access to allow me to initialize the repository directly.
 
-**Option 2: Grant write access**
-Alternatively, you could grant write access to allow automated tools to initialize the repository directly.
+**Option 2: Initialize the repository yourself**
+Please add initial content to the repository. Even a simple README.md (even if it is empty or contains just the title) file would make it possible to fork and work on this issue.
 
-Once the repository contains at least one commit, I'll be able to fork it and proceed with solving this issue.
+Once the repository contains at least one commit with any file, I'll be able to fork it and proceed with solving this issue.
 
 Thank you!`;
 
