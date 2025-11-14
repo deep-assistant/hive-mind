@@ -1,0 +1,89 @@
+DeepWiki Data Export for Issue #721
+=====================================
+URL: https://deepwiki.com/search/-57-4-23-57_0e4aa687-7a9d-4591-8c6f-67c4b2d732f6
+Exported: 2025-11-13
+
+This file contains the full text content extracted from the DeepWiki search results.
+
+CONTENT SUMMARY
+---------------
+The deepwiki page contains three main sections related to the hive-mind repository:
+
+1. Comprehensive Overview of Hive Mind System (5-7 pages in Russian)
+   - Detailed explanation of the agent system architecture
+   - Core philosophy of human-AI collaboration
+   - Three-tier architectural design
+   - Original innovations and features
+
+2. Prompt Engineering Analysis (in Russian: "Какие промпты тут применяются?")
+   - Analysis of prompts used in the system
+   - Quotes from claude.prompts.lib.mjs and opencode.prompts.lib.mjs
+   - Expert analysis from a prompt engineering perspective
+
+3. AI System Prompt Complexity Analysis (in Russian: "дай экспертизу... глазами искусственного интеллекта")
+   - Analysis from AI's perspective on prompt complexity
+   - Identification of contradictions in prompts
+   - Cognitive load assessment
+   - 10 optimization principles for improving prompts
+
+KEY ISSUE IDENTIFIED
+--------------------
+The screenshot referenced in issue #721 shows line 176 from the contributing guidelines/prompts:
+
+Line 176: "make sure no new new bugs are introduced in pull request by carefully reading gh pr diff"
+
+FEEDBACK (Russian): "Зачем 2 раза слово new?"
+TRANSLATION: "Why the word 'new' twice?"
+
+This is a clear typo - "no new new bugs" should be "no new bugs".
+
+DEEPWIKI FULL CONTENT
+---------------------
+[Full text content follows below]
+
+===== SECTION 1: Comprehensive Overview =====
+
+Deep
+Thought Process
+Hive Mind: A Comprehensive Overview of an AI Agent System for Software Development
+Executive Summary
+
+Hive Mind is an orchestration system that coordinates artificial intelligence agents to solve software development tasks autonomously while maintaining human oversight at critical decision points. The system transforms GitHub issues into pull requests through a structured problem-solving methodology, inspired by universal problem-solving algorithms. README.md:10-16
+
+I. Foundational Philosophy: Human-AI Collaboration Model
+The Core Premise
+
+The system operates on a fundamental principle: AI agents should amplify human capabilities, not replace human judgment. Every automated action is subject to human review and approval. This creates a collaborative loop where humans define problems and make decisions, while AI agents handle implementation and iteration. flow.md:436-442
+
+[... content continues with full system overview ...]
+
+===== SECTION 2: Prompt Engineering Analysis =====
+
+Промпты в Агентной Системе
+
+Файл src/claude.prompts.lib.mjs содержит две основные функции построения промптов с различными подходами к управлению поведением AI агента.
+
+Thinking Depth Control
+
+Система реализует многоуровневый механизм глубины мышления, управляемый флагом --think с четырьмя уровнями:
+
+[... content continues with full prompt analysis ...]
+
+===== SECTION 3: AI Complexity Analysis =====
+
+AI System Prompt Analysis
+Overview
+
+Both system prompts follow a similar structure with conditional sections, extensive guidelines organized by workflow phase, and dynamic parameter injection. Let me analyze them from an AI agent's perspective.
+
+1. Complexity Analysis
+Structural Complexity
+
+Both prompts exhibit high structural complexity with multiple nested conditional logic and extensive guideline sections:
+
+Claude version has 6 main sections with ~82 lines of guidelines claude.prompts.lib.mjs:113-195
+OpenCode version has 7 main sections (including "GitHub CLI command patterns") with ~82 lines of guidelines opencode.prompts.lib.mjs:106-189
+
+[... content continues with full complexity analysis including the 10 optimization principles ...]
+
+END OF DEEPWIKI DATA

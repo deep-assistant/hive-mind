@@ -172,7 +172,7 @@ Preparing pull request.
       make sure the default branch is merged to the pull request's branch,
       make sure all CI checks passing if they exist before you finish,
       double-check that all changes in the pull request answer to original requirements of the issue,
-      make sure no new new bugs are introduced in pull request by carefully reading gh pr diff,
+      make sure no new bugs are introduced in pull request by carefully reading gh pr diff,
       make sure no previously existing features were removed without an explicit request from users via the issue description, issue comments, and/or pull request comments.
    - When you finish implementation, use gh pr ready ${prNumber}.
 
