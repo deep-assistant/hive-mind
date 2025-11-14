@@ -391,6 +391,48 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null, issue
               await log('     Option 2: Work directly on the original repository (if you get write access)');
               await log(`              Run: solve ${issueUrl || '<issue-url>'} --no-fork`);
               await log('');
+
+              // Try to create a comment on the issue asking the maintainer to initialize the repository
+              if (issueUrl) {
+                try {
+                  // Extract issue number from URL (e.g., https://github.com/owner/repo/issues/123)
+                  const issueMatch = issueUrl.match(/\/issues\/(\d+)/);
+                  if (issueMatch) {
+                    const issueNumber = issueMatch[1];
+                    await log(`${formatAligned('💬', 'Creating comment:', 'Requesting maintainer to initialize repository...')}`);
+
+                    const commentBody = `## ⚠️ Repository Initialization Required
+
+Hello! I attempted to work on this issue using an automated solver, but encountered a problem:
+
+**Issue**: The repository is empty and cannot be forked.
+**Reason**: GitHub doesn't allow forking repositories with no content.
+
+### 🔧 How to resolve:
+
+**Option 1: Initialize the repository** (Recommended)
+Please add initial content to the repository. Even a simple README.md file would make it possible to fork and work on this issue.
+
+**Option 2: Grant write access**
+Alternatively, you could grant write access to allow automated tools to initialize the repository directly.
+
+Once the repository contains at least one commit, I'll be able to fork it and proceed with solving this issue.
+
+Thank you!`;
+
+                    const commentResult = await $`gh issue comment ${issueNumber} --repo ${owner}/${repo} --body ${commentBody}`;
+                    if (commentResult.code === 0) {
+                      await log(`${formatAligned('✅', 'Comment created:', `Posted to issue #${issueNumber}`)}`);
+                    } else {
+                      await log(`${formatAligned('⚠️', 'Note:', 'Could not post comment to issue (this is not critical)')}`);
+                    }
+                  }
+                } catch {
+                  // Silently ignore comment creation errors - not critical to the process
+                  await log(`${formatAligned('⚠️', 'Note:', 'Could not post comment to issue (this is not critical)')}`);
+                }
+              }
+
               await safeExit(1, 'Repository setup failed - empty repository');
             }
           }
@@ -707,7 +749,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
                     await log('              May cause merge conflicts in pull requests');
                     await log('');
                     await log('  🔧 To proceed with auto-resolution, restart with:');
-                    await log(`     solve ${issueUrl || '<issue-url>'} --allow-fork-divergence-resolution-using-force-push-with-lease`);
+                    await log(`     solve ${argv.url || argv['issue-url'] || argv._[0] || '<issue-url>'} --allow-fork-divergence-resolution-using-force-push-with-lease`);
                     await log('');
                     await safeExit(1, 'Repository setup halted - fork divergence requires user decision');
                   }
