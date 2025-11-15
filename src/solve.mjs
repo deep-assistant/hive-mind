@@ -805,11 +805,18 @@ try {
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
+  // Capture limit reset time globally for downstream handlers (auto-continue, cleanup decisions)
+  if (toolResult && toolResult.limitResetTime) {
+    global.limitResetTime = toolResult.limitResetTime;
+  }
+
   if (!success) {
     // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
     if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
       await log('\n📄 Attaching failure logs to Pull Request...');
       try {
+        // Build resume command if we have session info
+        const resumeCommand = sessionId ? `${process.argv[0]} ${process.argv[1]} ${issueUrl} --resume ${sessionId}` : null;
         const logUploadSuccess = await attachLogToGitHub({
           logFile: getLogFile(),
           targetType: 'pr',
@@ -819,7 +826,17 @@ try {
           $,
           log,
           sanitizeLogContent,
-          errorMessage: `${argv.tool.toUpperCase()} execution failed`
+          // For usage limit, use a dedicated comment format to make it clear and actionable
+          isUsageLimit: !!limitReached,
+          limitResetTime: limitReached ? toolResult.limitResetTime : null,
+          toolName: (argv.tool || 'AI tool').toString().toLowerCase() === 'claude' ? 'Claude' :
+                    (argv.tool || 'AI tool').toString().toLowerCase() === 'codex' ? 'Codex' :
+                    (argv.tool || 'AI tool').toString().toLowerCase() === 'opencode' ? 'OpenCode' : 'AI tool',
+          resumeCommand,
+          // Include sessionId so the PR comment can present it
+          sessionId,
+          // If not a usage limit case, fall back to generic failure format
+          errorMessage: limitReached ? undefined : `${argv.tool.toUpperCase()} execution failed`
         });
 
         if (logUploadSuccess) {
