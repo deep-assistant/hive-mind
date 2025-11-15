@@ -246,6 +246,9 @@ solve <issue-url> [options]
   --allow-fork-divergence-resolution-using-force-push-with-lease
                         Allow force-push with --force-with-lease when fork diverges
                         (DANGEROUS: can overwrite fork history) [default: false]
+  --prefix-fork-name-with-owner-name  Prefix fork name with owner (owner-repo)
+                        Useful for forking repos with same name from different owners
+                        (Experimental feature) [default: false]
   --continue-only-on-feedback  Only continue if feedback detected
                         [default: false]
   --watch, -w           Monitor for feedback and auto-restart [default: false]

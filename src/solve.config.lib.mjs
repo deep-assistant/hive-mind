@@ -210,6 +210,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'When continuing a fork PR as a maintainer, attempt to push directly to the contributor\'s fork if "Allow edits by maintainers" is enabled. Requires --auto-fork to be enabled.',
       default: false
     })
+    .option('prefix-fork-name-with-owner-name', {
+      type: 'boolean',
+      description: 'Prefix fork name with original owner name (e.g., "owner-repo" instead of "repo"). Useful when forking repositories with same name from different owners. Experimental feature.',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
