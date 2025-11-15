@@ -202,7 +202,9 @@ export async function handleBranchCheckoutError({
     await log('');
     await log('  This will automatically:');
     if (userHasFork) {
-      await log(`    ✓ Use your existing fork (${forkOwner}/${repo})`);
+      // Use forkRepoName if available, otherwise default to repo
+      const displayForkRepo = forkRepoName || repo;
+      await log(`    ✓ Use your existing fork (${forkOwner}/${displayForkRepo})`);
     } else if (isForkPR && forkOwner) {
       await log('    ✓ Work with the fork that contains the PR branch');
     } else {

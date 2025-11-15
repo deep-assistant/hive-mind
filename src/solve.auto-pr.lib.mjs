@@ -428,7 +428,7 @@ Issue: ${issueUrl}`;
           await log('');
           await log('  This will automatically:');
           if (userHasFork) {
-            await log(`    ✓ Use your existing fork (${currentUser}/${repo})`);
+            await log(`    ✓ Use your existing fork (${currentUser}/${forkRepoName})`);
             await log('    ✓ Sync your fork with the latest changes');
           } else {
             await log('    ✓ Fork the repository to your account');
@@ -456,7 +456,7 @@ Issue: ${issueUrl}`;
           await log('');
           await log('💡 Tip: The --fork option automates the entire fork workflow!');
           if (userHasFork) {
-            await log(`   Note: We detected you already have a fork at ${currentUser}/${repo}`);
+            await log(`   Note: We detected you already have a fork at ${currentUser}/${forkRepoName}`);
           }
           await log('');
           throw new Error('Permission denied - need fork or collaborator access');
