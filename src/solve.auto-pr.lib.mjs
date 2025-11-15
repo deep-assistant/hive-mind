@@ -381,12 +381,12 @@ Issue: ${issueUrl}`;
           // Check if user already has a fork
           let userHasFork = false;
           let currentUser = null;
+          // Determine fork name based on --prefix-fork-name-with-owner-name option
+          const forkRepoName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
           try {
             const userResult = await $`gh api user --jq .login`;
             if (userResult.code === 0) {
               currentUser = userResult.stdout.toString().trim();
-              // Determine fork name based on --prefix-fork-name-with-owner-name option
-              const forkRepoName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
               const userForkName = `${currentUser}/${forkRepoName}`;
               const forkCheckResult = await $`gh repo view ${userForkName} --json parent 2>/dev/null`;
               if (forkCheckResult.code === 0) {
