@@ -10,11 +10,13 @@ if (typeof globalThis.use === 'undefined') {
 const { $ } = await use('command-stream');
 const fs = (await use('fs')).promises;
 const path = (await use('path')).default;
+const os = (await use('os')).default;
 
 // Import log from general lib
 import { log } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts } from './config.lib.mjs';
+import { detectUsageLimit, formatUsageLimitMessage } from './usage-limit.lib.mjs';
 
 // Model mapping to translate aliases to full model IDs for OpenCode
 export const mapModelToId = (model) => {
@@ -268,7 +270,8 @@ export const executeOpenCodeCommand = async (params) => {
     const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
 
     // Write the combined prompt to a file for piping
-    const promptFile = path.join(tempDir, 'opencode_prompt.txt');
+    // Use OS temporary directory instead of repository workspace to avoid polluting the repo
+    const promptFile = path.join(os.tmpdir(), `opencode_prompt_${Date.now()}_${process.pid}.txt`);
     await fs.writeFile(promptFile, combinedPrompt);
 
     // Build the full command - pipe the prompt file to opencode
@@ -305,6 +308,7 @@ export const executeOpenCodeCommand = async (params) => {
       let exitCode = 0;
       let sessionId = null;
       let limitReached = false;
+      let limitResetTime = null;
       let lastMessage = '';
 
       for await (const chunk of execCommand.stream()) {
@@ -325,9 +329,23 @@ export const executeOpenCodeCommand = async (params) => {
       }
 
       if (exitCode !== 0) {
-        if (lastMessage.includes('rate_limit') || lastMessage.includes('limit')) {
+        // Check for usage limit errors first (more specific)
+        const limitInfo = detectUsageLimit(lastMessage);
+        if (limitInfo.isUsageLimit) {
           limitReached = true;
-          await log('\n\n⏳ Rate limit reached.', { level: 'warning' });
+          limitResetTime = limitInfo.resetTime;
+
+          // Format and display user-friendly message
+          const messageLines = formatUsageLimitMessage({
+            tool: 'OpenCode',
+            resetTime: limitInfo.resetTime,
+            sessionId,
+            resumeCommand: sessionId ? `${process.argv[0]} ${process.argv[1]} ${argv.url} --resume ${sessionId}` : null
+          });
+
+          for (const line of messageLines) {
+            await log(line, { level: 'warning' });
+          }
         } else {
           await log(`\n\n❌ OpenCode command failed with exit code ${exitCode}`, { level: 'error' });
         }
@@ -340,7 +358,8 @@ export const executeOpenCodeCommand = async (params) => {
         return {
           success: false,
           sessionId,
-          limitReached
+          limitReached,
+          limitResetTime
         };
       }
 
@@ -349,7 +368,8 @@ export const executeOpenCodeCommand = async (params) => {
       return {
         success: true,
         sessionId,
-        limitReached
+        limitReached,
+        limitResetTime
       };
     } catch (error) {
       reportError(error, {
@@ -363,7 +383,8 @@ export const executeOpenCodeCommand = async (params) => {
       return {
         success: false,
         sessionId: null,
-        limitReached: false
+        limitReached: false,
+        limitResetTime: null
       };
     }
   };

@@ -1,24 +1,133 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[*] Starting hive environment setup..."
+# Color codes for enhanced output (disabled in non-TTY)
+if [ -t 1 ]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'
+  CYAN='\033[0;36m'
+  NC='\033[0m' # No Color
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  CYAN=''
+  NC=''
+fi
+
+# Enhanced logging functions
+log_info() {
+  echo -e "${BLUE}[*]${NC} $1"
+}
+
+log_success() {
+  echo -e "${GREEN}[✓]${NC} $1"
+}
+
+log_warning() {
+  echo -e "${YELLOW}[!]${NC} $1"
+}
+
+log_error() {
+  echo -e "${RED}[✗]${NC} $1"
+}
+
+log_note() {
+  echo -e "${CYAN}[i]${NC} $1"
+}
+
+log_step() {
+  echo -e "\n${GREEN}==>${NC} ${BLUE}$1${NC}\n"
+}
+
+# Verification helper
+verify_command() {
+  local tool_name="$1"
+  local command_name="${2:-$1}"
+  local version_flag="${3:---version}"
+
+  if command -v "$command_name" &>/dev/null; then
+    local version=$("$command_name" $version_flag 2>/dev/null | head -n1 || echo "installed")
+    log_success "$tool_name: $version"
+    return 0
+  else
+    log_warning "$tool_name: not found in PATH"
+    return 1
+  fi
+}
+
+# Check if a command exists (silent)
+command_exists() {
+  command -v "$1" &>/dev/null
+}
+
+# --- Pre-flight Checks ---
+log_step "Running pre-flight checks"
+
+# Check if running as root or with sudo access
+if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+  log_error "This script requires sudo access. Please run with sudo or ensure user has sudo privileges."
+  exit 1
+fi
+
+# Check Ubuntu version
+if [ -f /etc/os-release ]; then
+  source /etc/os-release
+  if [[ "$ID" != "ubuntu" ]]; then
+    log_warning "This script is designed for Ubuntu. Detected: $ID"
+    log_note "Continuing anyway, but some steps may fail..."
+  fi
+
+  if [[ "$VERSION_ID" != "24.04" ]] && [[ "$VERSION_ID" != "24.10" ]]; then
+    log_warning "This script is tested on Ubuntu 24.x. Detected: $VERSION_ID"
+    log_note "Continuing anyway, but compatibility issues may occur..."
+  else
+    log_success "Ubuntu $VERSION_ID detected"
+  fi
+fi
+
+# Check available disk space (need at least 15GB free)
+AVAILABLE_GB=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+if [ "$AVAILABLE_GB" -lt 15 ]; then
+  log_warning "Low disk space detected: ${AVAILABLE_GB}GB available"
+  log_warning "Recommended: at least 15GB free space"
+  log_note "Continuing anyway, but installation may fail due to insufficient space..."
+else
+  log_success "Sufficient disk space available: ${AVAILABLE_GB}GB"
+fi
+
+# Check internet connectivity
+if ! ping -c 1 -W 5 google.com &>/dev/null; then
+  log_warning "No internet connectivity detected"
+  log_error "Internet connection required for installation"
+  exit 1
+fi
+
+log_success "Internet connectivity confirmed"
+log_success "Pre-flight checks passed"
+
+log_step "Starting hive environment setup"
 
 # --- Create hive user if missing ---
 if id "hive" &>/dev/null; then
-  echo "[*] hive user already exists."
+  log_info "hive user already exists."
 else
-  echo "[*] Creating hive user..."
+  log_info "Creating hive user..."
   adduser --disabled-password --gecos "" hive
   passwd -d hive
   usermod -aG sudo hive
+  log_success "hive user created and configured"
 fi
 
 # --- Function: apt safe update ---
 apt_update_safe() {
-  echo "[*] Updating apt sources..."
+  log_info "Updating apt sources..."
   for f in /etc/apt/sources.list.d/*.list; do
     if [ -f "$f" ] && ! grep -Eq "^deb " "$f"; then
-      echo "[!] Removing malformed apt source: $f"
+      log_warning "Removing malformed apt source: $f"
       sudo rm -f "$f"
     fi
   done
@@ -27,16 +136,17 @@ apt_update_safe() {
 
 # --- Function: cleanup disk ---
 apt_cleanup() {
-  echo "[*] Cleaning up apt cache..."
+  log_info "Cleaning up apt cache and temporary files..."
   sudo apt-get clean
   sudo apt-get autoclean
   sudo apt-get autoremove -y
   sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+  log_success "Cleanup completed"
 }
 
 # --- Function: create swap file ---
 create_swap_file() {
-  echo "[*] Setting up 2GB total swap space..."
+  log_info "Setting up 2GB total swap space..."
 
   local target_total_mb=2048  # 2GB target
   local current_total_mb=0
@@ -53,40 +163,40 @@ create_swap_file() {
   }
 
   # Check existing swap files and calculate total
-  echo "[*] Checking existing swap configuration..."
+  log_info "Checking existing swap configuration..."
   for i in "" 1 2 3 4 5; do
     local swapfile="/swapfile$i"
     if [ -f "$swapfile" ]; then
       local size_mb=$(get_file_size_mb "$swapfile")
       current_total_mb=$((current_total_mb + size_mb))
-      echo "[*] Found $swapfile: ${size_mb}MB"
+      log_info "Found $swapfile: ${size_mb}MB"
 
       # Activate if not already active
       if ! swapon --show | grep -q "$swapfile"; then
-        echo "[*] Activating $swapfile..."
+        log_info "Activating $swapfile..."
         sudo swapon "$swapfile" || true
       fi
     fi
   done
 
-  echo "[*] Current total swap: ${current_total_mb}MB, Target: ${target_total_mb}MB"
+  log_info "Current total swap: ${current_total_mb}MB, Target: ${target_total_mb}MB"
 
   # If we already have enough swap, we're done
   if [ "$current_total_mb" -ge "$target_total_mb" ]; then
-    echo "[*] Already have sufficient swap space (${current_total_mb}MB >= ${target_total_mb}MB)"
+    log_success "Already have sufficient swap space (${current_total_mb}MB >= ${target_total_mb}MB)"
     return 0
   fi
 
   # Calculate how much additional swap we need
   local needed_mb=$((target_total_mb - current_total_mb))
-  echo "[*] Need to create ${needed_mb}MB additional swap space..."
+  log_info "Need to create ${needed_mb}MB additional swap space..."
 
   # Check available disk space (need extra margin for safety)
   local available_space_kb=$(df / | awk 'NR==2 {print $4}')
   local needed_space_kb=$((needed_mb * 1024 + 1024 * 1024))  # needed + 1GB safety margin
 
   if [ "$available_space_kb" -lt "$needed_space_kb" ]; then
-    echo "[!] Warning: Insufficient disk space for additional swap. Available: $(($available_space_kb/1024/1024))GB, Needed: $(($needed_space_kb/1024/1024))GB"
+    log_error "Insufficient disk space for additional swap. Available: $(($available_space_kb/1024/1024))GB, Needed: $(($needed_space_kb/1024/1024))GB"
     return 1
   fi
 
@@ -101,12 +211,12 @@ create_swap_file() {
   done
 
   if [ -z "$new_swapfile" ]; then
-    echo "[!] Error: Cannot find available swap file name (checked /swapfile through /swapfile5)"
+    log_error "Cannot find available swap file name (checked /swapfile through /swapfile5)"
     return 1
   fi
 
   # Create additional swap file
-  echo "[*] Creating ${needed_mb}MB swap file at $new_swapfile..."
+  log_info "Creating ${needed_mb}MB swap file at $new_swapfile..."
   if command -v fallocate >/dev/null 2>&1; then
     sudo fallocate -l "${needed_mb}M" "$new_swapfile"
   else
@@ -116,16 +226,16 @@ create_swap_file() {
 
   # Set proper permissions
   sudo chmod 600 "$new_swapfile"
-  
+
   # Format as swap
   sudo mkswap "$new_swapfile"
-  
+
   # Enable swap file
   sudo swapon "$new_swapfile"
 
   # Make it persistent by adding to /etc/fstab if not already there
   if ! grep -q "$new_swapfile" /etc/fstab; then
-    echo "[*] Adding $new_swapfile to /etc/fstab for persistence..."
+    log_info "Adding $new_swapfile to /etc/fstab for persistence..."
     # Ensure we have a backup of fstab
     if [ ! -f /etc/fstab.backup ]; then
       sudo cp /etc/fstab /etc/fstab.backup
@@ -135,23 +245,34 @@ create_swap_file() {
 
   # Verify swap is active and show final status
   if swapon --show | grep -q "$new_swapfile"; then
-    echo "[*] Swap file $new_swapfile successfully created and activated."
-    echo "[*] Final swap configuration:"
+    log_success "Swap file $new_swapfile successfully created and activated"
+    log_info "Final swap configuration:"
     swapon --show
-    echo "[*] Total swap space: $((current_total_mb + needed_mb))MB"
+    log_info "Total swap space: $((current_total_mb + needed_mb))MB"
+
+    # Optimize swappiness for development workload
+    if [ "$(cat /proc/sys/vm/swappiness)" -gt 10 ]; then
+      log_info "Optimizing swap usage (setting swappiness to 10 for development workload)..."
+      echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf >/dev/null
+      sudo sysctl -w vm.swappiness=10 >/dev/null
+      log_success "Swap settings optimized"
+    fi
   else
-    echo "[!] Error: Swap file creation failed."
+    log_error "Swap file creation failed"
     return 1
   fi
 }
 
 # --- Ensure prerequisites ---
+log_step "Installing system prerequisites"
 apt_update_safe
 
+log_info "Installing essential development tools..."
 sudo apt install -y wget curl unzip git sudo ca-certificates gnupg dotnet-sdk-8.0 build-essential
+log_success "Essential tools installed"
 
 # --- Install Python build dependencies (required for pyenv) ---
-echo "[*] Installing Python build dependencies..."
+log_info "Installing Python build dependencies..."
 sudo apt install -y \
   libssl-dev \
   zlib1g-dev \
@@ -165,19 +286,40 @@ sudo apt install -y \
   libxmlsec1-dev \
   libffi-dev \
   liblzma-dev
+log_success "Python build dependencies installed"
 
 # --- Setup swap file ---
+log_step "Setting up swap space"
 create_swap_file
 
 # --- Switch to hive user for language tools and gh setup ---
 sudo -i -u hive bash <<'EOF_HIVE'
 set -euo pipefail
 
-echo "[*] Installing as hive user..."
+# Define logging functions for hive user session
+if [ -t 1 ]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'
+  CYAN='\033[0;36m'
+  NC='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; NC=''
+fi
+
+log_info() { echo -e "${BLUE}[*]${NC} $1"; }
+log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
+log_error() { echo -e "${RED}[✗]${NC} $1"; }
+log_note() { echo -e "${CYAN}[i]${NC} $1"; }
+log_step() { echo -e "\n${GREEN}==>${NC} ${BLUE}$1${NC}\n"; }
+
+log_step "Installing development tools as hive user"
 
 # --- GitHub CLI ---
 if ! command -v gh &>/dev/null; then
-  echo "[*] Installing GitHub CLI..."
+  log_info "Installing GitHub CLI..."
   # Use official installation method from GitHub CLI maintainers
   sudo mkdir -p -m 755 /etc/apt/keyrings
   out=$(mktemp)
@@ -192,38 +334,47 @@ if ! command -v gh &>/dev/null; then
 
   sudo apt update -y
   sudo apt install -y gh
+  log_success "GitHub CLI installed"
 else
-  echo "[*] GitHub CLI already installed."
+  log_info "GitHub CLI already installed."
 fi
 
 # --- Run interactive GitHub login ---
 if ! gh auth status &>/dev/null; then
-  echo "[*] Launching GitHub auth login..."
+  log_info "Launching GitHub auth login..."
+  log_note "Follow the prompts to authenticate with GitHub"
   gh auth login -h github.com -s repo,workflow,user,read:org,gist
+  log_success "GitHub authentication completed"
 fi
 
 # --- Bun ---
 if ! command -v bun &>/dev/null; then
-  echo "[*] Installing Bun..."
+  log_info "Installing Bun..."
   curl -fsSL https://bun.sh/install | bash
   export BUN_INSTALL="$HOME/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
+  log_success "Bun installed"
 else
-  echo "[*] Bun already installed."
+  log_info "Bun already installed."
 fi
 
 # --- NVM + Node ---
 if [ ! -d "$HOME/.nvm" ]; then
-  echo "[*] Installing NVM..."
+  log_info "Installing NVM..."
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+  log_success "NVM installed"
+else
+  log_info "NVM already installed."
 fi
 
 # --- Pyenv (Python version manager) ---
 if [ ! -d "$HOME/.pyenv" ]; then
-  echo "[*] Installing Pyenv..."
+  log_info "Installing Pyenv..."
+  log_note "Pyenv installer may show a warning about load path - this is expected and will be configured"
   curl https://pyenv.run | bash
   # Add pyenv to shell profile for persistence
   if ! grep -q 'pyenv init' "$HOME/.bashrc" 2>/dev/null; then
+    log_info "Adding Pyenv to shell configuration..."
     {
       echo ''
       echo '# Pyenv configuration'
@@ -233,8 +384,9 @@ if [ ! -d "$HOME/.pyenv" ]; then
       echo 'eval "$(pyenv init -)"'
     } >> "$HOME/.bashrc"
   fi
+  log_success "Pyenv installed and configured"
 else
-  echo "[*] Pyenv already installed."
+  log_info "Pyenv already installed."
 fi
 
 # Load pyenv for current session
@@ -243,58 +395,61 @@ export PATH="$PYENV_ROOT/bin:$PATH"
 if command -v pyenv >/dev/null 2>&1; then
   eval "$(pyenv init --path)"
   eval "$(pyenv init -)"
+  log_success "Pyenv loaded for current session"
 
   # Install latest stable Python version
-  echo "[*] Installing latest stable Python version..."
+  log_info "Installing latest stable Python version..."
   LATEST_PYTHON=$(pyenv install --list | grep -E '^\s*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d '[:space:]')
 
   if [ -n "$LATEST_PYTHON" ]; then
-    echo "[*] Installing Python $LATEST_PYTHON..."
+    log_info "Installing Python $LATEST_PYTHON..."
     if ! pyenv versions --bare | grep -q "^${LATEST_PYTHON}$"; then
       pyenv install "$LATEST_PYTHON"
     else
-      echo "[*] Python $LATEST_PYTHON already installed."
+      log_info "Python $LATEST_PYTHON already installed."
     fi
 
     # Set as global default
-    echo "[*] Setting Python $LATEST_PYTHON as global default..."
+    log_info "Setting Python $LATEST_PYTHON as global default..."
     pyenv global "$LATEST_PYTHON"
 
-    echo "[*] Python version manager setup complete. Current version:"
+    log_success "Python version manager setup complete"
     python --version
   else
-    echo "[!] Warning: Could not determine latest Python version. Skipping Python installation."
+    log_warning "Could not determine latest Python version. Skipping Python installation."
   fi
 else
-  echo "[!] Warning: Pyenv installation may have failed. Skipping Python setup."
+  log_warning "Pyenv installation may have failed. Skipping Python setup."
 fi
 
 # --- Rust ---
 if [ ! -d "$HOME/.cargo" ]; then
-  echo "[*] Installing Rust..."
+  log_info "Installing Rust..."
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   if [ -f "$HOME/.cargo/env" ]; then
     \. "$HOME/.cargo/env"
-    echo "[*] Rust installed successfully."
+    log_success "Rust installed successfully"
   else
-    echo "[!] Warning: Rust installation may have failed or been cancelled. Skipping Rust environment setup."
+    log_warning "Rust installation may have failed or been cancelled. Skipping Rust environment setup."
   fi
 else
-  echo "[*] Rust already installed."
+  log_info "Rust already installed."
 fi
 
 # --- Homebrew ---
 if ! command -v brew &>/dev/null; then
-  echo "[*] Installing Homebrew..."
+  log_info "Installing Homebrew..."
+  log_note "Homebrew will be configured for current session and persist after shell restart"
 
   # Install Homebrew prerequisites (if not already installed)
   sudo apt install -y build-essential procps file || {
-    echo "[!] Warning: Some Homebrew prerequisites may have failed to install."
+    log_warning "Some Homebrew prerequisites may have failed to install."
   }
 
-  # Run Homebrew installation script
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || {
-    echo "[!] Warning: Homebrew installation failed. Skipping PHP setup."
+  # Run Homebrew installation script (suppress expected PATH warning)
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1 | \
+    grep -v "Warning.*not in your PATH" || {
+    log_warning "Homebrew installation failed. Skipping PHP setup."
   }
 
   # Add Homebrew to PATH
@@ -302,50 +457,70 @@ if ! command -v brew &>/dev/null; then
     eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.profile"
     echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.bashrc"
+    log_success "Homebrew installed at /home/linuxbrew/.linuxbrew"
   elif [[ -d "$HOME/.linuxbrew" ]]; then
     eval "$($HOME/.linuxbrew/bin/brew shellenv)"
     echo 'eval "$($HOME/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.profile"
     echo 'eval "$($HOME/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.bashrc"
+    log_success "Homebrew installed at $HOME/.linuxbrew"
   else
-    echo "[!] Warning: Homebrew installation directory not found."
+    log_warning "Homebrew installation directory not found."
   fi
 else
-  echo "[*] Homebrew already installed."
+  log_info "Homebrew already installed."
   eval "$(brew shellenv 2>/dev/null)" || true
+fi
+
+# Verify Homebrew is accessible
+if command -v brew &>/dev/null; then
+  log_success "Homebrew ready for current session"
+else
+  log_warning "Homebrew not accessible in current session - PHP installation may fail"
 fi
 
 # --- PHP (via Homebrew + shivammathur/php tap) ---
 if command -v brew &>/dev/null; then
   # Check if PHP is already installed via Homebrew
   if ! brew list | grep -q "shivammathur/php/php@"; then
-    echo "[*] Installing PHP via Homebrew..."
+    log_info "Installing PHP via Homebrew..."
 
     # Add shivammathur/php tap
     brew tap shivammathur/php || {
-      echo "[!] Warning: Failed to add shivammathur/php tap. Skipping PHP installation."
+      log_warning "Failed to add shivammathur/php tap. Skipping PHP installation."
     }
 
     # Install PHP 8.3
     if brew tap | grep -q "shivammathur/php"; then
-      echo "[*] Installing PHP 8.3..."
+      log_info "Installing PHP 8.3 (this may take several minutes)..."
       brew install shivammathur/php/php@8.3 || {
-        echo "[!] Warning: PHP 8.3 installation failed."
+        log_warning "PHP 8.3 installation failed."
       }
 
       # Link PHP 8.3 as the active version
       if brew list | grep -q "shivammathur/php/php@8.3"; then
-        brew link --overwrite --force shivammathur/php/php@8.3 || {
-          echo "[!] Warning: Failed to link PHP 8.3."
-        }
+        log_info "Linking PHP 8.3 as the active version..."
+        brew link --overwrite --force shivammathur/php/php@8.3 2>&1 | grep -v "Warning" || true
 
-        # Verify PHP installation
+        # Explicitly add PHP to PATH for current session
+        # This is necessary because PHP is keg-only and may not be symlinked by default
+        export PATH="/home/linuxbrew/.linuxbrew/opt/php@8.3/bin:$PATH"
+        export PATH="/home/linuxbrew/.linuxbrew/opt/php@8.3/sbin:$PATH"
+
+        log_success "PHP paths added to current session"
+
+        # Verify PHP installation in current session
         if command -v php &>/dev/null; then
-          echo "[*] PHP installed successfully: $(php --version | head -n 1)"
+          log_success "PHP installed: $(php --version | head -n 1)"
+        else
+          log_warning "PHP installed but not immediately available in PATH"
+          log_note "PHP binary location: /home/linuxbrew/.linuxbrew/opt/php@8.3/bin/php"
+          log_note "PHP will be available in new shell sessions via .bashrc configuration"
         fi
       fi
     fi
 
     # Create a helper function for switching PHP versions
+    log_info "Adding switch-php helper function to bashrc..."
     cat >> "$HOME/.bashrc" << 'PHP_SWITCH_EOF'
 
 # PHP version switcher function
@@ -368,10 +543,10 @@ switch-php() {
 PHP_SWITCH_EOF
 
   else
-    echo "[*] PHP already installed via Homebrew."
+    log_info "PHP already installed via Homebrew."
   fi
 else
-  echo "[!] Homebrew not available. Skipping PHP installation."
+  log_warning "Homebrew not available. Skipping PHP installation."
 fi
 
 export NVM_DIR="$HOME/.nvm"
@@ -382,58 +557,85 @@ export NVM_DIR="$HOME/.nvm"
 
 # Ensure Node 20 is installed and active
 if ! nvm ls 20 | grep -q 'v20'; then
-  echo "[*] Installing Node.js 20..."
+  log_info "Installing Node.js 20..."
   nvm install 20
+  log_success "Node.js 20 installed"
+else
+  log_info "Node.js 20 already installed"
 fi
 nvm use 20
 
 # Update npm to latest version
-echo "[*] Updating npm to latest version..."
-npm install -g npm@latest
+log_info "Updating npm to latest version..."
+npm install -g npm@latest --no-fund --silent
+log_success "npm updated to latest version"
 
 # --- Install Playwright OS dependencies first (as root via absolute npx path) ---
-echo "[*] Installing Playwright OS dependencies with npx (requires sudo)..."
+log_info "Installing Playwright OS dependencies (requires sudo, may take a few minutes)..."
 NPX_PATH="$(command -v npx || true)"
 if [ -z "$NPX_PATH" ]; then
-  echo "[!] npx not found after Node setup; aborting Playwright deps install."
+  log_error "npx not found after Node setup; aborting Playwright deps install."
 else
   # Ensure root sees the same Node as hive by exporting PATH with node's bin dir
   NODE_BIN_DIR="$(dirname "$(command -v node)")"
-  sudo env "PATH=$NODE_BIN_DIR:$PATH" "$NPX_PATH" playwright@latest install-deps || {
-    echo "[!] Warning: 'npx playwright install-deps' failed. You may need to install deps manually."
+  log_note "Using npx to install Playwright system dependencies..."
+
+  # Suppress expected npm exec warning and funding notices
+  sudo env "PATH=$NODE_BIN_DIR:$PATH" "$NPX_PATH" playwright@latest install-deps 2>&1 | \
+    grep -v "npm warn exec" | \
+    grep -v "packages are looking for funding" || {
+    log_warning "'npx playwright install-deps' failed. You may need to install deps manually."
   }
+
+  log_success "Playwright OS dependencies installed"
 fi
 
 # --- Global bun packages ---
-echo "[*] Installing global bun packages..."
+log_info "Installing global bun packages (this may take a few minutes)..."
 bun install -g @deep-assistant/hive-mind @deep-assistant/claude-profiles @anthropic-ai/claude-code @openai/codex @qwen-code/qwen-code @google/gemini-cli @github/copilot opencode-ai
 
-# --- Install Playwright MCP ---
-echo "[*] Installing Playwright MCP server..."
-if npm list -g @playwright/mcp &>/dev/null; then
-  echo "[*] Playwright MCP already installed, updating..."
-  npm update -g @playwright/mcp
+# Check for blocked postinstall scripts
+log_info "Checking for blocked postinstall scripts..."
+BLOCKED_OUTPUT=$(bun pm -g untrusted 2>/dev/null || echo "")
+if [ -n "$BLOCKED_OUTPUT" ]; then
+  log_note "Some packages have blocked postinstall scripts (security feature):"
+  echo "$BLOCKED_OUTPUT"
+  log_note "If any functionality is missing, run: bun pm -g trust"
 else
-  echo "[*] Installing Playwright MCP package..."
-  npm install -g @playwright/mcp
+  log_success "All global packages installed without blocked scripts"
 fi
+
+# --- Install Playwright MCP ---
+log_info "Installing Playwright MCP server..."
+if npm list -g @playwright/mcp &>/dev/null; then
+  log_info "Playwright MCP already installed, updating..."
+  npm update -g @playwright/mcp --no-fund --silent
+else
+  log_info "Installing Playwright MCP package..."
+  npm install -g @playwright/mcp --no-fund --silent
+fi
+log_success "Playwright MCP installed"
 
 # --- Now install Playwright browsers (after deps to avoid warnings) ---
-echo "[*] Installing Playwright browsers..."
+log_info "Installing Playwright browsers (chromium, firefox, webkit)..."
+log_note "This may take several minutes depending on network speed..."
+
 # Ensure CLI exists so we don't get the npx "install without dependencies" banner
 if ! command -v playwright >/dev/null 2>&1; then
-  echo "[*] Installing Playwright CLI globally to avoid npx warning..."
-  npm install -g @playwright/test
+  log_info "Installing Playwright CLI globally..."
+  npm install -g @playwright/test --no-fund --silent
 fi
-playwright install chromium firefox webkit || {
-  echo "[!] Warning: Failed to install some Playwright browsers. This may affect browser automation."
+
+playwright install chromium firefox webkit 2>&1 | grep -E "(Downloading|downloaded|Installing)" || {
+  log_warning "Failed to install some Playwright browsers. This may affect browser automation."
 }
+log_success "Playwright browsers installed"
 
 # --- Configure Playwright MCP for Claude CLI ---
-echo "[*] Configuring Playwright MCP for Claude CLI..."
+log_info "Configuring Playwright MCP for Claude CLI..."
 # Wait for Claude CLI to be available
 if ! command -v claude &>/dev/null; then
-  echo "[!] Claude CLI not found. Waiting for installation to complete..."
+  log_note "Claude CLI not found. Waiting for installation to complete..."
   sleep 2
 fi
 
@@ -441,49 +643,103 @@ fi
 if command -v claude &>/dev/null; then
   # Check if playwright MCP is already configured
   if claude mcp list 2>/dev/null | grep -q "playwright"; then
-    echo "[*] Playwright MCP already configured in Claude CLI"
+    log_info "Playwright MCP already configured in Claude CLI"
   else
-    # Add the playwright MCP server to Claude CLI configuration
-    # Use npx to ensure we use the correct version
-    echo "[*] Adding Playwright MCP to Claude CLI configuration..."
-    claude mcp add playwright "npx" "@playwright/mcp@latest" 2>/dev/null || {
-      echo "[!] Warning: Could not add Playwright MCP to Claude CLI."
-      echo "    You may need to run manually: claude mcp add playwright npx @playwright/mcp@latest"
+    # Add the playwright MCP server to Claude CLI configuration with user scope
+    # Using -s user ensures it's available for all tasks in all folders
+    log_info "Adding Playwright MCP to Claude CLI configuration (user scope)..."
+    claude mcp add playwright -s user -- npx -y @playwright/mcp@latest 2>/dev/null || {
+      log_warning "Could not add Playwright MCP to Claude CLI."
+      log_note "You may need to run manually: claude mcp add playwright -s user -- npx -y @playwright/mcp@latest"
     }
   fi
 
   # Verify the configuration
   if claude mcp get playwright 2>/dev/null | grep -q "playwright"; then
-    echo "[*] ✅ Playwright MCP successfully configured"
+    log_success "Playwright MCP successfully configured"
   else
-    echo "[!] ⚠️  Playwright MCP configuration could not be verified"
+    log_warning "Playwright MCP configuration could not be verified"
   fi
 else
-  echo "[!] Claude CLI is not available. Skipping MCP configuration."
-  echo "    After Claude CLI is installed, run: claude mcp add playwright npx @playwright/mcp@latest"
+  log_warning "Claude CLI is not available. Skipping MCP configuration."
+  log_note "After Claude CLI is installed, run: claude mcp add playwright -s user -- npx -y @playwright/mcp@latest"
 fi
 
 # --- Git setup with GitHub identity ---
-echo "[*] Configuring Git with GitHub identity..."
+log_info "Configuring Git with GitHub identity..."
 git config --global user.name "$(gh api user --jq .login)"
 git config --global user.email "$(gh api user/emails --jq '.[] | select(.primary==true).email')"
 gh auth setup-git
+log_success "Git configured with GitHub identity"
 
 # --- Clone or update hive-mind repo (idempotent, no fatal logs) ---
 REPO_DIR="$HOME/hive-mind"
 if [ -d "$REPO_DIR/.git" ]; then
-  echo "[*] Updating existing hive-mind repository..."
-  git -C "$REPO_DIR" fetch --all --prune || echo "[!] Warning: fetch failed (continuing)."
-  git -C "$REPO_DIR" pull --ff-only || echo "[!] Warning: pull failed (continuing)."
+  log_info "Updating existing hive-mind repository..."
+  git -C "$REPO_DIR" fetch --all --prune || log_warning "fetch failed (continuing)."
+  git -C "$REPO_DIR" pull --ff-only || log_warning "pull failed (continuing)."
 elif [ -d "$REPO_DIR" ]; then
-  echo "[!] Directory '$REPO_DIR' exists but is not a git repo; skipping clone."
+  log_warning "Directory '$REPO_DIR' exists but is not a git repo; skipping clone."
 else
-  (cd "$HOME" && git clone https://github.com/deep-assistant/hive-mind) || echo "[!] Warning: clone failed (continuing)."
+  log_info "Cloning hive-mind repository..."
+  (cd "$HOME" && git clone https://github.com/deep-assistant/hive-mind) || log_warning "clone failed (continuing)."
+  log_success "hive-mind repository cloned"
 fi
+
+# --- Generate Installation Summary ---
+log_step "Installation Summary"
+
+echo ""
+echo "System & Development Tools:"
+if command -v gh &>/dev/null; then log_success "GitHub CLI: $(gh --version | head -n1)"; else log_warning "GitHub CLI: not found"; fi
+if command -v git &>/dev/null; then log_success "Git: $(git --version)"; else log_warning "Git: not found"; fi
+if command -v bun &>/dev/null; then log_success "Bun: $(bun --version)"; else log_warning "Bun: not found"; fi
+if command -v node &>/dev/null; then log_success "Node.js: $(node --version)"; else log_warning "Node.js: not found"; fi
+if command -v npm &>/dev/null; then log_success "NPM: $(npm --version)"; else log_warning "NPM: not found"; fi
+if command -v python &>/dev/null; then log_success "Python: $(python --version)"; else log_warning "Python: not found"; fi
+if command -v pyenv &>/dev/null; then log_success "Pyenv: $(pyenv --version)"; else log_warning "Pyenv: not found"; fi
+if command -v rustc &>/dev/null; then log_success "Rust: $(rustc --version)"; else log_warning "Rust: not found"; fi
+if command -v cargo &>/dev/null; then log_success "Cargo: $(cargo --version)"; else log_warning "Cargo: not found"; fi
+if command -v brew &>/dev/null; then log_success "Homebrew: $(brew --version | head -n1)"; else log_warning "Homebrew: not found"; fi
+if command -v php &>/dev/null; then
+  log_success "PHP: $(php --version | head -n1)"
+elif [ -x "/home/linuxbrew/.linuxbrew/opt/php@8.3/bin/php" ]; then
+  log_warning "PHP: installed but not in current PATH"
+  log_note "PHP version: $(/home/linuxbrew/.linuxbrew/opt/php@8.3/bin/php --version | head -n1)"
+  log_note "PHP will be available after shell restart or: source ~/.bashrc"
+else
+  log_warning "PHP: not found"
+fi
+if command -v playwright &>/dev/null; then log_success "Playwright: $(playwright --version)"; else log_warning "Playwright: not found"; fi
+
+echo ""
+echo "Swap Configuration:"
+if command -v swapon &>/dev/null; then
+  swapon --show 2>/dev/null || echo "No swap configured"
+fi
+
+echo ""
+echo "GitHub Authentication:"
+if gh auth status &>/dev/null; then
+  log_success "GitHub CLI authenticated"
+else
+  log_warning "GitHub CLI not authenticated - run 'gh auth login'"
+fi
+
+echo ""
+echo "Next Steps:"
+log_note "1. Restart your shell or run: source ~/.bashrc"
+log_note "2. Verify installations with: <tool> --version"
+log_note "3. Navigate to ~/hive-mind to start working"
+
+echo ""
 
 EOF_HIVE
 
 # --- Cleanup after everything (so install-deps/apt had full cache) ---
+log_step "Cleaning up"
 apt_cleanup
 
-echo "[*] Setup complete."
+log_step "Setup complete!"
+log_success "All components installed successfully"
+log_note "Please restart your shell or run: source ~/.bashrc"

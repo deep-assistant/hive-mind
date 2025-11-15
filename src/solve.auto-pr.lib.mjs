@@ -421,11 +421,14 @@ Issue: ${issueUrl}`;
           // Check if user already has a fork
           let userHasFork = false;
           let currentUser = null;
+          // Determine fork name based on --prefix-fork-name-with-owner-name option
+          const forkRepoName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
           try {
             const userResult = await $`gh api user --jq .login`;
             if (userResult.code === 0) {
               currentUser = userResult.stdout.toString().trim();
-              const forkCheckResult = await $`gh repo view ${currentUser}/${repo} --json parent 2>/dev/null`;
+              const userForkName = `${currentUser}/${forkRepoName}`;
+              const forkCheckResult = await $`gh repo view ${userForkName} --json parent 2>/dev/null`;
               if (forkCheckResult.code === 0) {
                 const forkData = JSON.parse(forkCheckResult.stdout.toString());
                 if (forkData.parent && forkData.parent.owner && forkData.parent.owner.login === owner) {
@@ -465,7 +468,7 @@ Issue: ${issueUrl}`;
           await log('');
           await log('  This will automatically:');
           if (userHasFork) {
-            await log(`    ✓ Use your existing fork (${currentUser}/${repo})`);
+            await log(`    ✓ Use your existing fork (${currentUser}/${forkRepoName})`);
             await log('    ✓ Sync your fork with the latest changes');
           } else {
             await log('    ✓ Fork the repository to your account');
@@ -493,7 +496,7 @@ Issue: ${issueUrl}`;
           await log('');
           await log('💡 Tip: The --fork option automates the entire fork workflow!');
           if (userHasFork) {
-            await log(`   Note: We detected you already have a fork at ${currentUser}/${repo}`);
+            await log(`   Note: We detected you already have a fork at ${currentUser}/${forkRepoName}`);
           }
           await log('');
           throw new Error('Permission denied - need fork or collaborator access');
@@ -580,22 +583,38 @@ Issue: ${issueUrl}`;
           await log('');
           await log('  🔧 How to fix:');
           await log('     1. Wait a minute and try creating the PR manually:');
-          await log(`        gh pr create --draft --repo ${owner}/${repo} --base ${targetBranchForCompare} --head ${branchName}`);
+          // For fork mode, use the correct head reference format
+          if (argv.fork && forkedRepo) {
+            const forkUser = forkedRepo.split('/')[0];
+            await log(`        gh pr create --draft --repo ${owner}/${repo} --base ${targetBranchForCompare} --head ${forkUser}:${branchName}`);
+          } else {
+            await log(`        gh pr create --draft --repo ${owner}/${repo} --base ${targetBranchForCompare} --head ${branchName}`);
+          }
           await log('     2. Check if the branch exists on GitHub:');
-          await log(`        https://github.com/${owner}/${repo}/tree/${branchName}`);
+          // Show the correct repository where the branch was pushed
+          const branchRepo = (argv.fork && forkedRepo) ? forkedRepo : `${owner}/${repo}`;
+          await log(`        https://github.com/${branchRepo}/tree/${branchName}`);
           await log('     3. Check the commit is on GitHub:');
-          await log(`        gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName}`);
+          // Use the correct head reference for the compare API check
+          if (argv.fork && forkedRepo) {
+            const forkUser = forkedRepo.split('/')[0];
+            await log(`        gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${forkUser}:${branchName}`);
+          } else {
+            await log(`        gh api repos/${owner}/${repo}/compare/${targetBranchForCompare}...${branchName}`);
+          }
           await log('');
           throw new Error('GitHub compare API not ready - cannot create PR safely');
         }
 
         // Verify the push actually worked by checking GitHub API
-        const branchCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches/${branchName} --jq .name 2>&1`;
+        // When using fork mode, check the fork repository; otherwise check the original repository
+        const repoToCheck = (argv.fork && forkedRepo) ? forkedRepo : `${owner}/${repo}`;
+        const branchCheckResult = await $({ silent: true })`gh api repos/${repoToCheck}/branches/${branchName} --jq .name 2>&1`;
         if (branchCheckResult.code === 0 && branchCheckResult.stdout.toString().trim() === branchName) {
           await log(`   Branch verified on GitHub: ${branchName}`);
 
           // Get the commit SHA from GitHub
-          const shaCheckResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches/${branchName} --jq .commit.sha 2>&1`;
+          const shaCheckResult = await $({ silent: true })`gh api repos/${repoToCheck}/branches/${branchName} --jq .commit.sha 2>&1`;
           if (shaCheckResult.code === 0) {
             const remoteSha = shaCheckResult.stdout.toString().trim();
             await log(`   Remote commit SHA: ${remoteSha.substring(0, 7)}...`);
@@ -608,7 +627,7 @@ Issue: ${issueUrl}`;
             await log(`   Branch check result: ${branchCheckResult.stdout || branchCheckResult.stderr || 'empty'}`);
 
             // Show all branches on GitHub
-            const allBranchesResult = await $({ silent: true })`gh api repos/${owner}/${repo}/branches --jq '.[].name' 2>&1`;
+            const allBranchesResult = await $({ silent: true })`gh api repos/${repoToCheck}/branches --jq '.[].name' 2>&1`;
             if (allBranchesResult.code === 0) {
               await log(`   All GitHub branches: ${allBranchesResult.stdout.toString().split('\n').slice(0, 5).join(', ')}...`);
             }

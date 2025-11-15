@@ -55,6 +55,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
+    .option('skip-claude-check', {
+      type: 'boolean',
+      description: 'Alias for --skip-tool-check (kept for backward compatibility with CI/tests)',
+      default: false
+    })
     .option('tool-check', {
       type: 'boolean',
       description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
@@ -112,11 +117,10 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Continue with existing PR when issue URL is provided (instead of creating new PR)',
       default: false
     })
-    .option('auto-continue-limit', {
+    .option('auto-continue-on-limit-reset', {
       type: 'boolean',
-      description: 'Automatically continue when Claude limit resets (waits until reset time)',
-      default: false,
-      alias: 'c'
+      description: 'Automatically continue when AI tool limit resets (calculates reset time and waits)',
+      default: false
     })
     .option('auto-resume-on-errors', {
       type: 'boolean',
@@ -200,6 +204,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'When continuing a fork PR as a maintainer, attempt to push directly to the contributor\'s fork if "Allow edits by maintainers" is enabled. Requires --auto-fork to be enabled.',
       default: false
     })
+    .option('prefix-fork-name-with-owner-name', {
+      type: 'boolean',
+      description: 'Prefix fork name with original owner name (e.g., "owner-repo" instead of "repo"). Useful when forking repositories with same name from different owners. Experimental feature.',
+      default: false
+    })
     .option('tool', {
       type: 'string',
       description: 'AI tool to use for solving issues',
@@ -275,6 +284,11 @@ export const parseArguments = async (yargs, hideBin) => {
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
   // so we need to handle this manually after parsing
   const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
+
+  // Normalize alias flags: --skip-claude-check behaves like --skip-tool-check
+  if (argv && argv.skipClaudeCheck) {
+    argv.skipToolCheck = true;
+  }
 
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode

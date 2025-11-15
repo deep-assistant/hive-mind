@@ -11,6 +11,7 @@ const path = (await use('path')).default;
 import { log, cleanErrorMessage } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
 import { timeouts, retryLimits } from './config.lib.mjs';
+import { detectUsageLimit, formatUsageLimitMessage } from './usage-limit.lib.mjs';
 /**
  * Format numbers with spaces as thousands separator (no commas)
  * Per issue #667: Use spaces for thousands, . for decimals
@@ -828,6 +829,7 @@ export const executeClaudeCommand = async (params) => {
     let commandFailed = false;
     let sessionId = null;
     let limitReached = false;
+    let limitResetTime = null;
     let messageCount = 0;
     let toolUseCount = 0;
     let lastMessage = '';
@@ -1054,6 +1056,7 @@ export const executeClaudeCommand = async (params) => {
           success: false,
           sessionId,
           limitReached: false,
+          limitResetTime: null,
           messageCount,
           toolUseCount
         };
@@ -1101,6 +1104,7 @@ export const executeClaudeCommand = async (params) => {
           success: false,
           sessionId,
           limitReached: false,
+          limitResetTime: null,
           messageCount,
           toolUseCount,
           is503Error: true
@@ -1108,15 +1112,22 @@ export const executeClaudeCommand = async (params) => {
       }
     }
     if (commandFailed) {
-      if (lastMessage.includes('rate_limit_exceeded') ||
-          lastMessage.includes('You have exceeded your rate limit') ||
-          lastMessage.includes('rate limit')) {
+      // Check for usage limit errors first (more specific)
+      const limitInfo = detectUsageLimit(lastMessage);
+      if (limitInfo.isUsageLimit) {
         limitReached = true;
-        await log('\n\n⏳ Rate limit reached. The session can be resumed later.', { level: 'warning' });
-        if (sessionId) {
-          await log(`📌 Session ID for resuming: ${sessionId}`);
-          await log('\nTo continue when the rate limit resets, run:');
-          await log(`   ${process.argv[0]} ${process.argv[1]} --auto-continue ${argv.url}`);
+        limitResetTime = limitInfo.resetTime;
+
+        // Format and display user-friendly message
+        const messageLines = formatUsageLimitMessage({
+          tool: 'Claude',
+          resetTime: limitInfo.resetTime,
+          sessionId,
+          resumeCommand: argv.url ? `${process.argv[0]} ${process.argv[1]} --auto-continue ${argv.url}` : null
+        });
+
+        for (const line of messageLines) {
+          await log(line, { level: 'warning' });
         }
       } else if (lastMessage.includes('context_length_exceeded')) {
         await log('\n\n❌ Context length exceeded. Try with a smaller issue or split the work.', { level: 'error' });
@@ -1168,6 +1179,7 @@ export const executeClaudeCommand = async (params) => {
         success: false,
         sessionId,
         limitReached,
+        limitResetTime,
         messageCount,
         toolUseCount
       };
@@ -1262,6 +1274,7 @@ export const executeClaudeCommand = async (params) => {
       success: true,
       sessionId,
       limitReached,
+      limitResetTime,
       messageCount,
       toolUseCount,
       anthropicTotalCostUSD // Pass Anthropic's official total cost
@@ -1308,6 +1321,7 @@ export const executeClaudeCommand = async (params) => {
       success: false,
       sessionId,
       limitReached,
+      limitResetTime: null,
       messageCount,
       toolUseCount
     };
