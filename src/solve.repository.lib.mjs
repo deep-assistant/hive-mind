@@ -508,20 +508,36 @@ Thank you!`;
     // try to use that fork directly (only works if it's accessible)
     await log(`\n${formatAligned('🍴', 'Fork mode:', 'DETECTED from PR')}`);
     await log(`${formatAligned('', 'Fork owner:', forkOwner)}`);
-    await log(`${formatAligned('✅', 'Using fork:', `${forkOwner}/${repo}`)}\n`);
 
-    // Verify the fork exists and is accessible
+    // Determine fork name - try prefixed name first if option is enabled, otherwise try standard name
+    const standardForkName = `${forkOwner}/${repo}`;
+    const prefixedForkName = `${forkOwner}/${owner}-${repo}`;
+    const expectedForkName = argv.prefixForkNameWithOwnerName ? prefixedForkName : standardForkName;
+    const alternateForkName = argv.prefixForkNameWithOwnerName ? standardForkName : prefixedForkName;
+
+    await log(`${formatAligned('✅', 'Using fork:', expectedForkName)}\n`);
+
+    // Verify the fork exists and is accessible - try expected name first, then alternate
     await log(`${formatAligned('🔍', 'Verifying fork:', 'Checking accessibility...')}`);
-    const forkCheckResult = await $`gh repo view ${forkOwner}/${repo} --json name 2>/dev/null`;
+    let forkCheckResult = await $`gh repo view ${expectedForkName} --json name 2>/dev/null`;
+    let actualForkName = expectedForkName;
+
+    if (forkCheckResult.code !== 0) {
+      // Try alternate name
+      forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
+      if (forkCheckResult.code === 0) {
+        actualForkName = alternateForkName;
+      }
+    }
 
     if (forkCheckResult.code === 0) {
-      await log(`${formatAligned('✅', 'Fork verified:', `${forkOwner}/${repo} is accessible`)}`);
-      repoToClone = `${forkOwner}/${repo}`;
-      forkedRepo = `${forkOwner}/${repo}`;
+      await log(`${formatAligned('✅', 'Fork verified:', `${actualForkName} is accessible`)}`);
+      repoToClone = actualForkName;
+      forkedRepo = actualForkName;
       upstreamRemote = `${owner}/${repo}`;
     } else {
       await log(`${formatAligned('❌', 'Error:', 'Fork not accessible')}`);
-      await log(`${formatAligned('', 'Fork:', `${forkOwner}/${repo}`)}`);
+      await log(`${formatAligned('', 'Fork:', expectedForkName)}`);
       await log(`${formatAligned('', 'Suggestion:', 'The PR may be from a fork you no longer have access to')}`);
       await log(`${formatAligned('', 'Hint:', 'Try running with --fork flag to use your own fork instead')}`);
       await safeExit(1, 'Repository setup failed');
@@ -800,7 +816,7 @@ export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, 
 };
 
 // Set up pr-fork remote for continuing someone else's fork PR with --fork flag
-export const setupPrForkRemote = async (tempDir, argv, prForkOwner, repo, isContinueMode) => {
+export const setupPrForkRemote = async (tempDir, argv, prForkOwner, repo, isContinueMode, owner = null) => {
   // Only set up pr-fork remote if:
   // 1. --fork flag is used (user wants to use their own fork)
   // 2. prForkOwner is provided (continuing an existing PR from a fork)
@@ -826,12 +842,20 @@ export const setupPrForkRemote = async (tempDir, argv, prForkOwner, repo, isCont
   }
 
   // This is someone else's fork - add it as pr-fork remote
+  // Determine the fork repository name (might be prefixed if --prefix-fork-name-with-owner-name was used)
+  // Try both standard and prefixed names
+  let prForkRepoName = repo;
+  if (owner && argv.prefixForkNameWithOwnerName) {
+    // When prefix option is enabled, try prefixed name first
+    prForkRepoName = `${owner}-${repo}`;
+  }
+
   await log(`${formatAligned('🔗', 'Setting up pr-fork:', 'Branch exists in another user\'s fork')}`);
   await log(`${formatAligned('', 'PR fork owner:', prForkOwner)}`);
   await log(`${formatAligned('', 'Current user:', currentUser)}`);
-  await log(`${formatAligned('', 'Action:', `Adding ${prForkOwner}/${repo} as pr-fork remote`)}`);
+  await log(`${formatAligned('', 'Action:', `Adding ${prForkOwner}/${prForkRepoName} as pr-fork remote`)}`);
 
-  const addRemoteResult = await $({ cwd: tempDir })`git remote add pr-fork https://github.com/${prForkOwner}/${repo}.git`;
+  const addRemoteResult = await $({ cwd: tempDir })`git remote add pr-fork https://github.com/${prForkOwner}/${prForkRepoName}.git`;
   if (addRemoteResult.code !== 0) {
     await log(`${formatAligned('❌', 'Error:', 'Failed to add pr-fork remote')}`);
     if (addRemoteResult.stderr) {

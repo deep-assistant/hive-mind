@@ -326,7 +326,9 @@ export const processAutoContinueForIssue = async (argv, isIssueUrl, urlNumber, o
       const userResult = await $`gh api user --jq .login`;
       if (userResult.code === 0) {
         const currentUser = userResult.stdout.toString().trim();
-        const forkRepo = `${currentUser}/${repo}`;
+        // Determine fork name based on --prefix-fork-name-with-owner-name option
+        const forkRepoName = argv.prefixForkNameWithOwnerName ? `${owner}-${repo}` : repo;
+        const forkRepo = `${currentUser}/${forkRepoName}`;
 
         // Check if fork exists
         const forkCheckResult = await $`gh repo view ${forkRepo} --json name 2>/dev/null`;
