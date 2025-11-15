@@ -280,11 +280,22 @@ export const setupRepository = async (argv, owner, repo, forkOwner = null, issue
     let forkCheckResult = await $`gh repo view ${expectedForkName} --json name 2>/dev/null`;
     if (forkCheckResult.code === 0) {
       existingForkName = expectedForkName;
-    } else {
-      // Try alternate name
+    } else if (!argv.prefixForkNameWithOwnerName) {
+      // Only check alternate name if NOT using --prefix-fork-name-with-owner-name
+      // When the option is enabled, we ONLY want to use/create the prefixed fork
+      // This prevents falling back to an existing standard fork which would cause
+      // Compare API 404 errors since branches are in different fork repositories
       forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
       if (forkCheckResult.code === 0) {
         existingForkName = alternateForkName;
+      }
+    } else {
+      // Check if alternate (standard) fork exists when prefix option is enabled
+      // If it does, warn user since we won't be using it
+      const standardForkCheck = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
+      if (standardForkCheck.code === 0) {
+        await log(`${formatAligned('ℹ️', 'Note:', `Standard fork ${alternateForkName} exists but won't be used`)}`);
+        await log(`   Creating prefixed fork ${expectedForkName} instead (--prefix-fork-name-with-owner-name enabled)`);
       }
     }
 
@@ -522,8 +533,9 @@ Thank you!`;
     let forkCheckResult = await $`gh repo view ${expectedForkName} --json name 2>/dev/null`;
     let actualForkName = expectedForkName;
 
-    if (forkCheckResult.code !== 0) {
-      // Try alternate name
+    if (forkCheckResult.code !== 0 && !argv.prefixForkNameWithOwnerName) {
+      // Only try alternate name if NOT using --prefix-fork-name-with-owner-name
+      // When the option is enabled, we should only use the prefixed fork name
       forkCheckResult = await $`gh repo view ${alternateForkName} --json name 2>/dev/null`;
       if (forkCheckResult.code === 0) {
         actualForkName = alternateForkName;
