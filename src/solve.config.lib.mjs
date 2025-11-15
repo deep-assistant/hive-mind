@@ -55,6 +55,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
+    .option('skip-claude-check', {
+      type: 'boolean',
+      description: 'Alias for --skip-tool-check (kept for backward compatibility with CI/tests)',
+      default: false
+    })
     .option('tool-check', {
       type: 'boolean',
       description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',
@@ -284,6 +289,11 @@ export const parseArguments = async (yargs, hideBin) => {
   // Yargs doesn't properly handle dynamic defaults based on other arguments,
   // so we need to handle this manually after parsing
   const modelExplicitlyProvided = rawArgs.includes('--model') || rawArgs.includes('-m');
+
+  // Normalize alias flags: --skip-claude-check behaves like --skip-tool-check
+  if (argv && argv.skipClaudeCheck) {
+    argv.skipToolCheck = true;
+  }
 
   if (argv.tool === 'opencode' && !modelExplicitlyProvided) {
     // User did not explicitly provide --model, so use the correct default for opencode

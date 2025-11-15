@@ -85,6 +85,11 @@ export const createYargsConfig = (yargsInstance) => {
       description: 'Skip tool connection check (useful in CI environments)',
       default: false
     })
+    .option('skip-claude-check', {
+      type: 'boolean',
+      description: 'Alias for --skip-tool-check (kept for CI/tests compatibility)',
+      default: false
+    })
     .option('tool-check', {
       type: 'boolean',
       description: 'Perform tool connection check (enabled by default, use --no-tool-check to skip)',

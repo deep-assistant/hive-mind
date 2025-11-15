@@ -331,7 +331,7 @@ if (autoContinueResult.isContinueMode) {
       await log('   Checking if PR is from a fork...', { verbose: true });
     }
     try {
-      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,mergeStateStatus,state`;
+      const prCheckResult = await $`gh pr view ${prNumber} --repo ${owner}/${repo} --json headRepositoryOwner,headRepository,mergeStateStatus,state`;
       if (prCheckResult.code === 0) {
         const prCheckData = JSON.parse(prCheckResult.stdout.toString());
         // Extract merge status and PR state
@@ -343,7 +343,9 @@ if (autoContinueResult.isContinueMode) {
         }
         if (prCheckData.headRepositoryOwner && prCheckData.headRepositoryOwner.login !== owner) {
           forkOwner = prCheckData.headRepositoryOwner.login;
-          await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+          // Get actual fork repository name (may be prefixed)
+          const forkRepoName = (prCheckData.headRepository && prCheckData.headRepository.name) ? prCheckData.headRepository.name : repo;
+          await log(`🍴 Detected fork PR from ${forkOwner}/${forkRepoName}`);
           if (argv.verbose) {
             await log(`   Fork owner: ${forkOwner}`, { verbose: true });
             await log('   Will clone fork repository for continue mode', { verbose: true });
@@ -399,7 +401,7 @@ if (isPrUrl) {
       prNumber,
       owner,
       repo,
-      jsonFields: 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner'
+      jsonFields: 'headRefName,body,number,mergeStateStatus,state,headRepositoryOwner,headRepository'
     });
     if (prResult.code !== 0 || !prResult.data) {
       await log('Error: Failed to get PR details', { level: 'error' });
@@ -417,7 +419,9 @@ if (isPrUrl) {
     // Check if this is a fork PR
     if (prData.headRepositoryOwner && prData.headRepositoryOwner.login !== owner) {
       forkOwner = prData.headRepositoryOwner.login;
-      await log(`🍴 Detected fork PR from ${forkOwner}/${repo}`);
+      // Get actual fork repository name (may be prefixed)
+      const forkRepoName = (prData.headRepository && prData.headRepository.name) ? prData.headRepository.name : repo;
+      await log(`🍴 Detected fork PR from ${forkOwner}/${forkRepoName}`);
       if (argv.verbose) {
         await log(`   Fork owner: ${forkOwner}`, { verbose: true });
         await log('   Will clone fork repository for continue mode', { verbose: true });
@@ -485,6 +489,7 @@ try {
     forkOwner,
     tempDir,
     isContinueMode,
+    issueUrl,
     log,
     formatAligned,
     $
@@ -800,9 +805,14 @@ try {
   limitReached = toolResult.limitReached;
   cleanupContext.limitReached = limitReached;
 
+  // Capture limit reset time globally for downstream handlers (auto-continue, cleanup decisions)
+  if (toolResult && toolResult.limitResetTime) {
+    global.limitResetTime = toolResult.limitResetTime;
+  }
+
   // Handle limit reached scenario
   if (limitReached) {
-    const shouldAutoContinueOnReset = argv.autoContinueOnLimitReset || argv.autoContinueLimit;
+    const shouldAutoContinueOnReset = argv.autoContinueOnLimitReset;
 
     // If limit was reached but auto-continue-on-limit-reset is NOT enabled, fail immediately
     if (!shouldAutoContinueOnReset) {
@@ -865,6 +875,8 @@ try {
     if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
       await log('\n📄 Attaching failure logs to Pull Request...');
       try {
+        // Build resume command if we have session info
+        const resumeCommand = sessionId ? `${process.argv[0]} ${process.argv[1]} ${issueUrl} --resume ${sessionId}` : null;
         const logUploadSuccess = await attachLogToGitHub({
           logFile: getLogFile(),
           targetType: 'pr',
@@ -874,7 +886,17 @@ try {
           $,
           log,
           sanitizeLogContent,
-          errorMessage: `${argv.tool.toUpperCase()} execution failed`
+          // For usage limit, use a dedicated comment format to make it clear and actionable
+          isUsageLimit: !!limitReached,
+          limitResetTime: limitReached ? toolResult.limitResetTime : null,
+          toolName: (argv.tool || 'AI tool').toString().toLowerCase() === 'claude' ? 'Claude' :
+                    (argv.tool || 'AI tool').toString().toLowerCase() === 'codex' ? 'Codex' :
+                    (argv.tool || 'AI tool').toString().toLowerCase() === 'opencode' ? 'OpenCode' : 'AI tool',
+          resumeCommand,
+          // Include sessionId so the PR comment can present it
+          sessionId,
+          // If not a usage limit case, fall back to generic failure format
+          errorMessage: limitReached ? undefined : `${argv.tool.toUpperCase()} execution failed`
         });
 
         if (logUploadSuccess) {
