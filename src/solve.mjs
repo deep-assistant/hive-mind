@@ -810,6 +810,66 @@ try {
     global.limitResetTime = toolResult.limitResetTime;
   }
 
+  // Handle limit reached scenario
+  if (limitReached) {
+    const shouldAutoContinueOnReset = argv.autoContinueOnLimitReset;
+
+    // If limit was reached but auto-continue-on-limit-reset is NOT enabled, fail immediately
+    if (!shouldAutoContinueOnReset) {
+      await log('\n❌ USAGE LIMIT REACHED!');
+      await log('   The AI tool has reached its usage limit.');
+
+      // Post failure comment to PR if we have one
+      if (prNumber) {
+        try {
+          const resetTime = global.limitResetTime;
+          const failureComment = resetTime
+            ? `❌ **Usage Limit Reached**\n\nThe AI tool has reached its usage limit. The limit will reset at: **${resetTime}**\n\nThis session has failed because \`--auto-continue-on-limit-reset\` was not enabled.\n\nTo automatically wait for the limit to reset and continue, use:\n\`\`\`bash\n./solve.mjs "${issueUrl}" --resume ${sessionId} --auto-continue-on-limit-reset\n\`\`\``
+            : `❌ **Usage Limit Reached**\n\nThe AI tool has reached its usage limit. Please wait for the limit to reset.\n\nThis session has failed because \`--auto-continue-on-limit-reset\` was not enabled.\n\nTo resume after the limit resets, use:\n\`\`\`bash\n./solve.mjs "${issueUrl}" --resume ${sessionId}\n\`\`\``;
+
+          const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${failureComment}`;
+          if (commentResult.code === 0) {
+            await log('   Posted failure comment to PR');
+          }
+        } catch (error) {
+          await log(`   Warning: Could not post failure comment: ${cleanErrorMessage(error)}`, { verbose: true });
+        }
+      }
+
+      await safeExit(1, 'Usage limit reached - use --auto-continue-on-limit-reset to wait for reset');
+    } else {
+      // auto-continue-on-limit-reset is enabled - post waiting comment
+      if (prNumber && global.limitResetTime) {
+        try {
+          // Calculate wait time in d:h:m:s format
+          const validation = await import('./solve.validation.lib.mjs');
+          const { calculateWaitTime } = validation;
+          const waitMs = calculateWaitTime(global.limitResetTime);
+
+          const formatWaitTime = (ms) => {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            const s = seconds % 60;
+            const m = minutes % 60;
+            const h = hours % 24;
+            return `${days}:${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          };
+
+          const waitingComment = `⏳ **Usage Limit Reached - Waiting to Continue**\n\nThe AI tool has reached its usage limit. Auto-continue is enabled with \`--auto-continue-on-limit-reset\`.\n\n**Reset time:** ${global.limitResetTime}\n**Wait time:** ${formatWaitTime(waitMs)} (days:hours:minutes:seconds)\n\nThe session will automatically resume when the limit resets.\n\nSession ID: \`${sessionId}\``;
+
+          const commentResult = await $`gh pr comment ${prNumber} --repo ${owner}/${repo} --body ${waitingComment}`;
+          if (commentResult.code === 0) {
+            await log('   Posted waiting comment to PR');
+          }
+        } catch (error) {
+          await log(`   Warning: Could not post waiting comment: ${cleanErrorMessage(error)}`, { verbose: true });
+        }
+      }
+    }
+  }
+
   if (!success) {
     // If --attach-logs is enabled and we have a PR, attach failure logs before exiting
     if (shouldAttachLogs && sessionId && global.createdPR && global.createdPR.number) {
