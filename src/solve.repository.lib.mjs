@@ -612,7 +612,7 @@ export const cloneRepository = async (repoToClone, tempDir, argv, owner, repo) =
 };
 
 // Set up upstream remote and sync fork
-export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo) => {
+export const setupUpstreamAndSync = async (tempDir, forkedRepo, upstreamRemote, owner, repo, argv) => {
   if (!forkedRepo || !upstreamRemote) return;
 
   await log(`${formatAligned('🔗', 'Setting upstream:', upstreamRemote)}`);
