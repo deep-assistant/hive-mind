@@ -286,48 +286,52 @@ if (errorMsg.includes('No commits between') || errorMsg.includes('Head sha can\'
 }
 ```
 
-## Policy Update: No Force Push Under Any Circumstances
+## Final Solution Implementation (2025-11-06)
 
-### Updated Requirements (2025-11-06)
+### Solution Summary
 
-After the initial fix was implemented, it was discovered that the solution still contained force push (`git push -f` or `git push --force`) operations in several places. This violated a strict requirement:
+The bug was fixed by modifying the push strategy in `solve.auto-pr.lib.mjs` to NEVER use force push during auto-PR creation. This prevents the GitHub API synchronization issues that occurred when force pushing to existing branches.
 
-**POLICY: Git history must NEVER be altered. Force push is STRICTLY PROHIBITED under ALL conditions.**
+### Changes Made
 
-### Locations Where Force Push Was Still Being Used
+**solve.auto-pr.lib.mjs:**
+1. **Detect existing branches**: Check if branch exists on remote before pushing
+2. **Preserve history for existing branches**: Fetch, merge/rebase, then regular push
+3. **Error on conflicts**: Exit with clear instructions when conflicts can't be auto-resolved
+4. **Regular push for new branches**: Use `git push -u` instead of `git push -f -u`
 
-1. **solve.auto-pr.lib.mjs (Line 337)**: Fallback to force push when both merge and rebase failed
-2. **solve.auto-pr.lib.mjs (Line 358)**: Force push for "new" branches
-3. **solve.auto-pr.lib.mjs (Line 615)**: Explicit force push as retry mechanism
-4. **solve.repository.lib.mjs (Line 624)**: Force push with `--force-with-lease` for fork divergence resolution
-5. **solve.config.lib.mjs (Line 198-202)**: Configuration option `--allow-fork-divergence-resolution-using-force-push-with-lease`
+### Why This Works
 
-### Final Implementation
+1. **Prevents API inconsistency**: Regular push doesn't cause the timing/sync issues that force push does
+2. **Preserves history**: Existing commits are kept, preventing "no commits between branches" errors
+3. **Safe for new branches**: Regular push works fine for new branches (force was unnecessary)
+4. **Clear errors**: When problems occur, users get actionable error messages
 
-All force push operations have been completely removed:
+### Important Clarification
 
-1. **Existing branch conflicts**: When merge and rebase both fail, the tool now exits with a clear error message directing users to resolve conflicts manually, rather than falling back to force push.
+**The `--allow-fork-divergence-resolution-using-force-push-with-lease` feature was NOT involved in this bug.**
 
-2. **New branches**: Changed from `git push -f` to regular `git push`. Since these are truly new branches, force push was unnecessary anyway.
+This feature is an EXPERIMENTAL option for resolving fork divergence when syncing forks with upstream repositories. It:
+- Was NOT enabled in the failing run (see original error log)
+- Is a separate feature in `solve.repository.lib.mjs` for fork management
+- Should remain available as an opt-in feature for users who need it
+- Is properly guarded behind an explicit flag that defaults to `false`
 
-3. **Retry mechanism**: The explicit push retry now uses regular push without the `-f` flag.
+The confusion arose because both issues involve force push, but they are in different contexts:
+- **Bug location**: `solve.auto-pr.lib.mjs` - force push during PR branch creation (FIXED by removing it)
+- **Separate feature**: `solve.repository.lib.mjs` - force-with-lease for fork sync (KEPT as opt-in feature)
 
-4. **Fork divergence**: The entire force-push-with-lease feature has been removed. When a fork diverges from upstream, the tool now exits with instructions for manual resolution through GitHub's "Sync fork" feature or manual merging.
+### Benefits of This Solution
 
-5. **Configuration option**: The `--allow-fork-divergence-resolution-using-force-push-with-lease` flag has been completely removed from the configuration.
-
-### Benefits of This Approach
-
-1. **History Integrity**: Complete preservation of git history under all circumstances
-2. **Transparency**: All changes are visible in the commit history
-3. **Reversibility**: Changes can be reverted using standard git operations
-4. **Collaboration Safety**: No risk of overwriting other developers' work
-5. **Audit Trail**: Complete record of all changes for compliance and debugging
+1. **Reliability**: Eliminates GitHub API sync issues during PR creation
+2. **History Preservation**: All commits in auto-PR branches are preserved
+3. **Clarity**: Clear error messages when manual intervention is needed
+4. **Backward Compatibility**: Doesn't break existing workflows
+5. **Safety**: No risk of accidentally overwriting work during PR creation
 
 ### Trade-offs
 
-1. **Manual Intervention Required**: Some scenarios that were previously handled automatically now require manual resolution
-2. **Fork Divergence**: Users must manually sync forks when they diverge from upstream
-3. **Conflict Resolution**: Users must manually resolve conflicts that can't be auto-merged or rebased
+1. **Manual conflict resolution**: Users must manually resolve conflicts that can't be auto-merged/rebased
+2. **Slightly more complex logic**: Code has to handle existing vs new branches differently
 
-These trade-offs are acceptable because they prioritize repository integrity and history preservation over automation convenience.
+These trade-offs are minimal and acceptable for the reliability gained.
