@@ -70,7 +70,7 @@ export const validateOpenCodeConnection = async (model = 'grok-code-fast-1') => 
 
       // Test basic OpenCode functionality with a simple "hi" message
       // Check for non-error result to validate the connection
-      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --model ${mappedModel}`;
+      const testResult = await $`printf "hi" | timeout ${Math.floor(timeouts.opencodeCli / 1000)} opencode run --format json --model ${mappedModel}`;
 
       if (testResult.code !== 0) {
         const stderr = testResult.stderr?.toString() || '';
