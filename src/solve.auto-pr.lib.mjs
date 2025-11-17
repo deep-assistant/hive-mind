@@ -309,18 +309,13 @@ Issue: ${issueUrl}`;
       // Push the branch
       await log(formatAligned('📤', 'Pushing branch:', 'To remote repository...'));
 
+      // Always use regular push - never force push, rebase, or reset
+      // History must be preserved at all times
       if (argv.verbose) {
-        await log(`   Command: git push -u origin ${branchName}`, { verbose: true });
+        await log(`   Push command: git push -u origin ${branchName}`);
       }
 
-      // Push the branch with the CLAUDE.md commit
-      if (argv.verbose) {
-        await log(`   Push command: git push -f -u origin ${branchName}`);
-      }
-
-      // Always use force push to ensure our commit gets to GitHub
-      // (The branch is new with random name, so force is safe)
-      const pushResult = await $({ cwd: tempDir })`git push -f -u origin ${branchName} 2>&1`;
+      const pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
 
       if (argv.verbose) {
         await log(`   Push exit code: ${pushResult.code}`);
@@ -460,6 +455,35 @@ Issue: ${issueUrl}`;
           }
           await log('');
           throw new Error('Permission denied - need fork or collaborator access');
+        } else if (errorOutput.includes('non-fast-forward') || errorOutput.includes('rejected') || errorOutput.includes('! [rejected]')) {
+          // Push rejected due to conflicts or diverged history
+          await log('');
+          await log(formatAligned('❌', 'PUSH REJECTED:', 'Branch has diverged from remote'), { level: 'error' });
+          await log('');
+          await log('  🔍 What happened:');
+          await log('     The remote branch has changes that conflict with your local changes.');
+          await log('     This typically means someone else has pushed to this branch.');
+          await log('');
+          await log('  💡 Why we cannot fix this automatically:');
+          await log('     • We never use force push to preserve history');
+          await log('     • We never use rebase or reset to avoid altering git history');
+          await log('     • Manual conflict resolution is required');
+          await log('');
+          await log('  🔧 How to fix:');
+          await log('     1. Clone the repository and checkout the branch:');
+          await log(`        git clone https://github.com/${owner}/${repo}.git`);
+          await log(`        cd ${repo}`);
+          await log(`        git checkout ${branchName}`);
+          await log('');
+          await log('     2. Pull and merge the remote changes:');
+          await log(`        git pull origin ${branchName}`);
+          await log('');
+          await log('     3. Resolve any conflicts manually, then:');
+          await log(`        git push origin ${branchName}`);
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          throw new Error('Push rejected - branch has diverged, manual resolution required');
         } else {
           // Other push errors
           await log(`${formatAligned('❌', 'Failed to push:', 'See error below')}`, { level: 'error' });
@@ -593,9 +617,9 @@ Issue: ${issueUrl}`;
             }
           }
 
-          // Try one more force push with explicit ref
+          // Try one more push with explicit ref (without force)
           await log('   Attempting explicit push...');
-          const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName} -f`;
+          const explicitPushCmd = `git push origin HEAD:refs/heads/${branchName}`;
           if (argv.verbose) {
             await log(`   Command: ${explicitPushCmd}`);
           }
@@ -610,6 +634,7 @@ Issue: ${issueUrl}`;
           } else {
             await log('   ERROR: Cannot push to GitHub!');
             await log(`   Error: ${explicitPushResult.stderr || explicitPushResult.stdout || 'Unknown'}`);
+            await log('   Force push is not allowed to preserve history');
           }
         }
 
@@ -695,24 +720,53 @@ Issue: ${issueUrl}`;
           }
 
           if (commitCount === 0) {
+            // Check if the branch was already merged
+            const mergedCheckResult = await $({ cwd: tempDir, silent: true })`git branch -r --merged origin/${targetBranch} | grep -q "origin/${branchName}" 2>&1`;
+            const wasAlreadyMerged = mergedCheckResult.code === 0;
+
             // No commits to create PR - branch is up to date with base or behind it
             await log('');
             await log(formatAligned('❌', 'NO COMMITS TO CREATE PR', ''), { level: 'error' });
             await log('');
             await log('  🔍 What happened:');
             await log(`     The branch ${branchName} has no new commits compared to ${targetBranch}.`);
-            await log(`     This means all commits in this branch are already in ${targetBranch}.`);
+
+            if (wasAlreadyMerged) {
+              await log(`     ✅ This branch was already merged into ${targetBranch}.`);
+              await log('');
+              await log('  📋 Branch Status: ALREADY MERGED');
+              await log('');
+              await log('  💡 This means:');
+              await log('     • The work on this branch has been completed and integrated');
+              await log('     • A new branch should be created for any additional work');
+              await log('     • The issue may already be resolved');
+            } else {
+              await log(`     This means all commits in this branch are already in ${targetBranch}.`);
+            }
+
             await log('');
             await log('  💡 Possible causes:');
-            await log('     • The branch was already merged');
+            if (wasAlreadyMerged) {
+              await log('     • ✅ The branch was already merged (confirmed)');
+            } else {
+              await log('     • The branch was already merged');
+            }
             await log('     • The branch is outdated and needs to be rebased');
             await log(`     • Local ${targetBranch} is outdated (though we just fetched it)`);
             await log('');
             await log('  🔧 How to fix:');
             await log('');
-            await log('     Option 1: Check if branch was already merged');
-            await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
-            await log('        If merged, you may want to close the related issue or create a new branch');
+
+            if (wasAlreadyMerged) {
+              await log('     Option 1: Check the merged PR and close the issue');
+              await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
+              await log('        If the issue is resolved, close it. Otherwise, create a new branch.');
+            } else {
+              await log('     Option 1: Check if branch was already merged');
+              await log(`        gh pr list --repo ${owner}/${repo} --head ${branchName} --state merged`);
+              await log('        If merged, you may want to close the related issue or create a new branch');
+            }
+
             await log('');
             await log('     Option 2: Verify branch state');
             await log(`        cd ${tempDir}`);
@@ -722,7 +776,12 @@ Issue: ${issueUrl}`;
             await log('     Option 3: Create new commits on this branch');
             await log('        The branch exists but has no new work to contribute');
             await log('');
-            throw new Error('No commits between base and head - cannot create PR');
+
+            if (wasAlreadyMerged) {
+              throw new Error('Branch was already merged into base - cannot create PR');
+            } else {
+              throw new Error('No commits between base and head - cannot create PR');
+            }
           } else {
             await log(formatAligned('✅', 'Commits found:', `${commitCount} commit(s) ahead`));
           }
