@@ -249,10 +249,11 @@ The PR creation failure is caused by inappropriate use of force push on existing
 
 ## References
 
-1. Error log: https://gist.github.com/konard/ee5a7e3ef82817bb3af9d85667395d0f
-2. Issue #683: https://github.com/deep-assistant/hive-mind/issues/683
-3. Failed PR creation for: https://github.com/40Think/AgogeDigitalTwin/issues/1
-4. Source file: `/src/solve.auto-pr.lib.mjs` (line 323 - force push)
+1. Original error log (archived): `data/case-studies/issue-683-original-error-log.txt`
+2. Error log (online): https://gist.github.com/konard/ee5a7e3ef82817bb3af9d85667395d0f
+3. Issue #683: https://github.com/deep-assistant/hive-mind/issues/683
+4. Failed PR creation for: https://github.com/40Think/AgogeDigitalTwin/issues/1
+5. Source file: `/src/solve.auto-pr.lib.mjs` (line 323 - force push)
 
 ## Appendix: Key Code Sections
 
