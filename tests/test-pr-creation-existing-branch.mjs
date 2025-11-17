@@ -167,9 +167,9 @@ function testAlreadyMergedBranch() {
   }
 }
 
-// Test 4: Force push vs regular push logic
+// Test 4: Verify no force push, rebase, or reset is used
 function testPushStrategy() {
-  console.log('\n🧪 Test 4: Push strategy (force vs regular)');
+  console.log('\n🧪 Test 4: Verify no force push, rebase, or reset is used');
 
   const testDir = createTestRepo();
   const branchName = `issue-${TEST_ISSUE}-test-${Date.now()}`;
@@ -215,16 +215,20 @@ function testPushStrategy() {
     assert(ahead === '1', 'Should be 1 commit ahead');
     assert(behind === '1', 'Should be 1 commit behind');
 
-    // Test merge strategy (should be used instead of force push for existing branches)
-    const mergeResult = exec(`git merge origin/${branchName} --no-edit`, { cwd: testDir });
-    if (!mergeResult.error) {
-      console.log('   ✅ Merge strategy successful for diverged branches');
+    // Test that regular push fails (as expected) - we should NOT use force/rebase/reset
+    const pushResult = exec(`git push origin ${branchName}`, { cwd: testDir });
+    if (pushResult.error) {
+      console.log('   ✅ Regular push correctly rejects diverged branches');
+      console.log('   ✅ No force push, rebase, or reset used - history is preserved');
+    } else {
+      throw new Error('Push should have failed due to divergence, but it succeeded');
     }
 
-    // Verify both commits exist after merge
+    // Verify history is NOT altered - both commits should still exist locally
     const gitLog = exec('git log --oneline', { cwd: testDir });
-    assert(gitLog.includes('Remote commit'), 'Remote commit should be preserved');
-    assert(gitLog.includes('Local commit'), 'Local commit should be preserved');
+    assert(gitLog.includes('Local commit'), 'Local commit should still exist');
+    // Remote commit should NOT be in local history (no merge/rebase happened)
+    assert(!gitLog.includes('Remote commit'), 'Remote commit should NOT be in local history');
 
     console.log('   ✅ Test 4 passed');
 
@@ -241,7 +245,7 @@ function testPushStrategy() {
 
 // Test 5: Branch with no actual changes
 function testNoChanges() {
-  console.log('\n🧪 Test 5: Branch with no actual changes');
+  console.log('\n🧪 Test 5: Branch with no net changes (commits cancel out)');
 
   const testDir = createTestRepo();
   const branchName = `issue-${TEST_ISSUE}-test-${Date.now()}`;
@@ -250,21 +254,23 @@ function testNoChanges() {
     // Create branch
     exec(`git checkout -b ${branchName}`, { cwd: testDir });
 
-    // Add and remove a file (no net change)
+    // Add and remove a file (no net change in content, but commits exist)
     writeFileSync(join(testDir, 'temp.txt'), 'Temporary\n');
     exec('git add .', { cwd: testDir });
     exec('git commit -m "Add temp file"', { cwd: testDir });
     exec('git rm temp.txt', { cwd: testDir });
     exec('git commit -m "Remove temp file"', { cwd: testDir });
 
-    // Reset to match master (simulating already integrated changes)
-    exec('git reset --hard master', { cwd: testDir });
-
-    // Check that there are no commits ahead
+    // Branch has commits even though net change is zero
     const commitCount = exec('git rev-list --count master..HEAD', { cwd: testDir }).trim();
-    assert(commitCount === '0', `Should have 0 commits ahead, got ${commitCount}`);
+    assert(commitCount === '2', `Should have 2 commits ahead (even with no net change), got ${commitCount}`);
 
-    console.log('   ✅ Correctly identifies branch with no changes');
+    // Verify commits exist
+    const gitLog = exec('git log --oneline', { cwd: testDir });
+    assert(gitLog.includes('Add temp file'), 'First commit should exist');
+    assert(gitLog.includes('Remove temp file'), 'Second commit should exist');
+
+    console.log('   ✅ Branch has commits preserved (no history alteration)');
     console.log('   ✅ Test 5 passed');
   } catch (error) {
     console.error('   ❌ Test 5 failed:', error.message);

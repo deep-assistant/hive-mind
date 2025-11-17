@@ -309,58 +309,13 @@ Issue: ${issueUrl}`;
       // Push the branch
       await log(formatAligned('📤', 'Pushing branch:', 'To remote repository...'));
 
-      // Check if the branch already exists on remote
-      const remoteBranchCheck = await $({ cwd: tempDir, silent: true })`git ls-remote --heads origin ${branchName} 2>&1`;
-      const branchExistsOnRemote = remoteBranchCheck.code === 0 && remoteBranchCheck.stdout.toString().trim() !== '';
-
-      let pushResult;
-
-      if (branchExistsOnRemote && isContinueMode) {
-        // Branch exists on remote and we're in continue mode - don't force push
-        await log('   Existing branch detected on remote, using regular push to preserve history...', { verbose: true });
-
-        // First, fetch the latest state of the remote branch
-        const fetchResult = await $({ cwd: tempDir })`git fetch origin ${branchName}:refs/remotes/origin/${branchName} 2>&1`;
-        if (fetchResult.code !== 0) {
-          await log(`   Warning: Could not fetch remote branch: ${fetchResult.stderr || fetchResult.stdout}`, { level: 'warning' });
-        }
-
-        // Try to merge or rebase the remote branch
-        const mergeResult = await $({ cwd: tempDir })`git merge origin/${branchName} --no-edit 2>&1`;
-        if (mergeResult.code !== 0) {
-          // Merge failed, try rebase
-          await log('   Merge failed, attempting rebase...', { verbose: true });
-          const rebaseResult = await $({ cwd: tempDir })`git rebase origin/${branchName} 2>&1`;
-          if (rebaseResult.code !== 0) {
-            await log('   ERROR: Both merge and rebase failed', { level: 'error' });
-            await log('   Cannot proceed without force push, which is not allowed', { level: 'error' });
-            await log('   This likely means there are conflicting changes in the branch', { level: 'error' });
-            await log('   Please resolve conflicts manually:', { level: 'error' });
-            await log(`     1. Clone the repository and checkout branch ${branchName}`, { level: 'error' });
-            await log('     2. Manually merge or rebase the changes', { level: 'error' });
-            await log('     3. Push the resolved changes', { level: 'error' });
-            throw new Error('Cannot push to remote - merge/rebase failed and force push is not allowed');
-          } else {
-            // Rebase succeeded, regular push
-            pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
-          }
-        } else {
-          // Merge succeeded, regular push
-          pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
-        }
-
-        if (argv.verbose) {
-          await log(`   Push command: git push -u origin ${branchName} (preserving existing commits)`);
-        }
-      } else {
-        // New branch or not in continue mode - use regular push
-        if (argv.verbose) {
-          await log(`   Push command: git push -u origin ${branchName}`);
-        }
-
-        // Use regular push - never force push to preserve history
-        pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
+      // Always use regular push - never force push, rebase, or reset
+      // History must be preserved at all times
+      if (argv.verbose) {
+        await log(`   Push command: git push -u origin ${branchName}`);
       }
+
+      const pushResult = await $({ cwd: tempDir })`git push -u origin ${branchName} 2>&1`;
 
       if (argv.verbose) {
         await log(`   Push exit code: ${pushResult.code}`);
@@ -500,6 +455,35 @@ Issue: ${issueUrl}`;
           }
           await log('');
           throw new Error('Permission denied - need fork or collaborator access');
+        } else if (errorOutput.includes('non-fast-forward') || errorOutput.includes('rejected') || errorOutput.includes('! [rejected]')) {
+          // Push rejected due to conflicts or diverged history
+          await log('');
+          await log(formatAligned('❌', 'PUSH REJECTED:', 'Branch has diverged from remote'), { level: 'error' });
+          await log('');
+          await log('  🔍 What happened:');
+          await log('     The remote branch has changes that conflict with your local changes.');
+          await log('     This typically means someone else has pushed to this branch.');
+          await log('');
+          await log('  💡 Why we cannot fix this automatically:');
+          await log('     • We never use force push to preserve history');
+          await log('     • We never use rebase or reset to avoid altering git history');
+          await log('     • Manual conflict resolution is required');
+          await log('');
+          await log('  🔧 How to fix:');
+          await log('     1. Clone the repository and checkout the branch:');
+          await log(`        git clone https://github.com/${owner}/${repo}.git`);
+          await log(`        cd ${repo}`);
+          await log(`        git checkout ${branchName}`);
+          await log('');
+          await log('     2. Pull and merge the remote changes:');
+          await log(`        git pull origin ${branchName}`);
+          await log('');
+          await log('     3. Resolve any conflicts manually, then:');
+          await log(`        git push origin ${branchName}`);
+          await log('');
+          await log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          await log('');
+          throw new Error('Push rejected - branch has diverged, manual resolution required');
         } else {
           // Other push errors
           await log(`${formatAligned('❌', 'Failed to push:', 'See error below')}`, { level: 'error' });
