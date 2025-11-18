@@ -68,7 +68,7 @@ export const createYargsConfig = (yargsInstance) => {
     })
     .option('model', {
       type: 'string',
-      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3)',
+      description: 'Model to use (for claude: opus, sonnet, haiku; for opencode: grok, gpt4o; for codex: gpt5, gpt5-codex, o3; for openai: gpt-4o, gpt-4o-mini, etc.)',
       alias: 'm',
       default: (currentParsedArgs) => {
         // Dynamic default based on tool selection
@@ -76,6 +76,8 @@ export const createYargsConfig = (yargsInstance) => {
           return 'grok-code-fast-1';
         } else if (currentParsedArgs?.tool === 'codex') {
           return 'gpt-5';
+        } else if (currentParsedArgs?.tool === 'openai') {
+          return 'gpt-4o';
         }
         return 'sonnet';
       }

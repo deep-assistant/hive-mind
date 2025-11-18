@@ -6,9 +6,7 @@ if (typeof globalThis.use === 'undefined') {
   globalThis.use = (await eval(await (await fetch('https://unpkg.com/use-m/use.js')).text())).use;
 }
 
-const fs = (await use('fs')).promises;
-const path = (await use('path')).default;
-const os = (await use('os')).default;
+// Note: No filesystem operations are needed here; keep deps minimal
 
 import { log } from './lib.mjs';
 import { reportError } from './sentry.lib.mjs';
@@ -285,4 +283,3 @@ export default {
   executeOpenAI,
   checkForUncommittedChanges
 };
-
