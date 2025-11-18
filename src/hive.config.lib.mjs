@@ -100,7 +100,7 @@ export const createYargsConfig = (yargsInstance) => {
       type: 'string',
       description: 'AI tool to use for solving issues',
       choices: ['claude', 'opencode'],
-      default: 'claude'
+      default: 'opencode'
     })
     .option('verbose', {
       type: 'boolean',
