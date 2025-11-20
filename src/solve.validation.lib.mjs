@@ -237,6 +237,14 @@ export const performSystemChecks = async (minDiskSpace = 500, skipTool = false, 
         await log('❌ Cannot proceed without Codex connection', { level: 'error' });
         return false;
       }
+    } else if (argv.tool === 'kimi') {
+      // Validate Kimi CLI connection
+      const kimiLib = await import('./kimi.lib.mjs');
+      isToolConnected = await kimiLib.validateKimiConnection(model);
+      if (!isToolConnected) {
+        await log('❌ Cannot proceed without Kimi CLI connection', { level: 'error' });
+        return false;
+      }
     } else {
       // Validate Claude CLI connection (default)
       const isClaudeConnected = await validateClaudeConnection(model);

@@ -115,6 +115,9 @@ if (argv.tool === 'opencode') {
 } else if (argv.tool === 'codex') {
   const codexLib = await import('./codex.lib.mjs');
   checkForUncommittedChanges = codexLib.checkForUncommittedChanges;
+} else if (argv.tool === 'kimi') {
+  const kimiLib = await import('./kimi.lib.mjs');
+  checkForUncommittedChanges = kimiLib.checkForUncommittedChanges;
 } else {
   checkForUncommittedChanges = claudeLib.checkForUncommittedChanges;
 }
@@ -769,6 +772,34 @@ try {
       formatAligned,
       getResourceSnapshot,
       codexPath,
+      $
+    });
+  } else if (argv.tool === 'kimi') {
+    const kimiLib = await import('./kimi.lib.mjs');
+    const { executeKimi } = kimiLib;
+    const kimiPath = process.env.KIMI_PATH || 'kimi';
+
+    toolResult = await executeKimi({
+      issueUrl,
+      issueNumber,
+      prNumber,
+      prUrl,
+      branchName,
+      tempDir,
+      isContinueMode,
+      mergeStateStatus,
+      forkedRepo,
+      feedbackLines,
+      forkActionsUrl,
+      owner,
+      repo,
+      argv,
+      log,
+      setLogFile,
+      getLogFile,
+      formatAligned,
+      getResourceSnapshot,
+      kimiPath,
       $
     });
   } else {
