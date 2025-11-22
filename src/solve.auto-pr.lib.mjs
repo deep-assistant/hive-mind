@@ -212,13 +212,13 @@ Proceed.`;
 
     await log(formatAligned('📝', 'Creating commit:', `With ${commitFileName} file`));
     const commitMessage = commitFileName === 'CLAUDE.md'
-      ? `Initial commit with task details for issue #${issueNumber}
+      ? `Initial commit with task details
 
 Adding CLAUDE.md with task information for AI processing.
 This file will be removed when the task is complete.
 
 Issue: ${issueUrl}`
-      : `Initial commit with task details for issue #${issueNumber}
+      : `Initial commit with task details
 
 Adding .gitkeep for PR creation (CLAUDE.md is in .gitignore).
 This file will be removed when the task is complete.
@@ -805,7 +805,7 @@ Issue: ${issueUrl}`;
 
         const prBody = `## 🤖 AI-Powered Solution Draft
 
-This pull request is being automatically generated to solve issue ${issueRef}.
+This pull request is being automatically generated to solve the reported issue.
 
 ### 📋 Issue Reference
 Fixes ${issueRef}
